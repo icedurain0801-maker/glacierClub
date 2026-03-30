@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>设置页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+        .phone-shell {
+            width: 360px;
+            height: 720px;
+            border: 16px solid #333;
+            border-top-width: 40px;
+            border-bottom-width: 50px;
+            border-radius: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.25);
+            background: #fff;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .note-panel {
+            width: 320px;
+            background: #fffacd;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 2px 4px 12px rgba(0,0,0,.1);
+            position: relative;
+            margin-top: 20px;
+        }
+        .note-panel::before {
+            content: "";
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 0;
+            border-top: 15px solid #fffacd;
+            border-bottom: 0;
+            right: 20px;
+            top: -17px;
+            filter: drop-shadow(-1px 1px 1px rgba(0,0,0,.1));
+        }
+        .note-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ffd700;
+        }
+        .note-section {
+            margin-bottom: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .note-section-title {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 4px;
+        }
+        .note-content {
+            color: #666;
+            margin-left: 4px;
+        }
+        .note-item {
+            margin: 4px 0;
+            padding-left: 12px;
+            border-left: 2px solid #ffc107;
+            color: #555;
+        }
+        .phone-shell::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 10px;
+            width: 60px;
+            height: 6px;
+            margin-left: -30px;
+            background: #666;
+            border-radius: 3px;
+        }
+        .phone-shell::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: 12px;
+            width: 50px;
+            height: 50px;
+            margin-left: -25px;
+            border: 2px solid #666;
+            border-radius: 50%;
+        }
+        .screen {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+            padding: 16px 12px 24px;
+            background: #f8f8f8;
+        }
+        .top-bar {
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            margin: 8px 0 6px;
+            color: #333;
+        }
+        .subtitle {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .item-row {
+            background: #fff;
+            height: 48px;
+            border-bottom: 1px solid #ebeef0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14px;
+            font-size: 14px;
+            color: #333;
+        }
+        .item-row + .item-row {
+            margin-top: 0;
+        }
+        .text {
+            color: #333;
+        }
+        .tip {
+            margin: 10px 14px 4px;
+            font-size: 12px;
+            color: #999;
+        }
+        .section-title {
+            margin: 12px 14px 4px;
+            font-size: 13px;
+            color: #666;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 30px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #1a73e8;
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="phone-shell">
+            <div class="screen">
+                <div class="top-bar">推送设置</div>
+                <div class="subtitle">打开后将推送相应类型信息</div>
+                <div class="item-row">
+                    <div class="text">有人回复我</div>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="item-row">
+                    <div class="text">有人赞了我</div>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="tip">关闭后双方均不能互发私信</div>
+                <div class="item-row">
+                    <div class="text">私信开关</div>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="section-title">微信推送通知</div>
+                <div class="item-row">
+                    <div class="text">开奖通知</div>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="item-row">
+                    <div class="text">站内信提醒</div>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+            </div>
+        </div>
+        <div class="note-panel">
+            <div class="note-title">✎ 需求说明</div>
+            <div class="note-section">
+                <div class="note-section-title">功能概述</div>
+                <div class="note-content">在推送设置页新增"微信推送通知"模块，细化消息推送类型</div>
+            </div>
+            <div class="note-section">
+                <div class="note-section-title">新增字段</div>
+                <div class="note-item"><strong>开奖通知</strong> - 开奖结果消息提醒</div>
+                <div class="note-item"><strong>站内信提醒</strong> - 站内消息接收提醒</div>
+            </div>
+            <div class="note-section">
+                <div class="note-section-title">默认值</div>
+                <div class="note-item">开奖通知：<strong>开启</strong></div>
+                <div class="note-item">站内信提醒：<strong>开启</strong></div>
+            </div>
+            <div class="note-section">
+                <div class="note-section-title">位置</div>
+                <div class="note-content">放在"私信开关"下方</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
