@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>徽章墙 - 原型文档</title>
+<link rel="stylesheet" href="../../../shared/sidebar.css">
+<style>
+/* ============================================================
+   全局 & 布局
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f0f4f8;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+/* 整体容器 */
+.page-wrapper {
+  display: flex;
+  width: fit-content;
+  min-height: 100vh;
+}
+
+/* 中间：手机预览区 — 固定 375×667，多余内容内部滚动 */
+.phone-shell {
+  flex-shrink: 0;
+  width: 375px;
+  height: 667px;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  background: #fff;
+  box-shadow: 2px 0 16px rgba(0,0,0,0.10);
+  margin: 20px 0 20px 24px;
+  border-radius: 8px;
+}
+
+/* 右侧：文档说明区 */
+.doc-panel {
+  flex: 1;
+  min-width: 300px;
+  max-width: 480px;
+  background: #fff;
+  border-left: 1px solid #e8ecf0;
+  padding: 28px 24px;
+  overflow-y: auto;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  margin-left: 24px;
+}
+
+/* 每个页面的文档容器 */
+.doc-panel-inner { display: none; }
+.doc-panel-inner.active { display: block; }
+
+/* 页面标题行 */
+.doc-page-title {
+  font-size: 16px; font-weight: 700; color: #1a2233;
+  margin-bottom: 4px;
+}
+.doc-page-sub {
+  font-size: 12px; color: #aaa; margin-bottom: 16px;
+}
+
+/* 版本块 */
+.doc-version-block {
+  border: 1px solid #e8ecf0;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+/* 版本头（可折叠） */
+.doc-version-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer;
+  background: #fff;
+  user-select: none;
+  transition: background 0.15s;
+}
+.doc-version-hd:hover { background: #f5fbfe; }
+.doc-version-hd.is-latest { background: #eaf6fd; }
+
+.doc-version-num {
+  font-size: 13px; font-weight: 700; color: #1a2233;
+}
+.doc-version-date {
+  font-size: 11px; color: #aaa; margin-left: 4px;
+}
+.doc-version-badge {
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: #3ab4e8; border-radius: 8px;
+  padding: 1px 7px; margin-left: 4px;
+}
+.doc-version-arrow {
+  margin-left: auto; font-size: 12px; color: #bbb;
+  transition: transform 0.2s;
+}
+.doc-version-block.open .doc-version-arrow { transform: rotate(180deg); }
+
+/* 版本内容 */
+.doc-version-body {
+  display: none; padding: 12px 14px 16px;
+  border-top: 1px solid #e8ecf0; background: #fafcfe;
+}
+.doc-version-block.open .doc-version-body { display: block; }
+
+/* 内容区段 */
+.doc-section { margin-bottom: 16px; }
+.doc-section:last-child { margin-bottom: 0; }
+.doc-section-title {
+  font-size: 12px; font-weight: 600; color: #3ab4e8;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+}
+.doc-section-title::before {
+  content: ''; width: 3px; height: 12px;
+  background: #3ab4e8; border-radius: 2px; flex-shrink: 0;
+}
+.doc-section p { font-size: 12px; color: #555; line-height: 1.8; }
+.doc-section ul { padding-left: 15px; }
+.doc-section ul li { font-size: 12px; color: #555; line-height: 1.9; }
+.doc-note {
+  background: #f0f2f5; border-left: 3px solid #d0d4da;
+  padding: 7px 10px; border-radius: 0 6px 6px 0;
+  font-size: 11px; color: #888; line-height: 1.7; margin-top: 6px;
+}
+.doc-tag {
+  display: inline-block; background: #eaf6fd; color: #3ab4e8;
+  font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  margin: 2px 2px 2px 0; font-weight: 500;
+}
+.doc-tag.orange { background: #fff3e0; color: #ff9500; }
+.doc-tag.green  { background: #e6faf0; color: #2ec87a; }
+
+/* ============================================================
+   手机内容区 —— 沿用原来所有样式
+   ============================================================ */
+.phone-shell .screen {
+  display: none; height: 667px; flex-direction: column;
+  background: #f5f8fc; overflow: hidden;
+}
+.phone-shell .screen.active { display: flex; }
+
+/* SCREEN 1 */
+#s1 { background: #f0f6fb; }
+.s1-header {
+  background: linear-gradient(180deg, #3ab4e8 0%, #5ec8f0 40%, #c8e8f8 80%, #eaf4fb 100%);
+  padding-bottom: 12px;
+}
+.top-nav { display: flex; align-items: center; padding: 44px 16px 0; }
+.btn-back { color: white; font-size: 22px; line-height: 1; cursor: pointer; width: 28px; flex-shrink: 0; }
+.top-nav-tabs { flex: 1; display: flex; justify-content: center; gap: 28px; }
+.top-nav-tab { color: rgba(255,255,255,0.75); font-size: 15px; padding: 6px 0; cursor: pointer; position: relative; }
+.top-nav-tab.active { color: #fff; font-weight: 600; }
+.top-nav-tab.active::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px; background: white; border-radius: 1px;
+}
+.user-row { display: flex; align-items: center; padding: 10px 16px 0; gap: 10px; }
+.user-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.8); background: #ffd580;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; overflow: hidden; flex-shrink: 0;
+}
+.user-name { color: white; font-size: 15px; font-weight: 600; }
+.badge-count-btn {
+  margin-left: auto; color: rgba(255,255,255,0.95);
+  font-size: 12px; display: flex; align-items: center; gap: 2px;
+  cursor: pointer; white-space: nowrap;
+}
+.display-card {
+  margin: 10px 12px 0; background: white;
+  border-radius: 12px; padding: 12px 14px 14px;
+}
+.display-card-hd {
+  font-size: 13px; color: #333; font-weight: 500;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
+}
+.edit-btn { color: #3ab4e8; cursor: pointer; font-size: 13px; }
+.hex-row { display: flex; gap: 16px; }
+.hex-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; }
+.hex-slot:active .hexagon { opacity: 0.7; }
+.hexagon {
+  width: 62px; height: 62px; background: #d6eef8;
+  clip-path: polygon(50% 0%,93.3% 25%,93.3% 75%,50% 100%,6.7% 75%,6.7% 25%);
+  display: flex; align-items: center; justify-content: center;
+  color: #5abfe8; font-size: 26px; font-weight: 300; transition: opacity 0.15s;
+}
+.hex-label { font-size: 11px; color: #999; }
+.cat-bar {
+  background: white; display: flex; align-items: center;
+  padding: 7px 12px; gap: 6px; border-bottom: 1px solid #f0f0f0;
+}
+.cat-btn { font-size: 13px; color: #666; padding: 4px 12px; border-radius: 14px; cursor: pointer; transition: all 0.2s; }
+.cat-btn.active { background: #3ab4e8; color: white; font-weight: 500; }
+.badge-body { flex: 1; overflow-y: auto; background: white; padding: 0 14px 16px; min-height: 0; }
+.section-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 0 10px; font-size: 14px; font-weight: 600; color: #222;
+}
+.section-hd::before { content: ''; width: 3px; height: 15px; background: #3ab4e8; border-radius: 2px; flex-shrink: 0; }
+.section-hd .count { color: #3ab4e8; font-weight: 700; }
+.badge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 0; padding-bottom: 8px; }
+.badge-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; cursor: pointer; }
+.badge-cell:active { opacity: 0.75; }
+.badge-wrap { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+.pent {
+  width: 72px; height: 72px;
+  clip-path: polygon(50% 0%, 97% 34%, 79% 97%, 21% 97%, 3% 34%);
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+}
+.circ { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+.bg-gray { background: linear-gradient(145deg, #d4d4d4 0%, #b0b0b0 100%); }
+.bg-earned { background: linear-gradient(145deg, #c89850 0%, #7a5020 60%, #4a3010 100%); }
+.upgrade-tag {
+  position: absolute; top: 0; right: 0;
+  background: #ff9500; color: white;
+  font-size: 10px; padding: 2px 5px; border-radius: 8px; white-space: nowrap; font-weight: 500;
+}
+/* 礼包icon — 左上角 */
+.gift-tag {
+  position: absolute; top: 0; left: 0;
+  width: 20px; height: 20px;
+  background: #ff6b35;
+  border-radius: 0 0 8px 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; line-height: 1;
+}
+.badge-label { font-size: 12px; color: #555; text-align: center; }
+.about-link { text-align: center; padding: 16px 0 8px; font-size: 13px; color: #3ab4e8; cursor: pointer; }
+
+/* 奖励展示区（徽章详情 & 通知弹窗复用） */
+.reward-area {
+  width: 100%; margin-bottom: 16px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 10px 12px;
+}
+.reward-area-title {
+  font-size: 11px; color: rgba(255,255,255,0.5);
+  margin-bottom: 8px; text-align: center;
+}
+.reward-list {
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+}
+.reward-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-width: 48px;
+}
+.reward-icon {
+  width: 40px; height: 40px; border-radius: 8px;
+  background: rgba(255,255,255,0.12);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; border: 1px solid rgba(255,255,255,0.15);
+}
+.reward-name {
+  font-size: 10px; color: rgba(255,255,255,0.6);
+  text-align: center; white-space: nowrap;
+}
+.reward-qty {
+  font-size: 10px; color: rgba(255,255,255,0.45);
+  text-align: center;
+}
+
+/* SCREEN 2 */
+#s2 { background: #f0f6fb; }
+.simple-hd {
+  background: linear-gradient(180deg, #3ab4e8 0%, #7dcff0 60%, #c8e8f8 100%);
+  padding: 44px 16px 14px; display: flex; align-items: center; flex-shrink: 0;
+}
+.simple-hd .btn-back { color: white; }
+.simple-hd-title { flex: 1; text-align: center; color: white; font-size: 17px; font-weight: 600; margin-right: 28px; }
+.my-count { padding: 16px 16px 12px; font-size: 15px; color: #333; }
+.my-count b { color: #3ab4e8; }
+.my-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 0; padding: 0 14px; }
+
+/* SCREEN 3 */
+#s3 { background: #f0f6fb; }
+.set-body { padding: 16px 14px; }
+.set-section-hd { font-size: 15px; color: #333; font-weight: 500; margin-bottom: 14px; }
+.set-section-hd b { color: #3ab4e8; }
+.hex-row-lg { display: flex; gap: 20px; margin-bottom: 6px; }
+.hex-lg {
+  width: 72px; height: 72px; background: #cde9f7;
+  clip-path: polygon(50% 0%,93.3% 25%,93.3% 75%,50% 100%,6.7% 75%,6.7% 25%);
+  display: flex; align-items: center; justify-content: center;
+  color: #5abfe8; font-size: 28px; font-weight: 300;
+}
+.divider { height: 1px; background: #e8ecf0; margin: 14px 0; }
+.select-hint { font-size: 13px; color: #888; margin-bottom: 12px; }
+.sel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 0; }
+
+/* SCREEN 4 */
+#s4 {
+  background: radial-gradient(ellipse 120% 60% at 50% 30%, #1a4060 0%, #0d2535 40%, #060e18 100%);
+  position: relative; overflow: hidden;
+}
+#s4::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 200px; height: 300px;
+  background: linear-gradient(180deg, rgba(80,180,255,0.15) 0%, transparent 100%);
+  clip-path: polygon(40% 0%, 60% 0%, 100% 100%, 0% 100%);
+  pointer-events: none;
+}
+.detail-nav { padding: 44px 16px 0; display: flex; align-items: center; position: relative; z-index: 1; }
+.detail-nav .btn-back { color: rgba(255,255,255,0.9); font-size: 24px; }
+.detail-stage {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 20px 24px 48px; position: relative; z-index: 1;
+  overflow-y: auto; min-height: 0;
+}
+.detail-badges-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 28px; }
+.d-badge-side { opacity: 0.3; }
+.detail-date { font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 10px; }
+.detail-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.detail-badge-name { font-size: 20px; font-weight: 700; color: white; }
+.rarity { background: #2ec87a; color: white; font-size: 11px; padding: 2px 7px; border-radius: 9px; }
+.detail-desc { font-size: 14px; color: rgba(255,255,255,0.75); margin-bottom: 36px; text-align: center; line-height: 1.5; }
+.detail-desc em { font-style: normal; color: white; font-weight: 500; }
+.wear-btn {
+  background: #3ab4e8; color: white; border: none;
+  border-radius: 25px; padding: 14px 0;
+  font-size: 16px; font-weight: 500; width: 260px; cursor: pointer; transition: opacity 0.2s;
+}
+.wear-btn:active { opacity: 0.8; }
+
+/* ===================== SCREEN 5: 通知弹窗 ===================== */
+#s5 { background: #f0f6fb; position: relative; }
+.notify-bg { flex-shrink: 0; }
+.notify-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+}
+.notify-card {
+  background: white; border-radius: 16px;
+  width: 300px; padding: 28px 20px 20px;
+  display: flex; flex-direction: column; align-items: center;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+.notify-close {
+  position: absolute; top: 10px; right: 12px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #f0f0f0; color: #888;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer; font-weight: 600;
+}
+.notify-congrats {
+  font-size: 18px; font-weight: 700; color: #ff6b35;
+  margin-bottom: 14px;
+}
+.notify-badge-wrap { margin-bottom: 14px; }
+.notify-name-row {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 6px;
+}
+.notify-badge-name { font-size: 16px; font-weight: 700; color: #1a2233; }
+.notify-rarity {
+  font-size: 11px; padding: 2px 7px; border-radius: 9px; font-weight: 500;
+}
+.notify-rarity.rare { background: #fff3e0; color: #ff9500; }
+.notify-rarity.normal { background: #e6faf0; color: #2ec87a; }
+.notify-cond { font-size: 12px; color: #aaa; margin-bottom: 12px; text-align: center; }
+
+/* 奖励区（亮色版，通知弹窗用） */
+.notify-reward-area {
+  width: 100%; background: #f8f9fa; border-radius: 10px;
+  padding: 10px 8px; margin-bottom: 16px;
+}
+.notify-reward-list {
+  display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;
+}
+.notify-reward-item {
+  display: flex; align-items: center; gap: 4px;
+  background: #fff0e6; border-radius: 20px;
+  padding: 4px 8px;
+}
+.notify-reward-icon { font-size: 14px; }
+.notify-reward-name { font-size: 11px; color: #e06200; font-weight: 500; }
+
+.notify-detail-btn {
+  width: 100%; border: 1.5px solid #ddd; background: white;
+  border-radius: 22px; padding: 11px 0;
+  font-size: 14px; color: #555; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.notify-detail-btn:hover { border-color: #3ab4e8; color: #3ab4e8; }
+
+/* ===================== SCREEN 6: 角色信息确认 ===================== */
+#s6 { background: #f5f8fc; }
+.role-body { flex: 1; padding: 20px 16px; }
+.role-form {
+  background: white; border-radius: 12px; padding: 20px 16px;
+}
+.role-field { margin-bottom: 14px; }
+.role-label {
+  font-size: 13px; color: #333; font-weight: 500; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 4px;
+}
+.role-required { color: #ff4d4f; font-size: 13px; }
+.role-select {
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid #e0e6ed; border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; color: #333;
+  cursor: pointer; background: #fafbfc;
+}
+.role-hint {
+  font-size: 12px; color: #aaa; text-align: center;
+  margin: 14px 0 20px;
+}
+.role-confirm-btn {
+  width: 100%; background: #3ab4e8; color: white; border: none;
+  border-radius: 8px; padding: 13px 0;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  letter-spacing: 4px; transition: opacity 0.2s;
+}
+.role-confirm-btn:active { opacity: 0.85; }
+
+/* 响应式：小屏隐藏文档区 */
+@media (max-width: 768px) {
+  .doc-panel { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- ============ 侧边导航栏（通用） ============ -->
+  <nav id="sidebar" class="sidebar"></nav>
+
+  <!-- ============ 左侧：手机原型 ============ -->
+  <div class="phone-shell">
+
+    <!-- SCREEN 1: 徽章墙 -->
+    <div class="screen active" id="s1">
+      <div class="s1-header">
+        <div class="top-nav">
+          <div class="btn-back">‹</div>
+          <div class="top-nav-tabs">
+            <div class="top-nav-tab">头像框</div>
+            <div class="top-nav-tab">个人背景</div>
+            <div class="top-nav-tab active">徽章墙</div>
+          </div>
+        </div>
+        <div class="user-row">
+          <div class="user-avatar">🧒</div>
+          <div class="user-name">玩家139736218</div>
+          <div class="badge-count-btn" id="goto-my-badges">
+            共获得 1 个徽章
+            <svg width="12" height="12" viewBox="0 0 12 12"><path d="M4.5 2L8.5 6L4.5 10" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        <div class="display-card">
+          <div class="display-card-hd">
+            设置我的徽章展示
+            <span class="edit-btn" id="goto-set-display">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5L11.5 4.5L5 11H3V9L9.5 2.5Z" stroke="#3ab4e8" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <div class="hex-row">
+            <div class="hex-slot" data-goto="set"><div class="hexagon">＋</div><div class="hex-label">添加徽章</div></div>
+            <div class="hex-slot" data-goto="set"><div class="hexagon">＋</div><div class="hex-label">添加徽章</div></div>
+            <div class="hex-slot" data-goto="set"><div class="hexagon">＋</div><div class="hex-label">添加徽章</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="cat-bar">
+        <div class="cat-btn active" data-section="sec-active">活跃成就</div>
+        <div class="cat-btn" data-section="sec-social">社交影响</div>
+        <div class="cat-btn" data-section="sec-spread">互动传播</div>
+      </div>
+      <div class="badge-body" id="badge-scroll">
+        <div id="sec-active">
+          <div class="section-hd">活跃成就 <span class="count">1</span>/30</div>
+          <div class="badge-grid">
+            <div class="badge-cell" data-name="花式点赞" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">👍</div><div class="gift-tag">🎁</div></div><div class="badge-label">花式点赞</div></div>
+            <div class="badge-cell" data-name="捧场专家" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">💬</div></div><div class="badge-label">捧场专家</div></div>
+            <div class="badge-cell" data-name="笔耕不辍" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">✏️</div></div><div class="badge-label">笔耕不辍</div></div>
+            <div class="badge-cell" data-name="星之收藏者" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">⭐</div><div class="gift-tag">🎁</div></div><div class="badge-label">星之收藏者</div></div>
+            <div class="badge-cell" data-name="准时上线" data-earned="1"><div class="badge-wrap"><div class="pent bg-earned">🚀</div><div class="upgrade-tag">可升级</div><div class="gift-tag">🎁</div></div><div class="badge-label">准时上线</div></div>
+            <div class="badge-cell" data-name="超能待机王" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">🚢</div></div><div class="badge-label">超能待机王</div></div>
+          </div>
+        </div>
+        <div id="sec-social">
+          <div class="section-hd">社交影响 <span class="count">0</span>/10</div>
+          <div class="badge-grid">
+            <div class="badge-cell" data-name="赞爆了" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">👍</div></div><div class="badge-label">赞爆了</div></div>
+            <div class="badge-cell" data-name="超能偶像" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">👑</div></div><div class="badge-label">超能偶像</div></div>
+          </div>
+        </div>
+        <div id="sec-spread">
+          <div class="section-hd">互动传播 <span class="count">0</span>/10</div>
+          <div class="badge-grid">
+            <div class="badge-cell" data-name="引流之主" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">↩️</div></div><div class="badge-label">引流之主</div></div>
+            <div class="badge-cell" data-name="关注你了" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">❤️</div></div><div class="badge-label">关注你了</div></div>
+          </div>
+        </div>
+        <div class="about-link">关于徽章</div>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: 我的徽章 -->
+    <div class="screen" id="s2">
+      <div class="simple-hd">
+        <div class="btn-back" data-back="s1">‹</div>
+        <div class="simple-hd-title">我的徽章</div>
+      </div>
+      <div class="my-count">共获得 <b>1</b> 枚徽章</div>
+      <div class="my-grid">
+        <div class="badge-cell" data-name="准时上线" data-earned="1" style="padding:10px 4px;">
+          <div class="badge-wrap"><div class="pent bg-earned">🚀</div><div class="upgrade-tag">可升级</div></div>
+          <div class="badge-label" style="color:#3ab4e8;">准时上线</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 3: 设置徽章展示 -->
+    <div class="screen" id="s3">
+      <div class="simple-hd">
+        <div class="btn-back" data-back="s1">‹</div>
+        <div class="simple-hd-title">设置徽章展示</div>
+      </div>
+      <div class="set-body">
+        <div class="set-section-hd">展示的徽章 <b>0</b>/3</div>
+        <div class="hex-row-lg">
+          <div class="hex-lg">＋</div>
+          <div class="hex-lg">＋</div>
+          <div class="hex-lg">＋</div>
+        </div>
+        <div class="divider"></div>
+        <div class="select-hint">点击下方徽章选择</div>
+        <div class="sel-grid">
+          <div class="badge-cell" data-name="准时上线" data-earned="1" style="padding:10px 4px;">
+            <div class="badge-wrap"><div class="pent bg-earned">🚀</div><div class="upgrade-tag">可升级</div></div>
+            <div class="badge-label" style="color:#3ab4e8;">准时上线</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 4: 徽章详情 -->
+    <div class="screen" id="s4">
+      <div class="detail-nav">
+        <div class="btn-back" id="detail-back">‹</div>
+      </div>
+      <div class="detail-stage">
+        <div class="detail-badges-row">
+          <div class="d-badge-side"><div class="pent bg-gray" style="width:60px;height:60px;font-size:22px;">⭐</div></div>
+          <div class="d-badge-main"><div class="pent bg-earned" id="detail-icon" style="width:96px;height:96px;font-size:40px;">🚀</div></div>
+          <div class="d-badge-side"><div class="pent bg-gray" style="width:60px;height:60px;font-size:22px;">💬</div></div>
+        </div>
+        <div class="detail-date">2026-04-03 17:58:09 获得</div>
+        <div class="detail-name-row">
+          <div class="detail-badge-name" id="detail-name">准时上线</div>
+          <div class="rarity">普通</div>
+        </div>
+        <div class="detail-desc">在社区内【<em>连续登录</em>】3天</div>
+        <!-- 奖励展示区：最多5个（游戏道具+头像框） -->
+        <div class="reward-area">
+          <div class="reward-area-title">达成可获得</div>
+          <div class="reward-list">
+            <div class="reward-item"><div class="reward-icon">💎</div><div class="reward-name">灵石</div><div class="reward-qty">×10</div></div>
+            <div class="reward-item"><div class="reward-icon">🥇</div><div class="reward-name">金锭</div><div class="reward-qty">×5</div></div>
+            <div class="reward-item"><div class="reward-icon">💰</div><div class="reward-name">元宝</div><div class="reward-qty">×3</div></div>
+            <div class="reward-item"><div class="reward-icon">🟢</div><div class="reward-name">丹玉</div><div class="reward-qty">×2</div></div>
+            <div class="reward-item"><div class="reward-icon">🖼️</div><div class="reward-name">深海龙头像</div><div class="reward-qty">×1</div></div>
+          </div>
+        </div>
+        <button class="wear-btn">佩戴徽章</button>
+      </div>
+    </div>
+
+    <!-- SCREEN 5: 徽章获得通知弹窗 -->
+    <div class="screen" id="s5">
+      <!-- 背景页模拟（灰色遮罩） -->
+      <div class="notify-bg">
+        <div class="simple-hd" style="background:linear-gradient(180deg,#3ab4e8 0%,#7dcff0 60%,#c8e8f8 100%);">
+          <div class="btn-back" data-back="s1">‹</div>
+          <div class="simple-hd-title">获得徽章通知弹窗</div>
+        </div>
+      </div>
+      <!-- 弹窗卡片 -->
+      <div class="notify-overlay">
+        <div class="notify-card">
+          <div class="notify-close" id="notify-close">×</div>
+          <div class="notify-congrats">恭喜获得</div>
+          <!-- 徽章大图 -->
+          <div class="notify-badge-wrap">
+            <div style="width:100px;height:100px;background:linear-gradient(145deg,#f5c842 0%,#e09800 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:42px;box-shadow:0 4px 20px rgba(224,152,0,0.5);">🏅</div>
+          </div>
+          <!-- 名称 + 稀有度 -->
+          <div class="notify-name-row">
+            <span class="notify-badge-name">签到达人</span>
+            <span class="notify-rarity rare">珍贵</span>
+          </div>
+          <div class="notify-cond">在平台签到1次 | 2024/04/11获得</div>
+          <!-- 奖励展示（最多5个，亮色版） -->
+          <div class="notify-reward-area">
+            <div class="notify-reward-list">
+              <div class="notify-reward-item"><div class="notify-reward-icon">💎</div><div class="notify-reward-name">灵石×10</div></div>
+              <div class="notify-reward-item"><div class="notify-reward-icon">🥇</div><div class="notify-reward-name">金锭×5</div></div>
+              <div class="notify-reward-item"><div class="notify-reward-icon">💰</div><div class="notify-reward-name">元宝×3</div></div>
+              <div class="notify-reward-item"><div class="notify-reward-icon">🟢</div><div class="notify-reward-name">丹玉×2</div></div>
+              <div class="notify-reward-item"><div class="notify-reward-icon">🖼️</div><div class="notify-reward-name">深海龙头像×1</div></div>
+            </div>
+          </div>
+          <button class="notify-detail-btn" id="goto-detail-from-notify">查看详情</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 6: 角色信息确认 -->
+    <div class="screen" id="s6">
+      <div class="simple-hd" style="background:linear-gradient(180deg,#3ab4e8 0%,#7dcff0 60%,#c8e8f8 100%);">
+        <div class="btn-back" data-back="s5">‹</div>
+        <div class="simple-hd-title">角色信息确认</div>
+      </div>
+      <div class="role-body">
+        <div class="role-form">
+          <div class="role-field">
+            <div class="role-label">接受角色 <span class="role-required">*</span></div>
+            <div class="role-select">
+              <span>武帝无敌（斗罗一区）</span>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5L7 9L11 5" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+          <div class="role-hint">请仔细确认角色信息，确定后自动到账</div>
+          <button class="role-confirm-btn">确 定</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /phone-shell -->
+
+  <!-- ============ 右侧：文档说明区 ============ -->
+  <div class="doc-panel">
+
+    <!-- 页面1：徽章墙 -->
+    <div class="doc-panel-inner active" id="doc-s1">
+      <div class="doc-page-title">徽章墙</div>
+      <div class="doc-page-sub">个性装扮 · 页面 1/6</div>
+
+      <div class="doc-version-block open">
+        <div class="doc-version-hd is-latest">
+          <span class="doc-version-num">v3.0.9</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-badge">最新</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">本次变更</div>
+            <ul><li>徽章图标左上角新增礼包 icon，标识该徽章达成后可获得道具/头像框奖励</li></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.0.0 -->
+      <div class="doc-version-block">
+        <div class="doc-version-hd">
+          <span class="doc-version-num">v1.0.0</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">页面说明</div>
+            <p>待填写</p>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">功能说明</div>
+            <ul><li>待填写</li></ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">交互说明</div>
+            <ul>
+              <li>点击「共获得 N 个徽章」→ 跳转「我的徽章」页</li>
+              <li>点击编辑图标或任意「添加徽章」→ 跳转「设置徽章展示」页</li>
+              <li>点击任意徽章图标 → 跳转「徽章详情」页</li>
+              <li>顶部分类 Tab → 页面内滚动定位到对应分组</li>
+            </ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">备注</div>
+            <div class="doc-note">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面2：我的徽章 -->
+    <div class="doc-panel-inner" id="doc-s2">
+      <div class="doc-page-title">我的徽章</div>
+      <div class="doc-page-sub">个性装扮 · 页面 2/6</div>
+
+      <div class="doc-version-block">
+        <div class="doc-version-hd">
+          <span class="doc-version-num">v1.0.0</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">页面说明</div>
+            <p>待填写</p>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">功能说明</div>
+            <ul><li>待填写</li></ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">交互说明</div>
+            <ul>
+              <li>点击任意徽章 → 跳转「徽章详情」页</li>
+              <li>点击返回 → 回到「徽章墙」页</li>
+            </ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">备注</div>
+            <div class="doc-note">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面3：设置徽章展示 -->
+    <div class="doc-panel-inner" id="doc-s3">
+      <div class="doc-page-title">设置徽章展示</div>
+      <div class="doc-page-sub">个性装扮 · 页面 3/6</div>
+
+      <div class="doc-version-block">
+        <div class="doc-version-hd">
+          <span class="doc-version-num">v1.0.0</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">页面说明</div>
+            <p>待填写</p>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">功能说明</div>
+            <ul><li>待填写</li></ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">交互说明</div>
+            <ul>
+              <li>点击下方已获得徽章 → 填入上方展示卡槽</li>
+              <li>最多可展示 3 枚</li>
+              <li>点击返回 → 回到「徽章墙」页</li>
+            </ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">备注</div>
+            <div class="doc-note">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面4：徽章详情 -->
+    <div class="doc-panel-inner" id="doc-s4">
+      <div class="doc-page-title">徽章详情</div>
+      <div class="doc-page-sub">个性装扮 · 页面 4/6</div>
+
+      <div class="doc-version-block open">
+        <div class="doc-version-hd is-latest">
+          <span class="doc-version-num">v3.0.9</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-badge">最新</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">本次变更</div>
+            <ul>
+              <li>佩戴徽章按钮上方新增奖励展示区</li>
+              <li>奖励类型包含游戏道具和头像框，最多展示 5 个</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-version-block">
+        <div class="doc-version-hd">
+          <span class="doc-version-num">v1.0.0</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">交互说明</div>
+            <ul>
+              <li>点击「佩戴徽章」→ 将该徽章加入展示位</li>
+              <li>点击返回 → 回到来源页面（我的徽章 / 设置展示 / 徽章墙）</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面5：徽章获得通知 -->
+    <div class="doc-panel-inner" id="doc-s5">
+      <div class="doc-page-title">徽章获得通知</div>
+      <div class="doc-page-sub">个性装扮 · 页面 5/6 · v3.0.9 新增</div>
+
+      <div class="doc-version-block open">
+        <div class="doc-version-hd is-latest">
+          <span class="doc-version-num">v3.0.9</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-badge">最新</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">页面说明</div>
+            <p>待填写</p>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">功能说明</div>
+            <ul>
+              <li>用户达成徽章条件后弹出，展示徽章图片、名称、稀有度、获得条件</li>
+              <li>奖励区展示可获得的道具和头像框，最多 5 个</li>
+            </ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">交互说明</div>
+            <ul>
+              <li>点击 × 关闭弹窗 → 回到徽章墙</li>
+              <li>点击「查看详情」→ 跳转角色信息确认页</li>
+            </ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">备注</div>
+            <div class="doc-note">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面6：角色信息确认 -->
+    <div class="doc-panel-inner" id="doc-s6">
+      <div class="doc-page-title">角色信息确认</div>
+      <div class="doc-page-sub">个性装扮 · 页面 6/6 · v3.0.9 新增</div>
+
+      <div class="doc-version-block open">
+        <div class="doc-version-hd is-latest">
+          <span class="doc-version-num">v3.0.9</span>
+          <span class="doc-version-date">2026-04-07</span>
+          <span class="doc-version-badge">最新</span>
+          <span class="doc-version-arrow">▼</span>
+        </div>
+        <div class="doc-version-body">
+          <div class="doc-section">
+            <div class="doc-section-title">页面说明</div>
+            <p>待填写</p>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">功能说明</div>
+            <ul>
+              <li>用户选择接收奖励的游戏角色</li>
+              <li>确定后道具自动发放到所选角色</li>
+            </ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">交互说明</div>
+            <ul>
+              <li>点击角色下拉 → 展示当前账号绑定的所有角色</li>
+              <li>点击「确定」→ 确认发放，返回上一页</li>
+              <li>点击返回 → 回到通知弹窗页</li>
+            </ul>
+          </div>
+          <div class="doc-section">
+            <div class="doc-section-title">备注</div>
+            <div class="doc-note">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /doc-panel -->
+
+</div><!-- /page-wrapper -->
+
+<script>
+  let fromScreen = 's1';
+
+  function showScreen(id) {
+    // 切换手机页面
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    // 切换文档区
+    document.querySelectorAll('.doc-panel-inner').forEach(d => d.classList.remove('active'));
+    const doc = document.getElementById('doc-' + id);
+    if (doc) doc.classList.add('active');
+// 滚动文档区到顶部
+    document.querySelector('.doc-panel').scrollTop = 0;
+  }
+
+
+  document.getElementById('goto-my-badges').addEventListener('click', () => {
+    fromScreen = 's1'; showScreen('s2');
+  });
+  document.getElementById('goto-set-display').addEventListener('click', () => {
+    fromScreen = 's1'; showScreen('s3');
+  });
+  document.querySelectorAll('.hex-slot[data-goto="set"]').forEach(el => {
+    el.addEventListener('click', () => { fromScreen = 's1'; showScreen('s3'); });
+  });
+  document.querySelectorAll('[data-back]').forEach(el => {
+    el.addEventListener('click', () => showScreen(el.dataset.back));
+  });
+  document.getElementById('detail-back').addEventListener('click', () => showScreen(fromScreen));
+
+  // s5 通知弹窗
+  document.getElementById('notify-close').addEventListener('click', () => showScreen('s1'));
+  document.getElementById('goto-detail-from-notify').addEventListener('click', () => { fromScreen = 's5'; showScreen('s6'); });
+
+  document.querySelectorAll('.badge-cell').forEach(el => {
+    el.addEventListener('click', () => {
+      fromScreen = el.closest('.screen').id;
+      const name = el.dataset.name;
+      const earned = el.dataset.earned === '1';
+      document.getElementById('detail-name').textContent = name;
+      const icon = document.getElementById('detail-icon');
+      icon.textContent = getBadgeIcon(name);
+      icon.className = 'pent ' + (earned ? 'bg-earned' : 'bg-gray');
+      icon.style.cssText = 'width:96px;height:96px;font-size:40px;';
+      showScreen('s4');
+    });
+  });
+
+  document.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = document.getElementById(btn.dataset.section);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // 版本块折叠展开
+  document.querySelectorAll('.doc-version-hd').forEach(hd => {
+    hd.addEventListener('click', () => {
+      hd.closest('.doc-version-block').classList.toggle('open');
+    });
+  });
+
+  function getBadgeIcon(name) {
+    const map = {
+      '花式点赞':'👍','捧场专家':'💬','笔耕不辍':'✏️',
+      '星之收藏者':'⭐','准时上线':'🚀','超能待机王':'🚢',
+      '赞爆了':'👍','超能偶像':'👑','引流之主':'↩️','关注你了':'❤️'
+    };
+    return map[name] || '🏅';
+  }
+</script>
+<script src="../../../shared/sidebar-data.js"></script>
+<script src="../../../shared/sidebar.js"></script>
+<script>
+  initSidebar({
+    root: '../../..',
+    currentHref: 'client/profile/personalization/Badge.html'
+  });
+</script>
+</body>
+</html>
