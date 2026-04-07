@@ -6,6 +6,7 @@
 <title>徽章墙 - 原型文档</title>
 <link rel="stylesheet" href="../../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
 <style>
 /* s4 光晕伪元素 — Tailwind 不支持伪元素 clip-path */
 #s4::before {
@@ -69,26 +70,26 @@
         <div id="sec-active">
           <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>活跃成就 <span class="text-[#3ab4e8] font-bold">1</span>/30</div>
           <div class="grid grid-cols-3 gap-y-1 pb-2">
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="花式点赞" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">👍</div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center text-[11px] leading-none">🎁</div></div><div class="text-xs text-[#555] text-center">花式点赞</div></div>
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="捧场专家" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">💬</div></div><div class="text-xs text-[#555] text-center">捧场专家</div></div>
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="笔耕不辍" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">✏️</div></div><div class="text-xs text-[#555] text-center">笔耕不辍</div></div>
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="星之收藏者" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">⭐</div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center text-[11px] leading-none">🎁</div></div><div class="text-xs text-[#555] text-center">星之收藏者</div></div>
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]">🚀</div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center text-[11px] leading-none">🎁</div></div><div class="text-xs text-[#555] text-center">准时上线</div></div>
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能待机王" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">🚢</div></div><div class="text-xs text-[#555] text-center">超能待机王</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="花式点赞" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-thumb-up text-[28px]"></i></div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center leading-none"><i class="ti ti-gift text-[11px] text-white"></i></div></div><div class="text-xs text-[#555] text-center">花式点赞</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="捧场专家" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-message text-[28px]"></i></div></div><div class="text-xs text-[#555] text-center">捧场专家</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="笔耕不辍" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-pencil text-[28px]"></i></div></div><div class="text-xs text-[#555] text-center">笔耕不辍</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="星之收藏者" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-star text-[28px]"></i></div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center leading-none"><i class="ti ti-gift text-[11px] text-white"></i></div></div><div class="text-xs text-[#555] text-center">星之收藏者</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)] text-white"><i class="ti ti-rocket text-[28px]"></i></div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center leading-none"><i class="ti ti-gift text-[11px] text-white"></i></div></div><div class="text-xs text-[#555] text-center">准时上线</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能待机王" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-ship text-[28px]"></i></div></div><div class="text-xs text-[#555] text-center">超能待机王</div></div>
           </div>
         </div>
         <div id="sec-social">
           <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>社交影响 <span class="text-[#3ab4e8] font-bold">0</span>/10</div>
           <div class="grid grid-cols-3 gap-y-1 pb-2">
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="赞爆了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">👍</div></div><div class="text-xs text-[#555] text-center">赞爆了</div></div>
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能偶像" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">👑</div></div><div class="text-xs text-[#555] text-center">超能偶像</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="赞爆了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-thumb-up text-[28px]"></i></div></div><div class="text-xs text-[#555] text-center">赞爆了</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能偶像" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-crown text-[28px]"></i></div></div><div class="text-xs text-[#555] text-center">超能偶像</div></div>
           </div>
         </div>
         <div id="sec-spread">
           <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>互动传播 <span class="text-[#3ab4e8] font-bold">0</span>/10</div>
           <div class="grid grid-cols-3 gap-y-1 pb-2">
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="引流之主" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">↩️</div></div><div class="text-xs text-[#555] text-center">引流之主</div></div>
-            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="关注你了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">❤️</div></div><div class="text-xs text-[#555] text-center">关注你了</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="引流之主" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-share text-[28px]"></i></div></div><div class="text-xs text-[#555] text-center">引流之主</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="关注你了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-heart text-[28px]"></i></div></div><div class="text-xs text-[#555] text-center">关注你了</div></div>
           </div>
         </div>
         <div class="text-center py-4 text-[13px] text-[#3ab4e8] cursor-pointer">关于徽章</div>
@@ -104,7 +105,7 @@
       <div class="px-4 pt-4 pb-3 text-[15px] text-[#333]">共获得 <b class="text-[#3ab4e8]">1</b> 枚徽章</div>
       <div class="grid grid-cols-3 gap-y-1 px-3.5">
         <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1">
-          <div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]">🚀</div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div></div>
+          <div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)] text-white"><i class="ti ti-rocket text-[28px]"></i></div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div></div>
           <div class="text-xs text-[#3ab4e8] text-center">准时上线</div>
         </div>
       </div>
@@ -127,7 +128,7 @@
         <div class="text-[13px] text-[#888] mb-3">点击下方徽章选择</div>
         <div class="grid grid-cols-3 gap-y-1">
           <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1">
-            <div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]">🚀</div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div></div>
+            <div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)] text-white"><i class="ti ti-rocket text-[28px]"></i></div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div></div>
             <div class="text-xs text-[#3ab4e8] text-center">准时上线</div>
           </div>
         </div>
@@ -141,9 +142,9 @@
       </div>
       <div class="flex-1 flex flex-col items-center justify-center px-6 pb-12 relative z-10 overflow-y-auto min-h-0">
         <div class="flex items-center justify-center gap-3 mb-7">
-          <div class="opacity-30"><div class="w-[60px] h-[60px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[22px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">⭐</div></div>
-          <div><div class="w-24 h-24 [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[40px] bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]" id="detail-icon">🚀</div></div>
-          <div class="opacity-30"><div class="w-[60px] h-[60px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[22px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">💬</div></div>
+          <div class="opacity-30"><div class="w-[60px] h-[60px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-star text-[22px]"></i></div></div>
+          <div><div class="w-24 h-24 [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)] text-white" id="detail-icon"><i class="ti ti-rocket text-[38px]"></i></div></div>
+          <div class="opacity-30"><div class="w-[60px] h-[60px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><i class="ti ti-message text-[22px]"></i></div></div>
         </div>
         <div class="text-[13px] text-white/60 mb-2.5">2026-04-03 17:58:09 获得</div>
         <div class="flex items-center gap-2 mb-2">
@@ -155,11 +156,11 @@
         <div class="w-full mb-4 bg-white/[0.08] rounded-xl px-3 py-2.5">
           <div class="text-[11px] text-white/50 mb-2 text-center">达成可获得</div>
           <div class="flex justify-center gap-2 flex-wrap">
-            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center text-xl border border-white/15">💎</div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">灵石</div><div class="text-[10px] text-white/45 text-center">×10</div></div>
-            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center text-xl border border-white/15">🥇</div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">金锭</div><div class="text-[10px] text-white/45 text-center">×5</div></div>
-            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center text-xl border border-white/15">💰</div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">元宝</div><div class="text-[10px] text-white/45 text-center">×3</div></div>
-            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center text-xl border border-white/15">🟢</div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">丹玉</div><div class="text-[10px] text-white/45 text-center">×2</div></div>
-            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center text-xl border border-white/15">🖼️</div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">深海龙头像</div><div class="text-[10px] text-white/45 text-center">×1</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15 text-white"><i class="ti ti-diamond text-xl"></i></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">灵石</div><div class="text-[10px] text-white/45 text-center">×10</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15 text-white"><i class="ti ti-medal text-xl"></i></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">金锭</div><div class="text-[10px] text-white/45 text-center">×5</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15 text-white"><i class="ti ti-coin text-xl"></i></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">元宝</div><div class="text-[10px] text-white/45 text-center">×3</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15 text-white"><i class="ti ti-circle-dot text-xl"></i></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">丹玉</div><div class="text-[10px] text-white/45 text-center">×2</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15 text-white"><i class="ti ti-photo text-xl"></i></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">深海龙头像</div><div class="text-[10px] text-white/45 text-center">×1</div></div>
           </div>
         </div>
         <button class="bg-[#3ab4e8] text-white border-none rounded-[25px] py-3.5 text-base font-medium w-[260px] cursor-pointer transition-opacity active:opacity-80">佩戴徽章</button>
@@ -182,7 +183,7 @@
           <div class="text-lg font-bold text-[#ff6b35] mb-3.5">恭喜获得</div>
           <!-- 徽章大图 -->
           <div class="mb-3.5">
-            <div class="w-[100px] h-[100px] rounded-full bg-[linear-gradient(145deg,#f5c842_0%,#e09800_100%)] flex items-center justify-center text-[42px] shadow-[0_4px_20px_rgba(224,152,0,0.5)]">🏅</div>
+            <div class="w-[100px] h-[100px] rounded-full bg-[linear-gradient(145deg,#f5c842_0%,#e09800_100%)] flex items-center justify-center shadow-[0_4px_20px_rgba(224,152,0,0.5)] text-white"><i class="ti ti-award text-[46px]"></i></div>
           </div>
           <!-- 名称 + 稀有度 -->
           <div class="flex items-center gap-[7px] mb-1.5">
@@ -193,11 +194,11 @@
           <!-- 奖励展示（最多5个，亮色版） -->
           <div class="w-full bg-[#f8f9fa] rounded-xl px-2 py-2.5 mb-4">
             <div class="flex justify-center gap-1.5 flex-wrap">
-              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">💎</div><div class="text-[11px] text-[#e06200] font-medium">灵石×10</div></div>
-              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">🥇</div><div class="text-[11px] text-[#e06200] font-medium">金锭×5</div></div>
-              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">💰</div><div class="text-[11px] text-[#e06200] font-medium">元宝×3</div></div>
-              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">🟢</div><div class="text-[11px] text-[#e06200] font-medium">丹玉×2</div></div>
-              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">🖼️</div><div class="text-[11px] text-[#e06200] font-medium">深海龙头像×1</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><i class="ti ti-diamond text-sm text-[#e06200]"></i><div class="text-[11px] text-[#e06200] font-medium">灵石×10</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><i class="ti ti-medal text-sm text-[#e06200]"></i><div class="text-[11px] text-[#e06200] font-medium">金锭×5</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><i class="ti ti-coin text-sm text-[#e06200]"></i><div class="text-[11px] text-[#e06200] font-medium">元宝×3</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><i class="ti ti-circle-dot text-sm text-[#e06200]"></i><div class="text-[11px] text-[#e06200] font-medium">丹玉×2</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><i class="ti ti-photo text-sm text-[#e06200]"></i><div class="text-[11px] text-[#e06200] font-medium">深海龙头像×1</div></div>
             </div>
           </div>
           <button class="w-full border border-[#ddd] bg-white rounded-[22px] py-[11px] text-sm text-[#555] cursor-pointer transition-colors hover:border-[#3ab4e8] hover:text-[#3ab4e8]" id="goto-detail-from-notify">查看详情</button>
@@ -524,10 +525,11 @@
       const earned = el.dataset.earned === '1';
       document.getElementById('detail-name').textContent = name;
       const icon = document.getElementById('detail-icon');
-      icon.textContent = getBadgeIcon(name);
+      const tiClass = getBadgeIcon(name);
       const earnedGrad = 'bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]';
       const unearnedGrad = 'bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]';
-      icon.className = `w-24 h-24 [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[40px] ${earned ? earnedGrad : unearnedGrad}`;
+      icon.className = `w-24 h-24 [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-white ${earned ? earnedGrad : unearnedGrad}`;
+      icon.innerHTML = `<i class="ti ${tiClass} text-[38px]"></i>`;
       icon.style.cssText = '';
       showScreen('s4');
     });
@@ -556,11 +558,11 @@
 
   function getBadgeIcon(name) {
     const map = {
-      '花式点赞':'👍','捧场专家':'💬','笔耕不辍':'✏️',
-      '星之收藏者':'⭐','准时上线':'🚀','超能待机王':'🚢',
-      '赞爆了':'👍','超能偶像':'👑','引流之主':'↩️','关注你了':'❤️'
+      '花式点赞':'ti-thumb-up','捧场专家':'ti-message','笔耕不辍':'ti-pencil',
+      '星之收藏者':'ti-star','准时上线':'ti-rocket','超能待机王':'ti-ship',
+      '赞爆了':'ti-thumb-up','超能偶像':'ti-crown','引流之主':'ti-share','关注你了':'ti-heart'
     };
-    return map[name] || '🏅';
+    return map[name] || 'ti-award';
   }
 </script>
 <script src="../../../shared/sidebar-data.js"></script>
