@@ -74,7 +74,7 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
       } else if (node.type === 'item') {
         const a = document.createElement('a');
         a.className = 'nav-item';
-        a.href = root + '/' + node.href;
+        a.href = root + '/' + node.href + (node.screenId ? '#' + node.screenId : '');
 
         const dot = document.createElement('span');
         dot.className = 'nav-item-dot';
