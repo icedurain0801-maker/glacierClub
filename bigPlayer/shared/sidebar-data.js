@@ -93,7 +93,26 @@ const SIDEBAR_DATA = [
       {
         type: 'dir',
         label: '社区功能',
-        children: []
+        children: [
+          {
+            type: 'dir',
+            label: '徽章管理',
+            children: [
+              {
+                type: 'item',
+                label: '徽章管理',
+                version: 'v3.0.9',
+                href: 'admin/community/BadgeManage.html'
+              },
+              {
+                type: 'item',
+                label: '徽章分类管理',
+                version: 'v3.0.9',
+                href: 'admin/community/BadgeManage.html'
+              }
+            ]
+          }
+        ]
       },
       {
         type: 'dir',
