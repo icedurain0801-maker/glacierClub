@@ -29,69 +29,69 @@
 
     <!-- SCREEN 1: 徽章墙 -->
     <div class="flex flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s1">
-      <div class="s1-header">
-        <div class="top-nav">
-          <div class="btn-back">‹</div>
-          <div class="top-nav-tabs">
-            <div class="top-nav-tab">头像框</div>
-            <div class="top-nav-tab">个人背景</div>
-            <div class="top-nav-tab active">徽章墙</div>
+      <div class="bg-[linear-gradient(180deg,#3ab4e8_0%,#5ec8f0_40%,#c8e8f8_80%,#eaf4fb_100%)] pb-3 flex-shrink-0">
+        <div class="flex items-center pt-11 px-4">
+          <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0">‹</div>
+          <div class="flex-1 flex justify-center gap-7">
+            <div class="text-white/75 text-[15px] py-1.5 cursor-pointer relative">头像框</div>
+            <div class="text-white/75 text-[15px] py-1.5 cursor-pointer relative">个人背景</div>
+            <div class="text-white font-semibold text-[15px] py-1.5 cursor-pointer relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-white after:rounded-sm">徽章墙</div>
           </div>
         </div>
-        <div class="user-row">
-          <div class="user-avatar">🧒</div>
-          <div class="user-name">玩家139736218</div>
-          <div class="badge-count-btn" id="goto-my-badges">
+        <div class="flex items-center pt-2.5 px-4 gap-2.5">
+          <div class="w-11 h-11 rounded-full border-2 border-white/80 bg-[#ffd580] flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0">🧒</div>
+          <div class="text-white text-[15px] font-semibold">玩家139736218</div>
+          <div class="ml-auto text-white/95 text-xs flex items-center gap-0.5 cursor-pointer whitespace-nowrap" id="goto-my-badges">
             共获得 1 个徽章
             <svg width="12" height="12" viewBox="0 0 12 12"><path d="M4.5 2L8.5 6L4.5 10" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
           </div>
         </div>
-        <div class="display-card">
-          <div class="display-card-hd">
+        <div class="mx-3 mt-2.5 bg-white rounded-xl px-3.5 py-3">
+          <div class="text-[13px] text-[#333] font-medium flex items-center gap-1.5 mb-3">
             设置我的徽章展示
-            <span class="edit-btn" id="goto-set-display">
+            <span class="text-[#3ab4e8] cursor-pointer text-[13px] ml-auto" id="goto-set-display">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5L11.5 4.5L5 11H3V9L9.5 2.5Z" stroke="#3ab4e8" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>
             </span>
           </div>
-          <div class="hex-row">
-            <div class="hex-slot" data-goto="set"><div class="hexagon">＋</div><div class="hex-label">添加徽章</div></div>
-            <div class="hex-slot" data-goto="set"><div class="hexagon">＋</div><div class="hex-label">添加徽章</div></div>
-            <div class="hex-slot" data-goto="set"><div class="hexagon">＋</div><div class="hex-label">添加徽章</div></div>
+          <div class="flex gap-4">
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" data-goto="set"><div class="w-[62px] h-[62px] bg-[#d6eef8] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[26px] font-light">＋</div><div class="text-[11px] text-[#999]">添加徽章</div></div>
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" data-goto="set"><div class="w-[62px] h-[62px] bg-[#d6eef8] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[26px] font-light">＋</div><div class="text-[11px] text-[#999]">添加徽章</div></div>
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" data-goto="set"><div class="w-[62px] h-[62px] bg-[#d6eef8] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[26px] font-light">＋</div><div class="text-[11px] text-[#999]">添加徽章</div></div>
           </div>
         </div>
       </div>
-      <div class="cat-bar">
-        <div class="cat-btn active" data-section="sec-active">活跃成就</div>
-        <div class="cat-btn" data-section="sec-social">社交影响</div>
-        <div class="cat-btn" data-section="sec-spread">互动传播</div>
+      <div class="bg-white flex items-center px-3 py-[7px] gap-1.5 border-b border-[#f0f0f0]">
+        <div class="text-[13px] text-white bg-[#3ab4e8] font-medium px-3 py-1 rounded-[14px] cursor-pointer transition-all" data-section="sec-active">活跃成就</div>
+        <div class="text-[13px] text-[#666] px-3 py-1 rounded-[14px] cursor-pointer transition-all" data-section="sec-social">社交影响</div>
+        <div class="text-[13px] text-[#666] px-3 py-1 rounded-[14px] cursor-pointer transition-all" data-section="sec-spread">互动传播</div>
       </div>
-      <div class="badge-body" id="badge-scroll">
+      <div class="flex-1 overflow-y-auto bg-white px-3.5 pb-4 min-h-0" id="badge-scroll">
         <div id="sec-active">
-          <div class="section-hd">活跃成就 <span class="count">1</span>/30</div>
-          <div class="badge-grid">
-            <div class="badge-cell" data-name="花式点赞" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">👍</div><div class="gift-tag">🎁</div></div><div class="badge-label">花式点赞</div></div>
-            <div class="badge-cell" data-name="捧场专家" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">💬</div></div><div class="badge-label">捧场专家</div></div>
-            <div class="badge-cell" data-name="笔耕不辍" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">✏️</div></div><div class="badge-label">笔耕不辍</div></div>
-            <div class="badge-cell" data-name="星之收藏者" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">⭐</div><div class="gift-tag">🎁</div></div><div class="badge-label">星之收藏者</div></div>
-            <div class="badge-cell" data-name="准时上线" data-earned="1"><div class="badge-wrap"><div class="pent bg-earned">🚀</div><div class="upgrade-tag">可升级</div><div class="gift-tag">🎁</div></div><div class="badge-label">准时上线</div></div>
-            <div class="badge-cell" data-name="超能待机王" data-earned="0"><div class="badge-wrap"><div class="pent bg-gray">🚢</div></div><div class="badge-label">超能待机王</div></div>
+          <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>活跃成就 <span class="text-[#3ab4e8] font-bold">1</span>/30</div>
+          <div class="grid grid-cols-3 gap-y-1 pb-2">
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="花式点赞" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">👍</div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center text-[11px] leading-none">🎁</div></div><div class="text-xs text-[#555] text-center">花式点赞</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="捧场专家" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">💬</div></div><div class="text-xs text-[#555] text-center">捧场专家</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="笔耕不辍" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">✏️</div></div><div class="text-xs text-[#555] text-center">笔耕不辍</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="星之收藏者" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">⭐</div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center text-[11px] leading-none">🎁</div></div><div class="text-xs text-[#555] text-center">星之收藏者</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]">🚀</div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div><div class="absolute top-0 left-0 w-5 h-5 bg-[#ff6b35] rounded-br-lg flex items-center justify-center text-[11px] leading-none">🎁</div></div><div class="text-xs text-[#555] text-center">准时上线</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能待机王" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">🚢</div></div><div class="text-xs text-[#555] text-center">超能待机王</div></div>
           </div>
         </div>
         <div id="sec-social">
-          <div class="section-hd">社交影响 <span class="count">0</span>/10</div>
-          <div class="badge-grid">
-            <div class="badge-cell" data-name="赞爆了" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">👍</div></div><div class="badge-label">赞爆了</div></div>
-            <div class="badge-cell" data-name="超能偶像" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">👑</div></div><div class="badge-label">超能偶像</div></div>
+          <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>社交影响 <span class="text-[#3ab4e8] font-bold">0</span>/10</div>
+          <div class="grid grid-cols-3 gap-y-1 pb-2">
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="赞爆了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">👍</div></div><div class="text-xs text-[#555] text-center">赞爆了</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能偶像" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">👑</div></div><div class="text-xs text-[#555] text-center">超能偶像</div></div>
           </div>
         </div>
         <div id="sec-spread">
-          <div class="section-hd">互动传播 <span class="count">0</span>/10</div>
-          <div class="badge-grid">
-            <div class="badge-cell" data-name="引流之主" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">↩️</div></div><div class="badge-label">引流之主</div></div>
-            <div class="badge-cell" data-name="关注你了" data-earned="0"><div class="badge-wrap"><div class="circ bg-gray">❤️</div></div><div class="badge-label">关注你了</div></div>
+          <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>互动传播 <span class="text-[#3ab4e8] font-bold">0</span>/10</div>
+          <div class="grid grid-cols-3 gap-y-1 pb-2">
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="引流之主" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">↩️</div></div><div class="text-xs text-[#555] text-center">引流之主</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="关注你了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[30px] bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]">❤️</div></div><div class="text-xs text-[#555] text-center">关注你了</div></div>
           </div>
         </div>
-        <div class="about-link">关于徽章</div>
+        <div class="text-center py-4 text-[13px] text-[#3ab4e8] cursor-pointer">关于徽章</div>
       </div>
     </div>
 
