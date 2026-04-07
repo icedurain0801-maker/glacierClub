@@ -1,0 +1,92 @@
+/* ============================================================
+   大玩家 — 通用侧边导航样式
+   ============================================================ */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #1e2736;
+  min-height: 100vh;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-logo {
+  padding: 20px 16px 14px;
+  font-size: 15px; font-weight: 700; color: #fff;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.sidebar-logo .logo-main { color: #fff; }
+.sidebar-logo .logo-tag {
+  font-size: 10px; font-weight: 500;
+  background: rgba(58,180,232,0.2); color: #3ab4e8;
+  padding: 2px 7px; border-radius: 8px;
+}
+
+/* 目录组 */
+.nav-group { padding: 14px 0 4px; }
+
+.nav-group-label {
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 1px;
+  padding: 0 16px 6px;
+}
+
+/* 目录行（可折叠） */
+.nav-dir {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 16px;
+  font-size: 12px; color: rgba(255,255,255,0.5);
+  cursor: pointer; user-select: none;
+  border-radius: 6px; margin: 1px 6px;
+  transition: color 0.15s;
+}
+.nav-dir:hover { color: rgba(255,255,255,0.75); }
+
+.nav-dir-arrow {
+  font-size: 9px; color: rgba(255,255,255,0.25);
+  transition: transform 0.2s; flex-shrink: 0;
+}
+.nav-dir.open > .nav-dir-arrow { transform: rotate(90deg); }
+
+/* 子级缩进 */
+.nav-children { overflow: hidden; }
+.nav-children { padding-left: 10px; }
+.nav-children .nav-children { padding-left: 8px; }
+
+/* 叶节点 */
+.nav-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 10px 7px 14px;
+  font-size: 12px; color: rgba(255,255,255,0.55);
+  cursor: pointer; border-radius: 6px;
+  margin: 1px 6px;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.4; text-decoration: none;
+}
+.nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); }
+.nav-item.active {
+  background: rgba(58,180,232,0.18);
+  color: #3ab4e8; font-weight: 600;
+}
+
+.nav-item-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,0.18); flex-shrink: 0;
+}
+.nav-item.active .nav-item-dot { background: #3ab4e8; }
+
+.nav-version {
+  font-size: 10px; color: rgba(255,255,255,0.25);
+  margin-left: auto; flex-shrink: 0; white-space: nowrap;
+}
+.nav-item.active .nav-version { color: rgba(58,180,232,0.6); }
+
+.nav-item-name { flex: 1; }

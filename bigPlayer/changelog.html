@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档修改记录 - 大玩家</title>
+<link rel="stylesheet" href="shared/sidebar.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f0f4f8;
+  min-height: 100vh;
+  display: flex;
+}
+
+.page-wrapper {
+  display: flex;
+  flex: 1;
+  min-height: 100vh;
+}
+
+/* 主内容区 */
+.main {
+  flex: 1;
+  padding: 32px 40px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.main-title {
+  font-size: 20px; font-weight: 700; color: #1a2233;
+  margin-bottom: 4px;
+}
+.main-sub {
+  font-size: 13px; color: #aaa; margin-bottom: 24px;
+}
+
+/* 搜索/筛选栏 */
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px;
+}
+.search-input {
+  flex: 1; max-width: 260px;
+  border: 1px solid #dde3ea; border-radius: 7px;
+  padding: 7px 12px; font-size: 13px; color: #333;
+  outline: none; background: #fff;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: #3ab4e8; }
+.search-input::placeholder { color: #bbb; }
+
+/* 表格 */
+.table-wrap {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead tr {
+  background: #f5f8fc;
+  border-bottom: 1px solid #e8ecf0;
+}
+thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px; font-weight: 600; color: #888;
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid #f0f3f7;
+  transition: background 0.15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #f8fbfd; }
+tbody td {
+  padding: 12px 16px;
+  color: #333; line-height: 1.6;
+  vertical-align: top;
+}
+
+.td-version {
+  font-weight: 600; color: #1a2233;
+  white-space: nowrap; width: 90px;
+}
+.td-changes {
+  color: #555;
+}
+.td-changes ul {
+  margin: 0; padding-left: 16px;
+}
+.td-changes ul li { margin-bottom: 2px; }
+.td-date {
+  white-space: nowrap; color: #888; width: 110px;
+}
+.td-operator {
+  white-space: nowrap; color: #555; width: 80px;
+}
+
+/* 行数统计 */
+.table-footer {
+  padding: 10px 16px;
+  font-size: 12px; color: #bbb;
+  background: #fafbfc;
+  border-top: 1px solid #f0f3f7;
+}
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <nav id="sidebar" class="sidebar"></nav>
+
+  <div class="main">
+    <div class="main-title">文档修改记录</div>
+    <div class="main-sub">记录所有原型页面的版本变更历史</div>
+
+    <div class="toolbar">
+      <input class="search-input" id="search" type="text" placeholder="搜索版本号 / 修改记录 / 操作人…">
+    </div>
+
+    <div class="table-wrap">
+      <table id="changelog-table">
+        <thead>
+          <tr>
+            <th>版本号</th>
+            <th>修改记录</th>
+            <th>日期</th>
+            <th>操作人</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+        </tbody>
+      </table>
+      <div class="table-footer" id="row-count"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared/sidebar-data.js"></script>
+<script src="shared/sidebar.js"></script>
+<script>
+initSidebar({
+  root: '.',
+  currentHref: 'changelog.html'
+});
+
+// ---- 数据（最新版在最前）----
+const CHANGELOG = [
+  { version: 'v3.0.8', changes: ['1. 百科新增百科组维度，并且新增批量复制功能'], date: '2026/03/18', operator: '刘福毅' },
+  { version: 'v3.0.7', changes: ['1. 草稿箱交互优化；', '2. B端抽奖搜索优化；', '3. B端帖子管理新增标记类型功能；', '4. 版块管理-海外栏目新增资讯类别；'], date: '2026/03/02', operator: '刘福毅' },
+  { version: 'v3.0.6', changes: ['1. C端优化：增加护眼黑夜模式'], date: '2026/01/15', operator: '张静' },
+  { version: 'v3.0.5', changes: ['1. C端优化：发帖/评论支持gif文件上传、帖子链接复制参数调优、搜索过滤非板块用户及内容', '2. 楼层抽奖兼容多语言', '3. 兼容海内外登录体系展示', '4. 协助位面2海外接入楼层抽奖、登录体系', '5. 埋点增加：增加进入来源上报'], date: '2026/01/15', operator: '张静' },
+  { version: 'v3.0.4', changes: ['1. C端优化：关注模块推荐用户仅本版块、图标重叠问题', '2. 帖子列表增加浏览数（去重）'], date: '2026/01/12', operator: '张静' },
+  { version: 'v3.0.3', changes: ['1. AI效果数据统计报表；', '2. AI质检优化系统；'], date: '2026/01/07', operator: '刘福毅' },
+  { version: 'v3.0.2', changes: ['1. C端功能栏排版调优', '2. C端完成任务增加提示'], date: '2025/12/11', operator: '张静' },
+  { version: 'v3.0.1', changes: ['1. C端增加角色绑定强引导、见面礼功能', '2. 天境-大玩家app屏蔽账密登录', '3. B端增加角色绑定奖励配置、游戏下载/大玩家app下载配置'], date: '2025/11/13', operator: '张静' },
+  { version: 'v3.0.0', changes: ['1. B端评论列表排序', '2. B端楼层开奖发奖弹窗优化', '3. B端话题管理支持同时导入帖子、动态', '4. B端帖子管理增加用户标签筛选、首页推荐计入经验值获得行为、系统消息推送', '5. C端创作详情返回定位优化', '6. C端审核中帖子可查看', '7. C端搜索结果优化', '8. C端帖子详情展示时间优化', '9. C端帖子编辑时支持手动调整图片大小', '10. C端投票选项展示优化', '11. 数数上报数据优化'], date: '2025/11/11', operator: '张静' },
+  { version: 'v2.9.9', changes: ['1. 楼层抽奖及等级奖励新增个性装扮的类型选择；', '2. 拉黑功能优化；', '3. B端用户管理搜索昵称功能优化；', '4. 多语言优化；'], date: '2025/10/10', operator: '刘福毅' },
+  { version: 'v2.9.8', changes: ['1. 隐私&协议同意、版块选择', '2. 账号绑定角色信息', '3. 礼包码、配置', '4. 游戏下载、配置', '5. 用户付费标签、推送配置'], date: '2025/10/10', operator: '刘福毅、张静' },
+  { version: 'v2.9.7', changes: ['1. 发帖及评论区文本框识别并粘贴特殊格式文本'], date: '2025/08/19', operator: '张静' },
+  { version: 'v2.9.6', changes: ['1. 个性装扮新增徽章墙模块', '2. B端新增徽章管理、版块管理增加徽章配置'], date: '2025/08/07', operator: '张静' },
+  { version: 'v2.9.5', changes: ['1. 首页推荐改版，合并发现模块；', '2. 百科更名为攻略，并且进行改版；', '3. 个人中心页面小改；', '4. 帖子管理整合批量功能，新增批量加精、限制评论、下沉功能，以及批量取消加精、限制评论、下沉、首页推荐功能，并且新增【编辑推荐】功能；', '5. B端百科管理新建/编辑优化；', '6. B端话题功能新增导入帖文功能；', '7. B端大模型管理新增首页推荐模块内容权重设置；', '8. B端版块管理新增百科的玩家投稿开关；'], date: '2025/07/15', operator: '刘福毅' },
+  { version: 'v2.9.4', changes: ['1. 成员管理新增"协管员"身份；', '2. 评论区新增"作者"标识'], date: '2025/06/18', operator: '刘福毅' },
+  { version: 'v2.9.3', changes: ['1. 黑夜UI'], date: '2025/06/13', operator: '刘福毅' },
+  { version: 'v2.9.2', changes: ['1. 话题功能改为玩家自发发起；', '2. 推荐话题页面规则优化；', '3. 话题展示页面新增玩家话题展示；', '4. UI新增黑夜皮肤；', '5. 私信功能新增管理员条数不限规则；', '6. B端后台管理优化；'], date: '2025/05/15', operator: '刘福毅' },
+  { version: 'v2.9.1', changes: ['1. 负反馈机制；', '2. AI机器人数据统计分析系统；'], date: '2025/04/20', operator: '刘福毅' },
+  { version: 'v2.9.0', changes: ['1. 标签分离和合并规则'], date: '2025/04/17', operator: '刘福毅' },
+  { version: 'v2.8.9', changes: ['1. 新增情感机器人功能；', '2. C端所有页面新增情感机器人入口；', '3. C端消息列表新增情感机器人对象；', '4. B端版块管理新增AI机器人设置；', '5. 机器人预料训练配置表；', '6. C端发帖新增AI创作功能；'], date: '2025/03/11', operator: '刘福毅' },
+  { version: 'v2.8.8', changes: ['1. B端举报日志优化，新增批量处理功能；', '2. B端帖子管理新增拒绝模板，以及内容查重功能；', '3. C端举报新增举报类型；', '4. 个人主页&TA人主页新增搜索创作的功能；', '5. 聊天过滤上报字段优化；'], date: '2025/01/07', operator: '刘福毅' },
+  { version: 'v2.8.7', changes: ['1. B端-开奖功能和消息推送功能优化；', '2. C端-增加帖子列表缩略图封面上传功能；', '3. C端-发帖新增草稿箱功能，并新增格式刷功能；', '4. C端-置顶内容展示样式调整；', '5. C端-动态图片可以左右滑动查看；', '6. C端-返回顶部按钮（增加动态、资讯模块）；'], date: '2025/01/07', operator: '刘福毅' },
+  { version: 'v2.8.6', changes: ['1. B端帖子列表新增批量转移帖文栏目功能；', '2. C端评论区一级评论文本省略优化，新增展开/收起功能；', '3. C端我的回复显示优化；', '4. C端资讯模块新增"精选"栏目，并且其他栏目新增最新/最热按钮；'], date: '2024/12/17', operator: '刘福毅' },
+  { version: 'v2.8.5', changes: ['1. 数数上报事件优化，并上报至冰川大数据', '2. B端用户数据分析改由BI报表生成，并新增相应字段；'], date: '2024/12/09', operator: '刘福毅' },
+  { version: 'v2.8.4', changes: ['1. AI智能搜索；', '2. 话题功能；', '3. 快捷评论功能；', '4. 大模型管理新增快捷评论门槛和规则设定；'], date: '2024/11/21', operator: '刘福毅' },
+  { version: 'v2.8.3', changes: ['1. 海外角色验证登录功能'], date: '2024/10/31', operator: '刘福毅' },
+  { version: 'v2.8.2', changes: ['1. 版块管理新增图片元素tab切换；', '2. B端新增个性装扮管理；', '3. C端新增个性装扮功能；'], date: '2024/10/16', operator: '刘福毅' },
+  { version: 'v2.8.1', changes: ['1. 新增会员等级体系'], date: '2024/09/03', operator: '刘福毅' },
+  { version: 'v2.8.0', changes: ['1. 自动推送功能；'], date: '2024/07/10', operator: '刘福毅' },
+  { version: 'v2.7.1', changes: ['1. B端创作阿里云机审降低强度；', '2. 编辑后的创作需再次走机审流程；', '3. 页面复制功能；', '4. 创作链接复制功能；', '5. 资讯模块"最新"改名"全部"，并新增【最新】/【最热】切换按钮；'], date: '2024/08/13', operator: '刘福毅' },
+  { version: 'v2.7.0', changes: ['1. C端新增创作者中心；', '2. B端新增创作者管理与创作任务管理；', '3. C端发帖-帖子类型新增封面图设置功能；', '4. C端评估置顶功能；', '5. C端新增返回顶部功能；', '6. C端百科返回逻辑优化；', '7. B端-机审新增查重逻辑；', '8. B端批量封禁用户功能；'], date: '2024/06/05', operator: '刘福毅' },
+  { version: 'v2.6.1', changes: ['1. 用户列表新增账号创建时间，并新增账号创建时间与最后登录社区时间筛选项；', '2. 轮播图列表新增"点击数"、"点击用户数"', '3. 用户数据分析列表新增"每日总新增活跃数"、"每日总新增用户活跃率"'], date: '2024/05/22', operator: '刘福毅' },
+  { version: 'v2.6.0', changes: ['1. 公告功能；', '2. 楼层抽奖功能；', '3. 新增首页推荐功能；', '4. 自定义表情包功能；', '5. 创作、评论支持GIF图上传与播放；'], date: '2024/03/01', operator: '刘福毅' },
+  { version: 'v2.5.2', changes: ['1. 新增大熊表情包；', '2. B端批量审核优化审核机制，视频或大图片审核未返回结果系统进入后台审核；'], date: '2024/02/21', operator: '刘福毅' },
+  { version: 'v2.5.1', changes: ['1. 新年皮肤；', '2. C端-个人主页-编辑资料编辑昵称时做敏感词限制与重复限制'], date: '2024/01/16', operator: '刘福毅' },
+  { version: 'v2.5.0', changes: ['1. C端新增品宣模块，沿用公告类型的栏目；', '2. 新增定时发布的功能，仅管理员可用；', '3. C端-评论显示楼层；', '4. C端-编辑帖子可以更换栏目；', '5. C端-个人主页点赞列表移除取消点赞的创作；', '6. C端-评论超过一行时省略号显示；', '7. C端-帖子、动态的最新与全部模块，过滤下沉的内容；'], date: '2023/12/05', operator: '刘福毅' },
+  { version: 'v2.4.0', changes: ['1. 帖子管理新增"浏览数"，并新增浏览数、收藏数、点赞数、评论数的排序功能；', '2. 数据管理新增报表"页面点击分析"、"社区进入分析"；'], date: '2023/11/01', operator: '刘福毅' },
+  { version: 'v2.3.0', changes: ['1. 新增百科功能'], date: '2023/09/13', operator: '刘福毅' },
+  { version: 'v2.2.0', changes: ['1. 页面改版；', '2. C端-新增收藏功能；', '3. C端-投票新增二次确认，且选项增至30个；', '4. C端-发帖顺序优化；', '5. C端-审核未通过帖子新增【编辑】功能；'], date: '2023/08/01', operator: '刘福毅' },
+];
+
+// ---- 渲染 ----
+function render(data) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  data.forEach(row => {
+    const tr = document.createElement('tr');
+
+    const changesHtml = Array.isArray(row.changes)
+      ? '<ul>' + row.changes.map(c => `<li>${c}</li>`).join('') + '</ul>'
+      : row.changes;
+
+    tr.innerHTML = `
+      <td class="td-version">${row.version}</td>
+      <td class="td-changes">${changesHtml}</td>
+      <td class="td-date">${row.date}</td>
+      <td class="td-operator">${row.operator}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('row-count').textContent = `共 ${data.length} 条记录`;
+}
+
+// ---- 搜索 ----
+document.getElementById('search').addEventListener('input', function() {
+  const kw = this.value.trim().toLowerCase();
+  if (!kw) { render(CHANGELOG); return; }
+  const filtered = CHANGELOG.filter(row => {
+    const changes = Array.isArray(row.changes) ? row.changes.join(' ') : row.changes;
+    return (
+      row.version.toLowerCase().includes(kw) ||
+      changes.toLowerCase().includes(kw) ||
+      row.date.includes(kw) ||
+      row.operator.toLowerCase().includes(kw)
+    );
+  });
+  render(filtered);
+});
+
+render(CHANGELOG);
+</script>
+</body>
+</html>
