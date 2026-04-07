@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>徽章墙 - 原型文档</title>
 <link rel="stylesheet" href="../../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
 /* ============================================================
    全局 & 布局
@@ -971,6 +972,10 @@ body {
     root: '../../..',
     currentHref: 'client/profile/personalization/Badge.html'
   });
+</script>
+<script>
+  const _hash = location.hash.slice(1);
+  if (_hash && document.getElementById(_hash)) showScreen(_hash);
 </script>
 </body>
 </html>
