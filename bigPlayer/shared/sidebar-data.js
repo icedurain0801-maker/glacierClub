@@ -51,24 +51,30 @@ const SIDEBAR_DATA = [
             label: '个性装扮',
             children: [
               {
-                type: 'item',
+                type: 'dir',
                 label: '徽章墙',
-                version: 'v3.0.9',
-                href: 'client/profile/personalization/Badge.html'
-              },
-              {
-                type: 'item',
-                label: '徽章获得通知',
-                version: 'v3.0.9',
-                href: 'client/profile/personalization/Badge.html',
-                screenId: 's5'
-              },
-              {
-                type: 'item',
-                label: '角色信息确认',
-                version: 'v3.0.9',
-                href: 'client/profile/personalization/Badge.html',
-                screenId: 's6'
+                children: [
+                  {
+                    type: 'item',
+                    label: '徽章墙',
+                    version: 'v3.0.9',
+                    href: 'client/profile/personalization/Badge.html'
+                  },
+                  {
+                    type: 'item',
+                    label: '徽章获得通知',
+                    version: 'v3.0.9',
+                    href: 'client/profile/personalization/Badge.html',
+                    screenId: 's5'
+                  },
+                  {
+                    type: 'item',
+                    label: '角色信息确认',
+                    version: 'v3.0.9',
+                    href: 'client/profile/personalization/Badge.html',
+                    screenId: 's6'
+                  }
+                ]
               }
             ]
           }
