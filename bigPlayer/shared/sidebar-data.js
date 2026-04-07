@@ -8,6 +8,7 @@
  *
  * item.href        — 相对于 bigPlayer/ 根目录的页面路径
  * item.version     — 当前版本号，显示在右侧
+ * item.screenId    — (可选) 页面内 screen 的 id，点击侧边栏时自动切换到该页面
  */
 const SIDEBAR_DATA = [
   {
@@ -60,14 +61,14 @@ const SIDEBAR_DATA = [
                 label: '徽章获得通知',
                 version: 'v3.0.9',
                 href: 'client/profile/personalization/Badge.html',
-                screen: 's5'
+                screenId: 's5'
               },
               {
                 type: 'item',
                 label: '角色信息确认',
                 version: 'v3.0.9',
                 href: 'client/profile/personalization/Badge.html',
-                screen: 's6'
+                screenId: 's6'
               }
             ]
           }
