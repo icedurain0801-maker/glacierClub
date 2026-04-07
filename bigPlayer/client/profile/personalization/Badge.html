@@ -28,7 +28,7 @@
   <div class="flex-shrink-0 w-[375px] h-[667px] overflow-hidden sticky top-0 self-start bg-white shadow-[2px_0_16px_rgba(0,0,0,0.10)] my-5 ml-6 rounded-lg">
 
     <!-- SCREEN 1: 徽章墙 -->
-    <div class="screen active" id="s1">
+    <div class="flex flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s1">
       <div class="s1-header">
         <div class="top-nav">
           <div class="btn-back">‹</div>
@@ -96,7 +96,7 @@
     </div>
 
     <!-- SCREEN 2: 我的徽章 -->
-    <div class="screen" id="s2">
+    <div class="hidden flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s2">
       <div class="simple-hd">
         <div class="btn-back" data-back="s1">‹</div>
         <div class="simple-hd-title">我的徽章</div>
@@ -111,7 +111,7 @@
     </div>
 
     <!-- SCREEN 3: 设置徽章展示 -->
-    <div class="screen" id="s3">
+    <div class="hidden flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s3">
       <div class="simple-hd">
         <div class="btn-back" data-back="s1">‹</div>
         <div class="simple-hd-title">设置徽章展示</div>
@@ -135,7 +135,7 @@
     </div>
 
     <!-- SCREEN 4: 徽章详情 -->
-    <div class="screen" id="s4">
+    <div class="hidden flex-col h-[667px] overflow-hidden relative bg-[radial-gradient(ellipse_120%_60%_at_50%_30%,#1a4060_0%,#0d2535_40%,#060e18_100%)]" id="s4">
       <div class="detail-nav">
         <div class="btn-back" id="detail-back">‹</div>
       </div>
@@ -167,7 +167,7 @@
     </div>
 
     <!-- SCREEN 5: 徽章获得通知弹窗 -->
-    <div class="screen" id="s5">
+    <div class="hidden flex-col h-[667px] overflow-hidden relative bg-[#f0f6fb]" id="s5">
       <!-- 背景页模拟（灰色遮罩） -->
       <div class="notify-bg">
         <div class="simple-hd" style="background:linear-gradient(180deg,#3ab4e8 0%,#7dcff0 60%,#c8e8f8 100%);">
@@ -206,7 +206,7 @@
     </div>
 
     <!-- SCREEN 6: 角色信息确认 -->
-    <div class="screen" id="s6">
+    <div class="hidden flex-col h-[667px] overflow-hidden bg-[#f5f8fc]" id="s6">
       <div class="simple-hd" style="background:linear-gradient(180deg,#3ab4e8 0%,#7dcff0 60%,#c8e8f8 100%);">
         <div class="btn-back" data-back="s5">‹</div>
         <div class="simple-hd-title">角色信息确认</div>
@@ -232,7 +232,7 @@
   <div id="doc-panel" class="flex-1 min-w-[300px] max-w-[480px] bg-white border-l border-[#e8ecf0] px-6 py-7 overflow-y-auto h-screen sticky top-0 ml-6 max-[768px]:hidden">
 
     <!-- 页面1：徽章墙 -->
-    <div class="doc-panel-inner active" id="doc-s1">
+    <div id="doc-s1">
       <div class="doc-page-title">徽章墙</div>
       <div class="doc-page-sub">个性装扮 · 页面 1/6</div>
 
@@ -285,7 +285,7 @@
     </div>
 
     <!-- 页面2：我的徽章 -->
-    <div class="doc-panel-inner" id="doc-s2">
+    <div class="hidden" id="doc-s2">
       <div class="doc-page-title">我的徽章</div>
       <div class="doc-page-sub">个性装扮 · 页面 2/6</div>
 
@@ -320,7 +320,7 @@
     </div>
 
     <!-- 页面3：设置徽章展示 -->
-    <div class="doc-panel-inner" id="doc-s3">
+    <div class="hidden" id="doc-s3">
       <div class="doc-page-title">设置徽章展示</div>
       <div class="doc-page-sub">个性装扮 · 页面 3/6</div>
 
@@ -356,7 +356,7 @@
     </div>
 
     <!-- 页面4：徽章详情 -->
-    <div class="doc-panel-inner" id="doc-s4">
+    <div class="hidden" id="doc-s4">
       <div class="doc-page-title">徽章详情</div>
       <div class="doc-page-sub">个性装扮 · 页面 4/6</div>
 
@@ -397,7 +397,7 @@
     </div>
 
     <!-- 页面5：徽章获得通知 -->
-    <div class="doc-panel-inner" id="doc-s5">
+    <div class="hidden" id="doc-s5">
       <div class="doc-page-title">徽章获得通知</div>
       <div class="doc-page-sub">个性装扮 · 页面 5/6 · v3.0.9 新增</div>
 
@@ -436,7 +436,7 @@
     </div>
 
     <!-- 页面6：角色信息确认 -->
-    <div class="doc-panel-inner" id="doc-s6">
+    <div class="hidden" id="doc-s6">
       <div class="doc-page-title">角色信息确认</div>
       <div class="doc-page-sub">个性装扮 · 页面 6/6 · v3.0.9 新增</div>
 
@@ -483,14 +483,18 @@
   let fromScreen = 's1';
 
   function showScreen(id) {
-    // 切换手机页面
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    // 切换文档区
-    document.querySelectorAll('.doc-panel-inner').forEach(d => d.classList.remove('active'));
+    const screens = ['s1','s2','s3','s4','s5','s6'];
+    screens.forEach(sid => {
+      const el = document.getElementById(sid);
+      if (el) el.classList.add('hidden');
+    });
+    document.getElementById(id).classList.remove('hidden');
+    screens.forEach(sid => {
+      const el = document.getElementById('doc-' + sid);
+      if (el) el.classList.add('hidden');
+    });
     const doc = document.getElementById('doc-' + id);
-    if (doc) doc.classList.add('active');
-// 滚动文档区到顶部
+    if (doc) doc.classList.remove('hidden');
     document.getElementById('doc-panel').scrollTop = 0;
   }
 
