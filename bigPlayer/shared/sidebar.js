@@ -20,6 +20,20 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
   }
   const current = normPath(currentHref);
 
+  // 收集所有 item 链接，用于 hashchange 时动态更新高亮
+  const allItems = []; // { el, node }
+
+  function isActiveNow(node) {
+    if (normPath(node.href) !== current) return false;
+    return (node.screenId || '') === location.hash.slice(1);
+  }
+
+  function updateActive() {
+    allItems.forEach(({ el, node }) => {
+      el.classList.toggle('active', isActiveNow(node));
+    });
+  }
+
   function buildTree(nodes, depth) {
     const wrap = document.createElement('div');
 
@@ -91,10 +105,7 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
         a.appendChild(name);
         a.appendChild(ver);
 
-        if (normPath(node.href) === current) {
-          a.classList.add('active');
-        }
-
+        allItems.push({ el: a, node });
         wrap.appendChild(a);
       }
     });
@@ -120,4 +131,8 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
 
   // 渲染目录树
   nav.appendChild(buildTree(SIDEBAR_DATA, 0));
+
+  // 初始高亮 + hash 变化时更新高亮
+  updateActive();
+  window.addEventListener('hashchange', updateActive);
 }

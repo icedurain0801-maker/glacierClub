@@ -572,8 +572,12 @@
   });
 </script>
 <script>
-  const _hash = location.hash.slice(1);
-  if (_hash && document.getElementById(_hash)) showScreen(_hash);
+  function _applyHash() {
+    const h = location.hash.slice(1);
+    if (h && document.getElementById(h)) showScreen(h);
+  }
+  _applyHash();
+  window.addEventListener('hashchange', _applyHash);
 </script>
 </body>
 </html>
