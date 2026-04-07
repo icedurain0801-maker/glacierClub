@@ -20,6 +20,25 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
   }
   const current = normPath(currentHref);
 
+  // 收集所有叶节点（用于搜索），breadcrumb 为祖先 label 组成的路径字符串
+  const searchIndex = [];
+  function collectItems(nodes, ancestors) {
+    nodes.forEach(node => {
+      if (node.type === 'item') {
+        searchIndex.push({ node, breadcrumb: ancestors.join(' › ') });
+      } else {
+        // dir 节点若自带 href 也加入索引
+        if (node.type === 'dir' && node.href) {
+          searchIndex.push({ node, breadcrumb: ancestors.join(' › ') });
+        }
+        if (node.children && node.children.length) {
+          collectItems(node.children, node.type === 'group' ? ancestors : [...ancestors, node.label]);
+        }
+      }
+    });
+  }
+  collectItems(SIDEBAR_DATA, []);
+
   // 收集所有 item 链接，用于 hashchange 时动态更新高亮
   const allItems = []; // { el, node }
 
@@ -56,28 +75,44 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
         const dirEl = document.createElement('div');
         dirEl.className = 'nav-dir';
 
-        // 检查子树是否包含当前页面 → 决定默认展开
+        // 默认全部展开
         const hasActive = containsCurrent(node, current, normPath);
-        if (hasActive) dirEl.classList.add('open');
+        dirEl.classList.add('open');
 
         const arrow = document.createElement('span');
         arrow.className = 'nav-dir-arrow';
         arrow.textContent = '▶';
         dirEl.appendChild(arrow);
 
-        const txt = document.createElement('span');
-        txt.textContent = node.label;
-        dirEl.appendChild(txt);
+        if (node.href) {
+          const a = document.createElement('a');
+          a.className = 'nav-dir-link';
+          a.href = root + '/' + node.href + (node.screenId ? '#' + node.screenId : '');
+          a.textContent = node.label;
+          allItems.push({ el: a, node });
+          dirEl.appendChild(a);
+          if (node.version) {
+            const ver = document.createElement('span');
+            ver.className = 'nav-version';
+            ver.textContent = node.version;
+            dirEl.appendChild(ver);
+          }
+        } else {
+          const txt = document.createElement('span');
+          txt.textContent = node.label;
+          dirEl.appendChild(txt);
+        }
 
         const childWrap = document.createElement('div');
         childWrap.className = 'nav-children';
-        if (!hasActive) childWrap.style.display = 'none';
+        if (!hasActive) childWrap.style.display = '';
 
         if (node.children && node.children.length) {
           childWrap.appendChild(buildTree(node.children, depth + 1));
         }
 
-        dirEl.addEventListener('click', () => {
+        dirEl.addEventListener('click', e => {
+          if (e.target.classList.contains('nav-dir-link')) return;
           const isOpen = dirEl.classList.toggle('open');
           childWrap.style.display = isOpen ? '' : 'none';
         });
@@ -117,6 +152,9 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
     if (node.type === 'item') {
       return norm(node.href) === current;
     }
+    if (node.type === 'dir' && node.href && norm(node.href) === current) {
+      return true;
+    }
     if (node.children) {
       return node.children.some(c => containsCurrent(c, current, norm));
     }
@@ -129,8 +167,79 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
   logo.innerHTML = '<span class="logo-main">大玩家</span><span class="logo-tag">原型</span>';
   nav.appendChild(logo);
 
-  // 渲染目录树
-  nav.appendChild(buildTree(SIDEBAR_DATA, 0));
+  // 搜索框
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'sidebar-search';
+  searchWrap.innerHTML = '<input class="sidebar-search-input" placeholder="搜索页面…" autocomplete="off" spellcheck="false"><div class="sidebar-search-results"></div>';
+  nav.appendChild(searchWrap);
+
+  const searchInput = searchWrap.querySelector('.sidebar-search-input');
+  const searchResults = searchWrap.querySelector('.sidebar-search-results');
+
+  // 目录树容器（方便在搜索时隐藏）
+  const treeWrap = document.createElement('div');
+  treeWrap.className = 'sidebar-tree';
+  treeWrap.appendChild(buildTree(SIDEBAR_DATA, 0));
+  nav.appendChild(treeWrap);
+
+  function highlight(text, kw) {
+    if (!kw) return document.createTextNode(text);
+    const idx = text.toLowerCase().indexOf(kw.toLowerCase());
+    if (idx === -1) return document.createTextNode(text);
+    const span = document.createElement('span');
+    span.appendChild(document.createTextNode(text.slice(0, idx)));
+    const em = document.createElement('em');
+    em.className = 'sidebar-search-hl';
+    em.textContent = text.slice(idx, idx + kw.length);
+    span.appendChild(em);
+    span.appendChild(document.createTextNode(text.slice(idx + kw.length)));
+    return span;
+  }
+
+  searchInput.addEventListener('input', () => {
+    const kw = searchInput.value.trim();
+    if (!kw) {
+      searchResults.style.display = 'none';
+      treeWrap.style.display = '';
+      return;
+    }
+    treeWrap.style.display = 'none';
+    searchResults.style.display = 'block';
+
+    const kwLower = kw.toLowerCase();
+    const matched = searchIndex.filter(({ node, breadcrumb }) =>
+      node.label.toLowerCase().includes(kwLower) ||
+      breadcrumb.toLowerCase().includes(kwLower) ||
+      (node.version || '').toLowerCase().includes(kwLower)
+    );
+
+    searchResults.innerHTML = '';
+    if (!matched.length) {
+      const empty = document.createElement('div');
+      empty.className = 'sidebar-search-empty';
+      empty.textContent = '无匹配结果';
+      searchResults.appendChild(empty);
+      return;
+    }
+
+    matched.forEach(({ node, breadcrumb }) => {
+      const a = document.createElement('a');
+      a.className = 'sidebar-search-item';
+      a.href = root + '/' + node.href + (node.screenId ? '#' + node.screenId : '');
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'sidebar-search-item-name';
+      nameEl.appendChild(highlight(node.label, kw));
+
+      const pathEl = document.createElement('div');
+      pathEl.className = 'sidebar-search-item-path';
+      if (breadcrumb) pathEl.appendChild(highlight(breadcrumb, kw));
+
+      a.appendChild(nameEl);
+      if (breadcrumb) a.appendChild(pathEl);
+      searchResults.appendChild(a);
+    });
+  });
 
   // 初始高亮 + hash 变化时更新高亮
   updateActive();
