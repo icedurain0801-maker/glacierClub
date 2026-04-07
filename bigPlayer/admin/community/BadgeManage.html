@@ -255,7 +255,7 @@ tbody tr:hover { background: #fafeff; }
 .modal-box {
   background: #fff;
   border-radius: 8px;
-  width: 520px;
+  width: 572px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -374,6 +374,31 @@ tbody tr:hover { background: #fafeff; }
 .condition-row .form-select { flex: 0 0 130px; width: 130px; }
 .condition-row .form-input  { flex: 1; }
 .condition-unit { font-size: 13px; color: #595959; white-space: nowrap; }
+
+/* ── 开关 ── */
+.toggle-wrap {
+  display: flex; align-items: center; gap: 8px;
+}
+.toggle-switch {
+  position: relative; width: 36px; height: 20px;
+  display: inline-block; cursor: pointer; flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: #d9d9d9; border-radius: 20px;
+  transition: background 0.2s;
+}
+.toggle-track::before {
+  content: ''; position: absolute;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; top: 3px; left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-track { background: #1890ff; }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+.toggle-label { font-size: 13px; color: #595959; }
 
 /* ── 奖品选择 ── */
 .prize-row {
@@ -634,17 +659,26 @@ tbody tr:hover { background: #fafeff; }
       <div class="form-row">
         <div class="form-label">奖品选择：</div>
         <div class="form-control">
-          <div class="prize-row">
-            <select class="form-select prize-select" id="prize-type">
-              <option value="道具">游戏道具</option>
-              <option value="头像框">头像框</option>
-            </select>
-            <input type="text" class="form-input prize-item-input" id="prize-item-name" placeholder="请输入物品名称（ID）">
-            <input type="number" class="form-input prize-qty-input" id="prize-qty" placeholder="最大输入：999999" min="1" max="999999">
-            <button class="btn-prize-add" id="btn-prize-add">添加</button>
-            <button class="btn-prize-clear" id="btn-prize-clear">清空</button>
+          <div class="toggle-wrap">
+            <label class="toggle-switch">
+              <input type="checkbox" id="prize-toggle">
+              <span class="toggle-track"></span>
+            </label>
+            <span class="toggle-label" id="prize-toggle-label">关闭</span>
           </div>
-          <div class="prize-added-list" id="prize-added-list"></div>
+          <div id="prize-content" style="display:none; margin-top:10px;">
+            <div class="prize-row">
+              <select class="form-select prize-select" id="prize-type">
+                <option value="道具">游戏道具</option>
+                <option value="头像框">头像框</option>
+              </select>
+              <input type="text" class="form-input prize-item-input" id="prize-item-name" placeholder="请输入物品名称（ID）">
+              <input type="number" class="form-input prize-qty-input" id="prize-qty" placeholder="最大输入：999999" min="1" max="999999">
+              <button class="btn-prize-add" id="btn-prize-add">添加</button>
+              <button class="btn-prize-clear" id="btn-prize-clear">清空</button>
+            </div>
+            <div class="prize-added-list" id="prize-added-list"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -729,6 +763,11 @@ tbody tr:hover { background: #fafeff; }
     renderPrizeList();
     document.getElementById('prize-item-name').value = '';
     document.getElementById('prize-qty').value = '';
+    // 重置开关
+    const toggle = document.getElementById('prize-toggle');
+    toggle.checked = false;
+    document.getElementById('prize-content').style.display = 'none';
+    document.getElementById('prize-toggle-label').textContent = '关闭';
   }
 
   document.getElementById('btn-open-add').addEventListener('click', () => openModal('新增徽章'));
@@ -752,6 +791,12 @@ tbody tr:hover { background: #fafeff; }
   document.getElementById('f-cond-type').addEventListener('change', function() {
     const unitMap = { '连续登录': '天', '累计点赞': '次', '累计评论': '次', '累计发帖': '次', '累计收藏': '次' };
     document.getElementById('cond-unit').textContent = unitMap[this.value] || '次';
+  });
+
+  // ── 奖品开关 ──
+  document.getElementById('prize-toggle').addEventListener('change', function() {
+    document.getElementById('prize-content').style.display = this.checked ? '' : 'none';
+    document.getElementById('prize-toggle-label').textContent = this.checked ? '开启' : '关闭';
   });
 
   // ── 奖品选择交互 ──
@@ -801,6 +846,352 @@ tbody tr:hover { background: #fafeff; }
   document.getElementById('btn-prize-clear').addEventListener('click', () => {
     document.getElementById('prize-item-name').value = '';
     document.getElementById('prize-qty').value = '';
+  });
+</script>
+
+<!-- ── 说明悬浮按钮 ── -->
+<style>
+/* 悬浮按钮 */
+.help-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(145deg, #1890ff 0%, #096dd9 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(24,144,255,0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  z-index: 900;
+  user-select: none;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.help-fab:hover { box-shadow: 0 6px 24px rgba(24,144,255,0.6); transform: translateY(-2px); }
+.help-fab:active { transform: translateY(0); }
+.help-fab.dragging { transition: none; box-shadow: 0 8px 28px rgba(24,144,255,0.5); }
+.help-fab-icon { font-size: 36px; line-height: 1; }
+.help-fab-text { font-size: 13px; color: #fff; font-weight: 500; letter-spacing: 0.5px; }
+
+/* 说明面板 */
+.help-panel {
+  position: fixed;
+  top: 0; right: -480px;
+  width: 480px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(.4,0,.2,1);
+}
+.help-panel.open { right: 0; }
+
+.help-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.help-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.help-panel-title::before {
+  content: '';
+  width: 4px; height: 18px;
+  background: #1890ff;
+  border-radius: 2px;
+}
+.help-panel-close {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f5f5f5;
+  font-size: 16px; color: #888; cursor: pointer; border: none;
+  transition: background 0.15s;
+}
+.help-panel-close:hover { background: #e0e0e0; color: #333; }
+
+.help-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* 版本块 */
+.help-version-block {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.help-version-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer;
+  background: #fff; user-select: none;
+  transition: background 0.15s;
+}
+.help-version-hd:hover { background: #f0f7ff; }
+.help-version-hd.is-latest { background: #e6f7ff; }
+.help-version-num { font-size: 13px; font-weight: 700; color: #262626; }
+.help-version-date { font-size: 11px; color: #aaa; margin-left: 4px; }
+.help-version-badge {
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: #1890ff; border-radius: 8px; padding: 1px 7px; margin-left: 4px;
+}
+.help-version-arrow {
+  margin-left: auto; font-size: 11px; color: #bbb;
+  transition: transform 0.2s;
+}
+.help-version-block.open .help-version-arrow { transform: rotate(180deg); }
+.help-version-body {
+  display: none;
+  padding: 14px 16px;
+  border-top: 1px solid #e8e8e8;
+  background: #fafcfe;
+}
+.help-version-block.open .help-version-body { display: block; }
+
+/* 说明内容 */
+.help-section { margin-bottom: 14px; }
+.help-section:last-child { margin-bottom: 0; }
+.help-section-title {
+  font-size: 12px; font-weight: 600; color: #1890ff;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 5px;
+}
+.help-section-title::before {
+  content: ''; width: 3px; height: 12px;
+  background: #1890ff; border-radius: 2px; flex-shrink: 0;
+}
+.help-section p { font-size: 12px; color: #555; line-height: 1.9; }
+.help-section ul { padding-left: 16px; }
+.help-section ul li { font-size: 12px; color: #555; line-height: 2; }
+.help-note {
+  background: #f0f5ff; border-left: 3px solid #91d5ff;
+  padding: 7px 10px; border-radius: 0 6px 6px 0;
+  font-size: 11px; color: #555; line-height: 1.8; margin-top: 6px;
+}
+</style>
+
+<div class="help-fab" id="help-fab">
+  <div class="help-fab-icon">📋</div>
+  <div class="help-fab-text">需求说明</div>
+</div>
+
+<div class="help-panel" id="help-panel">
+  <div class="help-panel-header">
+    <div class="help-panel-title">徽章管理 — 需求说明</div>
+    <button class="help-panel-close" id="help-panel-close">×</button>
+  </div>
+  <div class="help-panel-body">
+
+    <!-- v3.0.9 -->
+    <div class="help-version-block open">
+      <div class="help-version-hd is-latest">
+        <span class="help-version-num">v3.0.9</span>
+        <span class="help-version-date">2026-04-07</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+
+        <div class="help-section">
+          <div class="help-section-title">本次变更</div>
+          <p>徽章新增/编辑页面新增「奖品选择」字段，支持为徽章配置达成后玩家可获得的奖品。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">奖品选择字段说明</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;">
+            <thead>
+              <tr style="background:#f0f7ff;">
+                <th style="padding:7px 10px;border:1px solid #d6e8ff;color:#1890ff;font-weight:600;text-align:left;white-space:nowrap;">属性</th>
+                <th style="padding:7px 10px;border:1px solid #d6e8ff;color:#1890ff;font-weight:600;text-align:left;">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;white-space:nowrap;color:#595959;">位置</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;">表单「排序」字段下方</td>
+              </tr>
+              <tr style="background:#fafafa;">
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;white-space:nowrap;color:#595959;">默认状态</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;">开关关闭，内容区隐藏；开启后展示奖品配置区</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;white-space:nowrap;color:#595959;">奖品类型</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;"><b>游戏道具</b> 或 <b>头像框</b></td>
+              </tr>
+              <tr style="background:#fafafa;">
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;white-space:nowrap;color:#595959;">游戏道具</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;">填写道具名称/ID + 数量（最大 999999），添加后显示"🎁 道具名×数量"</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;white-space:nowrap;color:#595959;">头像框</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;">填写头像框名称/ID，无数量字段，添加后显示"🖼️ 头像框名"</td>
+              </tr>
+              <tr style="background:#fafafa;">
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;white-space:nowrap;color:#595959;">数量上限</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;">游戏道具与头像框合计最多 5 个</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;white-space:nowrap;color:#595959;">移除</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;">已添加奖品右侧 × 单独移除；"清空"仅清空当前输入行，不影响已添加列表</td>
+              </tr>
+            </tbody>
+          </table>
+          <!-- 奖品领取流程图 -->
+          <div style="margin-top:12px;">
+
+            <!-- 通用规则 -->
+            <div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#595959;line-height:1.6;">
+              <b style="color:#d48806;">⚡ 通用规则：</b>只要玩家获得了徽章但尚未领取奖励，徽章详情页均会显示「领奖」ICON；领取成功后 ICON 自动消失。
+            </div>
+
+            <!-- 场景一 -->
+            <div style="margin-bottom:14px;">
+              <div style="font-size:12px;font-weight:700;color:#1890ff;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <span style="background:#1890ff;color:#fff;border-radius:50%;width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;line-height:1;">1</span>
+                已获得徽章的玩家（补领）
+              </div>
+              <!-- 主流 -->
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px;">
+                <div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:4px;padding:3px 8px;white-space:nowrap;">点开徽章详情</div>
+                <span style="color:#bbb;font-size:11px;">→</span>
+                <div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:4px;padding:3px 8px;white-space:nowrap;">点击「领奖」ICON</div>
+                <span style="color:#bbb;font-size:11px;">→</span>
+                <div style="background:#fff7e6;border:1px solid #ffd591;border-radius:4px;padding:3px 8px;white-space:nowrap;color:#d46b08;">◆ 奖励仅头像框？</div>
+              </div>
+              <!-- 分支 -->
+              <div style="display:flex;gap:10px;margin-top:8px;padding-left:8px;font-size:12px;">
+                <div style="flex:1;min-width:0;">
+                  <div style="color:#52c41a;font-size:11px;font-weight:600;margin-bottom:4px;">是 ↓</div>
+                  <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:4px;padding:4px 8px;color:#389e0d;">直接获得，不跳转</div>
+                </div>
+                <div style="flex:2;min-width:0;">
+                  <div style="color:#fa8c16;font-size:11px;font-weight:600;margin-bottom:4px;">否 ↓</div>
+                  <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                    <div style="background:#fff7e6;border:1px solid #ffd591;border-radius:4px;padding:4px 8px;white-space:nowrap;color:#d46b08;">跳转角色信息确认</div>
+                    <span style="color:#bbb;font-size:11px;">→ 确认 →</span>
+                    <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:4px;padding:4px 8px;white-space:nowrap;color:#389e0d;">领取成功</div>
+                  </div>
+                </div>
+              </div>
+              <!-- 结果 -->
+              <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;">
+                <span style="color:#bbb;font-size:11px;">↓ 任一路径完成后</span>
+                <div style="background:#f9f0ff;border:1px solid #d3adf7;border-radius:4px;padding:3px 8px;color:#531dab;">徽章左上角 ICON 消失</div>
+              </div>
+            </div>
+
+            <!-- 分隔线 -->
+            <div style="border-top:1px dashed #e8e8e8;margin-bottom:14px;"></div>
+
+            <!-- 场景二 -->
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#1890ff;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <span style="background:#1890ff;color:#fff;border-radius:50%;width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;line-height:1;">2</span>
+                未获得徽章的玩家（新领）
+              </div>
+              <!-- 主流 -->
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px;">
+                <div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:4px;padding:3px 8px;white-space:nowrap;">达成徽章条件</div>
+                <span style="color:#bbb;font-size:11px;">→</span>
+                <div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:4px;padding:3px 8px;white-space:nowrap;">系统发站内信</div>
+                <span style="color:#bbb;font-size:11px;">→</span>
+                <div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:4px;padding:3px 8px;white-space:nowrap;">玩家点击链接</div>
+                <span style="color:#bbb;font-size:11px;">→</span>
+                <div style="background:#fff7e6;border:1px solid #ffd591;border-radius:4px;padding:3px 8px;white-space:nowrap;color:#d46b08;">◆ 奖励仅头像框？</div>
+              </div>
+              <!-- 分支 -->
+              <div style="display:flex;gap:10px;margin-top:8px;padding-left:8px;font-size:12px;">
+                <div style="flex:1;min-width:0;">
+                  <div style="color:#52c41a;font-size:11px;font-weight:600;margin-bottom:4px;">是 ↓</div>
+                  <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:4px;padding:4px 8px;color:#389e0d;">直接获得，不跳转</div>
+                </div>
+                <div style="flex:2;min-width:0;">
+                  <div style="color:#fa8c16;font-size:11px;font-weight:600;margin-bottom:4px;">否 ↓</div>
+                  <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                    <div style="background:#fff7e6;border:1px solid #ffd591;border-radius:4px;padding:4px 8px;white-space:nowrap;color:#d46b08;">跳转角色信息确认</div>
+                    <span style="color:#bbb;font-size:11px;">→ 确认 →</span>
+                    <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:4px;padding:4px 8px;white-space:nowrap;color:#389e0d;">领取成功</div>
+                  </div>
+                </div>
+              </div>
+              <!-- 主动领取提示 -->
+              <div style="margin-top:10px;padding:7px 10px;background:#f5f5f5;border-left:3px solid #1890ff;border-radius:0 4px 4px 0;font-size:12px;color:#595959;line-height:1.6;">
+                💡 也可主动点开徽章详情自行领取，流程同场景一。
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <!-- 后续版本说明由运营补充 -->
+
+  </div>
+</div>
+
+<script>
+  // ── 说明面板开关 ──
+  const helpFab   = document.getElementById('help-fab');
+  const helpPanel = document.getElementById('help-panel');
+
+  document.getElementById('help-panel-close').addEventListener('click', () => {
+    helpPanel.classList.remove('open');
+  });
+
+  // 版本块折叠
+  helpPanel.querySelectorAll('.help-version-hd').forEach(hd => {
+    hd.addEventListener('click', () => {
+      hd.closest('.help-version-block').classList.toggle('open');
+    });
+  });
+
+  // ── 拖拽逻辑 ──
+  let isDragging = false, dragOffX = 0, dragOffY = 0;
+
+  helpFab.addEventListener('mousedown', e => {
+    isDragging = false;
+    const rect = helpFab.getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+
+    function onMove(e) {
+      isDragging = true;
+      helpFab.classList.add('dragging');
+      const x = Math.min(Math.max(0, e.clientX - dragOffX), window.innerWidth  - helpFab.offsetWidth);
+      const y = Math.min(Math.max(0, e.clientY - dragOffY), window.innerHeight - helpFab.offsetHeight);
+      helpFab.style.left   = x + 'px';
+      helpFab.style.top    = y + 'px';
+      helpFab.style.right  = 'auto';
+      helpFab.style.bottom = 'auto';
+    }
+
+    function onUp() {
+      helpFab.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      if (!isDragging) helpPanel.classList.toggle('open');
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+    e.preventDefault();
   });
 </script>
 </body>

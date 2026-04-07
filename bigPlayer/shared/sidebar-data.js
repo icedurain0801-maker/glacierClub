@@ -53,13 +53,9 @@ const SIDEBAR_DATA = [
               {
                 type: 'dir',
                 label: '徽章墙',
+                version: 'v3.0.9',
+                href: 'client/profile/personalization/Badge.html',
                 children: [
-                  {
-                    type: 'item',
-                    label: '徽章墙',
-                    version: 'v3.0.9',
-                    href: 'client/profile/personalization/Badge.html'
-                  },
                   {
                     type: 'item',
                     label: '徽章获得通知',
@@ -113,8 +109,8 @@ const SIDEBAR_DATA = [
               {
                 type: 'item',
                 label: '徽章分类管理',
-                version: 'v3.0.9',
-                href: 'admin/community/BadgeManage.html'
+                href: 'admin/community/BadgeManage.html',
+                screenId: 'category'
               }
             ]
           }

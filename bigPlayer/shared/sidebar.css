@@ -90,3 +90,82 @@
 .nav-item.active .nav-version { color: rgba(58,180,232,0.6); }
 
 .nav-item-name { flex: 1; }
+
+/* 可点击的目录行链接 */
+.nav-dir-link {
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+}
+.nav-dir-link:hover { color: rgba(255,255,255,0.9); }
+.nav-dir.open > .nav-dir-link { color: rgba(255,255,255,0.8); }
+.nav-dir-link.active { color: #3ab4e8; font-weight: 600; }
+
+/* ── 搜索框 ── */
+.sidebar-search {
+  padding: 10px 10px 4px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.sidebar-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 6px 10px 6px 28px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.75);
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.35)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 8px center;
+}
+.sidebar-search-input::placeholder { color: rgba(255,255,255,0.28); }
+.sidebar-search-input:focus {
+  border-color: rgba(58,180,232,0.5);
+  background-color: rgba(255,255,255,0.1);
+}
+
+/* 搜索结果列表 */
+.sidebar-search-results {
+  display: none;
+  padding: 4px 0 8px;
+}
+
+.sidebar-search-item {
+  display: block;
+  padding: 7px 12px;
+  border-radius: 6px;
+  margin: 1px 0;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.sidebar-search-item:hover { background: rgba(255,255,255,0.07); }
+
+.sidebar-search-item-name {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  line-height: 1.4;
+}
+.sidebar-search-item-path {
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 1px;
+  line-height: 1.3;
+}
+
+.sidebar-search-hl {
+  font-style: normal;
+  color: #3ab4e8;
+  font-weight: 600;
+}
+
+.sidebar-search-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.28);
+}
