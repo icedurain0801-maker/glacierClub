@@ -169,59 +169,59 @@
     <!-- SCREEN 5: 徽章获得通知弹窗 -->
     <div class="hidden flex-col h-[667px] overflow-hidden relative bg-[#f0f6fb]" id="s5">
       <!-- 背景页模拟（灰色遮罩） -->
-      <div class="notify-bg">
-        <div class="simple-hd" style="background:linear-gradient(180deg,#3ab4e8 0%,#7dcff0 60%,#c8e8f8 100%);">
-          <div class="btn-back" data-back="s1">‹</div>
-          <div class="simple-hd-title">获得徽章通知弹窗</div>
+      <div class="flex-shrink-0">
+        <div class="bg-[linear-gradient(180deg,#3ab4e8_0%,#7dcff0_60%,#c8e8f8_100%)] pt-11 px-4 pb-3.5 flex items-center">
+          <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0" data-back="s1">‹</div>
+          <div class="flex-1 text-center text-white text-[17px] font-semibold mr-7">获得徽章通知弹窗</div>
         </div>
       </div>
-      <!-- 弹窗卡片 -->
-      <div class="notify-overlay">
-        <div class="notify-card">
-          <div class="notify-close" id="notify-close">×</div>
-          <div class="notify-congrats">恭喜获得</div>
+      <!-- 弹窗遮罩 -->
+      <div class="absolute top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-10">
+        <div class="bg-white rounded-2xl w-[300px] px-5 py-7 flex flex-col items-center relative shadow-[0_8px_32px_rgba(0,0,0,0.25)]">
+          <div class="absolute top-2.5 right-3 w-6 h-6 rounded-full bg-[#f0f0f0] text-[#888] flex items-center justify-center text-sm cursor-pointer font-semibold" id="notify-close">×</div>
+          <div class="text-lg font-bold text-[#ff6b35] mb-3.5">恭喜获得</div>
           <!-- 徽章大图 -->
-          <div class="notify-badge-wrap">
-            <div style="width:100px;height:100px;background:linear-gradient(145deg,#f5c842 0%,#e09800 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:42px;box-shadow:0 4px 20px rgba(224,152,0,0.5);">🏅</div>
+          <div class="mb-3.5">
+            <div class="w-[100px] h-[100px] rounded-full bg-[linear-gradient(145deg,#f5c842_0%,#e09800_100%)] flex items-center justify-center text-[42px] shadow-[0_4px_20px_rgba(224,152,0,0.5)]">🏅</div>
           </div>
           <!-- 名称 + 稀有度 -->
-          <div class="notify-name-row">
-            <span class="notify-badge-name">签到达人</span>
-            <span class="notify-rarity rare">珍贵</span>
+          <div class="flex items-center gap-[7px] mb-1.5">
+            <span class="text-base font-bold text-[#1a2233]">签到达人</span>
+            <span class="text-[11px] px-[7px] py-0.5 rounded-[9px] font-medium bg-[#fff3e0] text-[#ff9500]">珍贵</span>
           </div>
-          <div class="notify-cond">在平台签到1次 | 2024/04/11获得</div>
+          <div class="text-xs text-[#aaa] mb-3 text-center">在平台签到1次 | 2024/04/11获得</div>
           <!-- 奖励展示（最多5个，亮色版） -->
-          <div class="notify-reward-area">
-            <div class="notify-reward-list">
-              <div class="notify-reward-item"><div class="notify-reward-icon">💎</div><div class="notify-reward-name">灵石×10</div></div>
-              <div class="notify-reward-item"><div class="notify-reward-icon">🥇</div><div class="notify-reward-name">金锭×5</div></div>
-              <div class="notify-reward-item"><div class="notify-reward-icon">💰</div><div class="notify-reward-name">元宝×3</div></div>
-              <div class="notify-reward-item"><div class="notify-reward-icon">🟢</div><div class="notify-reward-name">丹玉×2</div></div>
-              <div class="notify-reward-item"><div class="notify-reward-icon">🖼️</div><div class="notify-reward-name">深海龙头像×1</div></div>
+          <div class="w-full bg-[#f8f9fa] rounded-xl px-2 py-2.5 mb-4">
+            <div class="flex justify-center gap-1.5 flex-wrap">
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">💎</div><div class="text-[11px] text-[#e06200] font-medium">灵石×10</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">🥇</div><div class="text-[11px] text-[#e06200] font-medium">金锭×5</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">💰</div><div class="text-[11px] text-[#e06200] font-medium">元宝×3</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">🟢</div><div class="text-[11px] text-[#e06200] font-medium">丹玉×2</div></div>
+              <div class="flex items-center gap-1 bg-[#fff0e6] rounded-[20px] px-2 py-1"><div class="text-sm">🖼️</div><div class="text-[11px] text-[#e06200] font-medium">深海龙头像×1</div></div>
             </div>
           </div>
-          <button class="notify-detail-btn" id="goto-detail-from-notify">查看详情</button>
+          <button class="w-full border border-[#ddd] bg-white rounded-[22px] py-[11px] text-sm text-[#555] cursor-pointer transition-colors hover:border-[#3ab4e8] hover:text-[#3ab4e8]" id="goto-detail-from-notify">查看详情</button>
         </div>
       </div>
     </div>
 
     <!-- SCREEN 6: 角色信息确认 -->
     <div class="hidden flex-col h-[667px] overflow-hidden bg-[#f5f8fc]" id="s6">
-      <div class="simple-hd" style="background:linear-gradient(180deg,#3ab4e8 0%,#7dcff0 60%,#c8e8f8 100%);">
-        <div class="btn-back" data-back="s5">‹</div>
-        <div class="simple-hd-title">角色信息确认</div>
+      <div class="bg-[linear-gradient(180deg,#3ab4e8_0%,#7dcff0_60%,#c8e8f8_100%)] pt-11 px-4 pb-3.5 flex items-center flex-shrink-0">
+        <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0" data-back="s5">‹</div>
+        <div class="flex-1 text-center text-white text-[17px] font-semibold mr-7">角色信息确认</div>
       </div>
-      <div class="role-body">
-        <div class="role-form">
-          <div class="role-field">
-            <div class="role-label">接受角色 <span class="role-required">*</span></div>
-            <div class="role-select">
+      <div class="flex-1 px-4 py-5">
+        <div class="bg-white rounded-xl px-4 py-5">
+          <div class="mb-3.5">
+            <div class="text-[13px] text-[#333] font-medium mb-2 flex items-center gap-1">接受角色 <span class="text-[#ff4d4f] text-[13px]">*</span></div>
+            <div class="flex items-center justify-between border border-[#e0e6ed] rounded-lg px-3 py-2.5 text-[13px] text-[#333] cursor-pointer bg-[#fafbfc]">
               <span>武帝无敌（斗罗一区）</span>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5L7 9L11 5" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
             </div>
           </div>
-          <div class="role-hint">请仔细确认角色信息，确定后自动到账</div>
-          <button class="role-confirm-btn">确 定</button>
+          <div class="text-xs text-[#aaa] text-center my-3.5">请仔细确认角色信息，确定后自动到账</div>
+          <button class="w-full bg-[#3ab4e8] text-white border-none rounded-lg py-3.5 text-[15px] font-semibold cursor-pointer tracking-[4px] transition-opacity active:opacity-85">确 定</button>
         </div>
       </div>
     </div>
