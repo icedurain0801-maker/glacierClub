@@ -25,7 +25,7 @@
   <nav id="sidebar" class="sidebar"></nav>
 
   <!-- ============ 左侧：手机原型 ============ -->
-  <div class="flex-shrink-0 w-[375px] h-[667px] overflow-hidden sticky top-0 self-start bg-white shadow-[2px_0_16px_rgba(0,0,0,0.10)] my-5 ml-6 rounded-lg">
+  <div class="relative flex-shrink-0 w-[375px] h-[667px] overflow-hidden sticky top-0 self-start bg-white shadow-[2px_0_16px_rgba(0,0,0,0.10)] my-5 ml-6 rounded-lg">
 
     <!-- SCREEN 1: 徽章墙 -->
     <div class="flex flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s1">
@@ -152,10 +152,10 @@
         </div>
         <div class="text-sm text-white/75 mb-9 text-center leading-relaxed">在社区内【<em class="not-italic text-white font-medium">连续登录</em>】3天</div>
         <!-- 奖励展示区：最多5个（游戏道具+头像框） -->
-        <div class="w-full mb-4 bg-white/[0.08] rounded-xl px-3 py-2.5">
+        <div id="s4-reward-panel" class="w-full mb-4 bg-white/[0.08] rounded-xl px-3 py-2.5">
           <div class="flex items-center justify-between mb-2">
             <span class="text-[11px] text-white/50">达成可获得</span>
-            <span class="text-[10px] text-white/65 border border-white/25 px-2.5 py-0.5 rounded-full cursor-pointer hover:border-white/50 transition-colors">领取</span>
+            <span id="s4-claim-btn" class="text-[10px] text-white/65 border border-white/25 px-2.5 py-0.5 rounded-full cursor-pointer hover:border-white/50 transition-colors">领取</span>
           </div>
           <div class="flex justify-center gap-2 flex-wrap">
             <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f48e.svg" class="w-6 h-6" alt=""></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">灵石</div><div class="text-[10px] text-white/45 text-center">×10</div></div>
@@ -194,10 +194,10 @@
           </div>
           <div class="text-xs text-[#aaa] mb-3 text-center">在平台签到1次 | 2024/04/11获得</div>
           <!-- 奖励展示（最多5个，亮色版） -->
-          <div class="w-full bg-[#f8f9fa] rounded-xl px-3 py-2.5 mb-4">
+          <div id="s5-reward-panel" class="w-full bg-[#f8f9fa] rounded-xl px-3 py-2.5 mb-4">
             <div class="flex items-center justify-between mb-2">
               <span class="text-[11px] text-[#bbb]">达成可获得</span>
-              <span class="text-[10px] text-[#3ab4e8] border border-[#3ab4e8]/50 px-2.5 py-0.5 rounded-full cursor-pointer hover:bg-[#3ab4e8]/10 transition-colors">领取</span>
+              <span id="s5-claim-btn" class="text-[10px] text-[#3ab4e8] border border-[#3ab4e8]/50 px-2.5 py-0.5 rounded-full cursor-pointer hover:bg-[#3ab4e8]/10 transition-colors">领取</span>
             </div>
             <div class="flex justify-between">
               <div class="flex flex-col items-center gap-[3px] w-[42px]"><div class="w-9 h-9 rounded-lg bg-[#fff0e6] flex items-center justify-center border border-[#ffd9b3]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f48e.svg" class="w-5 h-5" alt=""></div><div class="text-[10px] text-[#888] text-center whitespace-nowrap">灵石</div><div class="text-[10px] text-[#bbb] text-center">×10</div></div>
@@ -221,9 +221,9 @@
       <div class="flex-1 px-4 py-5">
         <div class="bg-white rounded-xl px-4 py-5">
           <div class="mb-3.5">
-            <div class="text-[13px] text-[#333] font-medium mb-2 flex items-center gap-1">接受角色 <span class="text-[#ff4d4f] text-[13px]">*</span></div>
+            <div class="text-[13px] text-[#333] font-medium mb-2 flex items-center gap-1">接收角色 <span class="text-[#ff4d4f] text-[13px]">*</span></div>
             <div class="flex items-center justify-between border border-[#e0e6ed] rounded-lg px-3 py-2.5 text-[13px] text-[#333] cursor-pointer bg-[#fafbfc]">
-              <span>武帝无敌（斗罗一区）</span>
+              <span>武帝无敌</span>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5L7 9L11 5" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
             </div>
           </div>
@@ -232,6 +232,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast 提示 -->
+    <div id="phone-toast" class="hidden absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#1a2233]/90 text-white text-[13px] px-4 py-2 rounded-full shadow-lg whitespace-nowrap transition-opacity duration-300">🎉 领取成功</div>
 
   </div><!-- /phone-shell -->
 
@@ -418,25 +421,21 @@
         <div class="px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
           <div class="mb-4 last:mb-0">
             <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>页面说明</div>
-            <p class="text-xs text-[#555] leading-[1.8]">待填写</p>
+            <p class="text-xs text-[#555] leading-[1.8]">玩家达成徽章条件后弹出的通知弹窗，展示徽章图片、名称、稀有度、获得条件及可领取的奖品。</p>
           </div>
           <div class="mb-4 last:mb-0">
-            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>功能说明</div>
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>奖品展示</div>
             <ul class="pl-[15px]">
-              <li class="text-xs text-[#555] leading-[1.9]">用户达成徽章条件后弹出，展示徽章图片、名称、稀有度、获得条件</li>
-              <li class="text-xs text-[#555] leading-[1.9]">奖励区展示可获得的道具和头像框，最多 5 个</li>
+              <li class="text-xs text-[#555] leading-[1.9]">弹窗内「达成可获得」区域展示徽章配置的奖品（道具 / 头像框）</li>
+              <li class="text-xs text-[#555] leading-[1.9]">每行最多展示 5 个，每个奖品显示图标 + 名称 + 数量（头像框无数量）</li>
             </ul>
           </div>
           <div class="mb-4 last:mb-0">
             <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>交互说明</div>
             <ul class="pl-[15px]">
               <li class="text-xs text-[#555] leading-[1.9]">点击 × 关闭弹窗 → 回到徽章墙</li>
-              <li class="text-xs text-[#555] leading-[1.9]">点击「查看详情」→ 跳转角色信息确认页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击「查看详情」→ 进入徽章详情页</li>
             </ul>
-          </div>
-          <div class="mb-4 last:mb-0">
-            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>备注</div>
-            <div class="bg-[#f0f2f5] border-l-[3px] border-[#d0d4da] px-2.5 py-[7px] rounded-r-md text-[11px] text-[#888] leading-[1.7] mt-1.5">待填写</div>
           </div>
         </div>
       </div>
@@ -456,27 +455,18 @@
         </div>
         <div class="px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
           <div class="mb-4 last:mb-0">
-            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>页面说明</div>
-            <p class="text-xs text-[#555] leading-[1.8]">待填写</p>
-          </div>
-          <div class="mb-4 last:mb-0">
-            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>功能说明</div>
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>跳转逻辑</div>
             <ul class="pl-[15px]">
-              <li class="text-xs text-[#555] leading-[1.9]">用户选择接收奖励的游戏角色</li>
-              <li class="text-xs text-[#555] leading-[1.9]">确定后道具自动发放到所选角色</li>
+              <li class="text-xs text-[#555] leading-[1.9]">徽章奖励中游戏道具数量 ≥ 1 时，点击「查看详情」跳转本页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">游戏道具数量 = 0 时（仅头像框等），点击「查看详情」直接发放，不跳转本页</li>
             </ul>
           </div>
           <div class="mb-4 last:mb-0">
-            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>交互说明</div>
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>角色来源</div>
             <ul class="pl-[15px]">
-              <li class="text-xs text-[#555] leading-[1.9]">点击角色下拉 → 展示当前账号绑定的所有角色</li>
-              <li class="text-xs text-[#555] leading-[1.9]">点击「确定」→ 确认发放，返回上一页</li>
-              <li class="text-xs text-[#555] leading-[1.9]">点击返回 → 回到通知弹窗页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">下拉列表展示用户冰川通行证下绑定的所有角色</li>
+              <li class="text-xs text-[#555] leading-[1.9]">默认选中角色 ID 最小的角色</li>
             </ul>
-          </div>
-          <div class="mb-4 last:mb-0">
-            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>备注</div>
-            <div class="bg-[#f0f2f5] border-l-[3px] border-[#d0d4da] px-2.5 py-[7px] rounded-r-md text-[11px] text-[#888] leading-[1.7] mt-1.5">待填写</div>
           </div>
         </div>
       </div>
@@ -503,6 +493,11 @@
     const doc = document.getElementById('doc-' + id);
     if (doc) doc.classList.remove('hidden');
     document.getElementById('doc-panel').scrollTop = 0;
+    // 重置奖励面板（每次进入 s4/s5 恢复显示）
+    if (id === 's4' || id === 's5') {
+      const p = document.getElementById(id + '-reward-panel');
+      if (p) { p.removeAttribute('style'); p.classList.remove('hidden'); }
+    }
   }
 
 
@@ -561,6 +556,39 @@
       arrow.style.transform = body.classList.contains('hidden') ? '' : 'rotate(180deg)';
     });
   });
+
+  function showToast(msg) {
+    const t = document.getElementById('phone-toast');
+    t.textContent = msg;
+    t.classList.remove('hidden', 'opacity-0');
+    t.classList.add('opacity-100');
+    setTimeout(() => {
+      t.classList.add('hidden');
+    }, 2000);
+  }
+
+  function claimReward(panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    // 平滑隐藏奖励框
+    panel.style.transition = 'opacity 0.3s, max-height 0.4s';
+    panel.style.overflow = 'hidden';
+    panel.style.opacity = '0';
+    panel.style.maxHeight = panel.offsetHeight + 'px';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        panel.style.maxHeight = '0';
+        panel.style.marginBottom = '0';
+        panel.style.paddingTop = '0';
+        panel.style.paddingBottom = '0';
+      });
+    });
+    setTimeout(() => { panel.style.display = 'none'; }, 420);
+    showToast('🎉 领取成功');
+  }
+
+  document.getElementById('s4-claim-btn').addEventListener('click', () => claimReward('s4-reward-panel'));
+  document.getElementById('s5-claim-btn').addEventListener('click', () => claimReward('s5-reward-panel'));
 
   function getBadgeIcon(name) {
     const map = {
