@@ -892,6 +892,15 @@ tbody tr:hover { background: #fafeff; }
 }
 .help-panel.open { right: 0; }
 
+.help-panel-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 949;
+}
+.help-panel-overlay.open { display: block; }
+
 .help-panel-header {
   display: flex;
   align-items: center;
@@ -990,6 +999,7 @@ tbody tr:hover { background: #fafeff; }
   <div class="help-fab-text">需求说明</div>
 </div>
 
+<div class="help-panel-overlay" id="help-panel-overlay"></div>
 <div class="help-panel" id="help-panel">
   <div class="help-panel-header">
     <div class="help-panel-title">徽章管理 — 需求说明</div>
@@ -1156,7 +1166,7 @@ tbody tr:hover { background: #fafeff; }
               </tr>
               <tr style="background:#fafafa;">
                 <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;white-space:nowrap;">邮件正文</td>
-                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#262626;">亲爱的玩家，这是您徽章达成的奖励，请查收</td>
+                <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#262626;">亲爱的玩家，恭喜你达成徽章：{徽章名称}，这是您的奖励请查收</td>
               </tr>
               <tr>
                 <td style="padding:7px 10px;border:1px solid #e8e8e8;color:#595959;white-space:nowrap;">触发时机</td>
@@ -1179,12 +1189,25 @@ tbody tr:hover { background: #fafeff; }
 
 <script>
   // ── 说明面板开关 ──
-  const helpFab   = document.getElementById('help-fab');
-  const helpPanel = document.getElementById('help-panel');
+  const helpFab     = document.getElementById('help-fab');
+  const helpPanel   = document.getElementById('help-panel');
+  const helpOverlay = document.getElementById('help-panel-overlay');
 
-  document.getElementById('help-panel-close').addEventListener('click', () => {
+  function closeHelpPanel() {
     helpPanel.classList.remove('open');
-  });
+    helpOverlay.classList.remove('open');
+  }
+  function openHelpPanel() {
+    helpPanel.classList.add('open');
+    helpOverlay.classList.add('open');
+  }
+  function toggleHelpPanel() {
+    const isOpen = helpPanel.classList.contains('open');
+    isOpen ? closeHelpPanel() : openHelpPanel();
+  }
+
+  document.getElementById('help-panel-close').addEventListener('click', closeHelpPanel);
+  helpOverlay.addEventListener('click', closeHelpPanel);
 
   // 版本块折叠
   helpPanel.querySelectorAll('.help-version-hd').forEach(hd => {
@@ -1217,7 +1240,7 @@ tbody tr:hover { background: #fafeff; }
       helpFab.classList.remove('dragging');
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup',   onUp);
-      if (!isDragging) helpPanel.classList.toggle('open');
+      if (!isDragging) toggleHelpPanel();
     }
 
     document.addEventListener('mousemove', onMove);
