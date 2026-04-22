@@ -57,6 +57,47 @@ tailwind.config = {
 <title>资讯</title>
 </head>
 <body class="bg-surface font-body text-on-surface">
-<!-- 内容占位 -->
+<!-- 固定顶部：Tab 栏 -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-surface border-b border-surface-container-high">
+  <!-- 状态栏 -->
+  <div class="flex items-center justify-between px-5 pt-3 pb-1 text-[11px] text-on-surface">
+    <div class="flex items-center gap-1">
+      <span class="material-symbols-outlined text-[14px]">signal_cellular_alt</span>
+      <span class="material-symbols-outlined text-[14px]">wifi</span>
+    </div>
+    <span class="font-semibold">9:41 AM</span>
+    <div class="flex items-center gap-1">
+      <span class="text-[11px] font-medium">100%</span>
+      <span class="material-symbols-outlined text-[14px]">battery_full</span>
+    </div>
+  </div>
+  <!-- Tab 行 -->
+  <div class="flex items-center px-4 pb-0">
+    <div class="flex items-center gap-6 flex-1 overflow-x-auto no-scrollbar">
+      <!-- 官方资讯（激活） -->
+      <div class="flex items-center gap-1.5 pb-3 border-b-2 border-primary shrink-0">
+        <span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings:'FILL' 1;">newspaper</span>
+        <span class="text-sm font-bold text-primary">官方资讯</span>
+      </div>
+      <!-- 攻略大全 -->
+      <div class="flex items-center gap-1.5 pb-3 shrink-0">
+        <span class="material-symbols-outlined text-[18px] text-on-surface-variant" style="font-variation-settings:'FILL' 0;">menu_book</span>
+        <span class="text-sm font-medium text-on-surface-variant">攻略大全</span>
+      </div>
+      <!-- 趣味栏目 -->
+      <div class="flex items-center gap-1.5 pb-3 shrink-0">
+        <span class="material-symbols-outlined text-[18px] text-on-surface-variant" style="font-variation-settings:'FILL' 0;">sentiment_satisfied</span>
+        <span class="text-sm font-medium text-on-surface-variant">趣味栏目</span>
+      </div>
+    </div>
+    <!-- 搜索 -->
+    <div class="pb-3 pl-2">
+      <span class="material-symbols-outlined text-on-surface-variant">search</span>
+    </div>
+  </div>
+</header>
+<!-- 内容区占位 -->
+<main class="pt-24 pb-24 px-4 space-y-4 max-w-screen-sm mx-auto">
+</main>
 </body>
 </html>
