@@ -29,7 +29,8 @@ tailwind.config = {
         "on-surface": "#2a3439",
         "background": "#f7f9fb",
         "on-primary": "#f5f8ff",
-        "outline-variant": "#a9b4b9"
+        "outline-variant": "#a9b4b9",
+        "error": "#9f403d"
       },
       "borderRadius": {
         "DEFAULT": "1rem",
@@ -75,17 +76,17 @@ tailwind.config = {
   <div class="flex items-center px-4 pb-0">
     <div class="flex items-center gap-6 flex-1 overflow-x-auto no-scrollbar">
       <!-- 官方资讯（激活） -->
-      <div class="flex items-center gap-1.5 pb-3 border-b-2 border-primary shrink-0">
+      <div class="flex items-center gap-1.5 pb-3 border-b-2 border-primary shrink-0 cursor-pointer active:opacity-70 transition-opacity">
         <span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings:'FILL' 1;">newspaper</span>
         <span class="text-sm font-bold text-primary">官方资讯</span>
       </div>
       <!-- 攻略大全 -->
-      <div class="flex items-center gap-1.5 pb-3 shrink-0">
+      <div class="flex items-center gap-1.5 pb-3 shrink-0 cursor-pointer active:opacity-70 transition-opacity">
         <span class="material-symbols-outlined text-[18px] text-on-surface-variant" style="font-variation-settings:'FILL' 0;">menu_book</span>
         <span class="text-sm font-medium text-on-surface-variant">攻略大全</span>
       </div>
       <!-- 趣味栏目 -->
-      <div class="flex items-center gap-1.5 pb-3 shrink-0">
+      <div class="flex items-center gap-1.5 pb-3 shrink-0 cursor-pointer active:opacity-70 transition-opacity">
         <span class="material-symbols-outlined text-[18px] text-on-surface-variant" style="font-variation-settings:'FILL' 0;">sentiment_satisfied</span>
         <span class="text-sm font-medium text-on-surface-variant">趣味栏目</span>
       </div>
@@ -105,7 +106,7 @@ tailwind.config = {
 </div>
 
 <!-- 卡片 1：安塔茶话会 -->
-<article class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm">
+<article class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm cursor-pointer active:opacity-90 transition-opacity">
   <div class="relative aspect-[16/9]">
     <img
       class="w-full h-full object-cover"
@@ -136,7 +137,7 @@ tailwind.config = {
 </article>
 
 <!-- 卡片 2：超能情报站 -->
-<article class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm">
+<article class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm cursor-pointer active:opacity-90 transition-opacity">
   <div class="relative aspect-[16/9]">
     <img
       class="w-full h-full object-cover"
@@ -167,7 +168,7 @@ tailwind.config = {
 </article>
 
 <!-- 卡片 3：狩魂者（视频） -->
-<article class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm">
+<article class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm cursor-pointer active:opacity-90 transition-opacity">
   <div class="relative aspect-[16/9]">
     <img
       class="w-full h-full object-cover"
@@ -238,7 +239,7 @@ tailwind.config = {
     <div class="flex flex-col items-center gap-0.5 px-3 py-1 relative">
       <div class="relative">
         <span class="material-symbols-outlined text-[24px] text-on-surface-variant">person</span>
-        <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">2</span>
+        <span class="absolute -top-1 -right-1 w-4 h-4 bg-error text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">2</span>
       </div>
       <span class="text-[10px] text-on-surface-variant">我的</span>
     </div>
