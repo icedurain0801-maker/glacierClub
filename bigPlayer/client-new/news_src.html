@@ -204,5 +204,46 @@ tailwind.config = {
   </div>
 </article>
 </main>
+
+<!-- 底部固定导航栏 -->
+<nav class="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-surface-container-high">
+  <div class="flex items-center justify-around px-2 py-2 max-w-screen-sm mx-auto">
+
+    <!-- 首页 -->
+    <div class="flex flex-col items-center gap-0.5 px-3 py-1">
+      <span class="material-symbols-outlined text-[24px] text-on-surface-variant">home</span>
+      <span class="text-[10px] text-on-surface-variant">首页</span>
+    </div>
+
+    <!-- 资讯（激活） -->
+    <div class="flex flex-col items-center gap-0.5 px-3 py-1">
+      <span class="material-symbols-outlined text-[24px] text-primary" style="font-variation-settings:'FILL' 1;">article</span>
+      <span class="text-[10px] text-primary font-bold">资讯</span>
+    </div>
+
+    <!-- 发布（+按钮） -->
+    <div class="flex flex-col items-center gap-0.5 px-3 py-1">
+      <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md">
+        <span class="material-symbols-outlined text-[22px] text-white">add</span>
+      </div>
+    </div>
+
+    <!-- 玩家圈 -->
+    <div class="flex flex-col items-center gap-0.5 px-3 py-1">
+      <span class="material-symbols-outlined text-[24px] text-on-surface-variant">group</span>
+      <span class="text-[10px] text-on-surface-variant">玩家圈</span>
+    </div>
+
+    <!-- 我的（含 badge） -->
+    <div class="flex flex-col items-center gap-0.5 px-3 py-1 relative">
+      <div class="relative">
+        <span class="material-symbols-outlined text-[24px] text-on-surface-variant">person</span>
+        <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">2</span>
+      </div>
+      <span class="text-[10px] text-on-surface-variant">我的</span>
+    </div>
+
+  </div>
+</nav>
 </body>
 </html>
