@@ -3,6 +3,7 @@
 <html lang="zh-CN"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="stylesheet" href="../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -94,16 +95,158 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
+/* ── Tab 切换：默认隐藏所有面板，按 data-tab 值显示对应面板 ── */
+[data-tab-panel] { display: none; }
+.phone-inner[data-tab="recommend"] [data-tab-panel="recommend"] { display: block; }
+.phone-inner[data-tab="discover"]  [data-tab-panel="discover"]  { display: block; }
+
+/* ── Tab 激活态（JS 驱动） ── */
+.tab-active {
+  font-weight: 700 !important;
+  color: #1f2937 !important;
+  border-bottom: 2px solid #0061a4 !important;
+}
+.tab-inactive {
+  font-weight: 500;
+  color: #566166;
+  border-bottom: 2px solid transparent !important;
+}
+
+/* ── 瀑布流容器 ── */
+.waterfall-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 6px 6px 80px;
+}
+.waterfall-col { display: flex; flex-direction: column; gap: 6px; }
+.waterfall-col--right { margin-top: 14px; }
+
+/* ── 通用卡片 ── */
+.wf-card {
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+.wf-card__thumb { position: relative; }
+.wf-card__thumb img { width: 100%; display: block; object-fit: cover; }
+
+/* 视频角标 */
+.wf-card__play {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px; height: 32px;
+  background: rgba(0,0,0,0.52);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.wf-card__play::after {
+  content: '';
+  width: 0; height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid white;
+  margin-left: 2px;
+}
+.wf-card__duration {
+  position: absolute; bottom: 5px; right: 6px;
+  background: rgba(0,0,0,0.62);
+  color: white; font-size: 9px; font-weight: 600;
+  padding: 2px 5px; border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* 文字占位封面 — background 按 post.id % 4 通过内联 style 注入；此处作为 fallback */
+.wf-card__textthumb {
+  padding: 14px 10px 10px;
+  min-height: 68px;
+  background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%);
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.wf-card__textthumb span {
+  font-size: 13px; font-weight: 700; color: #1e3a5f;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 卡片信息区 */
+.wf-card__info { padding: 7px 8px 8px; }
+.wf-card__title {
+  font-size: 11px; font-weight: 500;
+  color: #1f2937; line-height: 1.4;
+  margin-bottom: 7px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wf-card__meta {
+  display: flex; align-items: center; gap: 5px;
+  min-width: 0;
+}
+.wf-card__avatar {
+  width: 18px; height: 18px;
+  border-radius: 50%; flex-shrink: 0;
+  object-fit: cover;
+}
+.wf-card__username {
+  font-size: 10px; font-weight: 600; color: #374151;
+  flex: 1; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ── 点赞按钮 ── */
+.like-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 9px 4px 7px;
+  border-radius: 999px; border: none;
+  background: #fdf4ef;
+  color: #f0a070;
+  font-size: 11px; font-weight: 700;
+  cursor: pointer; flex-shrink: 0;
+  white-space: nowrap; line-height: 1;
+  box-shadow: none;
+  transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.like-btn .like-heart {
+  font-size: 13px; line-height: 1; display: inline-block;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.like-btn.liked {
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(255,107,53,0.45);
+  transform: scale(1.08);
+}
+.like-btn.liked .like-heart { transform: scale(1.2); }
     </style>
 <style>
     body {
-      min-height: max(884px, 100dvh);
+      min-height: 100dvh;
+    }
+    .phone-shell {
+      width: 375px;
+      flex-shrink: 0;
+    }
+    .phone-inner {
+      width: 375px;
+      min-height: 667px;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
   </style>
 </head>
-<body class="bg-surface font-body text-on-surface" data-mode="connect">
+<body class="bg-[#f0f4f8] font-body text-on-surface flex justify-center items-start">
+<nav id="sidebar" class="sidebar hidden"></nav>
+<div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
+<div class="phone-inner bg-surface" data-mode="connect" data-tab="recommend">
 <!-- Top Navigation - Made transparent and high z-index -->
-<nav class="fixed top-0 w-full z-[100] bg-transparent backdrop-blur-sm flex justify-between items-center px-6 h-16 max-w-screen-xl mx-auto">
+<nav class="sticky top-0 w-full z-[100] bg-transparent backdrop-blur-sm flex justify-between items-center px-6 h-16">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-white" style="">menu</span>
 <span class="font-headline font-bold text-lg tracking-tight text-white drop-shadow-sm" style="">探索中心</span>
@@ -112,9 +255,9 @@
 <span class="material-symbols-outlined text-white" style="">search</span>
 </div>
 </nav>
-<main class="max-w-screen-xl mx-auto space-y-3 pb-28">
+<main class="w-full space-y-3 pb-28">
 <!-- Main Banner - Extended to top -->
-<section class="relative w-full overflow-hidden aspect-[16/10]">
+<section class="relative w-full overflow-hidden aspect-[16/10] -mt-16">
 <img class="w-full h-full object-cover" data-alt="Cinematic wide shot of a futuristic cyberpunk city at night with neon lights reflecting on wet pavement in high-fidelity 3D graphics" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-4taa7yNILD_pDldo0bJdy0lsdv-i1fVOXPvzOVNj-euNEZ9T0V9NOusYI5zZb8KOOdEgXsFzG3WiN_Kbc-_zJ_B2QiaB3SWwGbvm0WPq3PruXCe0ZxhqqMM5Q9Gpo1L4X0YoRctabfBCYGoXbqH_sUxNhAr68PYH7qO8TyszakD0NZX3cujuoO0zZ_NxrSyFAXwOxjzKNCi2s3bs5eohJKBGDQLyTuAc3jdbG3sKFgDTuIuDXXbbI577Ts7l-32pJ-lm67VWXFw" style=""/>
 <!-- Bottom fading gradient -->
 <div class="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-surface to-transparent"></div>
@@ -167,28 +310,29 @@
 <!-- New Tab Navigation Bar -->
 <section class="px-4">
 <div class="flex items-center gap-8 border-b border-surface-container-high overflow-x-auto no-scrollbar">
-<div class="pb-3 text-sm font-medium text-on-surface-variant flex-shrink-0">关注</div>
-<div class="pb-3 text-sm font-medium text-on-surface-variant flex items-center gap-1 flex-shrink-0">
+<div id="tab-follow" onclick="switchTab('follow')" class="tab-inactive pb-3 text-sm font-medium text-on-surface-variant flex-shrink-0">关注</div>
+<div id="tab-discover" onclick="switchTab('discover')" class="tab-inactive pb-3 text-sm font-medium text-on-surface-variant flex items-center gap-1 flex-shrink-0">
 <span>发现</span>
 <span class="material-symbols-outlined text-base text-green-500" style="font-variation-settings: 'FILL' 1;">thumb_up</span>
 </div>
-<div class="pb-3 text-sm font-bold text-on-surface border-b-2 border-primary relative flex items-center gap-1 flex-shrink-0">
+<div id="tab-recommend" onclick="switchTab('recommend')" class="tab-active pb-3 text-sm font-bold text-on-surface border-b-2 border-primary relative flex items-center gap-1 flex-shrink-0">
 <span>推荐</span>
 <span class="material-symbols-outlined text-base text-orange-500" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
 </div>
-<div class="pb-3 text-sm font-medium text-on-surface-variant flex-shrink-0">攻略站</div>
+<div id="tab-guide" onclick="switchTab('guide')" class="tab-inactive pb-3 text-sm font-medium text-on-surface-variant flex-shrink-0">攻略站</div>
 </div>
 </section>
+<div data-tab-panel="recommend">
 <!-- Carousel Section -->
 <section class="px-4">
 <div class="grid grid-cols-2 gap-3">
-<div class="rounded-lg overflow-hidden shadow-sm border border-primary/10 aspect-[3/2] relative">
+<div class="rounded overflow-hidden shadow-sm border border-primary/10 aspect-[15/7] relative">
 <img alt="A high-quality, vibrant fantasy RPG promotional banner featuring an ethereal landscape with light blue and neon accents, matching a clean and modern gaming community aesthetic." class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBg4rWbAStZdaKm-UAy8l7V7KG5HEBj2xBPCuUbCCQS4T2DCgJu4J9WZkLiJb9kU5L4thpZal1fUYF_jCjG66UBiKI1qWnyZsbNja1RxnbXCBHxedirn5ExXCDMYLKz7ej3DigoobFQ8tQtZE-FBIFAjCgkX6v3q69OAFECEmCZkVuzoSbB87765rqYqKW-kfsrDersSJi--Fn9Hw0f0_85OLz0YS80ua-JUldwArqCm3LSegKRU6qej1ns0FA8D1GI9QWD1Je8sfc"/>
 <div class="absolute bottom-0 left-0 right-0 bg-black/40 px-2 py-1">
 <p class="text-white font-bold text-[10px] truncate">星际联赛春季赛</p>
 </div>
 </div>
-<div class="rounded-lg overflow-hidden shadow-sm border border-primary/10 aspect-[3/2] relative">
+<div class="rounded overflow-hidden shadow-sm border border-primary/10 aspect-[15/7] relative">
 <img alt="Cinematic wide shot of a futuristic cyberpunk city at night with neon lights reflecting on wet pavement, matching the clean gaming aesthetic." class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB346jz_0p0UQu-Z3k4i7NZLDvqFfjHTdBKNnLMV_qG4RB1QXyqnShYavGs8RFHMoeLC7sRDAD5CckkL7hp-I4RxMJvFP6cIl7jyOJQzPSc6FfUUrDhPerm611P3r2ua2rcgsj535roWgrkJafWCdGJbclI8mdo5bAYtyI4mrkN_ofWuKXaZwLSfc8MWbcEdZ_uZjwUxqV_7AaqkIP8T_YZVxOXT6x16xEecIrexAgdjTR8BNQQ2Pne03_7dWQY0-s0hT9mDsESp8Q"/>
 <div class="absolute bottom-0 left-0 right-0 bg-black/40 px-2 py-1">
 <p class="text-white font-bold text-[10px] truncate">新版本更新预告</p>
@@ -202,30 +346,42 @@
 <h3 class="font-headline text-xl font-extrabold tracking-tight" style="">热门快讯</h3>
 <span class="text-xs font-bold text-primary" style="">查看全部</span>
 </div>
-<div class="space-y-3">
+<div class="bg-surface-container-lowest rounded-2xl shadow-[0_4px_20px_rgba(42,52,57,0.07)] overflow-hidden divide-y divide-surface-container-low">
 <!-- News Item 1 -->
-<div class="glass-card p-4 rounded-lg flex gap-4 transition-all hover:bg-white shadow-[0_8px_30px_rgba(42,52,57,0.08)]">
-<div class="flex-1 space-y-2">
-<h4 class="font-semibold text-sm line-clamp-2 leading-relaxed" style="">虚幻引擎5新作《龙之觉醒》首支预告片公布，画质突破极限</h4>
-<div class="flex items-center gap-3 text-[10px] text-on-surface-variant"><span class="px-1.5 py-0.5 bg-surface-container rounded text-primary font-bold">业界动态</span><div class="flex items-center gap-2"><div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">thumb_up</span><span>1.5k</span></div><div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">chat_bubble</span><span>128</span></div><span class="ml-1">· 05-24</span></div></div>
+<div class="flex items-start gap-3 px-4 py-3.5 transition-colors active:bg-surface-container-low">
+<span class="material-symbols-outlined text-orange-500 text-xl mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<div class="flex-1 space-y-1.5 min-w-0">
+<h4 class="font-semibold text-sm leading-snug line-clamp-1">虚幻引擎5新作《龙之觉醒》首支预告片公布...</h4>
+<div class="flex items-center gap-3 text-[11px] text-on-surface-variant">
+<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">thumb_up</span><span>1.5k</span></div>
+<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">chat_bubble</span><span>128</span></div>
+<span>05-24</span>
 </div>
-<img class="w-20 h-20 rounded-lg object-cover" data-alt="Close up of a gaming controller on a table with blurred colorful RGB lights in the background, professional tech photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWhanPKpkLUP4Zw0wmoDE_8YpmX6hBAjmAcUN1olfzxsFQNDNihangKzJ267T5eWG3G33ishgp9a5tzNN9pJAS5PnHb9t5ETxrAO5Aj1MrfXkgeDZBvUM0qif0GLyv4ncU5N3hnw6XZaXObDruwvxHyRQOleC4T2lS0-0Bz7lUKyaQPKOy-YYTjfL1hig5AoF_bVZhrkC7zeb1YCcO0I-YwvjdOfVaWkEVQ2LZ0UCBF2qprZKKsGrjc-31RsxllBUQ7qtjzQe_cAw" style=""/>
+</div>
 </div>
 <!-- News Item 2 -->
-<div class="glass-card p-4 rounded-lg flex gap-4 transition-all hover:bg-white shadow-[0_8px_30px_rgba(42,52,57,0.08)]">
-<div class="flex-1 space-y-2">
-<h4 class="font-semibold text-sm line-clamp-2 leading-relaxed" style="">独立游戏节获奖名单出炉：这款国产像素风作品包揽三项大奖</h4>
-<div class="flex items-center gap-3 text-[10px] text-on-surface-variant"><span class="px-1.5 py-0.5 bg-surface-container rounded text-primary font-bold">赛事新闻</span><div class="flex items-center gap-2"><div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">thumb_up</span><span>864</span></div><div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">chat_bubble</span><span>56</span></div><span class="ml-1">· 05-23</span></div></div>
+<div class="flex items-start gap-3 px-4 py-3.5 transition-colors active:bg-surface-container-low">
+<span class="material-symbols-outlined text-orange-500 text-xl mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<div class="flex-1 space-y-1.5 min-w-0">
+<h4 class="font-semibold text-sm leading-snug line-clamp-1">独立游戏节获奖名单出炉：这款国产像素风...</h4>
+<div class="flex items-center gap-3 text-[11px] text-on-surface-variant">
+<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">thumb_up</span><span>864</span></div>
+<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">chat_bubble</span><span>56</span></div>
+<span>05-23</span>
 </div>
-<img class="w-20 h-20 rounded-lg object-cover" data-alt="Artistic high-contrast shot of a mechanical keyboard with glowing violet and blue backlighting, macro photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfNfOcS09hsRnwmM_KiEXKhAf6EnpBGFnEmddqdiLnZNUAY2LxMQskhg8Vf5axGrgu9EdGq9cYI-CWayPOLkb-ddU4FlciZlhRceLggj-rH0dm5fnDnCnp5nH9jXMdZ2xVaKao2UmwVUP4NYztDjJN3a2AsPvFyW4X0slhvUHLcPoQ6yCtyrzubFENepYPVEjm-cHfD1Z64V8b-KLR8Dk9cCWGBU_k3M5hHbQbLCGIO_MZtGkeoo4gm-a0KuPaJ2NcOUxSfVty_bc" style=""/>
+</div>
 </div>
 <!-- News Item 3 -->
-<div class="glass-card p-4 rounded-lg flex gap-4 transition-all hover:bg-white shadow-[0_8px_30px_rgba(42,52,57,0.08)]">
-<div class="flex-1 space-y-2">
-<h4 class="font-semibold text-sm line-clamp-2 leading-relaxed" style="">关于近期服务器连接波动的补偿方案说明</h4>
-<div class="flex items-center gap-3 text-[10px] text-on-surface-variant"><span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded font-bold">官方公告</span><div class="flex items-center gap-2"><div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">thumb_up</span><span>3.2k</span></div><div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">chat_bubble</span><span>412</span></div><span class="ml-1">· 05-22</span></div></div>
+<div class="flex items-start gap-3 px-4 py-3.5 transition-colors active:bg-surface-container-low">
+<span class="material-symbols-outlined text-orange-500 text-xl mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<div class="flex-1 space-y-1.5 min-w-0">
+<h4 class="font-semibold text-sm leading-snug line-clamp-1">关于近期服务器连接波动的补偿方案说明</h4>
+<div class="flex items-center gap-3 text-[11px] text-on-surface-variant">
+<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">thumb_up</span><span>3.2k</span></div>
+<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">chat_bubble</span><span>412</span></div>
+<span>05-22</span>
 </div>
-<img class="w-20 h-20 rounded-lg object-cover" data-alt="Digital landscape of a server room with blue data streams and glowing light patterns representing high speed connectivity" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB346jz_0p0UQu-Z3k4i7NZLDvqFfjHTdBKNnLMV_qG4RB1QXyqnShYavGs8RFHMoeLC7sRDAD5CckkL7hp-I4RxMJvFP6cIl7jyOJQzPSc6FfUUrDhPerm611P3r2ua2rcgsj535roWgrkJafWCdGJbclI8mdo5bAYtyI4mrkN_ofWuKXaZwLSfc8MWbcEdZ_uZjwUxqV_7AaqkIP8T_YZVxOXT6x16xEecIrexAgdjTR8BNQQ2Pne03_7dWQY0-s0hT9mDsESp8Q" style=""/>
+</div>
 </div>
 </div>
 </section>
@@ -338,5 +494,226 @@
 </div>
 </div></article>
 </section>
+</div><!-- /data-tab-panel="recommend" -->
+
+<div data-tab-panel="discover">
+  <div class="waterfall-grid">
+    <div class="waterfall-col">
+
+      <!-- Card 1: video post -->
+      <div class="wf-card">
+        <div class="wf-card__thumb">
+          <img src="https://picsum.photos/seed/gm1/300/320" alt="">
+          <div class="wf-card__play"></div>
+          <span class="wf-card__duration">00:34</span>
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">《狩魂者-蛮古》技能详情公开！满血复活！</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av1/40/40" alt="">
+            <span class="wf-card__username">超能情报站</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">696</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: no-image text post -->
+      <div class="wf-card">
+        <div class="wf-card__textthumb" style="background:linear-gradient(135deg,#d1fae5 0%,#a7f3d0 100%)">
+          <span>终于在最高难度下通关了！</span>
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">终于在最高难度下通关了《永恒之境》！打击感绝了</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av3/40/40" alt="">
+            <span class="wf-card__username">星空旅人</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">452</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 5: video post -->
+      <div class="wf-card">
+        <div class="wf-card__thumb">
+          <img src="https://picsum.photos/seed/gm5/300/280" alt="">
+          <div class="wf-card__play"></div>
+          <span class="wf-card__duration">01:22</span>
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">新版本上线了，测了一下手感真的爽</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av5/40/40" alt="">
+            <span class="wf-card__username">晴天_Sky</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">233</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 7: image post -->
+      <div class="wf-card">
+        <div class="wf-card__thumb">
+          <img src="https://picsum.photos/seed/gm7/300/240" alt="">
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">全新皮肤上线，这个特效有点猛了吧</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av7/40/40" alt="">
+            <span class="wf-card__username">龙之传人99</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">1204</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /waterfall-col left -->
+
+    <div class="waterfall-col waterfall-col--right">
+
+      <!-- Card 2: image post -->
+      <div class="wf-card">
+        <div class="wf-card__thumb">
+          <img src="https://picsum.photos/seed/gm2/300/260" alt="">
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">26.04.20 狗头总结 周报整理</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av2/40/40" alt="">
+            <span class="wf-card__username">亚历山大叔</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">29</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: image post -->
+      <div class="wf-card">
+        <div class="wf-card__thumb">
+          <img src="https://picsum.photos/seed/gm4/300/380" alt="">
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">战域，到目前为止还没丢分 赛季末合集</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av4/40/40" alt="">
+            <span class="wf-card__username">†御梦子†</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">115</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 6: no-image text post -->
+      <div class="wf-card">
+        <div class="wf-card__textthumb" style="background:linear-gradient(135deg,#fce7f3 0%,#fbcfe8 100%)">
+          <span>赛季末了，分享几波骚操作</span>
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">赛季末操作集锦，这波真的不亏，来看</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av6/40/40" alt="">
+            <span class="wf-card__username">月光_Vera</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">88</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 8: no-image text post -->
+      <div class="wf-card">
+        <div class="wf-card__textthumb" style="background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%)">
+          <span>终于排到王者了！感谢！</span>
+        </div>
+        <div class="wf-card__info">
+          <div class="wf-card__title">终于排到王者了！感谢大家一路陪伴，附上庆祝截图</div>
+          <div class="wf-card__meta">
+            <img class="wf-card__avatar" src="https://picsum.photos/seed/av8/40/40" alt="">
+            <span class="wf-card__username">凌寒_Frost</span>
+            <button class="like-btn" onclick="toggleLike(this)">
+              <span class="like-heart">♡</span><span class="like-count">318</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /waterfall-col right -->
+  </div><!-- /waterfall-grid -->
+</div><!-- /data-tab-panel="discover" -->
 </main>
+</div><!-- /phone-inner -->
+</div><!-- /phone-shell -->
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/sidebar.js"></script>
+<script>
+  initSidebar({
+    root: '../..',
+    currentHref: 'client-new/home_src.html'
+  });
+
+function switchTab(tab) {
+  var inner = document.querySelector('.phone-inner');
+  if (!inner) return;
+  inner.dataset.tab = tab;
+
+  var tabs = {
+    follow:    document.getElementById('tab-follow'),
+    discover:  document.getElementById('tab-discover'),
+    recommend: document.getElementById('tab-recommend'),
+    guide:     document.getElementById('tab-guide')
+  };
+  Object.keys(tabs).forEach(function(key) {
+    var el = tabs[key];
+    if (!el) return;
+    if (key === tab) {
+      el.classList.add('tab-active');
+      el.classList.remove('tab-inactive');
+    } else {
+      el.classList.add('tab-inactive');
+      el.classList.remove('tab-active');
+    }
+  });
+}
+
+function toggleLike(btn) {
+  var heart = btn.querySelector('.like-heart');
+  var countEl = btn.querySelector('.like-count');
+  var liked = btn.classList.toggle('liked');
+  heart.textContent = liked ? '♥' : '♡';
+  var count = parseInt(countEl.textContent, 10);
+  countEl.textContent = liked ? count + 1 : Math.max(0, count - 1);
+}
+</script>
+<!-- Bottom Tab Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-slate-100 flex items-center justify-around px-2 h-16 pb-safe">
+  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
+    <span class="material-symbols-outlined text-2xl text-primary" style="font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24">home</span>
+    <span class="text-[10px] font-medium text-primary">Home</span>
+  </button>
+  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
+    <span class="material-symbols-outlined text-2xl text-slate-400">explore</span>
+    <span class="text-[10px] font-medium text-slate-400">Discover</span>
+  </button>
+  <button class="flex flex-col items-center -mt-5 flex-1 active:scale-95 transition-all">
+    <span class="flex items-center justify-center w-12 h-12 rounded-full bg-primary shadow-lg shadow-primary/30">
+      <span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">add</span>
+    </span>
+    <span class="text-[10px] font-medium text-slate-400 mt-0.5">Post</span>
+  </button>
+  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
+    <span class="material-symbols-outlined text-2xl text-slate-400">chat_bubble</span>
+    <span class="text-[10px] font-medium text-slate-400">Chat</span>
+  </button>
+  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
+    <span class="material-symbols-outlined text-2xl text-slate-400">person</span>
+    <span class="text-[10px] font-medium text-slate-400">Profile</span>
+  </button>
+</nav>
 </body></html>
