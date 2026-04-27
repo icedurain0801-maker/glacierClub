@@ -37,13 +37,22 @@
       opacity: 0.65;
       transform: scale(0.93);
     }
+    /* 高斯模糊背景图 */
+    #carousel-bg {
+      filter: blur(20px) brightness(0.7);
+      transform: scale(1.15);
+      transition: opacity 0.6s ease-in-out;
+    }
   </style>
 </head>
 <body class="bg-gray-100 flex justify-center selection:bg-blue-200 text-gray-900 font-sans">
 <!-- Main Mobile Container -->
 <main class="w-full max-w-[428px] h-[100dvh] bg-white relative shadow-2xl flex flex-col overflow-hidden">
 <!-- BEGIN: TopSection -->
-<header class="relative bg-gradient-to-b from-[#4a3f4e] to-[#2d2630] text-white shrink-0">
+<header class="relative overflow-hidden text-white shrink-0">
+<!-- 模糊背景 -->
+<img id="carousel-bg" class="absolute inset-0 w-full h-full object-cover z-0" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdGZ2hfRhEmXXMHL8oIuKCjYc126AqTSia2NZPOUj8GQ0Ty_UeIm2EDFtYDr0N_s5Ts4_wCJt8JgRPgfKwRfTHMTb_3uuyFeCDsGHk2VrI8-k_ebBTVGRfnjwldc85rXBYsxJbNTAm_wZhGq3_JTqHNA85DUrR4AqvAwqI2QMJOcp29dZNaNHvEzsTIq83k20HzQYu84QedYzKc8Jtn_DaVaaoV7NeJ8jrU2H62Xjg3oRvhVCXalSsOjBILx4BigK-8aOyWeCa3AM" alt="" aria-hidden="true">
+<div class="absolute inset-0 bg-gradient-to-b from-black/55 to-black/45 z-[1]"></div>
 <!-- Status Bar Mockup -->
 <div class="flex justify-between items-center px-4 py-2 text-xs font-medium z-10 relative">
 <div class="flex items-center space-x-1">
@@ -102,7 +111,7 @@
   </div>
 </div>
 <!-- Glass Navigation -->
-<nav class="mt-4 px-4 py-3 glass-nav border-b border-white/10 flex justify-between items-center relative z-10 rounded-t-xl mx-2">
+<nav class="mt-4 px-4 py-3 glass-nav border-b border-white/10 flex justify-between items-center relative z-10 rounded-t-2xl">
 <div class="flex space-x-6 text-[15px]">
 <button class="flex items-center space-x-1 font-bold relative pb-1">
 <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path></svg>
@@ -228,6 +237,12 @@
   const track = document.getElementById('carousel-track');
   const slides = track.querySelectorAll('.carousel-slide');
   const dots = document.querySelectorAll('#carousel-dots [data-dot]');
+  const bgEl = document.getElementById('carousel-bg');
+
+  // 真实图片 src 数组（顺序对应 realIndex 0/1/2）
+  const bgSrcs = Array.from(
+    document.querySelectorAll('#carousel-track .carousel-slide img[alt^="Hero Banner"]')
+  ).filter((img, i) => i >= 1 && i <= 3).map(img => img.src);
 
   let realIndex = 0;
   let isTransitioning = false;
@@ -270,10 +285,21 @@
     });
   }
 
+  function updateBg(idx) {
+    if (!bgEl || !bgSrcs[idx]) return;
+    bgEl.style.opacity = '0';
+    setTimeout(() => {
+      bgEl.src = bgSrcs[idx];
+      bgEl.style.opacity = '1';
+    }, 300);
+  }
+
   function init() {
     goTo(1, false);
     updateActiveSlide(1);
     updateDots(0);
+    // 背景初始无需淡入
+    if (bgEl && bgSrcs[0]) bgEl.src = bgSrcs[0];
   }
 
   function next() {
@@ -295,6 +321,7 @@
         realIndex = nextReal;
       }
       updateDots(realIndex);
+      updateBg(realIndex);
       isTransitioning = false;
     }, TRANSITION + 50);
   }
