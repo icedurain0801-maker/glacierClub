@@ -70,7 +70,7 @@
   <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Game Info</button>
 </div>
 </header>
-<main class="flex-1 overflow-y-auto pb-20">
+<main class="flex-1 overflow-y-auto pb-4">
 <div class="p-4 space-y-4"><!-- Pinned Section (Kept mostly as is but styled slightly better) -->
 <div class="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-start gap-4 mb-4">
 <div class="flex-1 space-y-2">
@@ -233,33 +233,7 @@
 </div>
 </article></div>
 </main>
-<nav class="bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-gray-700 fixed bottom-0 w-full z-20 pb-safe">
-<div class="flex justify-around items-center h-16">
-<button class="flex flex-col items-center justify-center w-full text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-<span class="material-icons text-2xl">home</span>
-<span class="text-[10px] mt-1">Home</span>
-</button>
-<button class="flex flex-col items-center justify-center w-full text-primary">
-<span class="material-icons text-2xl">article</span>
-<span class="text-[10px] mt-1 font-medium">News</span>
-</button>
-<button class="flex flex-col items-center justify-center w-full relative -top-3">
-<div class="bg-primary text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg border-4 border-surface-light dark:border-surface-dark">
-<span class="material-icons text-2xl">add</span>
-</div>
-<span class="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Create</span>
-</button>
-<button class="flex flex-col items-center justify-center w-full text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
-<span class="material-icons text-2xl">forum</span>
-<span class="text-[10px] mt-1">Forum</span>
-</button>
-<button class="flex flex-col items-center justify-center w-full text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary relative">
-<span class="material-icons text-2xl">person_outline</span>
-<span class="text-[10px] mt-1">Me</span>
-<span class="absolute top-1 right-4 bg-primary text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">2</span>
-</button>
-</div>
-</nav>
+<bottom-nav active="news" base="../"></bottom-nav>
 <style>.no-scrollbar::-webkit-scrollbar {
       display: none;
     }.no-scrollbar {
@@ -304,4 +278,5 @@ document.querySelectorAll('.l2-tag').forEach(btn => {
   });
 });
 </script>
+<script src="../../shared/bottom-nav.js"></script>
 </body></html>
