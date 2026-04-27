@@ -44,28 +44,26 @@
   </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-gray-100 font-display flex flex-col h-screen antialiased">
-<header class="bg-surface-light dark:bg-surface-dark sticky top-0 z-10 shadow-sm border-b border-gray-200 dark:border-gray-700">
-<div class="flex border-b border-gray-200 dark:border-gray-700 text-center text-[15px] font-medium text-gray-600 dark:text-gray-400">
-<button class="flex-1 py-3 text-black dark:text-white border-b-2 border-black dark:border-white font-semibold">
-        Official
-      </button>
-<button class="flex-1 py-3 hover:text-gray-900 dark:hover:text-gray-200">
-        Guides
-      </button>
-<button class="flex-1 py-3 hover:text-gray-900 dark:hover:text-gray-200">
-        Fun
-      </button>
+<header class="bg-surface-light dark:bg-surface-dark sticky top-0 z-10 shadow-sm">
+<!-- 一级 Tab：分段控件样式 -->
+<div class="px-4 pt-3 pb-2">
+  <div class="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1 text-[14px] font-medium">
+    <button data-l1="official" class="l1-tab flex-1 py-1.5 rounded-full bg-white dark:bg-gray-600 text-gray-900 dark:text-white font-semibold shadow-sm transition-all duration-200 text-center">Official</button>
+    <button data-l1="guides"   class="l1-tab flex-1 py-1.5 rounded-full text-gray-500 dark:text-gray-400 transition-all duration-200 text-center">Guides</button>
+    <button data-l1="fun"      class="l1-tab flex-1 py-1.5 rounded-full text-gray-500 dark:text-gray-400 transition-all duration-200 text-center">Fun</button>
+  </div>
+</div>
+<!-- 二级 Tag：纯文字胶囊，激活深色实心 -->
+<div class="overflow-x-auto no-scrollbar pb-2 px-4 flex gap-1.5">
+  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[13px] font-semibold whitespace-nowrap transition-all duration-150">All</button>
+  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] whitespace-nowrap transition-all duration-150">Featured</button>
+  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] whitespace-nowrap transition-all duration-150">Announcements</button>
+  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] whitespace-nowrap transition-all duration-150">Community</button>
+  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] whitespace-nowrap transition-all duration-150">Events</button>
+  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] whitespace-nowrap transition-all duration-150">Game Info</button>
 </div>
 </header>
 <main class="flex-1 overflow-y-auto pb-20">
-<div class="overflow-x-auto no-scrollbar py-2 px-4 flex gap-2">
-<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm whitespace-nowrap">All</button>
-<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Featured</button>
-<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Announcements</button>
-<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Community</button>
-<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Events</button>
-<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Game Info</button>
-</div>
 <div class="p-4 space-y-4"><!-- Pinned Section (Kept mostly as is but styled slightly better) -->
 <div class="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-start gap-4 mb-4">
 <div class="flex-1 space-y-2">
@@ -263,4 +261,38 @@
         padding-bottom: env(safe-area-inset-bottom);
     }
   </style>
+<script>
+// 一级 Tab
+document.querySelectorAll('.l1-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.l1-tab').forEach(b => {
+      const active = b === btn;
+      b.classList.toggle('bg-white', active);
+      b.classList.toggle('dark:bg-gray-600', active);
+      b.classList.toggle('text-gray-900', active);
+      b.classList.toggle('dark:text-white', active);
+      b.classList.toggle('font-semibold', active);
+      b.classList.toggle('shadow-sm', active);
+      b.classList.toggle('text-gray-500', !active);
+      b.classList.toggle('dark:text-gray-400', !active);
+    });
+  });
+});
+
+// 二级 Tag
+document.querySelectorAll('.l2-tag').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.l2-tag').forEach(b => {
+      const active = b === btn;
+      b.classList.toggle('bg-gray-900', active);
+      b.classList.toggle('dark:bg-white', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('dark:text-gray-900', active);
+      b.classList.toggle('font-semibold', active);
+      b.classList.toggle('text-gray-500', !active);
+      b.classList.toggle('dark:text-gray-400', !active);
+    });
+  });
+});
+</script>
 </body></html>
