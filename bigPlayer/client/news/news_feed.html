@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gaming News Feed</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#0050cb",
+            "background-light": "#F3F4F6",
+            "background-dark": "#111827",
+            "surface-light": "#FFFFFF",
+            "surface-dark": "#1F2937",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f2f3ff",
+            "surface-container": "#eaedff",
+            "on-surface": "#131b2e",
+            "on-surface-variant": "#424656",
+            "secondary-container": "#dee3ed",
+            "on-secondary-container": "#5f656d",
+          },
+          fontFamily: {
+            display: ["Inter", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "0.5rem",
+          },
+        },
+      },
+    };
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-gray-100 font-display flex flex-col h-screen antialiased">
+<header class="bg-surface-light dark:bg-surface-dark sticky top-0 z-10 shadow-sm border-b border-gray-200 dark:border-gray-700">
+<div class="flex border-b border-gray-200 dark:border-gray-700 text-center text-[15px] font-medium text-gray-600 dark:text-gray-400">
+<button class="flex-1 py-3 text-black dark:text-white border-b-2 border-black dark:border-white font-semibold">
+        Official
+      </button>
+<button class="flex-1 py-3 hover:text-gray-900 dark:hover:text-gray-200">
+        Guides
+      </button>
+<button class="flex-1 py-3 hover:text-gray-900 dark:hover:text-gray-200">
+        Fun
+      </button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto pb-20">
+<div class="overflow-x-auto no-scrollbar py-2 px-4 flex gap-2">
+<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm whitespace-nowrap">All</button>
+<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Featured</button>
+<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Announcements</button>
+<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Community</button>
+<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Events</button>
+<button class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 bg-surface-light dark:bg-surface-dark text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap">Game Info</button>
+</div>
+<div class="p-4 space-y-4"><!-- Pinned Section (Kept mostly as is but styled slightly better) -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-start gap-4 mb-4">
+<div class="flex-1 space-y-2">
+<div class="flex items-center gap-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs px-2 py-0.5 rounded-md w-fit">
+<span class="material-icons text-[14px]">push_pin</span>
+            Pinned
+        </div>
+<p class="text-sm font-medium line-clamp-2 leading-snug text-gray-800 dark:text-gray-200">《超级能世界》福利礼包兑换码汇总（长期更新）</p>
+</div>
+<button class="text-purple-500 mt-1"><span class="material-icons text-xl">push_pin</span></button>
+</div>
+<!-- Card 1 -->
+<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAjbFMaJ9Cn6aqixjzaeKUGXsURawx9555QPqEeeZtuRqMNHBCH4SS6rrPk5tNHtLg-l5erf6HbyDUVGW8n_No33CdcsI2v8W_45f-acjQ--2MIHL7rem9aDwKy7maRVLJWgV8pKGxAXSNqWoHNG25ifOfvpRGdNPBeoWw3I-BAnchK62-YNRgpJusRmil09J8_gWBeVB9KgjELMtUQGKc-SFBr6k76fjNRzP1yJXnKw8xCXMrc48l5tMnwY2c66CX7KnNuuNmk1_a"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+</div>
+<div><div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<p class="text-sm font-bold truncate">安塔</p>
+<span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">LV.18</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1">
+<span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-600 text-[10px] font-medium border border-green-100 shrink-0">
+<span class="material-symbols-outlined text-[10px]">verified</span>官方认证
+</span>
+</div>
+<p class="text-[10px] text-on-surface-variant">04/17</p>
+</div>
+</div></div>
+</div>
+<button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+</div>
+<div class="space-y-2">
+<p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">互动有礼 | 超能道具大作战第6期</span>全新的挑战已经开启，快来参与赢取丰厚奖励！</p>
+<div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
+<div class="flex gap-6">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">thumb_up</span>
+<span class="text-xs font-semibold">865</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span class="text-xs font-semibold">1881</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">share</span>
+<span class="text-xs font-semibold">24</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB05MvXiItzWwYR763tsFijVA3HA30TJfIIul0SnPfejp1ncR8bg-YPQSmGc9WGWk_KIkb0Vt3k-DX3VhYNQ_lNkgCWtn5Kq9oJx1wyWSN60FNk4wAAF9BlhTB-5XpkWWRFWnaZksLp678G3AkvNuBVLOgO8h_mm4CFCyfmFaPKnErFyZCSuCLyyxtX2q8ZBmMONqE9l4mWLNCxDFmfjPSvi5EJ9_SDh7yEhFcfDLiIkc_c3ENjPkovxTYSIPT096hikmOSpHpNh4LT"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+</div>
+<div><div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<p class="text-sm font-bold truncate">策划阿哲</p>
+<span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">LV.30</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1">
+<span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-600 text-[10px] font-medium border border-green-100 shrink-0">
+<span class="material-symbols-outlined text-[10px]">verified</span>官方认证
+</span>
+</div>
+<p class="text-[10px] text-on-surface-variant">04/15</p>
+</div>
+</div></div>
+</div>
+<button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+</div>
+<div class="space-y-2">
+<p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">超能情报站 | 五一活动即将开启</span>假日好礼等你解锁，多重惊喜已备好，快来看看活动预览！</p>
+<div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
+<div class="flex gap-6">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">thumb_up</span>
+<span class="text-xs font-semibold">702</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span class="text-xs font-semibold">177</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">share</span>
+<span class="text-xs font-semibold">12</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvYBOCH0SKvqRo66bQEmoWtfsjKDAqVAEttqufqe5PbLCUGErOpKB9QmeuR7Pq_erC96Jh2Xzo_tCtBX_PR5TRfU-EJrr_fFJb1SdemMxImt-7y9E2L7N666YgYYZiDG37PWM3hsXSdxnwzxIY60X_SSTNE5-G_xLtYbgGlirNUdBIsKW5bnMOG_xjsRlTIMOVj3RhLBQQ8HCJRP7q4wdtUZmDUjtNNUlbP_Va0sijHuITnh1DQWn68RodVCUyeqZICg1FnZEJiVwQ"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+</div>
+<div><div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<p class="text-sm font-bold truncate">策划阿哲</p>
+<span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">LV.30</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1">
+<span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 text-[10px] font-medium border border-orange-100 shrink-0">
+<span class="material-symbols-outlined text-[10px]">chat_bubble</span>话题达人
+</span>
+</div>
+<p class="text-[10px] text-on-surface-variant">04/14</p>
+</div>
+</div></div>
+</div>
+<button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+</div>
+<div class="space-y-2">
+<p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">超能情报站 | 『狩魂者-蛮古』技能详情公开！</span>强大的暗夜战士即将加入战场，掌握他的核心机制！</p>
+<div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
+<div class="flex gap-6">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">thumb_up</span>
+<span class="text-xs font-semibold">725</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span class="text-xs font-semibold">191</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">share</span>
+<span class="text-xs font-semibold">18</span>
+</div>
+</div>
+</div>
+</article></div>
+</main>
+<nav class="bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-gray-700 fixed bottom-0 w-full z-20 pb-safe">
+<div class="flex justify-around items-center h-16">
+<button class="flex flex-col items-center justify-center w-full text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
+<span class="material-icons text-2xl">home</span>
+<span class="text-[10px] mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center w-full text-primary">
+<span class="material-icons text-2xl">article</span>
+<span class="text-[10px] mt-1 font-medium">News</span>
+</button>
+<button class="flex flex-col items-center justify-center w-full relative -top-3">
+<div class="bg-primary text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg border-4 border-surface-light dark:border-surface-dark">
+<span class="material-icons text-2xl">add</span>
+</div>
+<span class="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Create</span>
+</button>
+<button class="flex flex-col items-center justify-center w-full text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
+<span class="material-icons text-2xl">forum</span>
+<span class="text-[10px] mt-1">Forum</span>
+</button>
+<button class="flex flex-col items-center justify-center w-full text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary relative">
+<span class="material-icons text-2xl">person_outline</span>
+<span class="text-[10px] mt-1">Me</span>
+<span class="absolute top-1 right-4 bg-primary text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">2</span>
+</button>
+</div>
+</nav>
+<style>.no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }.no-scrollbar {
+      -ms-overflow-style: none;scrollbar-width: none;}
+    .pb-safe {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+  </style>
+</body></html>
