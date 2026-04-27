@@ -100,6 +100,55 @@
 [data-tab-panel] { display: none; }
 .phone-inner[data-tab="recommend"] [data-tab-panel="recommend"] { display: block; }
 .phone-inner[data-tab="discover"]  [data-tab-panel="discover"]  { display: block; }
+.phone-inner[data-tab="guide"]     [data-tab-panel="guide"]     { display: block; }
+.phone-inner[data-tab="follow"]    [data-tab-panel="follow"]    { display: block; }
+
+/* ── Stories 圆形头像 ── */
+.story-avatar-ring {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  padding: 2.5px;
+  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+  flex-shrink: 0;
+  position: relative;
+}
+.story-follow-btn {
+  position: absolute;
+  bottom: -1px; right: -1px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #0061a4;
+  border: 2px solid #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 11px; font-weight: 700; color: #fff;
+  line-height: 1;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.story-follow-btn:active { transform: scale(0.85); background: #005590; }
+.story-follow-btn.followed { background: #a9b4b9; }
+.story-follow-btn.followed::after { content: '✓'; font-size: 9px; }
+.story-follow-btn:not(.followed)::after { content: '+'; }
+.story-avatar-ring.unseen {
+  background: #e5e7eb;
+}
+.story-avatar-ring img {
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+  display: block;
+}
+
+/* ── 关注 Feed 卡片（对齐推荐卡片样式） ── */
+.follow-card {
+  background: #fff;
+  border-radius: 10px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  box-shadow: 0 4px 16px rgba(42,52,57,0.07);
+  overflow: hidden;
+}
 
 /* ── Tab 激活态（JS 驱动） ── */
 .tab-active {
@@ -235,9 +284,48 @@
     }
     .phone-inner {
       width: 375px;
-      min-height: 667px;
+      height: 667px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .phone-inner > main {
+      flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
+      min-height: 0;
+    }
+    /* 手机模拟模式（视口 ≤ 430px）：去掉外壳边框、阴影、间距 */
+    @media (max-width: 430px) {
+      body { background: #f7f9fb; align-items: flex-start; }
+      .phone-shell {
+        width: 100vw;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        position: static !important;
+      }
+      .phone-inner {
+        width: 100vw;
+        height: 100dvh;
+        min-height: unset;
+      }
+    }
+    @keyframes jellyIn {
+      0%   { transform: scale(0.6) translateY(30px); opacity: 0; }
+      55%  { transform: scale(1.07) translateY(-6px); opacity: 1; }
+      75%  { transform: scale(0.97) translateY(2px); }
+      90%  { transform: scale(1.02) translateY(-1px); }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    @keyframes jellyOut {
+      0%   { transform: scale(1); opacity: 1; }
+      100% { transform: scale(0.7) translateY(20px); opacity: 0; }
+    }
+    #post-card-mood, #post-card-post {
+      opacity: 0;
+      transform: scale(0.6) translateY(30px);
     }
   </style>
 </head>
@@ -246,7 +334,7 @@
 <div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
 <div class="phone-inner bg-surface" data-mode="connect" data-tab="recommend">
 <!-- Top Navigation - Made transparent and high z-index -->
-<nav class="sticky top-0 w-full z-[100] bg-transparent backdrop-blur-sm flex justify-between items-center px-6 h-16">
+<nav class="absolute top-0 left-0 w-full z-[100] bg-transparent flex justify-between items-center px-6 h-16">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-white" style="">menu</span>
 <span class="font-headline font-bold text-lg tracking-tight text-white drop-shadow-sm" style="">探索中心</span>
@@ -255,9 +343,9 @@
 <span class="material-symbols-outlined text-white" style="">search</span>
 </div>
 </nav>
-<main class="w-full space-y-3 pb-28">
+<main class="w-full space-y-3 pb-4">
 <!-- Main Banner - Extended to top -->
-<section class="relative w-full overflow-hidden aspect-[16/10] -mt-16">
+<section class="relative w-full overflow-hidden aspect-[16/10]">
 <img class="w-full h-full object-cover" data-alt="Cinematic wide shot of a futuristic cyberpunk city at night with neon lights reflecting on wet pavement in high-fidelity 3D graphics" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-4taa7yNILD_pDldo0bJdy0lsdv-i1fVOXPvzOVNj-euNEZ9T0V9NOusYI5zZb8KOOdEgXsFzG3WiN_Kbc-_zJ_B2QiaB3SWwGbvm0WPq3PruXCe0ZxhqqMM5Q9Gpo1L4X0YoRctabfBCYGoXbqH_sUxNhAr68PYH7qO8TyszakD0NZX3cujuoO0zZ_NxrSyFAXwOxjzKNCi2s3bs5eohJKBGDQLyTuAc3jdbG3sKFgDTuIuDXXbbI577Ts7l-32pJ-lm67VWXFw" style=""/>
 <!-- Bottom fading gradient -->
 <div class="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-surface to-transparent"></div>
@@ -322,6 +410,213 @@
 <div id="tab-guide" onclick="switchTab('guide')" class="tab-inactive pb-3 text-sm font-medium text-on-surface-variant flex-shrink-0">攻略站</div>
 </div>
 </section>
+<div data-tab-panel="follow">
+
+  <!-- Stories Row -->
+  <div class="px-4 pt-3 pb-2">
+    <p class="text-[13px] font-bold text-on-background mb-2.5">Stories</p>
+    <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+
+      <!-- Story 1 - unseen (灰环) -->
+      <div class="flex flex-col items-center gap-1.5 flex-shrink-0">
+        <div class="story-avatar-ring">
+          <img src="https://picsum.photos/seed/story1/112/112" alt="策划阿哲"/>
+          <button class="story-follow-btn" onclick="toggleFollow(this)"></button>
+        </div>
+        <span class="text-[9px] text-on-surface-variant text-center w-14 truncate">策划阿哲</span>
+      </div>
+
+      <!-- Story 2 - active (蓝环) -->
+      <div class="flex flex-col items-center gap-1.5 flex-shrink-0">
+        <div class="story-avatar-ring" style="background: linear-gradient(135deg,#3b82f6 0%,#06b6d4 100%)">
+          <img src="https://picsum.photos/seed/story2/112/112" alt="星空旅人"/>
+          <button class="story-follow-btn" onclick="toggleFollow(this)"></button>
+        </div>
+        <span class="text-[9px] text-on-surface-variant text-center w-14 truncate">星空旅人</span>
+      </div>
+
+      <!-- Story 3 -->
+      <div class="flex flex-col items-center gap-1.5 flex-shrink-0">
+        <div class="story-avatar-ring" style="background: linear-gradient(135deg,#3b82f6 0%,#06b6d4 100%)">
+          <img src="https://picsum.photos/seed/story3/112/112" alt="晴天_Sky"/>
+          <button class="story-follow-btn" onclick="toggleFollow(this)"></button>
+        </div>
+        <span class="text-[9px] text-on-surface-variant text-center w-14 truncate">晴天_Sky</span>
+      </div>
+
+      <!-- Story 4 -->
+      <div class="flex flex-col items-center gap-1.5 flex-shrink-0">
+        <div class="story-avatar-ring" style="background: linear-gradient(135deg,#3b82f6 0%,#06b6d4 100%)">
+          <img src="https://picsum.photos/seed/story4/112/112" alt="Luna的小屋"/>
+          <button class="story-follow-btn" onclick="toggleFollow(this)"></button>
+        </div>
+        <span class="text-[9px] text-on-surface-variant text-center w-14 truncate">Luna的小屋</span>
+      </div>
+
+      <!-- Story 5 - 已看 (灰环) -->
+      <div class="flex flex-col items-center gap-1.5 flex-shrink-0">
+        <div class="story-avatar-ring unseen">
+          <img src="https://picsum.photos/seed/story5/112/112" alt="龙之传人"/>
+          <button class="story-follow-btn" onclick="toggleFollow(this)"></button>
+        </div>
+        <span class="text-[9px] text-on-surface-variant text-center w-14 truncate">龙之传人</span>
+      </div>
+
+      <!-- Story 6 - icon badge -->
+      <div class="flex flex-col items-center gap-1.5 flex-shrink-0">
+        <div class="story-avatar-ring" style="background: linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%)">
+          <img src="https://picsum.photos/seed/story6/112/112" alt="亚历山大叔"/>
+          <button class="story-follow-btn" onclick="toggleFollow(this)"></button>
+        </div>
+        <span class="text-[9px] text-on-surface-variant text-center w-14 truncate">亚历山大叔</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Feed Card 1 -->
+  <div class="follow-card">
+    <div class="flex justify-between items-center mb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="relative">
+          <img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvYBOCH0SKvqRo66bQEmoWtfsjKDAqVAEttqufqe5PbLCUGErOpKB9QmeuR7Pq_erC96Jh2Xzo_tCtBX_PR5TRfU-EJrr_fFJb1SdemMxImt-7y9E2L7N666YgYYZiDG37PWM3hsXSdxnwzxIY60X_SSTNE5-G_xLtYbgGlirNUdBIsKW5bnMOG_xjsRlTIMOVj3RhLBQQ8HCJRP7q4wdtUZmDUjtNNUlbP_Va0sijHuITnh1DQWn68RodVCUyeqZICg1FnZEJiVwQ" alt="策划阿哲"/>
+          <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm font-bold text-on-background">策划阿哲</span>
+            <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">LV.30</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-600 text-[10px] font-medium border border-green-100">
+              <span class="material-symbols-outlined text-[10px]">verified</span>官方认证
+            </span>
+            <span class="text-[10px] text-on-surface-variant">1小时前</span>
+          </div>
+        </div>
+      </div>
+      <button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+    </div>
+    <div class="space-y-2 mb-3">
+      <p class="text-sm leading-relaxed font-medium"><span class="text-[15px] font-bold block mb-1">超能情报站 | 世界探索新关卡更新！</span>【专属助理技能全面升级】新增战术分析、路径规划等实用功能，老玩家必看。</p>
+      <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc1a/240/240" alt=""/>
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc1b/240/240" alt=""/>
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc1c/240/240" alt=""/>
+      </div>
+    </div>
+    <div class="flex items-center gap-5 pt-2 border-t border-surface-container-low">
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">thumb_up</span>
+        <span class="text-xs font-semibold">381</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">chat_bubble</span>
+        <span class="text-xs font-semibold">91</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">share</span>
+        <span class="text-xs font-semibold">23</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feed Card 2 -->
+  <div class="follow-card">
+    <div class="flex justify-between items-center mb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="relative">
+          <img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvYBOCH0SKvqRo66bQEmoWtfsjKDAqVAEttqufqe5PbLCUGErOpKB9QmeuR7Pq_erC96Jh2Xzo_tCtBX_PR5TRfU-EJrr_fFJb1SdemMxImt-7y9E2L7N666YgYYZiDG37PWM3hsXSdxnwzxIY60X_SSTNE5-G_xLtYbgGlirNUdBIsKW5bnMOG_xjsRlTIMOVj3RhLBQQ8HCJRP7q4wdtUZmDUjtNNUlbP_Va0sijHuITnh1DQWn68RodVCUyeqZICg1FnZEJiVwQ" alt="策划阿哲"/>
+          <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm font-bold text-on-background">策划阿哲</span>
+            <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">LV.30</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-600 text-[10px] font-medium border border-green-100">
+              <span class="material-symbols-outlined text-[10px]">verified</span>官方认证
+            </span>
+            <span class="text-[10px] text-on-surface-variant">3小时前</span>
+          </div>
+        </div>
+      </div>
+      <button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+    </div>
+    <div class="space-y-2 mb-3">
+      <p class="text-sm leading-relaxed font-medium"><span class="text-[15px] font-bold block mb-1">版本更新预告：五大新英雄即将登场</span>神秘阵营全面曝光，属性搭配前所未有，抢先看全套技能演示。</p>
+      <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc2a/240/240" alt=""/>
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc2b/240/240" alt=""/>
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc2c/240/240" alt=""/>
+      </div>
+    </div>
+    <div class="flex items-center gap-5 pt-2 border-t border-surface-container-low">
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">thumb_up</span>
+        <span class="text-xs font-semibold">256</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">chat_bubble</span>
+        <span class="text-xs font-semibold">44</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">share</span>
+        <span class="text-xs font-semibold">12</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feed Card 3 -->
+  <div class="follow-card">
+    <div class="flex justify-between items-center mb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="relative">
+          <img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPXztMYF9Z6yqq4_s52sJcMtbDWWhm23ZU1e6Oeb3U1O14w7ZStlm3TYaAZDF6QM3gKe5B2YDV5PHJNsJB9ISfAi-H6_JILB7RD6hAAItI7EafTcJRPRWE9KRRHfhk63yWyH1L2-8h3YlP-U0HUViXP38ic-KN_ZdBacNa-DgFgJGOTlDLDEqOckvI92NyjWBamJgUGMvKvT6UmHcX6_AqS5tV49aqcK_Cmom2apDPSM0rf0BOy4vrFbOoXZyROfuLyNJoBu6pZ14" alt="星空旅人"/>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm font-bold text-on-background">星空旅人_Aria</span>
+            <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">LV.24</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 text-[10px] font-medium border border-orange-100">
+              <span class="material-symbols-outlined text-[10px]">chat_bubble</span>话题达人
+            </span>
+            <span class="text-[10px] text-on-surface-variant">2小时前</span>
+          </div>
+        </div>
+      </div>
+      <button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+    </div>
+    <div class="space-y-2 mb-3">
+      <p class="text-sm leading-relaxed font-medium"><span class="text-[15px] font-bold block mb-1">终于在最高难度下通关了《永恒之境》！</span>打击感真的绝了，BOSS战BGM神了，配合光影渲染简直是视觉盛宴。</p>
+      <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc3a/240/240" alt=""/>
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc3b/240/240" alt=""/>
+        <img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/fc3c/240/240" alt=""/>
+      </div>
+    </div>
+    <div class="flex items-center gap-5 pt-2 border-t border-surface-container-low">
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">thumb_up</span>
+        <span class="text-xs font-semibold">1,245</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">chat_bubble</span>
+        <span class="text-xs font-semibold">328</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-lg">share</span>
+        <span class="text-xs font-semibold">56</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:80px;"></div>
+</div><!-- /data-tab-panel="follow" -->
+
 <div data-tab-panel="recommend">
 <!-- Carousel Section -->
 <section class="px-4">
@@ -341,52 +636,76 @@
 </div>
 </section>
 <!-- Hot News Section -->
-<section class="space-y-4 px-4 mt-5">
-<div class="flex justify-between items-end px-1">
-<h3 class="font-headline text-xl font-extrabold tracking-tight" style="">热门快讯</h3>
-<span class="text-xs font-bold text-primary" style="">查看全部</span>
+<section class="space-y-3 mt-5">
+<div class="flex justify-between items-end px-5">
+<h3 class="font-headline text-xl font-extrabold tracking-tight">热门快讯</h3>
+<span class="text-xs font-bold text-primary">查看全部</span>
 </div>
-<div class="bg-surface-container-lowest rounded-2xl shadow-[0_4px_20px_rgba(42,52,57,0.07)] overflow-hidden divide-y divide-surface-container-low">
-<!-- News Item 1 -->
-<div class="flex items-start gap-3 px-4 py-3.5 transition-colors active:bg-surface-container-low">
-<span class="material-symbols-outlined text-orange-500 text-xl mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
-<div class="flex-1 space-y-1.5 min-w-0">
-<h4 class="font-semibold text-sm leading-snug line-clamp-1">虚幻引擎5新作《龙之觉醒》首支预告片公布...</h4>
-<div class="flex items-center gap-3 text-[11px] text-on-surface-variant">
-<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">thumb_up</span><span>1.5k</span></div>
-<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">chat_bubble</span><span>128</span></div>
-<span>05-24</span>
+<div class="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
+<!-- News Card 1 -->
+<div class="flex-shrink-0 w-[140px] rounded-[10px] overflow-hidden shadow-sm bg-surface-container-lowest active:opacity-80 transition-opacity cursor-pointer">
+  <div class="relative aspect-[16/9]">
+    <img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBg4rWbAStZdaKm-UAy8l7V7KG5HEBj2xBPCuUbCCQS4T2DCgJu4J9WZkLiJb9kU5L4thpZal1fUYF_jCjG66UBiKI1qWnyZsbNja1RxnbXCBHxedirn5ExXCDMYLKz7ej3DigoobFQ8tQtZE-FBIFAjCgkX6v3q69OAFECEmCZkVuzoSbB87765rqYqKW-kfsrDersSJi--Fn9Hw0f0_85OLz0YS80ua-JUldwArqCm3LSegKRU6qej1ns0FA8D1GI9QWD1Je8sfc" alt=""/>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+    <div class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center shadow-sm">
+      <span class="material-symbols-outlined text-white text-[12px]" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+    </div>
+    <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">虚幻引擎5新作《龙之觉醒》首支预告片公布</p>
+  </div>
+  <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
+    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>1.5k</span></div>
+    <span>05-24</span>
+  </div>
 </div>
+<!-- News Card 2 -->
+<div class="flex-shrink-0 w-[140px] rounded-[10px] overflow-hidden shadow-sm bg-surface-container-lowest active:opacity-80 transition-opacity cursor-pointer">
+  <div class="relative aspect-[16/9]">
+    <img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB346jz_0p0UQu-Z3k4i7NZLDvqFfjHTdBKNnLMV_qG4RB1QXyqnShYavGs8RFHMoeLC7sRDAD5CckkL7hp-I4RxMJvFP6cIl7jyOJQzPSc6FfUUrDhPerm611P3r2ua2rcgsj535roWgrkJafWCdGJbclI8mdo5bAYtyI4mrkN_ofWuKXaZwLSfc8MWbcEdZ_uZjwUxqV_7AaqkIP8T_YZVxOXT6x16xEecIrexAgdjTR8BNQQ2Pne03_7dWQY0-s0hT9mDsESp8Q" alt=""/>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+    <div class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center shadow-sm">
+      <span class="material-symbols-outlined text-white text-[12px]" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+    </div>
+    <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">独立游戏节获奖名单出炉：这款国产像素风爆了</p>
+  </div>
+  <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
+    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>864</span></div>
+    <span>05-23</span>
+  </div>
 </div>
+<!-- News Card 3 -->
+<div class="flex-shrink-0 w-[140px] rounded-[10px] overflow-hidden shadow-sm bg-surface-container-lowest active:opacity-80 transition-opacity cursor-pointer">
+  <div class="relative aspect-[16/9]">
+    <img class="w-full h-full object-cover" src="https://picsum.photos/seed/news3/280/158" alt=""/>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+    <div class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center shadow-sm">
+      <span class="material-symbols-outlined text-white text-[12px]" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+    </div>
+    <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">关于近期服务器连接波动的补偿方案说明</p>
+  </div>
+  <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
+    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>3.2k</span></div>
+    <span>05-22</span>
+  </div>
 </div>
-<!-- News Item 2 -->
-<div class="flex items-start gap-3 px-4 py-3.5 transition-colors active:bg-surface-container-low">
-<span class="material-symbols-outlined text-orange-500 text-xl mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
-<div class="flex-1 space-y-1.5 min-w-0">
-<h4 class="font-semibold text-sm leading-snug line-clamp-1">独立游戏节获奖名单出炉：这款国产像素风...</h4>
-<div class="flex items-center gap-3 text-[11px] text-on-surface-variant">
-<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">thumb_up</span><span>864</span></div>
-<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">chat_bubble</span><span>56</span></div>
-<span>05-23</span>
-</div>
-</div>
-</div>
-<!-- News Item 3 -->
-<div class="flex items-start gap-3 px-4 py-3.5 transition-colors active:bg-surface-container-low">
-<span class="material-symbols-outlined text-orange-500 text-xl mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
-<div class="flex-1 space-y-1.5 min-w-0">
-<h4 class="font-semibold text-sm leading-snug line-clamp-1">关于近期服务器连接波动的补偿方案说明</h4>
-<div class="flex items-center gap-3 text-[11px] text-on-surface-variant">
-<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">thumb_up</span><span>3.2k</span></div>
-<div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">chat_bubble</span><span>412</span></div>
-<span>05-22</span>
-</div>
-</div>
+<!-- News Card 4 -->
+<div class="flex-shrink-0 w-[140px] rounded-[10px] overflow-hidden shadow-sm bg-surface-container-lowest active:opacity-80 transition-opacity cursor-pointer">
+  <div class="relative aspect-[16/9]">
+    <img class="w-full h-full object-cover" src="https://picsum.photos/seed/news4/280/158" alt=""/>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+    <div class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center shadow-sm">
+      <span class="material-symbols-outlined text-white text-[12px]" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+    </div>
+    <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">新赛季英雄平衡性调整完整公告</p>
+  </div>
+  <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
+    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>2.1k</span></div>
+    <span>05-21</span>
+  </div>
 </div>
 </div>
 </section>
 <!-- Recommended For You Feed -->
-<section class="space-y-6 px-4">
+<section class="space-y-6 px-4 mt-4">
 <div class="flex justify-between items-center px-1">
 <h3 class="font-headline text-xl font-extrabold tracking-tight" style="">为您推荐</h3>
 <div class="flex"><div class="flex items-center gap-1 text-on-surface-variant transition-opacity active:opacity-60 cursor-pointer">
@@ -395,7 +714,7 @@
 </div></div>
 </div>
 <!-- Feed Post 1 -->
-<article class="bg-surface-container-lowest rounded-lg p-5 space-y-4 shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
+<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-3">
 <div class="relative">
@@ -448,7 +767,7 @@
 </div>
 </article>
 <!-- Feed Post 2 -->
-<article class="bg-surface-container-lowest rounded-lg p-5 space-y-4 shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
+<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-3">
 <div class="relative">
@@ -647,16 +966,272 @@
     </div><!-- /waterfall-col right -->
   </div><!-- /waterfall-grid -->
 </div><!-- /data-tab-panel="discover" -->
+
+<!-- ── 攻略站 ── -->
+<div data-tab-panel="guide" class="pb-20">
+
+  <!-- Strategy Collection -->
+  <div class="px-4 pt-4 pb-2">
+    <h2 class="text-[15px] font-bold text-on-background mb-2">Strategy Collection</h2>
+    <!-- Filter Tags -->
+    <div class="flex gap-1.5 overflow-x-auto no-scrollbar mb-3 pb-1">
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Metal</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Wood</span>
+      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">Water</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Fire</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Earth</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Thunder</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Body</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Spirit</span>
+    </div>
+    <!-- Items card with small radius -->
+    <div class="bg-surface-container-lowest rounded-lg overflow-hidden divide-y divide-outline-variant/30 shadow-sm">
+      <!-- Item 1 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=120&h=80&fit=crop" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">Beginner's Guide: Essential Tips for New Players</h3>
+          <p class="text-[10px] text-on-surface-variant">Author: Alex Chen &nbsp;|&nbsp; Views: 15.4K &nbsp;|&nbsp; 10/25</p>
+        </div>
+      </div>
+      <!-- Item 2 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://images.unsplash.com/photo-1534423861386-85a16f5d13fd?w=120&h=80&fit=crop" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">Advanced Strategy: Mastering the Five Elements</h3>
+          <p class="text-[10px] text-on-surface-variant">Author: Maria Rodriguez &nbsp;|&nbsp; Views: 22.1K &nbsp;|&nbsp; 10/20</p>
+        </div>
+      </div>
+    </div>
+    <!-- More link -->
+    <button class="w-full mt-2 py-2.5 text-[13px] font-medium text-primary active:opacity-60 transition-opacity">
+      更多『Water 攻略合集』的攻略 &gt;
+    </button>
+  </div>
+
+  <!-- Legendary Elders -->
+  <div class="px-4 pt-2 pb-2">
+    <h2 class="text-[15px] font-bold text-on-background mb-2">Legendary Elders</h2>
+    <!-- Filter Tags -->
+    <div class="flex gap-1.5 overflow-x-auto no-scrollbar mb-3 pb-1">
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Metal</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Wood</span>
+      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">Water</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Fire</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Earth</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Thunder</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Body</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Spirit</span>
+    </div>
+    <!-- Grid -->
+    <div class="grid grid-cols-5 gap-2">
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder1/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">白虎</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder2/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">杨戬</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder3/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">荆轲</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder4/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">花木兰</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder5/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">李白</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder6/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">大鹏</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder7/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">九尾龙</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder8/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">昆仑</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder9/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">妲己</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <img src="https://picsum.photos/seed/elder10/80/80" class="w-full aspect-square rounded-xl object-cover shadow-sm"/>
+        <span class="text-[9px] text-on-background text-center leading-tight">项羽</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ancient Techniques -->
+  <div class="px-4 pt-4 pb-2">
+    <h2 class="text-[15px] font-bold text-on-background mb-2">Ancient Techniques</h2>
+    <!-- Filter Tags -->
+    <div class="flex gap-1.5 overflow-x-auto no-scrollbar mb-3 pb-1">
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Metal</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Wood</span>
+      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">Water</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Fire</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Earth</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Thunder</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Body</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Spirit</span>
+    </div>
+    <!-- Horizontal scroll cards (图1样式：竖版卡片+名字+类型) -->
+    <div class="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech1/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Yang Jian</p>
+          <p class="text-white/70 text-[9px] leading-tight">Warrior</p>
+        </div>
+      </div>
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech2/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Bai Hu</p>
+          <p class="text-white/70 text-[9px] leading-tight">Beast</p>
+        </div>
+      </div>
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech3/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Jing Ke</p>
+          <p class="text-white/70 text-[9px] leading-tight">Assassin</p>
+        </div>
+      </div>
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech4/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Mu Lan</p>
+          <p class="text-white/70 text-[9px] leading-tight">Hero</p>
+        </div>
+      </div>
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech5/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Kunlun</p>
+          <p class="text-white/70 text-[9px] leading-tight">Guardian</p>
+        </div>
+      </div>
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech6/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Da Peng</p>
+          <p class="text-white/70 text-[9px] leading-tight">Mage</p>
+        </div>
+      </div>
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech7/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Li Bai</p>
+          <p class="text-white/70 text-[9px] leading-tight">Fighter</p>
+        </div>
+      </div>
+      <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
+        <img src="https://picsum.photos/seed/tech8/168/232" class="w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          <p class="text-white text-[11px] font-bold leading-tight">Diao Chan</p>
+          <p class="text-white/70 text-[9px] leading-tight">Support</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /data-tab-panel="guide" -->
+
 </main>
+<!-- Bottom Tab Bar -->
+<bottom-nav active="home" base="../"></bottom-nav>
+<!-- Post bottom sheet overlay -->
+<div id="post-overlay" onclick="togglePostMenu()" style="
+  position:absolute;inset:0;z-index:200;
+  background:rgba(0,0,0,0);
+  backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);
+  pointer-events:none;
+  transition:background 0.28s ease,backdrop-filter 0.28s ease;
+"></div>
+<div id="post-sheet" style="
+  position:absolute;bottom:0;left:0;right:0;z-index:201;
+  padding:0 16px 80px;
+  pointer-events:none;
+">
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    <!-- 动态 -->
+    <button id="post-card-mood" onclick="event.stopPropagation();window.location.href='../publish/mood_publish.html'" style="
+      position:relative;overflow:hidden;
+      display:flex;align-items:center;gap:14px;
+      width:100%;padding:18px 20px;
+      background:#fff;border:none;border-radius:16px;
+      box-shadow:0 4px 20px rgba(255,107,53,0.13);
+      cursor:pointer;text-align:left;
+      transition:transform 0.15s,box-shadow 0.15s;
+    " onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
+      <!-- 光晕 -->
+      <div style="position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(255,154,86,0.25) 0%,transparent 70%);pointer-events:none;"></div>
+      <!-- 小装饰点 -->
+      <div style="position:absolute;top:12px;left:12px;width:5px;height:5px;border-radius:50%;background:rgba(255,107,53,0.5);"></div>
+      <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#ff9a56,#ff6b35);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(255,107,53,0.35);">
+        <span class="material-symbols-outlined" style="font-size:22px;color:#fff;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">chat_bubble</span>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:700;color:#1a2530;margin-bottom:3px;">动态</div>
+        <div style="font-size:11px;color:#8a97a0;line-height:1.4;">玩家圈：闲聊、心情、提问、分享</div>
+      </div>
+      <span class="material-symbols-outlined" style="font-size:18px;color:#b0bec5;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
+    </button>
+    <!-- 投稿 -->
+    <button id="post-card-post" onclick="event.stopPropagation();window.location.href='../publish/post_publish.html'" style="
+      position:relative;overflow:hidden;
+      display:flex;align-items:center;gap:14px;
+      width:100%;padding:18px 20px;
+      background:#fff;border:none;border-radius:16px;
+      box-shadow:0 4px 20px rgba(0,97,164,0.13);
+      cursor:pointer;text-align:left;
+      transition:transform 0.15s,box-shadow 0.15s;
+    " onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
+      <!-- 光晕 -->
+      <div style="position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(91,159,255,0.22) 0%,transparent 70%);pointer-events:none;"></div>
+      <!-- 小装饰点 -->
+      <div style="position:absolute;top:12px;left:12px;width:5px;height:5px;border-radius:50%;background:rgba(0,97,164,0.4);"></div>
+      <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#5b9fff,#0061a4);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(0,97,164,0.30);">
+        <span class="material-symbols-outlined" style="font-size:22px;color:#fff;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">edit_document</span>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:700;color:#1a2530;margin-bottom:3px;">投稿</div>
+        <div style="font-size:11px;color:#8a97a0;line-height:1.4;">资讯：攻略、长文、同人、创作</div>
+      </div>
+      <span class="material-symbols-outlined" style="font-size:18px;color:#b0bec5;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
+    </button>
+  </div>
+</div>
 </div><!-- /phone-inner -->
 </div><!-- /phone-shell -->
 <script src="../../shared/sidebar-data.js"></script>
 <script src="../../shared/sidebar.js"></script>
+<script src="../../shared/bottom-nav.js"></script>
 <script>
   initSidebar({
     root: '../..',
     currentHref: 'client-new/home_src.html'
   });
+
+function toggleFollow(btn) {
+  btn.classList.toggle('followed');
+}
 
 function switchTab(tab) {
   var inner = document.querySelector('.phone-inner');
@@ -682,6 +1257,45 @@ function switchTab(tab) {
   });
 }
 
+var _postOpen = false;
+function togglePostMenu() {
+  _postOpen = !_postOpen;
+  var overlay = document.getElementById('post-overlay');
+  var sheet   = document.getElementById('post-sheet');
+  var circle  = document.getElementById('post-btn-circle');
+  var cardMood = document.getElementById('post-card-mood');
+  var cardPost = document.getElementById('post-card-post');
+
+  if (_postOpen) {
+    overlay.style.background = 'rgba(0,0,0,0.28)';
+    overlay.style.backdropFilter = 'blur(6px)';
+    overlay.style.webkitBackdropFilter = 'blur(6px)';
+    overlay.style.pointerEvents = 'auto';
+    sheet.style.pointerEvents = 'auto';
+    circle.style.transform = 'rotate(45deg)';
+    // 果冻弹入：投稿先出（delay 0），动态后出（delay 80ms）
+    [cardPost, cardMood].forEach(function(el, i) {
+      el.style.animation = 'none';
+      el.style.opacity = '0';
+      el.style.transform = 'scale(0.6) translateY(30px)';
+      requestAnimationFrame(function() {
+        el.style.animation = 'jellyIn 0.52s cubic-bezier(0.34,1.56,0.64,1) ' + (i * 80) + 'ms forwards';
+      });
+    });
+  } else {
+    overlay.style.background = 'rgba(0,0,0,0)';
+    overlay.style.backdropFilter = 'blur(0px)';
+    overlay.style.webkitBackdropFilter = 'blur(0px)';
+    overlay.style.pointerEvents = 'none';
+    sheet.style.pointerEvents = 'none';
+    circle.style.transform = 'rotate(0deg)';
+    // 果冻弹出：动态先消（delay 0），投稿后消（delay 50ms）
+    [cardMood, cardPost].forEach(function(el, i) {
+      el.style.animation = 'jellyOut 0.22s ease ' + (i * 50) + 'ms forwards';
+    });
+  }
+}
+
 function toggleLike(btn) {
   var heart = btn.querySelector('.like-heart');
   var countEl = btn.querySelector('.like-count');
@@ -691,29 +1305,4 @@ function toggleLike(btn) {
   countEl.textContent = liked ? count + 1 : Math.max(0, count - 1);
 }
 </script>
-<!-- Bottom Tab Bar -->
-<nav class="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-slate-100 flex items-center justify-around px-2 h-16 pb-safe">
-  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
-    <span class="material-symbols-outlined text-2xl text-primary" style="font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24">home</span>
-    <span class="text-[10px] font-medium text-primary">Home</span>
-  </button>
-  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
-    <span class="material-symbols-outlined text-2xl text-slate-400">explore</span>
-    <span class="text-[10px] font-medium text-slate-400">Discover</span>
-  </button>
-  <button class="flex flex-col items-center -mt-5 flex-1 active:scale-95 transition-all">
-    <span class="flex items-center justify-center w-12 h-12 rounded-full bg-primary shadow-lg shadow-primary/30">
-      <span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">add</span>
-    </span>
-    <span class="text-[10px] font-medium text-slate-400 mt-0.5">Post</span>
-  </button>
-  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
-    <span class="material-symbols-outlined text-2xl text-slate-400">chat_bubble</span>
-    <span class="text-[10px] font-medium text-slate-400">Chat</span>
-  </button>
-  <button class="flex flex-col items-center gap-0.5 flex-1 active:scale-95 transition-all">
-    <span class="material-symbols-outlined text-2xl text-slate-400">person</span>
-    <span class="text-[10px] font-medium text-slate-400">Profile</span>
-  </button>
-</nav>
 </body></html>
