@@ -15,6 +15,8 @@ tailwind.config = {
         "on-surface-variant": "#566166",
         "primary": "#0061a4",
         "primary-dim": "#005590",
+        "secondary-container": "#cbe6ff",
+        "on-secondary-container": "#0a5780",
         "surface-container-low": "#f0f4f7",
         "surface-variant": "#d9e4ea",
         "outline": "#717c82",
@@ -124,54 +126,81 @@ tailwind.config = {
   .result-card {
     background: #fff;
     border-radius: 10px;
-    padding: 12px 14px;
-    margin: 0 12px 10px;
-    box-shadow: 0 2px 8px rgba(0,97,164,0.07);
+    padding: 14px;
+    margin: 0 12px 12px;
+    box-shadow: 0 4px 16px rgba(42,52,57,0.07);
+    overflow: hidden;
   }
   .card-user-row {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 8px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
   }
+  .card-user-left { display: flex; align-items: center; gap: 10px; }
+  .card-avatar-wrap { position: relative; }
   .card-avatar {
-    width: 32px; height: 32px; border-radius: 50%;
-    object-fit: cover; flex-shrink: 0;
+    width: 40px; height: 40px; border-radius: 50%;
+    flex-shrink: 0;
     background: linear-gradient(135deg, #93c5fd, #3b82f6);
   }
   .card-avatar.official { background: linear-gradient(135deg, #bae6fd, #0284c7); }
-  .card-user-info { flex: 1; min-width: 0; }
-  .card-username {
-    font-size: 13px; font-weight: 600; color: #1f2937;
-    display: flex; align-items: center; gap: 4px;
+  .card-online-dot {
+    position: absolute; bottom: -2px; right: -2px;
+    width: 14px; height: 14px;
+    background: #0061a4; border: 2px solid #fff;
+    border-radius: 50%;
   }
-  .official-tag {
+  .card-user-info { display: flex; flex-direction: column; gap: 2px; }
+  .card-name-row { display: flex; align-items: center; gap: 6px; }
+  .card-username { font-size: 14px; font-weight: 700; color: #2a3439; }
+  .card-lv {
     font-size: 10px; font-weight: 700;
-    background: #0061a4; color: #fff;
-    padding: 1px 5px; border-radius: 4px;
+    background: rgba(0,97,164,0.10); color: #0061a4;
+    padding: 2px 6px; border-radius: 999px;
   }
-  .card-meta { font-size: 11px; color: #a9b4b9; }
-  .follow-btn {
-    font-size: 11px; color: #0061a4;
-    border: 1px solid #0061a4;
-    border-radius: 999px; padding: 3px 12px;
-    white-space: nowrap; cursor: pointer;
-    flex-shrink: 0;
+  .card-badge-row { display: flex; align-items: center; gap: 6px; }
+  .official-badge {
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 10px; font-weight: 500; color: #16a34a;
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    padding: 2px 5px; border-radius: 4px;
   }
-  .card-text {
-    font-size: 13px; color: #374151;
-    line-height: 1.5; margin-bottom: 8px;
-    display: -webkit-box;
-    -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-    overflow: hidden;
+  .official-badge .material-symbols-outlined { font-size: 10px; }
+  .card-time { font-size: 10px; color: #566166; }
+  .card-meta-plain { font-size: 11px; color: #a9b4b9; margin-top: 1px; }
+  .card-body { margin-bottom: 12px; }
+  .card-body p { font-size: 14px; line-height: 1.6; color: #2a3439; }
+  .card-body .card-title { font-size: 15px; font-weight: 700; display: block; margin-bottom: 4px; }
+  .card-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px; border-radius: 8px; overflow: hidden;
+    margin-top: 8px;
   }
-  .card-image {
-    width: 100%; border-radius: 8px;
-    margin-bottom: 8px; display: block;
-    background: linear-gradient(135deg, #0061a4, #0891b2);
-    height: 160px; object-fit: cover;
+  .card-grid-item {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.9);
+  }
+  .card-single-img {
+    width: 100%; border-radius: 8px; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9);
+    height: 160px;
   }
   .card-stats {
-    display: flex; gap: 12px;
-    font-size: 11px; color: #a9b4b9;
+    display: flex; align-items: center; gap: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #f0f4f7;
+    font-size: 12px; color: #566166; font-weight: 600;
+  }
+  .card-stats-item { display: flex; align-items: center; gap: 6px; }
+  .card-stats-item .material-symbols-outlined { font-size: 18px; }
+
+  /* ── 关注按钮（卡片内）── */
+  .follow-btn {
+    padding: 6px 16px; border-radius: 999px;
+    background: #cbe6ff; color: #0a5780;
+    font-size: 12px; font-weight: 700;
+    border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0;
   }
 
   /* ── section 标题 ── */
@@ -346,27 +375,51 @@ const HOT_KEYWORDS = ['星灵', '狩魂者', 'S5赛季', '公会招募', '新手
 // ── 生成卡片 HTML ──
 function postCardHTML(post) {
   const avatarClass = post.official ? 'card-avatar official' : 'card-avatar';
-  const officialTag = post.official ? '<span class="official-tag">官方</span>' : '';
-  const imageHTML = post.hasImage
-    ? `<div class="card-image" style="background:${post.imageBg};display:flex;align-items:center;justify-content:center;">
-         <span style="color:rgba(255,255,255,0.9);font-size:14px;font-weight:700;">${post.imageLabel}</span>
+  const lvNum = parseInt((post.level || 'lv1').replace('lv','')) || 1;
+  const badgeRow = post.official
+    ? `<div class="card-badge-row">
+         <span class="official-badge"><span class="material-symbols-outlined">verified</span>官方认证</span>
+         <span class="card-time">${post.time}</span>
        </div>`
+    : `<div class="card-badge-row"><span class="card-time">${post.time}</span></div>`;
+  const imageHTML = post.hasImage
+    ? `<div class="card-single-img" style="background:${post.imageBg};">${post.imageLabel}</div>`
     : '';
   return `
     <div class="result-card">
       <div class="card-user-row">
-        <div class="${avatarClass}"></div>
-        <div class="card-user-info">
-          <div class="card-username">${post.username}${officialTag}</div>
-          <div class="card-meta">${post.level} · ${post.time} · 在超能世界发布了动态</div>
+        <div class="card-user-left">
+          <div class="card-avatar-wrap">
+            <div class="${avatarClass}"></div>
+            <div class="card-online-dot"></div>
+          </div>
+          <div class="card-user-info">
+            <div class="card-name-row">
+              <span class="card-username">${post.username}</span>
+              <span class="card-lv">LV.${lvNum}</span>
+            </div>
+            ${badgeRow}
+          </div>
         </div>
-        <div class="follow-btn">+关注</div>
+        <button class="follow-btn">关注</button>
       </div>
-      <div class="card-text">${post.text}</div>
-      ${imageHTML}
+      <div class="card-body">
+        <p>${post.text}</p>
+        ${imageHTML}
+      </div>
       <div class="card-stats">
-        <span>👍 ${post.likes}</span>
-        <span>💬 ${post.comments}</span>
+        <div class="card-stats-item">
+          <span class="material-symbols-outlined">thumb_up</span>
+          <span>${post.likes}</span>
+        </div>
+        <div class="card-stats-item">
+          <span class="material-symbols-outlined">chat_bubble</span>
+          <span>${post.comments}</span>
+        </div>
+        <div class="card-stats-item">
+          <span class="material-symbols-outlined">share</span>
+          <span>转发</span>
+        </div>
       </div>
     </div>`;
 }
