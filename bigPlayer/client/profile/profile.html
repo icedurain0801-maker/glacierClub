@@ -213,7 +213,7 @@
       <div class="absolute bottom-7 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
         <!-- Avatar -->
         <div class="relative">
-          <div class="w-[72px] h-[72px] rounded-full border-[3px] border-white/90 overflow-hidden" style="box-shadow:0 4px 16px rgba(0,0,0,0.15)">
+          <div class="w-[88px] h-[88px] rounded-full border-[4px] border-white/90 overflow-hidden" style="box-shadow:0 4px 20px rgba(0,0,0,0.18)">
             <div class="w-full h-full avatar-silhouette"></div>
           </div>
           <!-- Paw badge -->
@@ -224,6 +224,8 @@
           dbpei0008
           <span class="material-symbols-outlined text-base opacity-80" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">edit</span>
         </div>
+        <!-- Badge capsule (rendered by JS) -->
+        <div id="badge-capsule"></div>
       </div>
     </div>
 
@@ -306,7 +308,7 @@
           <div class="tl-stripe" style="background:linear-gradient(180deg,#0061a4,#3ab4e8)"></div>
           <div class="tl-body">
             <div class="time-pill" style="background:#e8f4ff;color:#0061a4"><span style="font-size:8px">●</span> 02-10 · 18:20</div>
-            <div class="flex gap-2.5 items-start">
+            <div class="flex gap-2.5 items-center">
               <div class="flex-1 min-w-0">
                 <div class="text-[13px] font-semibold text-[#1a2a35] truncate">Treasure Chest</div>
                 <div class="text-[11px] text-slate-500 truncate mt-0.5">恩恩恩呢</div>
@@ -340,7 +342,7 @@
           <div class="tl-stripe" style="background:linear-gradient(180deg,#b8e8f8,#ddf0f9)"></div>
           <div class="tl-body">
             <div class="time-pill" style="background:#f8fdff;color:#a0cfe8"><span style="font-size:8px">●</span> 12-30 · 21:08</div>
-            <div class="flex gap-2.5 items-start">
+            <div class="flex gap-2.5 items-center">
               <div class="flex-1 min-w-0">
                 <div class="text-[12px] text-[#2a3439] line-clamp-2 leading-snug">新年快到了，分享一张我的游戏截图，这个场景真的太美了！</div>
               </div>
@@ -380,6 +382,59 @@
 </main>
 
 <script>
+// ── Badge mock data ──────────────────────────────────────────
+const userBadges = [
+  { emoji: '🏆', bg: '#ffe5b4', name: '创作者' },
+  { emoji: '🎖', bg: '#e0f7fa', name: '活跃' },
+  { emoji: '🌟', bg: '#fce4ec', name: '明星' },
+  { emoji: '🎗', bg: '#e8f5e9', name: '荣誉' },
+  { emoji: '🎯', bg: '#ede7f6', name: '精准' },
+];
+
+function renderBadgeCapsule() {
+  const el = document.getElementById('badge-capsule');
+  if (!el) return;
+
+  if (userBadges.length === 0) {
+    el.innerHTML = `
+      <div onclick="alert('徽章解锁引导页（待实现）')"
+           style="display:flex;align-items:center;gap:4px;
+                  background:rgba(255,255,255,0.16);backdrop-filter:blur(10px);
+                  border:1px solid rgba(255,255,255,0.25);border-radius:20px;
+                  padding:4px 10px 4px 8px;cursor:pointer;color:rgba(255,255,255,0.85);
+                  font-size:11px;white-space:nowrap">
+        <span style="font-size:12px">🔒</span>
+        <span>还没有徽章，去解锁</span>
+        <span style="opacity:0.7;margin-left:1px">›</span>
+      </div>`;
+  } else {
+    const visible = userBadges.slice(0, 4);
+    const extra = userBadges.length - visible.length;
+    const icons = visible.map(b =>
+      `<div style="width:18px;height:18px;border-radius:50%;
+                   background:${b.bg};border:1.5px solid rgba(255,255,255,0.8);
+                   display:flex;align-items:center;justify-content:center;
+                   font-size:10px">${b.emoji}</div>`
+    ).join('');
+    const moreTag = extra > 0
+      ? `<span style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:700;margin-left:3px">+${extra} ›</span>`
+      : `<span style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:700;margin-left:3px">›</span>`;
+
+    el.innerHTML = `
+      <div onclick="alert('徽章墙弹层（待实现）')"
+           style="display:flex;align-items:center;gap:2px;
+                  background:rgba(255,255,255,0.20);backdrop-filter:blur(10px);
+                  border:1px solid rgba(255,255,255,0.3);border-radius:20px;
+                  padding:4px 8px 4px 5px;cursor:pointer">
+        <div style="display:flex;gap:1px">${icons}</div>
+        ${moreTag}
+      </div>`;
+  }
+}
+
+renderBadgeCapsule();
+// ── End Badge ────────────────────────────────────────────────
+
 // Tab switching
 (function () {
   const btns = document.querySelectorAll('.tab-btn');
