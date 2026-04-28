@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>个人中心</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>tailwind.config={theme:{extend:{colors:{primary:'#0061a4'}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+  ::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .avatar-silhouette {
+    background: linear-gradient(160deg, #ffd9d9 0%, #ffc0cb 40%, #d4a8d4 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .avatar-silhouette::before {
+    content: '';
+    position: absolute;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.6);
+    top: 20%; left: 50%; transform: translateX(-50%);
+  }
+  .avatar-silhouette::after {
+    content: '';
+    position: absolute;
+    width: 44px; height: 34px;
+    border-radius: 50% 50% 0 0;
+    background: rgba(255,255,255,0.5);
+    bottom: 0; left: 50%; transform: translateX(-50%);
+  }
+  .tl-card {
+    display: flex;
+    background: #f7f9fb;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .tl-card:active { background: #edf1f5; }
+  .tl-stripe { width: 4px; flex-shrink: 0; }
+  .tl-body { flex: 1; min-width: 0; padding: 10px 12px; }
+  .time-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    font-size: 9.5px;
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+</style>
+</head>
+<body class="bg-gray-100 flex justify-center selection:bg-blue-200 text-gray-900 font-sans">
+
+<main class="w-full max-w-[428px] h-[100dvh] bg-[#f0f4f8] relative shadow-2xl flex flex-col overflow-hidden">
+
+  <!-- ── Header: Blue Gradient Hero ── -->
+  <header class="relative shrink-0">
+
+    <!-- Blue gradient bg -->
+    <div class="h-52 relative overflow-hidden" style="background:conic-gradient(from 180deg at 50% -20%, #1a8cc4 0deg, #3ab4e8 50deg, #7dd4f5 110deg, #d8f0fb 160deg, #7dd4f5 200deg, #3ab4e8 310deg, #1a8cc4 360deg)">
+
+      <!-- 城堡 SVG 背景 -->
+      <svg class="absolute bottom-0 left-0 w-full" viewBox="0 0 428 145" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg" style="opacity:0.32;pointer-events:none">
+        <defs>
+          <!-- 城堡填充：白色半透明 -->
+          <linearGradient id="wallGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fff" stop-opacity="0.95"/>
+            <stop offset="100%" stop-color="#cef" stop-opacity="0.85"/>
+          </linearGradient>
+          <!-- 暗部（门窗）-->
+          <linearGradient id="darkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2080b0" stop-opacity="0.45"/>
+            <stop offset="100%" stop-color="#104060" stop-opacity="0.6"/>
+          </linearGradient>
+        </defs>
+
+        <!-- ── 远山 ── -->
+        <ellipse cx="60"  cy="148" rx="115" ry="68" fill="url(#wallGrad)"/>
+        <ellipse cx="368" cy="148" rx="125" ry="72" fill="url(#wallGrad)"/>
+
+        <!-- ── 地基 ── -->
+        <rect x="68" y="103" width="292" height="45" rx="5" fill="url(#wallGrad)"/>
+        <!-- 地基石块纹理 -->
+        <line x1="68"  y1="118" x2="360" y2="118" stroke="rgba(100,160,200,0.3)" stroke-width="1"/>
+        <line x1="68"  y1="130" x2="360" y2="130" stroke="rgba(100,160,200,0.3)" stroke-width="1"/>
+        <line x1="120" y1="103" x2="120" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="180" y1="103" x2="180" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="248" y1="103" x2="248" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="308" y1="103" x2="308" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+
+        <!-- ── 主塔身 ── -->
+        <rect x="150" y="56" width="128" height="52" fill="url(#wallGrad)"/>
+        <!-- 塔身横纹 -->
+        <line x1="150" y1="74" x2="278" y2="74" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="150" y1="88" x2="278" y2="88" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+
+        <!-- ── 主塔城垛 6个 ── -->
+        <rect x="148" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="170" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="192" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="214" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="236" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="258" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+
+        <!-- ── 主塔尖顶 ── -->
+        <polygon points="214,6 176,48 252,48" fill="url(#wallGrad)"/>
+        <!-- 尖顶轮廓线 -->
+        <polygon points="214,6 176,48 252,48" fill="none" stroke="rgba(180,220,240,0.5)" stroke-width="1"/>
+
+        <!-- ── 旗帜 ── -->
+        <rect x="212" y="1" width="3" height="16" fill="url(#wallGrad)"/>
+        <polygon points="215,1 232,7 215,14" fill="url(#wallGrad)"/>
+
+        <!-- ── 主塔拱门 ── -->
+        <rect x="198" y="82" width="32" height="26" rx="16" fill="url(#darkGrad)"/>
+
+        <!-- ── 主塔圆窗 ── -->
+        <circle cx="176" cy="68" r="7" fill="url(#darkGrad)"/>
+        <circle cx="176" cy="68" r="4" fill="rgba(200,240,255,0.2)"/>
+        <circle cx="252" cy="68" r="7" fill="url(#darkGrad)"/>
+        <circle cx="252" cy="68" r="4" fill="rgba(200,240,255,0.2)"/>
+
+        <!-- ── 左侧小塔 ── -->
+        <rect x="78"  y="74" width="62" height="34" fill="url(#wallGrad)"/>
+        <polygon points="109,46 84,76 134,76" fill="url(#wallGrad)"/>
+        <polygon points="109,46 84,76 134,76" fill="none" stroke="rgba(180,220,240,0.4)" stroke-width="1"/>
+        <!-- 左塔城垛 3个 -->
+        <rect x="76"  y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="94"  y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="112" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <!-- 左塔拱门 -->
+        <rect x="100" y="84" width="20" height="24" rx="10" fill="url(#darkGrad)"/>
+        <!-- 左塔小旗 -->
+        <rect x="108" y="40" width="2" height="10" fill="url(#wallGrad)"/>
+        <polygon points="110,40 120,44 110,48" fill="url(#wallGrad)"/>
+
+        <!-- ── 右侧小塔 ── -->
+        <rect x="288" y="74" width="62" height="34" fill="url(#wallGrad)"/>
+        <polygon points="319,46 294,76 344,76" fill="url(#wallGrad)"/>
+        <polygon points="319,46 294,76 344,76" fill="none" stroke="rgba(180,220,240,0.4)" stroke-width="1"/>
+        <!-- 右塔城垛 3个 -->
+        <rect x="286" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="304" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="322" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <!-- 右塔拱门 -->
+        <rect x="308" y="84" width="20" height="24" rx="10" fill="url(#darkGrad)"/>
+        <!-- 右塔小旗 -->
+        <rect x="318" y="40" width="2" height="10" fill="url(#wallGrad)"/>
+        <polygon points="320,40 330,44 320,48" fill="url(#wallGrad)"/>
+
+        <!-- ── 极远处小副塔（左） ── -->
+        <rect x="20" y="100" width="36" height="48" fill="url(#wallGrad)"/>
+        <polygon points="38,82 22,102 54,102" fill="url(#wallGrad)"/>
+        <rect x="19"  y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="31"  y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="43"  y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+
+        <!-- ── 极远处小副塔（右） ── -->
+        <rect x="372" y="100" width="36" height="48" fill="url(#wallGrad)"/>
+        <polygon points="390,82 374,102 406,102" fill="url(#wallGrad)"/>
+        <rect x="370" y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="382" y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="394" y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+
+        <!-- ── 月亮 ── -->
+        <circle cx="362" cy="18" r="13" fill="url(#wallGrad)"/>
+        <circle cx="369" cy="14" r="10" fill="rgba(40,140,190,0.55)"/>
+
+        <!-- ── 星星 ── -->
+        <circle cx="28"  cy="30" r="2.5" fill="#fff"/>
+        <circle cx="48"  cy="14" r="1.8" fill="#fff"/>
+        <circle cx="16"  cy="52" r="1.5" fill="#fff"/>
+        <circle cx="70"  cy="22" r="1.2" fill="#fff"/>
+        <circle cx="395" cy="28" r="2.2" fill="#fff"/>
+        <circle cx="412" cy="44" r="1.5" fill="#fff"/>
+        <circle cx="340" cy="10" r="1.8" fill="#fff"/>
+        <!-- 四角星点缀 -->
+        <polygon points="140,20 141.5,23 145,23 142.5,25 143.5,28.5 140,26.5 136.5,28.5 137.5,25 135,23 138.5,23" fill="#fff" opacity="0.8"/>
+        <polygon points="290,14 291,17 294,17 292,18.5 292.7,22 290,20.5 287.3,22 288,18.5 286,17 289,17" fill="#fff" opacity="0.7"/>
+      </svg>
+
+      <!-- Status Bar -->
+      <div class="flex justify-between items-center px-6 pt-2 text-xs font-semibold text-white relative z-10">
+        <div class="flex items-center space-x-1">
+          <span>●●●●○</span>
+          <span>中国移动</span>
+        </div>
+        <div>9:41 AM</div>
+        <div class="flex items-center space-x-1">
+          <span>100%</span>
+          <div class="w-6 h-3 border border-white rounded-[2px] relative flex items-center p-[1px]">
+            <div class="bg-white h-full w-full rounded-[1px]"></div>
+            <div class="absolute -right-1 w-0.5 h-1 bg-white rounded-r-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings button -->
+      <button
+        onclick="alert('设置页（待实现）')"
+        class="absolute z-10 flex items-center justify-center rounded-full border border-white/30"
+        style="top:21px;right:10px;width:28px;height:28px;background:rgba(255,255,255,0.22);backdrop-filter:blur(8px)"
+        aria-label="设置">
+        <span class="material-symbols-outlined text-white" style="font-size:16px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">settings</span>
+      </button>
+
+      <!-- Avatar + username centered -->
+      <div class="absolute bottom-7 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+        <!-- Avatar -->
+        <div class="relative">
+          <div class="w-[72px] h-[72px] rounded-full border-[3px] border-white/90 overflow-hidden" style="box-shadow:0 4px 16px rgba(0,0,0,0.15)">
+            <div class="w-full h-full avatar-silhouette"></div>
+          </div>
+          <!-- Paw badge -->
+          <div class="absolute -bottom-0.5 -right-0.5 w-[22px] h-[22px] bg-[#4ec9f0] rounded-full border-2 border-white flex items-center justify-center text-[11px] leading-none">🐾</div>
+        </div>
+        <!-- Username -->
+        <div class="text-white font-bold text-base flex items-center gap-1.5">
+          dbpei0008
+          <span class="material-symbols-outlined text-base opacity-80" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">edit</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats cards (float over hero bottom) -->
+    <div class="grid grid-cols-4 gap-2 px-3 -mt-5 relative z-10">
+      <div class="rounded-2xl py-2.5 px-1.5 text-center shadow-sm" style="background:rgba(255,255,255,0.88);backdrop-filter:blur(12px)">
+        <div class="text-[17px] font-extrabold text-[#1a3a4a] leading-tight">234</div>
+        <div class="text-[10px] text-[#566166] mt-0.5">Creations</div>
+      </div>
+      <div class="rounded-2xl py-2.5 px-1.5 text-center shadow-sm" style="background:rgba(255,255,255,0.88);backdrop-filter:blur(12px)">
+        <div class="text-[17px] font-extrabold text-[#1a3a4a] leading-tight">102</div>
+        <div class="text-[10px] text-[#566166] mt-0.5">Likes</div>
+      </div>
+      <div class="rounded-2xl py-2.5 px-1.5 text-center shadow-sm" style="background:rgba(255,255,255,0.88);backdrop-filter:blur(12px)">
+        <div class="text-[17px] font-extrabold text-[#1a3a4a] leading-tight">11</div>
+        <div class="text-[10px] text-[#566166] mt-0.5">Following</div>
+      </div>
+      <div class="rounded-2xl py-2.5 px-1.5 text-center shadow-sm" style="background:rgba(255,255,255,0.88);backdrop-filter:blur(12px)">
+        <div class="text-[17px] font-extrabold text-[#1a3a4a] leading-tight">13</div>
+        <div class="text-[10px] text-[#566166] mt-0.5">Followers</div>
+      </div>
+    </div>
+
+  </header>
+
+  <!-- ── Scrollable body ── -->
+  <div class="flex-1 overflow-y-auto hide-scrollbar pt-3 pb-2">
+
+    <!-- Menu card -->
+    <div class="mx-3 bg-white/90 rounded-2xl overflow-hidden shadow-sm mb-3" style="backdrop-filter:blur(8px)">
+      <!-- Creator Center -->
+      <div class="flex items-center gap-3 px-4 py-[14px] border-b border-black/[0.04] cursor-pointer active:bg-gray-50">
+        <span class="material-symbols-outlined text-[22px] text-[#0061a4]" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">trending_up</span>
+        <span class="text-[15px] font-medium text-[#2a3439] flex-1">Creator Center</span>
+        <span class="material-symbols-outlined text-[18px] text-slate-400" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">chevron_right</span>
+      </div>
+      <!-- Notifications -->
+      <div class="flex items-center gap-3 px-4 py-[14px] border-b border-black/[0.04] cursor-pointer active:bg-gray-50 relative">
+        <span class="material-symbols-outlined text-[22px] text-[#0061a4]" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">notifications</span>
+        <span class="text-[15px] font-medium text-[#2a3439] flex-1">Notifications</span>
+        <span class="absolute right-9 top-1/2 -translate-y-1/2 bg-red-500 text-white text-[9px] font-bold px-[5px] py-[1px] rounded-full leading-none">99+</span>
+        <span class="material-symbols-outlined text-[18px] text-slate-400" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">chevron_right</span>
+      </div>
+      <!-- Drafts -->
+      <div class="flex items-center gap-3 px-4 py-[14px] cursor-pointer active:bg-gray-50">
+        <span class="material-symbols-outlined text-[22px] text-[#0061a4]" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">draft</span>
+        <span class="text-[15px] font-medium text-[#2a3439] flex-1">草稿箱</span>
+        <span class="text-[12px] text-slate-400 mr-1">3</span>
+        <span class="material-symbols-outlined text-[18px] text-slate-400" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">chevron_right</span>
+      </div>
+    </div>
+
+    <!-- Tab bar + post list -->
+    <div class="mx-3 bg-white rounded-2xl overflow-hidden shadow-sm">
+      <!-- Tabs -->
+      <div class="flex border-b border-[#e8eff3] px-1" id="tab-bar">
+        <button data-tab="creations" class="tab-btn flex-1 text-center py-2.5 text-[13px] font-bold text-[#1f2937] relative">
+          Creations
+          <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full"></span>
+        </button>
+        <button data-tab="comments" class="tab-btn flex-1 text-center py-2.5 text-[13px] text-[#566166] relative">
+          Comments
+          <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full hidden"></span>
+        </button>
+        <button data-tab="likes" class="tab-btn flex-1 text-center py-2.5 text-[13px] text-[#566166] relative">
+          Likes
+          <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full hidden"></span>
+        </button>
+        <button data-tab="favorites" class="tab-btn flex-1 text-center py-2.5 text-[13px] text-[#566166] relative">
+          Favorites
+          <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full hidden"></span>
+        </button>
+      </div>
+
+      <!-- Post list -->
+      <div id="tab-creations" class="tab-panel p-3 space-y-2">
+
+        <!-- 状态1：有标题 + 有图 · 最新/深蓝 -->
+        <div class="tl-card">
+          <div class="tl-stripe" style="background:linear-gradient(180deg,#0061a4,#3ab4e8)"></div>
+          <div class="tl-body">
+            <div class="time-pill" style="background:#e8f4ff;color:#0061a4"><span style="font-size:8px">●</span> 02-10 · 18:20</div>
+            <div class="flex gap-2.5 items-start">
+              <div class="flex-1 min-w-0">
+                <div class="text-[13px] font-semibold text-[#1a2a35] truncate">Treasure Chest</div>
+                <div class="text-[11px] text-slate-500 truncate mt-0.5">恩恩恩呢</div>
+              </div>
+              <img src="https://picsum.photos/seed/treasure/160/120" class="w-[66px] h-[48px] rounded-lg object-cover flex-shrink-0" alt=""/>
+            </div>
+          </div>
+        </div>
+
+        <!-- 状态2：有标题 + 无图 -->
+        <div class="tl-card">
+          <div class="tl-stripe" style="background:linear-gradient(180deg,#3ab4e8,#7dd4f5)"></div>
+          <div class="tl-body">
+            <div class="time-pill" style="background:#edf7fd;color:#3ab4e8"><span style="font-size:8px">●</span> 01-21 · 15:29</div>
+            <div class="text-[13px] font-semibold text-[#1a2a35] mb-0.5">Old User Return</div>
+            <div class="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">这是一篇没有配图的纯文字帖子，内容只有文字，不展示缩略图区域。文字可以多展示一些内容给用户预览。</div>
+          </div>
+        </div>
+
+        <!-- 状态3：无标题 + 只有正文 -->
+        <div class="tl-card">
+          <div class="tl-stripe" style="background:linear-gradient(180deg,#7dd4f5,#b8e8f8)"></div>
+          <div class="tl-body">
+            <div class="time-pill" style="background:#f3fafe;color:#7dd4f5"><span style="font-size:8px">●</span> 01-05 · 09:14</div>
+            <div class="text-[12px] text-[#2a3439] line-clamp-3 leading-relaxed">今天签到打卡啦！连续签到第 7 天，希望能坚持下去，冲冲冲 💪 每天都在进步，感谢社区的小伙伴们陪伴。</div>
+          </div>
+        </div>
+
+        <!-- 状态4：无标题 + 有图 · 最旧/最浅 -->
+        <div class="tl-card">
+          <div class="tl-stripe" style="background:linear-gradient(180deg,#b8e8f8,#ddf0f9)"></div>
+          <div class="tl-body">
+            <div class="time-pill" style="background:#f8fdff;color:#a0cfe8"><span style="font-size:8px">●</span> 12-30 · 21:08</div>
+            <div class="flex gap-2.5 items-start">
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] text-[#2a3439] line-clamp-2 leading-snug">新年快到了，分享一张我的游戏截图，这个场景真的太美了！</div>
+              </div>
+              <img src="https://picsum.photos/seed/newyear/160/120" class="w-[66px] h-[48px] rounded-lg object-cover flex-shrink-0" alt=""/>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div id="tab-comments" class="tab-panel hidden">
+        <div class="flex flex-col items-center justify-center py-12 text-gray-400 space-y-2">
+          <span class="material-symbols-outlined text-4xl opacity-30" style="font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 40">chat_bubble</span>
+          <span class="text-sm">暂无评论</span>
+        </div>
+      </div>
+      <div id="tab-likes" class="tab-panel hidden">
+        <div class="flex flex-col items-center justify-center py-12 text-gray-400 space-y-2">
+          <span class="material-symbols-outlined text-4xl opacity-30" style="font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 40">favorite</span>
+          <span class="text-sm">暂无点赞</span>
+        </div>
+      </div>
+      <div id="tab-favorites" class="tab-panel hidden">
+        <div class="flex flex-col items-center justify-center py-12 text-gray-400 space-y-2">
+          <span class="material-symbols-outlined text-4xl opacity-30" style="font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 40">bookmark</span>
+          <span class="text-sm">暂无收藏</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ── Bottom Nav ── -->
+  <bottom-nav active="profile" base="../"></bottom-nav>
+
+</main>
+
+<script>
+// Tab switching
+(function () {
+  const btns = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.tab-panel');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      btns.forEach(b => {
+        const active = b.dataset.tab === target;
+        b.classList.toggle('font-bold', active);
+        b.classList.toggle('text-[#1f2937]', active);
+        b.classList.toggle('text-[#566166]', !active);
+        b.querySelector('.tab-line').classList.toggle('hidden', !active);
+      });
+      panels.forEach(p => {
+        p.classList.toggle('hidden', p.id !== 'tab-' + target);
+      });
+    });
+  });
+})();
+</script>
+<script src="../../shared/bottom-nav.js"></script>
+</body>
+</html>
