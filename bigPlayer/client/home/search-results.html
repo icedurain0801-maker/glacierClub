@@ -266,5 +266,172 @@ tailwind.config = {
 
 <script src="../../shared/sidebar-data.js"></script>
 <script src="../../shared/bottom-nav.js"></script>
+<script>
+// ── Tab 切换 ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(el => {
+    el.classList.toggle('active', el.id === 'panel-' + tab);
+  });
+}
+
+// ── URL 参数读取 ──
+const params = new URLSearchParams(location.search);
+const query = params.get('q') || '';
+document.getElementById('search-input').value = query;
+
+// ── mock 数据 ──
+const MOCK_POSTS = [
+  {
+    id: 1, official: true,
+    username: '茂加', level: 'lv14', time: '1年前',
+    text: '【茂加社区升级计划3.0】亲爱的旅行者们，今天完成升级计划了吗？',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#f97316,#dc2626)',
+    imageLabel: '炽焰圣凤',
+    likes: 1703, comments: 218
+  },
+  {
+    id: 2, official: false,
+    username: '浩瀚星河', level: 'lv9', time: '1年前',
+    text: '社区升级了，比以前好看了',
+    hasImage: false,
+    likes: 1, comments: 2
+  },
+  {
+    id: 3, official: false,
+    username: '星河入梦、', level: 'lv7', time: '2年前',
+    text: '升级后发现很多新功能，特别是搜索变快了好多，点赞！',
+    hasImage: false,
+    likes: 34, comments: 9
+  },
+  {
+    id: 4, official: true,
+    username: '茂加', level: 'lv14', time: '2年前',
+    text: '【茂加社区升级计划2.0】今天完成了吗？',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#0061a4,#0891b2)',
+    imageLabel: '升级公告',
+    likes: 4201, comments: 512
+  },
+  {
+    id: 5, official: false,
+    username: '夜行者', level: 'lv11', time: '1年前',
+    text: '社区升级后排版真的好看，收藏了！',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#7c3aed,#db2777)',
+    imageLabel: '新版截图',
+    likes: 89, comments: 14
+  },
+  {
+    id: 6, official: false,
+    username: '风影追月', level: 'lv5', time: '3年前',
+    text: '界面清爽了好多，继续加油！',
+    hasImage: false,
+    likes: 12, comments: 3
+  }
+];
+
+const MOCK_USERS = [
+  { username: '潇潇星河', level: 'lv8', followers: 56, avatarBg: 'linear-gradient(135deg,#fda4af,#f43f5e)' },
+  { username: '星河', level: 'lv5', followers: 12, avatarBg: 'linear-gradient(135deg,#93c5fd,#3b82f6)' },
+  { username: '星河飞扬', level: 'lv12', followers: 203, avatarBg: 'linear-gradient(135deg,#fdba74,#f97316)' },
+  { username: '星河入梦、', level: 'lv7', followers: 44, avatarBg: 'linear-gradient(135deg,#6ee7b7,#059669)' },
+  { username: '星河暗恋记', level: 'lv3', followers: 8, avatarBg: 'linear-gradient(135deg,#c4b5fd,#7c3aed)' },
+  { username: '星河以北', level: 'lv6', followers: 31, avatarBg: 'linear-gradient(135deg,#fde68a,#d97706)' },
+  { username: '星河暖阳', level: 'lv9', followers: 77, avatarBg: 'linear-gradient(135deg,#a5f3fc,#0891b2)' }
+];
+
+const HOT_KEYWORDS = ['星灵', '狩魂者', 'S5赛季', '公会招募', '新手攻略', '炽焰圣凤', '超能联赛', '装备强化'];
+
+// ── 生成卡片 HTML ──
+function postCardHTML(post) {
+  const avatarClass = post.official ? 'card-avatar official' : 'card-avatar';
+  const officialTag = post.official ? '<span class="official-tag">官方</span>' : '';
+  const imageHTML = post.hasImage
+    ? `<div class="card-image" style="background:${post.imageBg};display:flex;align-items:center;justify-content:center;">
+         <span style="color:rgba(255,255,255,0.9);font-size:14px;font-weight:700;">${post.imageLabel}</span>
+       </div>`
+    : '';
+  return `
+    <div class="result-card">
+      <div class="card-user-row">
+        <div class="${avatarClass}"></div>
+        <div class="card-user-info">
+          <div class="card-username">${post.username}${officialTag}</div>
+          <div class="card-meta">${post.level} · ${post.time} · 在超能世界发布了动态</div>
+        </div>
+        <div class="follow-btn">+关注</div>
+      </div>
+      <div class="card-text">${post.text}</div>
+      ${imageHTML}
+      <div class="card-stats">
+        <span>👍 ${post.likes}</span>
+        <span>💬 ${post.comments}</span>
+      </div>
+    </div>`;
+}
+
+// ── 空状态 HTML ──
+function emptyStateHTML() {
+  const chips = HOT_KEYWORDS.map(k => `<span class="hot-chip">${k}</span>`).join('');
+  return `
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">没有找到相关内容</div>
+      <div class="empty-sub">换个关键词试试？</div>
+    </div>
+    <div class="section-title">大家都在搜</div>
+    <div class="hot-chips">${chips}</div>`;
+}
+
+// ── 渲染综合面板 ──
+function renderAll() {
+  // demo：关键词含 'empty' 时强制展示空状态
+  if (query.toLowerCase().includes('empty')) {
+    document.getElementById('panel-all').innerHTML = emptyStateHTML();
+    document.getElementById('panel-posts').innerHTML = emptyStateHTML();
+    document.getElementById('panel-users').innerHTML = emptyStateHTML();
+    return;
+  }
+  const official = MOCK_POSTS.filter(p => p.official);
+  const community = MOCK_POSTS.filter(p => !p.official);
+  let html = '';
+  if (official.length) {
+    html += `<div class="section-title">官方相关</div>`;
+    html += official.map(postCardHTML).join('');
+  }
+  if (community.length) {
+    html += `<div class="section-title">相关创作</div>`;
+    html += community.map(postCardHTML).join('');
+  }
+  document.getElementById('panel-all').innerHTML = html || emptyStateHTML();
+}
+
+// ── 渲染创作面板 ──
+function renderPosts() {
+  const html = `<div class="section-title">全部创作 <span class="section-count">共 ${MOCK_POSTS.length} 条</span></div>`
+    + MOCK_POSTS.map(postCardHTML).join('');
+  document.getElementById('panel-posts').innerHTML = html;
+}
+
+// ── 渲染用户面板 ──
+function renderUsers() {
+  const rows = MOCK_USERS.map(u => `
+    <div class="user-row">
+      <div class="user-avatar" style="background:${u.avatarBg};"></div>
+      <div class="user-info">
+        <div class="user-name">${u.username}</div>
+        <div class="user-sub">${u.level} · ${u.followers} 关注者</div>
+      </div>
+      <div class="follow-btn">+关注</div>
+    </div>`).join('');
+  document.getElementById('panel-users').innerHTML = rows || emptyStateHTML();
+}
+
+// ── 初始化渲染 ──
+renderAll();
+renderPosts();
+renderUsers();
+</script>
 </body>
 </html>
