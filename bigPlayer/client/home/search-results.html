@@ -79,8 +79,11 @@ tailwind.config = {
   .input-glass input {
     flex: 1; background: transparent; border: none; outline: none;
     font-size: 14px; font-family: Inter, sans-serif; color: #ffffff;
+    -webkit-appearance: none;
   }
   .input-glass input::placeholder { color: rgba(255,255,255,0.45); }
+  .input-glass input::-webkit-search-cancel-button { display: none; }
+  .input-glass:focus-within { outline: none; box-shadow: none; }
 
   /* ── Tab 栏 ── */
   .results-body {
@@ -114,7 +117,7 @@ tailwind.config = {
     border-bottom: 2px solid #0061a4;
   }
   .tab-panel { display: none; flex: 1; overflow-y: auto; }
-  .tab-panel.active { display: block; }
+  .tab-panel.active { display: flex; flex-direction: column; }
   .tab-panel::-webkit-scrollbar { display: none; }
 
   /* ── 结果卡片 ── */
@@ -224,7 +227,7 @@ tailwind.config = {
 
   <!-- 顶部蓝色区 -->
   <div class="search-top">
-    <div class="back-row" onclick="history.back()">
+    <div class="back-row" onclick="window.location.href='search.html'">
       <span class="material-symbols-outlined">arrow_back</span>
       <span>返回</span>
     </div>
