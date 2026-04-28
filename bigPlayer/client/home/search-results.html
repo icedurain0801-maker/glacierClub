@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "on-surface-variant": "#566166",
+        "primary": "#0061a4",
+        "primary-dim": "#005590",
+        "surface-container-low": "#f0f4f7",
+        "surface-variant": "#d9e4ea",
+        "outline": "#717c82",
+        "on-primary-container": "#00548f",
+        "surface-container": "#e8eff3",
+        "on-background": "#2a3439",
+        "on-surface": "#2a3439",
+        "background": "#f7f9fb",
+        "surface": "#f7f9fb",
+        "outline-variant": "#a9b4b9",
+        "surface-container-high": "#e1e9ee",
+        "surface-container-highest": "#d9e4ea",
+      },
+      fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+    }
+  }
+}
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: 22px; line-height: 1; user-select: none;
+  }
+  body { min-height: 100dvh; }
+  .phone-shell { width: 375px; flex-shrink: 0; }
+  .phone-inner {
+    width: 375px; height: 667px;
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+  }
+  @media (max-width: 430px) {
+    body { background: #f7f9fb; align-items: flex-start; }
+    .phone-shell { width: 100vw; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; position: static !important; }
+    .phone-inner { width: 100vw; height: 100dvh; min-height: unset; }
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ── 蓝色渐变顶区 ── */
+  .search-top {
+    background: linear-gradient(175deg, #003d7a 0%, #0061a4 55%, #1a7fc4 100%);
+    padding: 20px 16px 28px;
+    flex-shrink: 0;
+  }
+  .back-row {
+    display: flex; align-items: center; gap: 6px;
+    color: rgba(255,255,255,0.75);
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 18px; cursor: pointer;
+  }
+  .back-row .material-symbols-outlined { font-size: 20px; color: rgba(255,255,255,0.75); }
+  .input-glass {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 14px;
+    padding: 10px 14px;
+  }
+  .input-glass .material-symbols-outlined { color: rgba(255,255,255,0.65); font-size: 20px; }
+  .input-glass input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-size: 14px; font-family: Inter, sans-serif; color: #ffffff;
+  }
+  .input-glass input::placeholder { color: rgba(255,255,255,0.45); }
+
+  /* ── Tab 栏 ── */
+  .results-body {
+    background: #f7f9fb;
+    border-radius: 22px 22px 0 0;
+    margin-top: -16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid #e1e9ee;
+    background: #fff;
+    border-radius: 22px 22px 0 0;
+    flex-shrink: 0;
+  }
+  .tab-item {
+    flex: 1; text-align: center;
+    font-size: 13px; font-weight: 500;
+    color: #566166;
+    padding: 13px 0;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .tab-item.active {
+    font-weight: 700;
+    color: #1f2937;
+    border-bottom: 2px solid #0061a4;
+  }
+  .tab-panel { display: none; flex: 1; overflow-y: auto; }
+  .tab-panel.active { display: block; }
+  .tab-panel::-webkit-scrollbar { display: none; }
+
+  /* ── 结果卡片 ── */
+  .result-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 0 12px 10px;
+    box-shadow: 0 2px 8px rgba(0,97,164,0.07);
+  }
+  .card-user-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .card-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+    background: linear-gradient(135deg, #93c5fd, #3b82f6);
+  }
+  .card-avatar.official { background: linear-gradient(135deg, #bae6fd, #0284c7); }
+  .card-user-info { flex: 1; min-width: 0; }
+  .card-username {
+    font-size: 13px; font-weight: 600; color: #1f2937;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .official-tag {
+    font-size: 10px; font-weight: 700;
+    background: #0061a4; color: #fff;
+    padding: 1px 5px; border-radius: 4px;
+  }
+  .card-meta { font-size: 11px; color: #a9b4b9; }
+  .follow-btn {
+    font-size: 11px; color: #0061a4;
+    border: 1px solid #0061a4;
+    border-radius: 999px; padding: 3px 12px;
+    white-space: nowrap; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .card-text {
+    font-size: 13px; color: #374151;
+    line-height: 1.5; margin-bottom: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-image {
+    width: 100%; border-radius: 8px;
+    margin-bottom: 8px; display: block;
+    background: linear-gradient(135deg, #0061a4, #0891b2);
+    height: 160px; object-fit: cover;
+  }
+  .card-stats {
+    display: flex; gap: 12px;
+    font-size: 11px; color: #a9b4b9;
+  }
+
+  /* ── section 标题 ── */
+  .section-title {
+    font-size: 12px; font-weight: 700;
+    color: #0061a4;
+    padding: 14px 14px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-count { font-size: 11px; font-weight: 400; color: #a9b4b9; }
+
+  /* ── 用户列表行 ── */
+  .user-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #f0f4f7;
+  }
+  .user-row:last-child { border-bottom: none; }
+  .user-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, #93c5fd, #3b82f6);
+    flex-shrink: 0;
+  }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-size: 14px; font-weight: 600; color: #1f2937; }
+  .user-sub { font-size: 11px; color: #a9b4b9; margin-top: 2px; }
+
+  /* ── 空状态 ── */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 48px 24px 24px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: .45; }
+  .empty-title { font-size: 15px; font-weight: 600; color: #566166; margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; color: #a9b4b9; }
+
+  /* ── 热词胶囊 ── */
+  .hot-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+  .hot-chip {
+    background: #e8f0fb; color: #0061a4;
+    font-size: 12px; border-radius: 999px;
+    padding: 5px 12px; cursor: pointer;
+  }
+</style>
+</head>
+<body class="bg-[#f0f4f8] font-body text-on-surface flex justify-center items-start">
+<nav id="sidebar" class="sidebar hidden"></nav>
+
+<div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
+<div class="phone-inner">
+
+  <!-- 顶部蓝色区 -->
+  <div class="search-top">
+    <div class="back-row" onclick="history.back()">
+      <span class="material-symbols-outlined">arrow_back</span>
+      <span>返回</span>
+    </div>
+    <div class="input-glass">
+      <span class="material-symbols-outlined">search</span>
+      <input type="search" id="search-input" placeholder="请输入帖子内容/标题"/>
+    </div>
+  </div>
+
+  <!-- 结果区 -->
+  <div class="results-body">
+
+    <!-- Tab 栏 -->
+    <div class="tab-bar">
+      <div class="tab-item active" data-tab="all" onclick="switchTab('all')">综合</div>
+      <div class="tab-item" data-tab="posts" onclick="switchTab('posts')">创作</div>
+      <div class="tab-item" data-tab="users" onclick="switchTab('users')">用户</div>
+    </div>
+
+    <!-- 综合面板 -->
+    <div class="tab-panel active" id="panel-all">
+    </div>
+
+    <!-- 创作面板 -->
+    <div class="tab-panel" id="panel-posts">
+    </div>
+
+    <!-- 用户面板 -->
+    <div class="tab-panel" id="panel-users">
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/bottom-nav.js"></script>
+</body>
+</html>
