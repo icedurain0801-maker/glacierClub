@@ -409,6 +409,7 @@ function renderAll() {
 
 // ── 渲染创作面板 ──
 function renderPosts() {
+  if (query.toLowerCase().includes('empty')) return;
   const html = `<div class="section-title">全部创作 <span class="section-count">共 ${MOCK_POSTS.length} 条</span></div>`
     + MOCK_POSTS.map(postCardHTML).join('');
   document.getElementById('panel-posts').innerHTML = html;
@@ -416,6 +417,7 @@ function renderPosts() {
 
 // ── 渲染用户面板 ──
 function renderUsers() {
+  if (query.toLowerCase().includes('empty')) return;
   const rows = MOCK_USERS.map(u => `
     <div class="user-row">
       <div class="user-avatar" style="background:${u.avatarBg};"></div>
