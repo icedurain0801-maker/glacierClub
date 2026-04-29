@@ -492,16 +492,10 @@ function renderAll() {
     document.getElementById('panel-users').innerHTML = emptyStateHTML();
     return;
   }
-  const official = MOCK_POSTS.filter(p => p.official);
-  const community = MOCK_POSTS.filter(p => !p.official);
   let html = userStripHTML();
-  if (official.length) {
-    html += `<div class="section-title">官方相关</div>`;
-    html += official.map(postCardHTML).join('');
-  }
-  if (community.length) {
+  if (MOCK_POSTS.length) {
     html += `<div class="section-title">相关创作</div>`;
-    html += community.map(postCardHTML).join('');
+    html += MOCK_POSTS.map(postCardHTML).join('');
   }
   document.getElementById('panel-all').innerHTML = html || emptyStateHTML();
 }
@@ -509,9 +503,18 @@ function renderAll() {
 // ── 渲染创作面板 ──
 function renderPosts() {
   if (query.toLowerCase().includes('empty')) return;
-  const html = `<div class="section-title">全部创作 <span class="section-count">共 ${MOCK_POSTS.length} 条</span></div>`
-    + MOCK_POSTS.map(postCardHTML).join('');
-  document.getElementById('panel-posts').innerHTML = html;
+  const official = MOCK_POSTS.filter(p => p.official);
+  const community = MOCK_POSTS.filter(p => !p.official);
+  let html = '';
+  if (official.length) {
+    html += `<div class="section-title">官方相关 <span class="section-count">共 ${official.length} 条</span></div>`;
+    html += official.map(postCardHTML).join('');
+  }
+  if (community.length) {
+    html += `<div class="section-title">相关创作 <span class="section-count">共 ${community.length} 条</span></div>`;
+    html += community.map(postCardHTML).join('');
+  }
+  document.getElementById('panel-posts').innerHTML = html || emptyStateHTML();
 }
 
 // ── 渲染用户面板 ──

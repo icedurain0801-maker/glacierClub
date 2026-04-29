@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>搜索交互 · 3个变体对比</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+  body { background: #e8edf2; font-family: -apple-system, sans-serif; }
+  .phone { width: 375px; flex-shrink: 0; }
+  .phone-inner { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.14); }
+
+  /* ── 共用 tab bar 样式 ── */
+  .tab-bar { display: flex; align-items: center; border-bottom: 1px solid #e8eff3; background: #fff; }
+  .tab-btn { flex: 1; text-align: center; padding: 10px 0; font-size: 13px; color: #566166; position: relative; cursor: pointer; border: none; background: none; }
+  .tab-btn.active { font-weight: 700; color: #1f2937; }
+  .tab-line { position: absolute; bottom: 0; left: 20%; right: 20%; height: 2px; background: #0061a4; border-radius: 2px; display: none; }
+  .tab-btn.active .tab-line { display: block; }
+
+  /* ── 帖子列表 ── */
+  .post-list { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .tl-card { display: flex; background: #f7f9fb; border-radius: 12px; overflow: hidden; cursor: pointer; }
+  .tl-stripe { width: 4px; flex-shrink: 0; background: linear-gradient(180deg,#0061a4,#3ab4e8); }
+  .tl-body { flex: 1; min-width: 0; padding: 9px 12px; }
+  .time-pill { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 20px;
+               font-size: 9.5px; font-weight: 600; margin-bottom: 4px; background: #e8f4ff; color: #0061a4; }
+  .post-title { font-size: 13px; font-weight: 600; color: #1a2a35; }
+  .post-body  { font-size: 11px; color: #7a8a92; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+  /* ── 搜索通用输入框 ── */
+  .search-box { display: flex; align-items: center; gap: 6px; background: #f0f4f8; border-radius: 20px; padding: 5px 10px; }
+  .search-box input { flex: 1; border: none; outline: none; background: transparent; font-size: 12px; color: #1a2a35; min-width: 0; }
+  .search-box input::placeholder { color: #aab2b8; }
+  .mat { font-family: 'Material Symbols Outlined'; font-weight: 400; font-style: normal; font-size: 18px; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; display: inline-block; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; }
+
+  /* ── variant label ── */
+  .variant-label { font-size: 12px; font-weight: 600; color: #566166; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; }
+  .variant-title { font-size: 16px; font-weight: 700; color: #1a2a35; margin-bottom: 2px; }
+  .variant-desc  { font-size: 12px; color: #7a8a92; margin-bottom: 14px; line-height: 1.6; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 6px; padding: 2px 7px; margin-right: 4px; margin-bottom: 8px; }
+  .badge-blue { background: #e8f4ff; color: #0061a4; }
+  .badge-green { background: #e6f9f1; color: #1a8c5a; }
+  .badge-orange { background: #fff3e6; color: #b85e00; }
+</style>
+</head>
+<body>
+
+<div style="padding: 32px 24px;">
+
+  <!-- 页头 -->
+  <div style="margin-bottom: 32px;">
+    <div style="font-size: 20px; font-weight: 800; color: #1a2a35; margin-bottom: 6px;">搜索交互 · 3个方案对比</div>
+    <div style="font-size: 13px; color: #7a8a92;">点击各方案中的 🔍 按钮，体验搜索展开交互</div>
+  </div>
+
+  <!-- 3 列对比 -->
+  <div style="display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap;">
+
+    <!-- ══════════════ 方案 A ══════════════ -->
+    <div class="phone">
+      <div class="variant-label">方案 A</div>
+      <div class="variant-title">就地展开 · 点赞收窄</div>
+      <div class="variant-desc">点击搜索图标后，「点赞」tab 被压缩到只剩图标，搜索框占据右侧空间。创作 tab 始终完整保留。动效：宽度过渡 0.25s。</div>
+      <span class="badge badge-blue">创作始终可见</span>
+      <span class="badge badge-green">过渡自然</span>
+
+      <div class="phone-inner">
+        <!-- Tab bar A -->
+        <div class="tab-bar" id="tabbar-a" style="position:relative; padding: 0 4px 0 0;">
+          <!-- 创作（始终固定） -->
+          <button class="tab-btn active" style="flex: none; padding: 10px 16px;" onclick="switchTabA('creations')">
+            创作
+            <span class="tab-line"></span>
+          </button>
+
+          <!-- 点赞（搜索时收窄） -->
+          <div id="likes-tab-a" style="display:flex; align-items:center; overflow:hidden; transition: width 0.25s cubic-bezier(0.4,0,0.2,1); width: 100%; min-width: 0;">
+            <button class="tab-btn" id="likes-btn-a" onclick="switchTabA('likes')" style="flex:1; white-space: nowrap; overflow: hidden;">
+              点赞
+              <span class="tab-line"></span>
+            </button>
+          </div>
+
+          <!-- 搜索框（搜索时展开） -->
+          <div id="searchbox-a" style="display:flex; align-items:center; gap:6px; overflow:hidden; transition: width 0.25s cubic-bezier(0.4,0,0.2,1); width:0; opacity:0; transition: width 0.25s, opacity 0.2s;">
+            <div class="search-box" style="flex:1; margin: 6px 0;">
+              <span class="mat" style="color:#aab2b8; font-size:14px;">search</span>
+              <input id="input-a" type="text" placeholder="搜索创作" oninput="filterA()" autocomplete="off"/>
+              <span id="clear-a" onclick="clearA()" style="display:none; cursor:pointer; color:#aab2b8; font-size:16px; line-height:1;">×</span>
+            </div>
+            <button onclick="closeA()" style="font-size:12px; color:#0061a4; font-weight:600; white-space:nowrap; background:none; border:none; cursor:pointer; padding: 0 4px;">取消</button>
+          </div>
+
+          <!-- 搜索图标 -->
+          <button id="search-icon-a" onclick="openA()"
+            style="width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:none; background:none; cursor:pointer; transition: opacity 0.2s;">
+            <span class="mat" style="color:#566166; font-size:18px;">search</span>
+          </button>
+        </div>
+
+        <!-- 内容 A -->
+        <div id="panel-creations-a" class="post-list">
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 03-20 · 09:46 · 发布了该帖子</div><div class="post-title">123</div><div class="post-body">123123</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 02-02 · 14:42 · 发布了动态</div><div class="post-body">efagrsae</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 12-05 · 10:35 · 发布了该帖子</div><div class="post-title">123</div><div class="post-body">123</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 12-03 · 17:14 · 发布了该帖子</div><div class="post-body">测测测测测测额膀侧测测测测额膀侧测测测测额膀侧...</div></div></div>
+        </div>
+        <div id="panel-likes-a" class="post-list" style="display:none; align-items:center; justify-content:center; padding: 40px 0; color:#aab2b8;">
+          <span class="mat" style="font-size:36px; opacity:0.3;">favorite</span>
+          <span style="font-size:13px; margin-top:8px;">暂无点赞</span>
+        </div>
+        <div id="empty-a" style="display:none; flex-direction:column; align-items:center; padding:32px 0; color:#aab2b8; gap:6px;">
+          <span class="mat" style="font-size:32px; opacity:0.3;">search_off</span>
+          <span style="font-size:13px;">没有找到相关内容</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 方案 B ══════════════ -->
+    <div class="phone">
+      <div class="variant-label">方案 B</div>
+      <div class="variant-title">第二行展开 · Tab 不动</div>
+      <div class="variant-desc">Tab bar 不变，搜索框从 Tab bar 下方滑出，形成独立一行。创作与点赞 tab 始终完整，搜索框高度从 0 展开到 44px。</div>
+      <span class="badge badge-blue">创作始终可见</span>
+      <span class="badge badge-orange">布局最稳定</span>
+
+      <div class="phone-inner">
+        <!-- Tab bar B（不变） -->
+        <div class="tab-bar" style="padding: 0 4px;">
+          <button class="tab-btn active" id="tab-creations-b" onclick="switchTabB('creations')" style="flex:1;">
+            创作
+            <span class="tab-line"></span>
+          </button>
+          <button class="tab-btn" id="tab-likes-b" onclick="switchTabB('likes')" style="flex:1;">
+            点赞
+            <span class="tab-line"></span>
+          </button>
+          <!-- 搜索图标 -->
+          <button id="search-icon-b" onclick="openB()"
+            style="width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:none; background:none; cursor:pointer;">
+            <span class="mat" style="color:#566166; font-size:18px;">search</span>
+          </button>
+        </div>
+
+        <!-- 搜索栏下拉 B -->
+        <div id="searchbar-b" style="overflow:hidden; max-height:0; transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1); background:#fff; border-bottom: 1px solid transparent; transition: max-height 0.28s, border-color 0.28s;">
+          <div style="display:flex; align-items:center; gap:8px; padding: 8px 12px;">
+            <div class="search-box" style="flex:1;">
+              <span class="mat" style="color:#aab2b8; font-size:14px;">search</span>
+              <input id="input-b" type="text" placeholder="搜索创作内容" oninput="filterB()" autocomplete="off"/>
+              <span id="clear-b" onclick="clearB()" style="display:none; cursor:pointer; color:#aab2b8; font-size:16px; line-height:1;">×</span>
+            </div>
+            <button onclick="closeB()" style="font-size:12px; color:#0061a4; font-weight:600; background:none; border:none; cursor:pointer;">取消</button>
+          </div>
+        </div>
+
+        <!-- 内容 B -->
+        <div id="panel-creations-b" class="post-list">
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 03-20 · 09:46 · 发布了该帖子</div><div class="post-title">123</div><div class="post-body">123123</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 02-02 · 14:42 · 发布了动态</div><div class="post-body">efagrsae</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 12-05 · 10:35 · 发布了该帖子</div><div class="post-title">123</div><div class="post-body">123</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 12-03 · 17:14 · 发布了该帖子</div><div class="post-body">测测测测测测额膀侧测测测测额膀侧测测测测额膀侧...</div></div></div>
+        </div>
+        <div id="panel-likes-b" style="display:none; flex-direction:column; align-items:center; padding:40px 0; color:#aab2b8; gap:6px;">
+          <span class="mat" style="font-size:36px; opacity:0.3;">favorite</span>
+          <span style="font-size:13px;">暂无点赞</span>
+        </div>
+        <div id="empty-b" style="display:none; flex-direction:column; align-items:center; padding:32px 0; color:#aab2b8; gap:6px;">
+          <span class="mat" style="font-size:32px; opacity:0.3;">search_off</span>
+          <span style="font-size:13px;">没有找到相关内容</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 方案 C ══════════════ -->
+    <div class="phone">
+      <div class="variant-label">方案 C</div>
+      <div class="variant-title">右半替换 · 创作变图标</div>
+      <div class="variant-desc">搜索展开后，「创作」tab 收窄为左侧小图标（保留下划线），搜索框占据右侧全部空间。视觉最简洁，空间利用率最高。</div>
+      <span class="badge badge-blue">创作始终可见</span>
+      <span class="badge badge-green">空间最大</span>
+
+      <div class="phone-inner">
+        <!-- Tab bar C -->
+        <div class="tab-bar" id="tabbar-c" style="padding: 0 4px; position: relative;">
+
+          <!-- 创作 tab（搜索时收窄为图标） -->
+          <div id="creations-tab-c" style="display:flex; align-items:center; flex-shrink:0; transition: all 0.25s cubic-bezier(0.4,0,0.2,1);">
+            <button id="creations-btn-c" class="tab-btn active" onclick="switchTabC('creations')"
+              style="padding: 10px 14px; white-space: nowrap; overflow: hidden; transition: padding 0.25s, width 0.25s;">
+              创作
+              <span class="tab-line"></span>
+            </button>
+          </div>
+
+          <!-- 点赞 tab（搜索时隐藏） -->
+          <div id="likes-wrap-c" style="flex:1; overflow:hidden; transition: max-width 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.2s; max-width: 200px; opacity:1;">
+            <button class="tab-btn" id="likes-btn-c" onclick="switchTabC('likes')" style="width:100%;">
+              点赞
+              <span class="tab-line"></span>
+            </button>
+          </div>
+
+          <!-- 搜索框（搜索时展开） -->
+          <div id="searchbox-c" style="overflow:hidden; transition: max-width 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s; max-width:0; opacity:0; display:flex; align-items:center; gap:6px;">
+            <div class="search-box" style="flex:1; margin: 6px 0; white-space: nowrap;">
+              <span class="mat" style="color:#aab2b8; font-size:14px;">search</span>
+              <input id="input-c" type="text" placeholder="搜索创作" oninput="filterC()" autocomplete="off" style="width: 100px;"/>
+              <span id="clear-c" onclick="clearC()" style="display:none; cursor:pointer; color:#aab2b8; font-size:15px; line-height:1;">×</span>
+            </div>
+            <button onclick="closeC()" style="font-size:12px; color:#0061a4; font-weight:600; white-space:nowrap; background:none; border:none; cursor:pointer; padding: 0 4px;">取消</button>
+          </div>
+
+          <!-- 搜索图标 -->
+          <button id="search-icon-c" onclick="openC()"
+            style="width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:none; background:none; cursor:pointer; transition: opacity 0.2s;">
+            <span class="mat" style="color:#566166; font-size:18px;">search</span>
+          </button>
+        </div>
+
+        <!-- 内容 C -->
+        <div id="panel-creations-c" class="post-list">
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 03-20 · 09:46 · 发布了该帖子</div><div class="post-title">123</div><div class="post-body">123123</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 02-02 · 14:42 · 发布了动态</div><div class="post-body">efagrsae</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 12-05 · 10:35 · 发布了该帖子</div><div class="post-title">123</div><div class="post-body">123</div></div></div>
+          <div class="tl-card"><div class="tl-stripe"></div><div class="tl-body"><div class="time-pill"><span style="font-size:8px">●</span> 12-03 · 17:14 · 发布了该帖子</div><div class="post-body">测测测测测测额膀侧测测测测额膀侧测测测测额膀侧...</div></div></div>
+        </div>
+        <div id="panel-likes-c" style="display:none; flex-direction:column; align-items:center; padding:40px 0; color:#aab2b8; gap:6px;">
+          <span class="mat" style="font-size:36px; opacity:0.3;">favorite</span>
+          <span style="font-size:13px;">暂无点赞</span>
+        </div>
+        <div id="empty-c" style="display:none; flex-direction:column; align-items:center; padding:32px 0; color:#aab2b8; gap:6px;">
+          <span class="mat" style="font-size:32px; opacity:0.3;">search_off</span>
+          <span style="font-size:13px;">没有找到相关内容</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end 3-col -->
+
+  <!-- 总结对比表 -->
+  <div style="margin-top: 40px; background: #fff; border-radius: 16px; padding: 20px 24px; max-width: 860px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div style="font-size: 14px; font-weight: 700; color: #1a2a35; margin-bottom: 14px;">三方案对比</div>
+    <table style="width:100%; font-size: 12px; border-collapse: collapse;">
+      <thead>
+        <tr style="border-bottom: 2px solid #e8eff3;">
+          <th style="text-align:left; padding: 6px 8px; color:#7a8a92; font-weight:600; width:18%;">维度</th>
+          <th style="text-align:center; padding: 6px 8px; color:#0061a4; font-weight:700; width:27%;">A · 点赞收窄</th>
+          <th style="text-align:center; padding: 6px 8px; color:#1a8c5a; font-weight:700; width:27%;">B · 第二行展开</th>
+          <th style="text-align:center; padding: 6px 8px; color:#b85e00; font-weight:700; width:27%;">C · 右半替换</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid #f0f4f8;">
+          <td style="padding:8px; color:#566166; font-weight:600;">创作 tab</td>
+          <td style="padding:8px; text-align:center;">完整保留</td>
+          <td style="padding:8px; text-align:center;">完整保留</td>
+          <td style="padding:8px; text-align:center;">收窄保留</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #f0f4f8;">
+          <td style="padding:8px; color:#566166; font-weight:600;">点赞 tab</td>
+          <td style="padding:8px; text-align:center;">收缩为图标</td>
+          <td style="padding:8px; text-align:center;">完整保留</td>
+          <td style="padding:8px; text-align:center;">隐藏</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #f0f4f8;">
+          <td style="padding:8px; color:#566166; font-weight:600;">搜索框宽度</td>
+          <td style="padding:8px; text-align:center;">右半区域</td>
+          <td style="padding:8px; text-align:center;">全宽（独立行）</td>
+          <td style="padding:8px; text-align:center;">右半区域</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #f0f4f8;">
+          <td style="padding:8px; color:#566166; font-weight:600;">布局变化</td>
+          <td style="padding:8px; text-align:center;">tab bar 内重排</td>
+          <td style="padding:8px; text-align:center;">高度增加一行</td>
+          <td style="padding:8px; text-align:center;">tab bar 内重排</td>
+        </tr>
+        <tr>
+          <td style="padding:8px; color:#566166; font-weight:600;">推荐场景</td>
+          <td style="padding:8px; text-align:center;">空间紧张时</td>
+          <td style="padding:8px; text-align:center; color:#1a8c5a; font-weight:600;">✓ 最通用推荐</td>
+          <td style="padding:8px; text-align:center;">输入内容多时</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ══════════ 数据 ══════════
+const posts = [
+  { date: '03-20 · 09:46', action: '发布了该帖子', title: '123', body: '123123' },
+  { date: '02-02 · 14:42', action: '发布了动态',   title: '',    body: 'efagrsae' },
+  { date: '12-05 · 10:35', action: '发布了该帖子', title: '123', body: '123' },
+  { date: '12-03 · 17:14', action: '发布了该帖子', title: '',    body: '测测测测测测额膀侧测测测测额膀侧测测测测额膀侧测测测测...' },
+];
+
+function makePostHTML(list) {
+  if (!list.length) return '';
+  return list.map(p => `
+    <div class="tl-card">
+      <div class="tl-stripe"></div>
+      <div class="tl-body">
+        <div class="time-pill"><span style="font-size:8px">●</span> ${p.date} · ${p.action}</div>
+        ${p.title ? `<div class="post-title">${p.title}</div>` : ''}
+        <div class="post-body">${p.body}</div>
+      </div>
+    </div>`).join('');
+}
+
+function filterList(q) {
+  if (!q) return posts;
+  return posts.filter(p => (p.title + p.body + p.action).toLowerCase().includes(q.toLowerCase()));
+}
+
+// ══════════ 方案 A ══════════
+let aOpen = false;
+
+function openA() {
+  aOpen = true;
+  // 点赞 tab 收窄
+  document.getElementById('likes-tab-a').style.width = '0';
+  document.getElementById('likes-tab-a').style.overflow = 'hidden';
+  // 搜索框展开
+  const box = document.getElementById('searchbox-a');
+  box.style.width = '180px';
+  box.style.opacity = '1';
+  box.style.display = 'flex';
+  // 隐藏搜索图标
+  document.getElementById('search-icon-a').style.display = 'none';
+  setTimeout(() => document.getElementById('input-a').focus(), 50);
+}
+
+function closeA() {
+  aOpen = false;
+  document.getElementById('input-a').value = '';
+  document.getElementById('clear-a').style.display = 'none';
+  // 恢复点赞 tab
+  document.getElementById('likes-tab-a').style.width = '';
+  // 收起搜索框
+  const box = document.getElementById('searchbox-a');
+  box.style.width = '0';
+  box.style.opacity = '0';
+  // 恢复搜索图标
+  document.getElementById('search-icon-a').style.display = '';
+  renderA(posts);
+}
+
+function clearA() {
+  document.getElementById('input-a').value = '';
+  document.getElementById('clear-a').style.display = 'none';
+  renderA(posts);
+  document.getElementById('input-a').focus();
+}
+
+function filterA() {
+  const q = document.getElementById('input-a').value;
+  document.getElementById('clear-a').style.display = q ? 'block' : 'none';
+  renderA(filterList(q));
+}
+
+function renderA(list) {
+  const el = document.getElementById('panel-creations-a');
+  const empty = document.getElementById('empty-a');
+  if (list.length) {
+    el.innerHTML = makePostHTML(list);
+    empty.style.display = 'none';
+  } else {
+    el.innerHTML = '';
+    empty.style.display = 'flex';
+  }
+}
+
+function switchTabA(tab) {
+  document.getElementById('panel-creations-a').style.display = tab === 'creations' ? '' : 'none';
+  document.getElementById('panel-likes-a').style.display = tab === 'likes' ? 'flex' : 'none';
+  document.getElementById('empty-a').style.display = 'none';
+}
+
+// ══════════ 方案 B ══════════
+let bOpen = false;
+
+function openB() {
+  bOpen = true;
+  const bar = document.getElementById('searchbar-b');
+  bar.style.maxHeight = '52px';
+  bar.style.borderColor = '#e8eff3';
+  document.getElementById('search-icon-b').style.display = 'none';
+  setTimeout(() => document.getElementById('input-b').focus(), 50);
+}
+
+function closeB() {
+  bOpen = false;
+  document.getElementById('input-b').value = '';
+  document.getElementById('clear-b').style.display = 'none';
+  const bar = document.getElementById('searchbar-b');
+  bar.style.maxHeight = '0';
+  bar.style.borderColor = 'transparent';
+  document.getElementById('search-icon-b').style.display = '';
+  renderB(posts);
+}
+
+function clearB() {
+  document.getElementById('input-b').value = '';
+  document.getElementById('clear-b').style.display = 'none';
+  renderB(posts);
+  document.getElementById('input-b').focus();
+}
+
+function filterB() {
+  const q = document.getElementById('input-b').value;
+  document.getElementById('clear-b').style.display = q ? 'block' : 'none';
+  renderB(filterList(q));
+}
+
+function renderB(list) {
+  const el = document.getElementById('panel-creations-b');
+  const empty = document.getElementById('empty-b');
+  if (list.length) {
+    el.innerHTML = makePostHTML(list);
+    empty.style.display = 'none';
+  } else {
+    el.innerHTML = '';
+    empty.style.display = 'flex';
+  }
+}
+
+function switchTabB(tab) {
+  document.getElementById('panel-creations-b').style.display = tab === 'creations' ? '' : 'none';
+  document.getElementById('panel-likes-b').style.display = tab === 'likes' ? 'flex' : 'none';
+  document.getElementById('empty-b').style.display = 'none';
+  ['tab-creations-b', 'tab-likes-b'].forEach(id => {
+    const el = document.getElementById(id);
+    const active = id.includes(tab);
+    el.classList.toggle('active', active);
+  });
+}
+
+// ══════════ 方案 C ══════════
+let cOpen = false;
+
+function openC() {
+  cOpen = true;
+  // 点赞 wrap 隐藏
+  const likesWrap = document.getElementById('likes-wrap-c');
+  likesWrap.style.maxWidth = '0';
+  likesWrap.style.opacity = '0';
+  // 搜索框展开
+  const box = document.getElementById('searchbox-c');
+  box.style.maxWidth = '220px';
+  box.style.opacity = '1';
+  // 隐藏搜索图标
+  document.getElementById('search-icon-c').style.opacity = '0';
+  document.getElementById('search-icon-c').style.pointerEvents = 'none';
+  setTimeout(() => document.getElementById('input-c').focus(), 50);
+}
+
+function closeC() {
+  cOpen = false;
+  document.getElementById('input-c').value = '';
+  document.getElementById('clear-c').style.display = 'none';
+  // 恢复点赞
+  const likesWrap = document.getElementById('likes-wrap-c');
+  likesWrap.style.maxWidth = '';
+  likesWrap.style.opacity = '1';
+  // 收起搜索框
+  const box = document.getElementById('searchbox-c');
+  box.style.maxWidth = '0';
+  box.style.opacity = '0';
+  // 恢复搜索图标
+  document.getElementById('search-icon-c').style.opacity = '1';
+  document.getElementById('search-icon-c').style.pointerEvents = '';
+  renderC(posts);
+}
+
+function clearC() {
+  document.getElementById('input-c').value = '';
+  document.getElementById('clear-c').style.display = 'none';
+  renderC(posts);
+  document.getElementById('input-c').focus();
+}
+
+function filterC() {
+  const q = document.getElementById('input-c').value;
+  document.getElementById('clear-c').style.display = q ? 'block' : 'none';
+  renderC(filterList(q));
+}
+
+function renderC(list) {
+  const el = document.getElementById('panel-creations-c');
+  const empty = document.getElementById('empty-c');
+  if (list.length) {
+    el.innerHTML = makePostHTML(list);
+    empty.style.display = 'none';
+  } else {
+    el.innerHTML = '';
+    empty.style.display = 'flex';
+  }
+}
+
+function switchTabC(tab) {
+  document.getElementById('panel-creations-c').style.display = tab === 'creations' ? '' : 'none';
+  document.getElementById('panel-likes-c').style.display = tab === 'likes' ? 'flex' : 'none';
+  document.getElementById('empty-c').style.display = 'none';
+  document.getElementById('creations-btn-c').classList.toggle('active', tab === 'creations');
+  document.getElementById('likes-btn-c').classList.toggle('active', tab === 'likes');
+}
+</script>
+</body>
+</html>

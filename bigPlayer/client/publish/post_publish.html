@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#ffdbd0",
+                        "on-secondary-container": "#5f656d",
+                        "surface-variant": "#dae2fd",
+                        "secondary-container": "#dee3ed",
+                        "outline": "#727687",
+                        "surface-dim": "#d2d9f4",
+                        "surface-container-high": "#e2e7ff",
+                        "on-background": "#131b2e",
+                        "inverse-on-surface": "#eef0ff",
+                        "on-secondary-fixed": "#161c23",
+                        "on-tertiary-fixed": "#390c00",
+                        "secondary-fixed": "#dee3ed",
+                        "secondary": "#595f67",
+                        "tertiary": "#a33200",
+                        "on-secondary-fixed-variant": "#41474f",
+                        "on-primary-fixed-variant": "#003fa4",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed": "#dae1ff",
+                        "inverse-primary": "#b3c5ff",
+                        "inverse-surface": "#283044",
+                        "primary-fixed-dim": "#b3c5ff",
+                        "outline-variant": "#c2c6d8",
+                        "tertiary-fixed-dim": "#ffb59d",
+                        "on-tertiary-container": "#fff6f4",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#cc4204",
+                        "on-error": "#ffffff",
+                        "primary-container": "#0066ff",
+                        "surface-container": "#eaedff",
+                        "on-surface": "#131b2e",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#faf8ff",
+                        "on-surface-variant": "#424656",
+                        "primary": "#0050cb",
+                        "secondary-fixed-dim": "#c1c7d0",
+                        "on-primary-fixed": "#001849",
+                        "background": "#faf8ff",
+                        "on-primary-container": "#f8f7ff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#0054d6",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#dae2fd",
+                        "surface-container-low": "#f2f3ff",
+                        "on-tertiary-fixed-variant": "#832600",
+                        "surface": "#faf8ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-max": "1280px",
+                        "xl": "32px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body-md text-on-surface antialiased">
+<!-- TopAppBar -->
+<header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-[0_2px_4px_rgba(0,68,204,0.06)] fixed top-0 left-0 w-full z-50">
+<div class="flex items-center w-full px-3 h-14 max-w-[1280px] mx-auto gap-2">
+  <div class="flex items-center gap-1 shrink-0">
+    <button class="flex items-center justify-center w-8 h-8 hover:bg-blue-50 transition-colors active:scale-95 duration-200 rounded-full" onclick="location.href='../home/home.html'">
+      <span class="material-symbols-outlined text-slate-500" style="font-size:20px">arrow_back</span>
+    </button>
+    <button class="text-blue-400 text-xs font-medium hover:text-blue-500 active:scale-95 transition-all whitespace-nowrap" onclick="location.href='drafts.html'">草稿箱</button>
+  </div>
+  <h1 class="flex-1 text-center text-base font-bold text-blue-600 font-['Inter'] antialiased whitespace-nowrap">发布投稿</h1>
+  <div class="flex items-center gap-1.5 shrink-0">
+    <button id="saveDraftBtn" class="text-slate-300 text-xs font-medium whitespace-nowrap cursor-not-allowed" disabled>保存草稿</button>
+    <button class="bg-gradient-to-r from-[#0066FF] to-[#00A2FF] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-md shadow-blue-400/20 hover:brightness-110 transition-all active:scale-95 duration-200 whitespace-nowrap">发布</button>
+  </div>
+</div>
+</header>
+<main class="pt-20 px-6 max-w-[800px] mx-auto pb-[200px]">
+<!-- Editor Header Section -->
+<div class="mb-3 relative bg-white/50 backdrop-blur-sm rounded-xl p-4 border border-blue-100/50">
+<div class="flex justify-between items-start mb-2">
+<label class="text-label-sm text-primary uppercase tracking-wider">标题</label>
+<span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">0/100</span>
+</div>
+<input class="w-full bg-transparent border-none focus:ring-0 font-headline-xl text-on-surface placeholder-slate-300 p-0 leading-tight" maxlength="100" placeholder="输入标题（必填）" type="text"/>
+</div>
+<!-- Divider -->
+<div class="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent mb-4"></div>
+<!-- Main Content Area -->
+<article class="relative">
+<div class="flex flex-col gap-4">
+<textarea id="mainTextarea" class="w-full bg-transparent border-none focus:ring-0 font-body-lg text-on-surface placeholder-slate-300 p-0 leading-relaxed resize-none overflow-hidden" style="min-height:200px;height:200px" placeholder="开始写正文…" oninput="this.style.height='200px';this.style.height=Math.max(200,this.scrollHeight)+'px'"></textarea>
+<div class="flex justify-between items-center pt-4 border-t border-slate-100">
+<div class="flex gap-3">
+<span class="text-xs text-slate-400 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">image</span>
+<span id="imgCount">0</span>/3 张图片
+</span>
+<span class="text-xs text-slate-400 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">videocam</span>
+<span id="vidCount">0</span>/3 个视频
+</span>
+</div>
+<span class="text-label-sm text-slate-400 font-medium tracking-wide">0/5000 字</span>
+</div>
+</div>
+</article>
+<!-- Suggested Tags Section -->
+<div class="mt-4 pt-4 border-t border-slate-100">
+  <p class="text-label-md text-slate-500 font-semibold mb-3">推荐话题</p>
+  <div class="flex flex-wrap gap-2">
+    <button class="px-4 py-2 rounded-full text-sm font-medium bg-primary text-white transition-all active:scale-95">#攻略教学</button>
+    <button class="px-4 py-2 rounded-full text-sm font-medium bg-[#EEF0FF] text-slate-600 hover:bg-slate-200 transition-all active:scale-95">#同人创作</button>
+    <button class="px-4 py-2 rounded-full text-sm font-medium bg-[#EEF0FF] text-slate-600 hover:bg-slate-200 transition-all active:scale-95">#长文投稿</button>
+    <button class="px-4 py-2 rounded-full text-sm font-medium bg-[#EEF0FF] text-slate-600 hover:bg-slate-200 transition-all active:scale-95">#玩家故事</button>
+    <button class="px-4 py-2 rounded-full text-sm font-medium bg-[#EEF0FF] text-slate-500 hover:bg-slate-200 transition-all active:scale-95">+ 探索更多</button>
+  </div>
+</div>
+<!-- Asymmetric Decorative Card -->
+</main>
+<!-- BottomNavBar (Formatting Toolbar) -->
+<div class="fixed bottom-[64px] left-0 w-full z-40 bg-white/95 backdrop-blur-md border-t border-slate-100 px-4 pt-2 pb-2 flex flex-col gap-3">
+<div class="flex items-center">
+<button class="bg-[#F1F4F9] text-[#5E636E] px-3 py-1.5 rounded-full text-sm font-normal flex items-center gap-1 hover:bg-[#E4E8F0] active:scale-95 transition-all">
+  <span class="material-symbols-outlined text-base text-slate-400" style="font-size:16px">grid_view</span>
+  <span class="opacity-60 text-xs">栏目：</span>
+  <span>攻略 - 先祖策略</span>
+  <span class="material-symbols-outlined text-slate-400" style="font-size:16px">unfold_more</span>
+</button>
+</div>
+</div><nav class="fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-6 py-3 pb-safe bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+<button class="flex items-center justify-center text-primary bg-primary/10 rounded-lg p-2 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24">text_fields</span>
+</button>
+<button class="flex items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">format_list_bulleted</span>
+</button>
+<button class="flex items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">mood</span>
+</button>
+<button class="flex items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">image</span>
+</button>
+<button class="flex items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">videocam</span>
+</button>
+<button class="flex items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">insert_chart</span>
+</button>
+<button class="flex items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">link</span>
+</button>
+<button class="flex items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">alternate_email</span>
+</button>
+</nav>
+<script>
+  const titleInput = document.querySelector('input[placeholder="Enter Title (Required)"]');
+  const bodyInput = document.getElementById('mainTextarea');
+  const saveBtn = document.getElementById('saveDraftBtn');
+  function updateSaveBtn() {
+    const hasContent = titleInput.value.trim() || bodyInput.value.trim();
+    if (hasContent) {
+      saveBtn.disabled = false;
+      saveBtn.className = 'text-blue-500 text-xs font-medium hover:text-blue-600 active:scale-95 transition-all whitespace-nowrap cursor-pointer';
+    } else {
+      saveBtn.disabled = true;
+      saveBtn.className = 'text-slate-300 text-xs font-medium whitespace-nowrap cursor-not-allowed';
+    }
+  }
+  titleInput.addEventListener('input', updateSaveBtn);
+  bodyInput.addEventListener('input', updateSaveBtn);
+</script>
+<!-- Global Decoration Elements -->
+<div class="fixed top-0 right-0 -z-10 w-1/3 h-1/2 bg-gradient-to-bl from-blue-50 to-transparent opacity-50 blur-3xl pointer-events-none"></div>
+<div class="fixed bottom-0 left-0 -z-10 w-1/4 h-1/3 bg-gradient-to-tr from-blue-50/20 to-transparent opacity-30 blur-3xl pointer-events-none"></div>
+</body></html>
