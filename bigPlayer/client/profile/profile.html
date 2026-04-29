@@ -42,6 +42,37 @@
   .tl-card:active { background: #edf1f5; }
   .tl-stripe { width: 4px; flex-shrink: 0; }
   .tl-body { flex: 1; min-width: 0; padding: 10px 12px; }
+  /* 搜索下拉行 */
+  #profile-search-bar-row {
+    overflow: hidden;
+    max-height: 0;
+    background: #fff;
+    border-bottom: 1px solid transparent;
+    transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1), border-color 0.28s;
+  }
+  #profile-search-bar-row.open {
+    max-height: 52px;
+    border-color: #e8eff3;
+  }
+  #profile-search-bar-row .inner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+  }
+  .profile-search-box {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    background: #f0f4f8; border-radius: 20px; padding: 5px 10px;
+  }
+  .profile-search-box input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 12px; color: #1a2a35; min-width: 0;
+  }
+  .profile-search-box input::placeholder { color: #a9b4b9; }
+  .profile-search-empty {
+    display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 0; color: #a9b4b9; gap: 6px;
+    font-size: 13px;
+  }
   .time-pill {
     display: inline-flex;
     align-items: center;
@@ -281,7 +312,7 @@
     <!-- Tab bar + post list -->
     <div class="mx-3 bg-white rounded-2xl overflow-hidden shadow-sm">
       <!-- Tabs -->
-      <div class="flex border-b border-[#e8eff3] px-1" id="tab-bar">
+      <div class="flex items-center border-b border-[#e8eff3] px-1" id="tab-bar">
         <button data-tab="creations" class="tab-btn flex-1 text-center py-2.5 text-[13px] font-bold text-[#1f2937] relative">
           我的创作
           <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full"></span>
@@ -298,59 +329,31 @@
           收藏
           <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full hidden"></span>
         </button>
+        <button id="profile-search-icon-btn" onclick="profileOpenSearch()"
+          class="flex items-center justify-center w-8 h-8 rounded-full mr-1 active:bg-gray-100" style="flex-shrink:0">
+          <span class="material-symbols-outlined text-[#566166]" style="font-size:18px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">search</span>
+        </button>
+      </div>
+
+      <!-- 搜索框行（从下方滑出） -->
+      <div id="profile-search-bar-row">
+        <div class="inner">
+          <div class="profile-search-box">
+            <span class="material-symbols-outlined text-[#a9b4b9]" style="font-size:14px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;flex-shrink:0">search</span>
+            <input type="text" id="profile-search-input" placeholder="搜索创作内容" oninput="profileFilterPosts()" autocomplete="off"/>
+            <span id="profile-search-clear" onclick="profileClearSearch()" style="display:none;cursor:pointer;color:#a9b4b9;font-size:16px;flex-shrink:0;line-height:1">×</span>
+          </div>
+          <button onclick="profileCloseSearch()" class="text-[12px] text-[#0061a4] font-medium flex-shrink-0">取消</button>
+        </div>
       </div>
 
       <!-- Post list -->
-      <div id="tab-creations" class="tab-panel p-3 space-y-2">
-
-        <!-- 状态1：有标题 + 有图 · 最新/深蓝 -->
-        <div class="tl-card">
-          <div class="tl-stripe" style="background:linear-gradient(180deg,#0061a4,#3ab4e8)"></div>
-          <div class="tl-body">
-            <div class="time-pill" style="background:#e8f4ff;color:#0061a4"><span style="font-size:8px">●</span> 02-10 · 18:20</div>
-            <div class="flex gap-2.5 items-center">
-              <div class="flex-1 min-w-0">
-                <div class="text-[13px] font-semibold text-[#1a2a35] truncate">宝箱大礼包</div>
-                <div class="text-[11px] text-slate-500 truncate mt-0.5">恩恩恩呢</div>
-              </div>
-              <img src="https://picsum.photos/seed/treasure/160/120" class="w-[66px] h-[48px] rounded-lg object-cover flex-shrink-0" alt=""/>
-            </div>
-          </div>
+      <div id="tab-creations" class="tab-panel">
+        <div id="profile-post-list" class="p-3 space-y-2"></div>
+        <div class="profile-search-empty" id="profile-search-empty">
+          <span class="material-symbols-outlined text-[32px] opacity-30" style="font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 40">search_off</span>
+          <span>没有找到相关内容</span>
         </div>
-
-        <!-- 状态2：有标题 + 无图 -->
-        <div class="tl-card">
-          <div class="tl-stripe" style="background:linear-gradient(180deg,#3ab4e8,#7dd4f5)"></div>
-          <div class="tl-body">
-            <div class="time-pill" style="background:#edf7fd;color:#3ab4e8"><span style="font-size:8px">●</span> 01-21 · 15:29</div>
-            <div class="text-[13px] font-semibold text-[#1a2a35] mb-0.5">老用户回归福利</div>
-            <div class="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">这是一篇没有配图的纯文字帖子，内容只有文字，不展示缩略图区域。文字可以多展示一些内容给用户预览。</div>
-          </div>
-        </div>
-
-        <!-- 状态3：无标题 + 只有正文 -->
-        <div class="tl-card">
-          <div class="tl-stripe" style="background:linear-gradient(180deg,#7dd4f5,#b8e8f8)"></div>
-          <div class="tl-body">
-            <div class="time-pill" style="background:#f3fafe;color:#7dd4f5"><span style="font-size:8px">●</span> 01-05 · 09:14</div>
-            <div class="text-[12px] text-[#2a3439] line-clamp-3 leading-relaxed">今天签到打卡啦！连续签到第 7 天，希望能坚持下去，冲冲冲 💪 每天都在进步，感谢社区的小伙伴们陪伴。</div>
-          </div>
-        </div>
-
-        <!-- 状态4：无标题 + 有图 · 最旧/最浅 -->
-        <div class="tl-card">
-          <div class="tl-stripe" style="background:linear-gradient(180deg,#b8e8f8,#ddf0f9)"></div>
-          <div class="tl-body">
-            <div class="time-pill" style="background:#f8fdff;color:#a0cfe8"><span style="font-size:8px">●</span> 12-30 · 21:08</div>
-            <div class="flex gap-2.5 items-center">
-              <div class="flex-1 min-w-0">
-                <div class="text-[12px] text-[#2a3439] line-clamp-2 leading-snug">新年快到了，分享一张我的游戏截图，这个场景真的太美了！</div>
-              </div>
-              <img src="https://picsum.photos/seed/newyear/160/120" class="w-[66px] h-[48px] rounded-lg object-cover flex-shrink-0" alt=""/>
-            </div>
-          </div>
-        </div>
-
       </div>
 
       <div id="tab-comments" class="tab-panel hidden">
@@ -435,7 +438,7 @@ function renderBadgeCapsule() {
 renderBadgeCapsule();
 // ── End Badge ────────────────────────────────────────────────
 
-// Tab switching
+// Tab switching + search
 (function () {
   const btns = document.querySelectorAll('.tab-btn');
   const panels = document.querySelectorAll('.tab-panel');
@@ -452,9 +455,105 @@ renderBadgeCapsule();
       panels.forEach(p => {
         p.classList.toggle('hidden', p.id !== 'tab-' + target);
       });
+      const showSearch = target === 'creations';
+      const iconBtn = document.getElementById('profile-search-icon-btn');
+      iconBtn.style.display = showSearch ? '' : 'none';
+      if (!showSearch) profileCloseSearch();
     });
   });
 })();
+
+// ── 我的创作数据 ──────────────────────────────────────────────
+const profilePosts = [
+  { date: '02-10 · 18:20', stripe: 'linear-gradient(180deg,#0061a4,#3ab4e8)', pillBg: '#e8f4ff', pillColor: '#0061a4',
+    title: '宝箱大礼包', body: '恩恩恩呢', img: 'https://picsum.photos/seed/treasure/160/120' },
+  { date: '01-21 · 15:29', stripe: 'linear-gradient(180deg,#3ab4e8,#7dd4f5)', pillBg: '#edf7fd', pillColor: '#3ab4e8',
+    title: '老用户回归福利', body: '这是一篇没有配图的纯文字帖子，内容只有文字，不展示缩略图区域。文字可以多展示一些内容给用户预览。', img: '' },
+  { date: '01-05 · 09:14', stripe: 'linear-gradient(180deg,#7dd4f5,#b8e8f8)', pillBg: '#f3fafe', pillColor: '#7dd4f5',
+    title: '', body: '今天签到打卡啦！连续签到第 7 天，希望能坚持下去，冲冲冲 💪 每天都在进步，感谢社区的小伙伴们陪伴。', img: '' },
+  { date: '12-30 · 21:08', stripe: 'linear-gradient(180deg,#b8e8f8,#ddf0f9)', pillBg: '#f8fdff', pillColor: '#a0cfe8',
+    title: '', body: '新年快到了，分享一张我的游戏截图，这个场景真的太美了！', img: 'https://picsum.photos/seed/newyear/160/120' },
+];
+
+function profileRenderPosts(list) {
+  const container = document.getElementById('profile-post-list');
+  const empty = document.getElementById('profile-search-empty');
+  if (list.length === 0) {
+    container.innerHTML = '';
+    empty.style.display = 'flex';
+    return;
+  }
+  empty.style.display = 'none';
+  container.innerHTML = list.map(p => {
+    const hasTitle = !!p.title;
+    const hasImg = !!p.img;
+    let content = '';
+    if (hasTitle && hasImg) {
+      content = `<div class="flex gap-2.5 items-center">
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold text-[#1a2a35] truncate">${p.title}</div>
+          <div class="text-[11px] text-slate-500 truncate mt-0.5">${p.body}</div>
+        </div>
+        <img src="${p.img}" class="w-[66px] h-[48px] rounded-lg object-cover flex-shrink-0" alt=""/>
+      </div>`;
+    } else if (hasTitle) {
+      content = `<div class="text-[13px] font-semibold text-[#1a2a35] mb-0.5">${p.title}</div>
+        <div class="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">${p.body}</div>`;
+    } else if (hasImg) {
+      content = `<div class="flex gap-2.5 items-center">
+        <div class="flex-1 min-w-0">
+          <div class="text-[12px] text-[#2a3439] line-clamp-2 leading-snug">${p.body}</div>
+        </div>
+        <img src="${p.img}" class="w-[66px] h-[48px] rounded-lg object-cover flex-shrink-0" alt=""/>
+      </div>`;
+    } else {
+      content = `<div class="text-[12px] text-[#2a3439] line-clamp-3 leading-relaxed">${p.body}</div>`;
+    }
+    return `<div class="tl-card">
+      <div class="tl-stripe" style="background:${p.stripe}"></div>
+      <div class="tl-body">
+        <div class="time-pill" style="background:${p.pillBg};color:${p.pillColor}"><span style="font-size:8px">●</span> ${p.date}</div>
+        ${content}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+profileRenderPosts(profilePosts);
+
+// ── 搜索逻辑 ─────────────────────────────────────────────────
+let profileSearchOpen = false;
+
+function profileOpenSearch() {
+  profileSearchOpen = true;
+  document.getElementById('profile-search-bar-row').classList.add('open');
+  document.getElementById('profile-search-icon-btn').style.display = 'none';
+  setTimeout(() => document.getElementById('profile-search-input').focus(), 50);
+}
+
+function profileCloseSearch() {
+  profileSearchOpen = false;
+  const input = document.getElementById('profile-search-input');
+  if (input) input.value = '';
+  const clear = document.getElementById('profile-search-clear');
+  if (clear) clear.style.display = 'none';
+  document.getElementById('profile-search-bar-row').classList.remove('open');
+  document.getElementById('profile-search-icon-btn').style.display = '';
+  profileRenderPosts(profilePosts);
+}
+
+function profileClearSearch() {
+  document.getElementById('profile-search-input').value = '';
+  document.getElementById('profile-search-clear').style.display = 'none';
+  document.getElementById('profile-search-input').focus();
+  profileRenderPosts(profilePosts);
+}
+
+function profileFilterPosts() {
+  const q = document.getElementById('profile-search-input').value.trim().toLowerCase();
+  document.getElementById('profile-search-clear').style.display = q ? 'block' : 'none';
+  profileRenderPosts(q ? profilePosts.filter(p => (p.title + p.body).toLowerCase().includes(q)) : profilePosts);
+}
 </script>
 <script src="../../shared/bottom-nav.js"></script>
 </body>

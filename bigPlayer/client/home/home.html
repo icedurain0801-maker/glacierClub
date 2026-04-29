@@ -98,10 +98,10 @@
 
 /* ── Tab 切换：默认隐藏所有面板，按 data-tab 值显示对应面板 ── */
 [data-tab-panel] { display: none; }
-.phone-inner[data-tab="recommend"] [data-tab-panel="recommend"] { display: block; }
-.phone-inner[data-tab="discover"]  [data-tab-panel="discover"]  { display: block; }
-.phone-inner[data-tab="guide"]     [data-tab-panel="guide"]     { display: block; }
-.phone-inner[data-tab="follow"]    [data-tab-panel="follow"]    { display: block; }
+main[data-tab="recommend"] [data-tab-panel="recommend"] { display: block; }
+main[data-tab="discover"]  [data-tab-panel="discover"]  { display: block; }
+main[data-tab="guide"]     [data-tab-panel="guide"]     { display: block; }
+main[data-tab="follow"]    [data-tab-panel="follow"]    { display: block; }
 
 /* ── Stories 圆形头像 ── */
 .story-avatar-ring {
@@ -275,43 +275,6 @@
 .like-btn.liked .like-heart { transform: scale(1.2); }
     </style>
 <style>
-    body {
-      min-height: 100dvh;
-    }
-    .phone-shell {
-      width: 375px;
-      flex-shrink: 0;
-    }
-    .phone-inner {
-      width: 375px;
-      height: 667px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
-    }
-    .phone-inner > main {
-      flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
-      min-height: 0;
-    }
-    /* 手机模拟模式（视口 ≤ 430px）：去掉外壳边框、阴影、间距 */
-    @media (max-width: 430px) {
-      body { background: #f7f9fb; align-items: flex-start; }
-      .phone-shell {
-        width: 100vw;
-        margin: 0 !important;
-        border-radius: 0 !important;
-        box-shadow: none !important;
-        position: static !important;
-      }
-      .phone-inner {
-        width: 100vw;
-        height: 100dvh;
-        min-height: unset;
-      }
-    }
     @keyframes jellyIn {
       0%   { transform: scale(0.6) translateY(30px); opacity: 0; }
       55%  { transform: scale(1.07) translateY(-6px); opacity: 1; }
@@ -329,11 +292,10 @@
     }
   </style>
 </head>
-<body class="bg-[#f0f4f8] font-body text-on-surface flex justify-center items-start">
+<body class="bg-gray-100 flex justify-center text-on-surface font-body">
 <nav id="sidebar" class="sidebar hidden"></nav>
-<div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
-<div class="phone-inner bg-surface" data-mode="connect" data-tab="recommend">
-<main class="w-full space-y-3 pb-4">
+<main class="relative w-full max-w-[428px] h-[100dvh] bg-surface shadow-2xl flex flex-col overflow-hidden" data-mode="connect" data-tab="recommend">
+<div class="w-full flex-1 overflow-y-auto space-y-3 pb-4">
 <!-- Main Banner - Extended to top -->
 <section class="relative w-full overflow-hidden aspect-[16/10]">
 <!-- Top Navigation - inside banner so it scrolls away -->
@@ -1433,7 +1395,7 @@ function setRecommendLayout(mode) {
 
 </div><!-- /data-tab-panel="guide" -->
 
-</main>
+</div><!-- /scroll-area -->
 <!-- Bottom Tab Bar -->
 <bottom-nav active="home" base="../"></bottom-nav>
 <!-- Post bottom sheet overlay -->
@@ -1498,8 +1460,7 @@ function setRecommendLayout(mode) {
     </button>
   </div>
 </div>
-</div><!-- /phone-inner -->
-</div><!-- /phone-shell -->
+</main>
 <script src="../../shared/sidebar-data.js"></script>
 <script src="../../shared/sidebar.js"></script>
 <script src="../../shared/bottom-nav.js"></script>
@@ -1514,7 +1475,7 @@ function toggleFollow(btn) {
 }
 
 function switchTab(tab) {
-  var inner = document.querySelector('.phone-inner');
+  var inner = document.querySelector('main[data-tab]');
   if (!inner) return;
   inner.dataset.tab = tab;
 

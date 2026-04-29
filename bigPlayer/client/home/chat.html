@@ -445,6 +445,65 @@
     opacity: 0; transform: translateX(-50%) translateY(4px);
   }
 
+  /* ── 气泡长文折叠 ── */
+  .bubble-collapsible {
+    position: relative;
+  }
+  .bubble-collapsible.collapsed .bubble-text {
+    max-height: calc(1.55em * 6);
+    overflow: hidden;
+  }
+  .bubble-collapsible.collapsed .bubble-fade {
+    display: block;
+  }
+  .bubble-collapsible.expanded .bubble-text {
+    max-height: none;
+  }
+  .bubble-collapsible.expanded .bubble-fade {
+    display: none;
+  }
+  .bubble-fade {
+    display: none;
+    position: absolute;
+    bottom: 28px;
+    left: 0; right: 0;
+    height: 36px;
+    pointer-events: none;
+  }
+  .bubble-her .bubble-fade {
+    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.82) 100%);
+  }
+  .bubble-mine .bubble-fade {
+    background: linear-gradient(to bottom, rgba(0,97,164,0) 0%, rgba(0,97,164,0.92) 100%);
+  }
+  .bubble-expand-btn {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: Inter, sans-serif;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 4px 0 0;
+    line-height: 1;
+    transition: opacity 0.15s;
+  }
+  .bubble-her .bubble-expand-btn {
+    color: #0061a4;
+  }
+  .bubble-mine .bubble-expand-btn {
+    color: rgba(255,255,255,0.85);
+  }
+  .bubble-expand-btn .expand-icon {
+    font-size: 13px;
+    transition: transform 0.2s;
+  }
+  .bubble-collapsible.expanded .expand-icon {
+    transform: rotate(180deg);
+  }
+
   /* 气泡删除动画 */
   @keyframes bubblePop {
     0%   { transform: scale(1);   opacity: 1; }
@@ -452,6 +511,27 @@
     100% { transform: scale(0);   opacity: 0; }
   }
   .bubble-deleting { animation: bubblePop 0.22s ease-in forwards; }
+
+  /* ── 发送动效 ── */
+  @keyframes sendKick {
+    0%   { transform: scale(1)    rotate(0deg); }
+    22%  { transform: scale(0.72) rotate(-12deg); }
+    60%  { transform: scale(1.18) rotate(6deg); }
+    80%  { transform: scale(0.95) rotate(-2deg); }
+    100% { transform: scale(1)    rotate(0deg); }
+  }
+  @keyframes msgSettle {
+    0%   { transform: translateX(68px) translateY(36px) scale(0.35) rotate(12deg); opacity: 0; filter: blur(3px); }
+    35%  { filter: blur(0); }
+    58%  { transform: translateX(-7px) translateY(-5px) scale(1.10) rotate(-1.5deg); opacity: 1; }
+    76%  { transform: translateX(3px)  translateY(2px)  scale(0.96) rotate(0.6deg); }
+    90%  { transform: translateX(-1px) translateY(-1px) scale(1.02); }
+    100% { transform: translateX(0)    translateY(0)    scale(1)    rotate(0); opacity: 1; }
+  }
+  .msg-settle {
+    animation: msgSettle 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: right bottom;
+  }
 </style>
 </head>
 
@@ -546,10 +626,10 @@
     <!-- Input -->
     <div class="input-area px-3 pb-[8px] pt-[6px] flex items-center gap-[6px] flex-shrink-0" style="position:relative;z-index:10;">
       <div class="input-field flex-1 rounded-full flex items-center px-[12px] py-[5px] gap-[6px]">
-        <input placeholder="发消息…" class="flex-1 bg-transparent border-none outline-none text-[13px] text-on-surface placeholder:text-outline-variant font-body" style="line-height:1.4;box-shadow:none;border:none;outline:none;"/>
+        <input id="chat-input" placeholder="发消息…" class="flex-1 bg-transparent border-none outline-none text-[13px] text-on-surface placeholder:text-outline-variant font-body" style="line-height:1.4;box-shadow:none;border:none;outline:none;" onkeydown="if(event.key==='Enter')sendMessage()"/>
       </div>
       <button class="material-symbols-outlined text-outline-variant text-[22px] leading-none opacity-70">sentiment_satisfied</button>
-      <button class="send-btn w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0">
+      <button id="main-send-btn" onclick="sendMessage()" class="send-btn w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0">
         <span class="material-symbols-outlined text-white text-[16px] leading-none" style="font-variation-settings:'wght' 500;">send</span>
       </button>
     </div>
@@ -735,16 +815,15 @@
         </div>
         <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
       </div>
-      <!-- 发送中 -->
+      <!-- 发送失败 -->
       <div class="flex items-end gap-[7px] justify-end">
-        <div class="glass-light rounded-[14px_14px_4px_14px] px-[12px] py-[8px] flex items-center gap-[7px] border border-white/60 shadow-sm">
-          <div class="w-[15px] h-[15px] rounded-full border-2 border-primary border-t-transparent spinning flex-shrink-0"></div>
-          <span class="text-[10px] text-on-surface-variant">发送中</span>
+        <div class="flex items-center gap-[6px]">
+          <div class="w-[18px] h-[18px] rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 cursor-pointer" title="发送失败，点击重试">
+            <span style="color:#fff;font-size:11px;font-weight:700;line-height:1;">!</span>
+          </div>
+          <div class="bubble-mine text-[12px] leading-[1.55] px-[11px] py-[8px]">11</div>
         </div>
-        <div class="relative flex-shrink-0">
-          <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover block" alt=""/>
-          <div class="absolute -top-[3px] -right-[3px] w-[14px] h-[14px] rounded-full bg-red-500 border-[1.5px] border-white flex items-center justify-center text-[8px] text-white font-bold leading-none">1</div>
-        </div>
+        <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
       </div>
       <!-- 空白区引导 -->
       <div class="flex flex-col items-center justify-center gap-[10px] py-[32px]">
@@ -1075,6 +1154,94 @@ function showToast(msg) {
 
 // ─────────────────────────────────────────────────────────
 
+function toggleBubble(btn) {
+  const bubble = btn.closest('.bubble-collapsible');
+  const isCollapsed = bubble.classList.contains('collapsed');
+  bubble.classList.toggle('collapsed', !isCollapsed);
+  bubble.classList.toggle('expanded', isCollapsed);
+  // 更新文字（最后一个文本节点）
+  const textNode = Array.from(btn.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+  if (textNode) textNode.textContent = isCollapsed ? ' 收起' : ' 展开';
+}
+
+// 检查气泡是否需要折叠（超过 6 行）
+function initCollapsible(bubble) {
+  const lineHeight = parseFloat(getComputedStyle(bubble).lineHeight) || 18.6;
+  const maxH = lineHeight * 6;
+  // 用 bubble-text 的自然高度判断
+  const textEl = bubble.querySelector('.bubble-text');
+  if (!textEl) return;
+  const naturalH = textEl.scrollHeight;
+  if (naturalH <= maxH + 2) {
+    // 不需要折叠，移除折叠结构恢复普通气泡
+    bubble.classList.remove('bubble-collapsible', 'collapsed');
+    const fade = bubble.querySelector('.bubble-fade');
+    const btn  = bubble.querySelector('.bubble-expand-btn');
+    if (fade) fade.remove();
+    if (btn) btn.remove();
+    // 把 bubble-text 内容提升
+    bubble.innerHTML = textEl.innerHTML;
+  }
+}
+
+// 初始化页面已有的可折叠气泡
+function initAllCollapsibles() {
+  document.querySelectorAll('#state-normal .bubble-collapsible').forEach(initCollapsible);
+}
+
+// ─────────────────────────────────────────────────────────
+
+// ── 发送消息（带俏皮飞入动效）──────────────────────────────
+function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  // 发送按钮弹射动效
+  const btn = document.getElementById('main-send-btn');
+  btn.style.animation = 'sendKick 0.42s cubic-bezier(0.34,1.56,0.64,1) both';
+  btn.addEventListener('animationend', () => { btn.style.animation = ''; }, { once: true });
+
+  // 构造新消息行
+  const messagesArea = document.querySelector('#state-normal .messages-area');
+  const row = document.createElement('div');
+  row.className = 'flex items-end gap-[7px] justify-end';
+  row.innerHTML = `
+    <div class="flex flex-col items-end gap-[3px]">
+      <div class="bubble-mine text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble msg-settle"
+           data-text="${text.replace(/"/g,'&quot;')}">${escHtml(text)}</div>
+      <div class="text-[9px] text-on-surface-variant/60 pr-1">${nowTime()}</div>
+    </div>
+    <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
+  `;
+  messagesArea.appendChild(row);
+
+  const newBubble = row.querySelector('.bubble');
+
+  // 绑定长按（新气泡也可以长按复制/删除）
+  newBubble.addEventListener('pointerdown', onBubbleDown);
+  newBubble.addEventListener('pointermove', onBubbleMove);
+  newBubble.addEventListener('pointerup', onBubbleUp);
+  newBubble.addEventListener('pointercancel', onBubbleUp);
+
+  // 滚到底部
+  requestAnimationFrame(() => {
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function nowTime() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+// ─────────────────────────────────────────────────────────
+
 // phone-inner 需要能正确撑满并容纳当前面板
 // 让 phone-inner 本身不用 relative 定位堆叠，改用正常 flex 流
 const app = document.getElementById('app');
@@ -1093,6 +1260,7 @@ function hideUserInfo() {
 // 初始化
 switchState('normal');
 initBubbleLongPress();
+requestAnimationFrame(initAllCollapsibles);
 </script>
 </body>
 </html>
