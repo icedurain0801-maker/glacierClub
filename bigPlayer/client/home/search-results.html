@@ -203,6 +203,34 @@ tailwind.config = {
     border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0;
   }
 
+  /* ── 综合 Tab 顶部用户横条 ── */
+  .user-strip {
+    display: flex; gap: 12px;
+    overflow-x: auto; padding: 0 14px 12px;
+    flex-shrink: 0;
+  }
+  .user-strip::-webkit-scrollbar { display: none; }
+  .user-strip-item { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+  .strip-ring {
+    width: 56px; height: 56px; border-radius: 50%;
+    padding: 2.5px;
+    background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+    position: relative; flex-shrink: 0;
+  }
+  .strip-avatar {
+    width: 100%; height: 100%; border-radius: 50%;
+    display: block;
+  }
+  .strip-follow-btn {
+    position: absolute; bottom: -1px; right: -1px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #0061a4; border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 11px; font-weight: 700; color: #fff;
+    line-height: 1;
+  }
+  .strip-name { font-size: 9px; color: #566166; text-align: center; width: 56px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
   /* ── section 标题 ── */
   .section-title {
     font-size: 12px; font-weight: 700;
@@ -438,6 +466,23 @@ function emptyStateHTML() {
     <div class="hot-chips">${chips}</div>`;
 }
 
+// ── 生成综合 Tab 顶部用户横条 ──
+function userStripHTML() {
+  const items = MOCK_USERS.slice(0, 6).map(u => `
+    <div class="user-strip-item">
+      <div class="strip-ring" style="background:${u.avatarBg};">
+        <div style="width:100%;height:100%;border-radius:50%;background:#fff;padding:2px;box-sizing:border-box;">
+          <div style="width:100%;height:100%;border-radius:50%;background:${u.avatarBg};"></div>
+        </div>
+        <button class="strip-follow-btn" onclick="this.textContent=this.textContent==='+'?'✓':'+';this.style.background=this.textContent==='✓'?'#22c55e':'#0061a4'">+</button>
+      </div>
+      <span class="strip-name">${u.username}</span>
+    </div>`).join('');
+  return `
+    <div class="section-title">相关用户</div>
+    <div class="user-strip">${items}</div>`;
+}
+
 // ── 渲染综合面板 ──
 function renderAll() {
   // demo：关键词含 'empty' 时强制展示空状态
@@ -449,7 +494,7 @@ function renderAll() {
   }
   const official = MOCK_POSTS.filter(p => p.official);
   const community = MOCK_POSTS.filter(p => !p.official);
-  let html = '';
+  let html = userStripHTML();
   if (official.length) {
     html += `<div class="section-title">官方相关</div>`;
     html += official.map(postCardHTML).join('');
