@@ -217,10 +217,6 @@ tailwind.config = {
     background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
     position: relative; flex-shrink: 0;
   }
-  .strip-avatar {
-    width: 100%; height: 100%; border-radius: 50%;
-    display: block;
-  }
   .strip-follow-btn {
     position: absolute; bottom: -1px; right: -1px;
     width: 18px; height: 18px; border-radius: 50%;
@@ -345,6 +341,7 @@ const MOCK_POSTS = [
   {
     id: 1, official: true,
     username: '茂加', level: 'lv14', time: '1年前',
+    avatar: 'https://picsum.photos/seed/p1/112/112',
     text: '【茂加社区升级计划3.0】亲爱的旅行者们，今天完成升级计划了吗？',
     hasImage: true, imageBg: 'linear-gradient(135deg,#f97316,#dc2626)',
     imageLabel: '炽焰圣凤',
@@ -353,6 +350,7 @@ const MOCK_POSTS = [
   {
     id: 2, official: false,
     username: '浩瀚星河', level: 'lv9', time: '1年前',
+    avatar: 'https://picsum.photos/seed/p2/112/112',
     text: '社区升级了，比以前好看了',
     hasImage: false,
     likes: 1, comments: 2
@@ -360,6 +358,7 @@ const MOCK_POSTS = [
   {
     id: 3, official: false,
     username: '星河入梦、', level: 'lv7', time: '2年前',
+    avatar: 'https://picsum.photos/seed/p3/112/112',
     text: '升级后发现很多新功能，特别是搜索变快了好多，点赞！',
     hasImage: false,
     likes: 34, comments: 9
@@ -367,6 +366,7 @@ const MOCK_POSTS = [
   {
     id: 4, official: true,
     username: '茂加', level: 'lv14', time: '2年前',
+    avatar: 'https://picsum.photos/seed/p1/112/112',
     text: '【茂加社区升级计划2.0】今天完成了吗？',
     hasImage: true, imageBg: 'linear-gradient(135deg,#0061a4,#0891b2)',
     imageLabel: '升级公告',
@@ -375,6 +375,7 @@ const MOCK_POSTS = [
   {
     id: 5, official: false,
     username: '夜行者', level: 'lv11', time: '1年前',
+    avatar: 'https://picsum.photos/seed/p5/112/112',
     text: '社区升级后排版真的好看，收藏了！',
     hasImage: true, imageBg: 'linear-gradient(135deg,#7c3aed,#db2777)',
     imageLabel: '新版截图',
@@ -383,6 +384,7 @@ const MOCK_POSTS = [
   {
     id: 6, official: false,
     username: '风影追月', level: 'lv5', time: '3年前',
+    avatar: 'https://picsum.photos/seed/p6/112/112',
     text: '界面清爽了好多，继续加油！',
     hasImage: false,
     likes: 12, comments: 3
@@ -390,13 +392,13 @@ const MOCK_POSTS = [
 ];
 
 const MOCK_USERS = [
-  { username: '潇潇星河', level: 'lv8', followers: 56, avatarBg: 'linear-gradient(135deg,#fda4af,#f43f5e)' },
-  { username: '星河', level: 'lv5', followers: 12, avatarBg: 'linear-gradient(135deg,#93c5fd,#3b82f6)' },
-  { username: '星河飞扬', level: 'lv12', followers: 203, avatarBg: 'linear-gradient(135deg,#fdba74,#f97316)' },
-  { username: '星河入梦、', level: 'lv7', followers: 44, avatarBg: 'linear-gradient(135deg,#6ee7b7,#059669)' },
-  { username: '星河暗恋记', level: 'lv3', followers: 8, avatarBg: 'linear-gradient(135deg,#c4b5fd,#7c3aed)' },
-  { username: '星河以北', level: 'lv6', followers: 31, avatarBg: 'linear-gradient(135deg,#fde68a,#d97706)' },
-  { username: '星河暖阳', level: 'lv9', followers: 77, avatarBg: 'linear-gradient(135deg,#a5f3fc,#0891b2)' }
+  { username: '潇潇星河', level: 'lv8', followers: 56, avatar: 'https://picsum.photos/seed/u1/112/112' },
+  { username: '星河', level: 'lv5', followers: 12, avatar: 'https://picsum.photos/seed/u2/112/112' },
+  { username: '星河飞扬', level: 'lv12', followers: 203, avatar: 'https://picsum.photos/seed/u3/112/112' },
+  { username: '星河入梦、', level: 'lv7', followers: 44, avatar: 'https://picsum.photos/seed/u4/112/112' },
+  { username: '星河暗恋记', level: 'lv3', followers: 8, avatar: 'https://picsum.photos/seed/u5/112/112' },
+  { username: '星河以北', level: 'lv6', followers: 31, avatar: 'https://picsum.photos/seed/u6/112/112' },
+  { username: '星河暖阳', level: 'lv9', followers: 77, avatar: 'https://picsum.photos/seed/u7/112/112' }
 ];
 
 const HOT_KEYWORDS = ['星灵', '狩魂者', 'S5赛季', '公会招募', '新手攻略', '炽焰圣凤', '超能联赛', '装备强化'];
@@ -419,7 +421,7 @@ function postCardHTML(post) {
       <div class="card-user-row">
         <div class="card-user-left">
           <div class="card-avatar-wrap">
-            <div class="${avatarClass}"></div>
+            <img class="${avatarClass}" src="${post.avatar}" alt="${post.username}" style="object-fit:cover;"/>
             <div class="card-online-dot"></div>
           </div>
           <div class="card-user-info">
@@ -470,10 +472,8 @@ function emptyStateHTML() {
 function userStripHTML() {
   const items = MOCK_USERS.slice(0, 6).map(u => `
     <div class="user-strip-item">
-      <div class="strip-ring" style="background:${u.avatarBg};">
-        <div style="width:100%;height:100%;border-radius:50%;background:#fff;padding:2px;box-sizing:border-box;">
-          <div style="width:100%;height:100%;border-radius:50%;background:${u.avatarBg};"></div>
-        </div>
+      <div class="strip-ring">
+        <img src="${u.avatar}" alt="${u.username}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;"/>
         <button class="strip-follow-btn" onclick="this.textContent=this.textContent==='+'?'✓':'+';this.style.background=this.textContent==='✓'?'#22c55e':'#0061a4'">+</button>
       </div>
       <span class="strip-name">${u.username}</span>
@@ -519,7 +519,7 @@ function renderUsers() {
   if (query.toLowerCase().includes('empty')) return;
   const rows = MOCK_USERS.map(u => `
     <div class="user-row">
-      <div class="user-avatar" style="background:${u.avatarBg};"></div>
+      <img class="user-avatar" src="${u.avatar}" alt="${u.username}" style="object-fit:cover;"/>
       <div class="user-info">
         <div class="user-name">${u.username}</div>
         <div class="user-sub">${u.level} · ${u.followers} 关注者</div>
