@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-surface-variant": "#566166",
+          "secondary-container": "#cbe6ff",
+          "primary-fixed": "#d1e4ff",
+          "primary": "#0061a4",
+          "primary-dim": "#005590",
+          "surface-container-low": "#f0f4f7",
+          "surface-variant": "#d9e4ea",
+          "outline": "#717c82",
+          "surface-container": "#e8eff3",
+          "tertiary-container": "#e1f0fb",
+          "inverse-primary": "#2498f5",
+          "surface-container-highest": "#d9e4ea",
+          "on-secondary-container": "#0a5780",
+          "outline-variant": "#a9b4b9",
+          "surface-container-high": "#e1e9ee",
+          "tertiary": "#53616a",
+          "primary-container": "#d1e4ff",
+          "surface-dim": "#cfdce3",
+          "secondary": "#22648e",
+          "on-surface": "#2a3439",
+          "background": "#f7f9fb",
+          "on-primary": "#f5f8ff",
+          "surface": "#f7f9fb",
+        },
+        borderRadius: {
+          DEFAULT: "1rem",
+          lg: "2rem",
+          xl: "3rem",
+          full: "9999px",
+        },
+        fontFamily: {
+          headline: ["Manrope"],
+          body: ["Inter"],
+          label: ["Inter"],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .material-symbols-outlined.filled {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+  .phone-shell {
+    width: 375px;
+    flex-shrink: 0;
+  }
+  .phone-inner {
+    width: 375px;
+    height: 667px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* 状态面板撑满剩余高度 */
+  #state-normal,
+  #state-inspire,
+  #state-stranger {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── 聊天背景渐变 ── */
+  .chat-bg {
+    background:
+      radial-gradient(ellipse 140% 70% at 15% 0%,   #d1e4ffcc 0%, transparent 55%),
+      radial-gradient(ellipse 120% 60% at 85% 100%,  #e1f0fbcc 0%, transparent 55%),
+      radial-gradient(ellipse 90%  50% at 90% 5%,    #cbe6ff99 0%, transparent 50%),
+      linear-gradient(175deg, #eaf3ff 0%, #dceef8 50%, #e4f0f8 100%);
+  }
+
+  /* ── 点阵纹理 ── */
+  .chat-bg::before {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.28) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  /* ── 消息滚动区 ── */
+  .messages-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    max-height: 100%;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .messages-area::-webkit-scrollbar { display: none; }
+
+  /* ── 毛玻璃层 ── */
+  .glass {
+    background: rgba(255,255,255,0.62);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  .glass-light {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* ── 气泡 ── */
+  .bubble-mine {
+    background: #0061a4;
+    color: #fff;
+    border-radius: 14px 14px 4px 14px;
+    box-shadow: 0 2px 10px rgba(0,97,164,0.28);
+  }
+  .bubble-her {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #2a3439;
+    border-radius: 4px 14px 14px 14px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07), inset 0 0 0 1px rgba(255,255,255,0.55);
+  }
+
+  /* ── 创作灵感面板 ── */
+  .inspire-panel {
+    background: rgba(255,255,255,0.78);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255,255,255,0.8);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,97,164,0.08);
+  }
+  .inspire-card {
+    background: rgba(241,246,252,0.9);
+    border: 1px solid rgba(255,255,255,0.9);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    cursor: pointer;
+  }
+  .inspire-card:active {
+    transform: scale(0.97);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .inspire-icon-bg {
+    background: linear-gradient(135deg, #d1e4ff 0%, #e1f0fb 100%);
+    box-shadow: 0 1px 4px rgba(0,97,164,0.12);
+  }
+
+  /* ── 输入框 ── */
+  .input-area {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid rgba(255,255,255,0.72);
+  }
+  .input-field {
+    background: rgba(255,255,255,0.78);
+    border: 1.5px solid rgba(255,255,255,0.7);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input-field input {
+    box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+  }
+  .input-field input:focus {
+    box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+  }
+  .input-field:focus-within {
+    border-color: rgba(255,255,255,0.7);
+    box-shadow: none;
+  }
+
+  /* ── 发送按钮 ── */
+  .send-btn {
+    background: #0061a4;
+    box-shadow: 0 2px 8px rgba(0,97,164,0.3);
+    transition: background 0.15s, transform 0.1s;
+  }
+  .send-btn:active { transform: scale(0.92); }
+
+  /* ── 状态切换 tabs（顶部） ── */
+  .state-tabs {
+    display: flex; gap: 4px;
+    background: rgba(255,255,255,0.68);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 999px;
+    padding: 3px;
+    border: 1px solid rgba(209,228,255,0.55);
+    box-shadow: 0 1px 8px rgba(0,97,164,0.07);
+  }
+  .state-tab {
+    padding: 5px 13px;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer; border: none;
+    background: transparent; color: #566166;
+    transition: all 0.16s ease;
+    font-family: Inter, sans-serif; line-height: 1;
+  }
+  .state-tab.active {
+    background: #0061a4; color: #fff;
+    box-shadow: 0 1px 6px rgba(0,97,164,0.28);
+  }
+
+  /* ── 限制提示条 ── */
+  .restrict-banner {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.8);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+
+  /* ── 头像渐变环 ── */
+  .avatar-ring {
+    padding: 2px;
+    background: linear-gradient(135deg, #0061a4 0%, #2498f5 100%);
+  }
+
+  /* ── 动画 ── */
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .panel-in { animation: slideUp 0.2s ease; }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .spinning {
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* ── 用户信息 Toggle 开关 ── */
+  .ui-toggle {
+    position: absolute; inset: 0;
+    border-radius: 999px;
+    background: #d0d7dd;
+    transition: background 0.2s;
+  }
+  .ui-toggle::after {
+    content: '';
+    position: absolute;
+    left: 3px; top: 3px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+    transition: transform 0.2s;
+  }
+  input:checked + .ui-toggle { background: #0061a4; }
+  input:checked + .ui-toggle::after { transform: translateX(18px); }
+
+
+  @keyframes rippleExpand {
+    0%   { transform: scale(0); opacity: 0.5; }
+    60%  { opacity: 0.15; }
+    100% { transform: scale(1); opacity: 0; }
+  }
+  .ripple-origin {
+    position: absolute; border-radius: 50%; pointer-events: none; z-index: 60;
+    transform: scale(0); opacity: 0;
+  }
+  .inspire-spark {
+    position: absolute; border-radius: 50%; pointer-events: none; z-index: 65;
+  }
+  @keyframes sparkFly {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .inspire-emoji-particle {
+    position: absolute; pointer-events: none; z-index: 66; line-height: 1;
+  }
+  @keyframes floatEmoji {
+    0%   { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(-44px) scale(0.4); opacity: 0; }
+  }
+  @keyframes sheetC {
+    0%   { transform: translateY(100%) scale(0.94); opacity: 0; }
+    55%  { transform: translateY(-6px) scale(1.01); opacity: 1; }
+    78%  { transform: translateY(2px)  scale(0.997); opacity: 1; }
+    100% { transform: translateY(0)    scale(1); opacity: 1; }
+  }
+  @keyframes btnPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(0,97,164,0.5); }
+    60%  { box-shadow: 0 0 0 14px rgba(0,97,164,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,97,164,0); }
+  }
+
+  /* 底部弹窗（关闭状态） */
+  .inspire-sheet-c {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255,255,255,0.9);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,97,164,0.10);
+    z-index: 50; pointer-events: none; opacity: 0;
+    transform-origin: bottom center;
+  }
+  .inspire-sheet-c.open {
+    animation: sheetC 0.58s cubic-bezier(0.22,1,0.36,1) forwards;
+    pointer-events: auto;
+  }
+  /* 遮罩 */
+  .inspire-backdrop {
+    position: absolute; inset: 0; background: rgba(10,20,40,0);
+    z-index: 40; pointer-events: none; transition: background 0.3s;
+  }
+  .inspire-backdrop.visible {
+    background: rgba(10,20,40,0.08); pointer-events: auto;
+  }
+
+  /* ── 状态切换条（phone-inner 内部）── */
+  .inner-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.62);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(255,255,255,0.65);
+    padding: 7px 12px 7px;
+    flex-shrink: 0;
+    position: relative; z-index: 20;
+  }
+  .inner-tab {
+    flex: 1;
+    padding: 5px 4px;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer; border: none;
+    background: transparent; color: #566166;
+    transition: all 0.16s ease;
+    font-family: Inter, sans-serif; line-height: 1.2;
+    text-align: center;
+  }
+  .inner-tab.active {
+    background: #0061a4; color: #fff;
+    box-shadow: 0 1px 6px rgba(0,97,164,0.28);
+  }
+
+  /* 手机模拟模式 */
+  @media (max-width: 430px) {
+    body { background: #f7f9fb; align-items: flex-start; }
+    .phone-shell {
+      width: 100vw; margin: 0 !important;
+      border-radius: 0 !important; box-shadow: none !important;
+      position: static !important;
+    }
+    .phone-inner { width: 100vw; height: 100dvh; min-height: unset; }
+    /* 手机模式隐藏外部 tabs */
+    .outer-tabs-wrap { display: none !important; }
+    /* 手机模式显示内部 tabs */
+    .inner-tabs { display: flex !important; }
+  }
+
+  /* 桌面模式隐藏内部 tabs */
+  @media (min-width: 431px) {
+    .inner-tabs { display: none !important; }
+  }
+
+  /* ── 气泡长按菜单 ── */
+  .bubble-menu {
+    position: absolute;
+    display: flex; gap: 2px;
+    background: rgba(30,36,42,0.92);
+    backdrop-filter: blur(14px);
+    border-radius: 10px;
+    padding: 3px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.22);
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0;
+    transform-origin: bottom center;
+    transform: scale(0.72) translateY(6px);
+  }
+  @keyframes menuPop {
+    0%   { transform: scale(0.72) translateY(6px); opacity: 0; }
+    70%  { transform: scale(1.04) translateY(-1px); opacity: 1; }
+    100% { transform: scale(1)    translateY(0);    opacity: 1; }
+  }
+  .bubble-menu.show {
+    animation: menuPop 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    pointer-events: auto;
+  }
+  .menu-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 7px 14px; border-radius: 8px; cursor: pointer; border: none;
+    background: transparent; color: #fff;
+    font-size: 10px; font-family: Inter, sans-serif; font-weight: 500;
+    transition: background 0.12s;
+    min-width: 54px;
+  }
+  .menu-btn:hover { background: rgba(255,255,255,0.1); }
+  .menu-btn:active { background: rgba(255,255,255,0.18); }
+  .menu-btn .menu-icon { font-size: 16px; line-height: 1; }
+  .menu-divider { width: 1px; background: rgba(255,255,255,0.15); margin: 6px 0; align-self: stretch; }
+
+  /* ── 选中气泡高亮 ── */
+  .bubble-selected {
+    outline: 2px solid rgba(0,97,164,0.5);
+    outline-offset: 2px;
+    border-radius: inherit;
+  }
+
+  /* ── Toast ── */
+  .chat-toast {
+    position: absolute; left: 50%; transform: translateX(-50%) translateY(8px);
+    bottom: 80px; z-index: 300;
+    background: rgba(30,36,42,0.88); backdrop-filter: blur(12px);
+    color: #fff; font-size: 11px; font-weight: 500; font-family: Inter, sans-serif;
+    padding: 7px 16px; border-radius: 99px;
+    white-space: nowrap; pointer-events: none; opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .chat-toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+  .chat-toast.hide {
+    opacity: 0; transform: translateX(-50%) translateY(4px);
+  }
+
+  /* 气泡删除动画 */
+  @keyframes bubblePop {
+    0%   { transform: scale(1);   opacity: 1; }
+    40%  { transform: scale(1.06); opacity: 0.8; }
+    100% { transform: scale(0);   opacity: 0; }
+  }
+  .bubble-deleting { animation: bubblePop 0.22s ease-in forwards; }
+</style>
+</head>
+
+<body class="bg-[#f0f4f7] font-body text-on-surface flex justify-center items-start">
+<nav id="sidebar" class="sidebar hidden"></nav>
+
+<div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
+<div class="phone-inner chat-bg relative" id="app">
+
+  <!-- ─── 内部状态 Tabs（仅手机预览显示）── -->
+  <div class="inner-tabs">
+    <button class="inner-tab active" data-state="normal"   onclick="switchState('normal')">普通对话</button>
+    <button class="inner-tab"        data-state="inspire"  onclick="switchState('inspire')">创作灵感</button>
+    <button class="inner-tab"        data-state="stranger" onclick="switchState('stranger')">陌生人</button>
+  </div>
+
+  <!-- ─── state=normal ──────────────────────────────── -->
+  <div id="state-normal" class="flex flex-col">
+
+    <!-- NavBar -->
+    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b border-white/60 flex-shrink-0" style="position:relative;z-index:10;">
+      <button class="material-symbols-outlined text-primary text-[22px] leading-none" onclick="history.back()">arrow_back_ios</button>
+      <div class="relative flex-shrink-0">
+        <div class="avatar-ring rounded-full" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;">
+          <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover block border-2 border-white" alt=""/>
+        </div>
+        <div class="absolute bottom-0 right-0 w-[9px] h-[9px] rounded-full bg-green-500 border-[1.5px] border-white"></div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-headline font-bold text-[13px] text-on-surface leading-tight">艾薇贝儿</div>
+        <div class="text-[10px] text-secondary leading-tight">游戏达人 · 在线</div>
+      </div>
+      <button id="sound-btn" onclick="toggleSound()" class="material-symbols-outlined text-[20px] leading-none transition-colors" style="color:#a9b4b9">volume_off</button>
+      <button onclick="showUserInfo()" class="material-symbols-outlined text-outline-variant text-[20px] leading-none">more_vert</button>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages-area px-4 py-3 flex flex-col gap-[7px]" style="position:relative;z-index:1;">
+      <!-- timestamp -->
+      <div class="text-center text-[10px] text-on-surface-variant/70 my-1 tracking-wide">昨天 18:58</div>
+
+      <!-- Her -->
+      <div class="flex items-end gap-[7px]">
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" alt=""/>
+        <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble" data-text="你好呀！随时告诉我，我会尽力帮你分析哒！">
+          你好呀！随时告诉我，我会尽力帮你分析哒！
+        </div>
+      </div>
+
+      <!-- Mine -->
+      <div class="flex items-end gap-[7px] justify-end">
+        <div class="flex flex-col items-end gap-[3px]">
+          <div class="bubble-mine text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble" data-text="1231">1231</div>
+          <div class="text-[9px] text-on-surface-variant/60 pr-1">18:59</div>
+        </div>
+        <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
+      </div>
+
+      <!-- Her long -->
+      <div class="flex items-end gap-[7px]">
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" alt=""/>
+        <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble" data-text="1231 这个数字看起来有点神秘呢～是想测试我对数字的敏感度，还是有什么特别的含义呀？如果是游戏问题，随时找我哦！">
+          1231 这个数字看起来有点神秘呢～是想测试我对数字的敏感度，还是有什么特别的含义呀？如果是游戏问题，随时找我哦！
+        </div>
+      </div>
+
+      <!-- Mine -->
+      <div class="flex items-end gap-[7px] justify-end">
+        <div class="flex flex-col items-end gap-[3px]">
+          <div class="bubble-mine text-[12px] leading-[1.55] px-[11px] py-[8px] bubble" data-text="11">11</div>
+          <div class="text-[9px] text-on-surface-variant/60 pr-1">19:02</div>
+        </div>
+        <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
+      </div>
+
+      <!-- Her -->
+      <div class="flex items-end gap-[7px]">
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" alt=""/>
+        <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble" data-text="11？是和我玩数字游戏吗？还是有什么特别的含义？超能世界的攻略包在我！🌟">
+          11？是和我玩数字游戏吗？还是有什么特别的含义？超能世界的攻略包在我！🌟
+        </div>
+      </div>
+    </div>
+
+    <!-- 创作灵感快捷按钮 -->
+    <div class="px-3 pb-[5px] flex-shrink-0" style="position:relative;z-index:10;">
+      <button id="inspire-trigger" onclick="triggerInspire(this)" class="glass flex items-center gap-[5px] px-[12px] py-[5px] rounded-full border border-white/60 text-[11px] font-semibold text-primary shadow-sm" style="box-shadow:0 1px 6px rgba(0,97,164,0.10);position:relative;">
+        <span id="inspire-star" style="display:inline-block;transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1)">✨</span> 创作灵感
+      </button>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area px-3 pb-[8px] pt-[6px] flex items-center gap-[6px] flex-shrink-0" style="position:relative;z-index:10;">
+      <div class="input-field flex-1 rounded-full flex items-center px-[12px] py-[5px] gap-[6px]">
+        <input placeholder="发消息…" class="flex-1 bg-transparent border-none outline-none text-[13px] text-on-surface placeholder:text-outline-variant font-body" style="line-height:1.4;box-shadow:none;border:none;outline:none;"/>
+      </div>
+      <button class="material-symbols-outlined text-outline-variant text-[22px] leading-none opacity-70">sentiment_satisfied</button>
+      <button class="send-btn w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-white text-[16px] leading-none" style="font-variation-settings:'wght' 500;">send</span>
+      </button>
+    </div>
+
+    <!-- 遮罩 -->
+    <div class="inspire-backdrop" id="inspire-backdrop" onclick="closeInspire()"></div>
+
+    <!-- 创作灵感弹窗 (变体 C 动效) -->
+    <div class="inspire-sheet-c" id="inspire-sheet">
+      <div style="width:28px;height:3px;background:rgba(169,180,185,0.5);border-radius:99px;margin:8px auto 8px;"></div>
+      <div class="flex justify-between items-center px-4 pb-[6px]">
+        <span class="text-[12px] font-bold text-on-surface flex items-center gap-[5px]">
+          <span class="text-[15px]">✨</span> 创作灵感
+        </span>
+        <button onclick="closeInspire()" class="material-symbols-outlined text-outline-variant text-[18px] leading-none">close</button>
+      </div>
+      <!-- 2×2 卡片 -->
+      <div class="grid grid-cols-2 gap-[7px] px-4 pb-[10px]">
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">✏️</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">帖子润色</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">丰富和拓展文本</div>
+          </div>
+        </div>
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">📚</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">游戏小说</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">丰富和拓展文本</div>
+          </div>
+        </div>
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">📐</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">内容排版</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">丰富和拓展文本</div>
+          </div>
+        </div>
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">⭐</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">动态创作</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">快速创作文本</div>
+          </div>
+        </div>
+      </div>
+      <!-- Input 含灵感占位文本 -->
+      <div class="border-t border-[rgba(209,228,255,0.45)] px-3 pb-[8px] pt-[6px] flex items-center gap-[6px]">
+        <span class="text-[17px] flex-shrink-0">💡</span>
+        <div class="input-field flex-1 rounded-full px-[12px] py-[5px] flex items-center">
+          <span class="text-[12px] text-on-surface-variant pointer-events-none">
+            帮我写一篇关于 <span class="text-primary font-semibold">主题1</span> 的作文，字数不少于 <span class="text-primary font-semibold">300</span> 字。
+          </span>
+        </div>
+        <button class="send-btn w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-white text-[16px] leading-none" style="font-variation-settings:'wght' 500;">send</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── state=inspire ─────────────────────────────── -->
+  <div id="state-inspire" class="flex flex-col" style="display:none!important;">
+
+    <!-- NavBar（同上） -->
+    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b border-white/60 flex-shrink-0" style="position:relative;z-index:10;">
+      <button class="material-symbols-outlined text-primary text-[22px] leading-none" onclick="history.back()">arrow_back_ios</button>
+      <div class="relative flex-shrink-0">
+        <div class="avatar-ring rounded-full" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;">
+          <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover block border-2 border-white" alt=""/>
+        </div>
+        <div class="absolute bottom-0 right-0 w-[9px] h-[9px] rounded-full bg-green-500 border-[1.5px] border-white"></div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-headline font-bold text-[13px] text-on-surface leading-tight">艾薇贝儿</div>
+        <div class="text-[10px] text-secondary leading-tight">游戏达人 · 在线</div>
+      </div>
+      <button id="sound-btn" onclick="toggleSound()" class="material-symbols-outlined text-[20px] leading-none transition-colors" style="color:#a9b4b9">volume_off</button>
+      <button onclick="showUserInfo()" class="material-symbols-outlined text-outline-variant text-[20px] leading-none">more_vert</button>
+    </div>
+
+    <!-- Messages (少量，给面板腾空间) -->
+    <div class="messages-area px-4 py-3 flex flex-col gap-[7px]" style="position:relative;z-index:1;">
+      <div class="text-center text-[10px] text-on-surface-variant/70 my-1 tracking-wide">18:58</div>
+      <div class="flex items-end gap-[7px]">
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" alt=""/>
+        <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px]">你好呀！随时告诉我，我会尽力帮你分析哒！</div>
+      </div>
+      <div class="flex items-end gap-[7px] justify-end">
+        <div class="bubble-mine text-[12px] leading-[1.55] px-[11px] py-[8px]">1231</div>
+        <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
+      </div>
+      <div class="flex items-end gap-[7px]">
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" alt=""/>
+        <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px]">1231 这个数字看起来有点神秘呢～是游戏问题随时找我！（👁️🔥⭐）</div>
+      </div>
+    </div>
+
+    <!-- 创作灵感面板 -->
+    <div class="inspire-panel panel-in flex-shrink-0" style="position:relative;z-index:10;">
+      <div class="flex justify-between items-center px-4 pt-[10px] pb-[6px]">
+        <span class="text-[12px] font-bold text-on-surface flex items-center gap-[5px]">
+          <span class="text-[15px]">✨</span> 创作灵感
+        </span>
+        <button onclick="switchState('normal')" class="material-symbols-outlined text-outline-variant text-[18px] leading-none">close</button>
+      </div>
+      <!-- 2×2 卡片 -->
+      <div class="grid grid-cols-2 gap-[7px] px-4 pb-[10px]">
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">✏️</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">帖子润色</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">丰富和拓展文本</div>
+          </div>
+        </div>
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">📚</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">游戏小说</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">丰富和拓展文本</div>
+          </div>
+        </div>
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">📐</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">内容排版</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">丰富和拓展文本</div>
+          </div>
+        </div>
+        <div class="inspire-card rounded-[10px] flex items-center gap-[8px] px-[9px] py-[8px]">
+          <div class="inspire-icon-bg w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[15px] flex-shrink-0">⭐</div>
+          <div>
+            <div class="text-[11px] font-semibold text-on-surface leading-tight">动态创作</div>
+            <div class="text-[9px] text-on-surface-variant mt-[2px]">快速创作文本</div>
+          </div>
+        </div>
+      </div>
+      <!-- Input 含灵感占位文本 -->
+      <div class="border-t border-[rgba(209,228,255,0.45)] px-3 pb-[8px] pt-[6px] flex items-center gap-[6px]">
+        <span class="text-[17px] flex-shrink-0">💡</span>
+        <div class="input-field flex-1 rounded-full px-[12px] py-[5px] flex items-center">
+          <span class="text-[12px] text-on-surface-variant pointer-events-none">
+            帮我写一篇关于 <span class="text-primary font-semibold">主题1</span> 的作文，字数不少于 <span class="text-primary font-semibold">300</span> 字。
+          </span>
+        </div>
+        <button class="send-btn w-[30px] h-[30px] rounded-full flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-white text-[16px] leading-none" style="font-variation-settings:'wght' 500;">send</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── state=stranger ────────────────────────────── -->
+  <div id="state-stranger" class="flex flex-col" style="display:none!important;">
+
+    <!-- NavBar（陌生人） -->
+    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b border-white/60 flex-shrink-0" style="position:relative;z-index:10;">
+      <button class="material-symbols-outlined text-primary text-[22px] leading-none" onclick="history.back()">arrow_back_ios</button>
+      <div class="relative flex-shrink-0">
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[30px] h-[30px] rounded-full object-cover block" alt=""/>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-headline font-bold text-[13px] text-on-surface leading-tight">玩家164134909</div>
+      </div>
+      <div class="bg-primary text-white text-[10px] font-bold px-[10px] py-[4px] rounded-full shadow-sm cursor-pointer">+ 关注</div>
+      <button onclick="showUserInfo()" class="material-symbols-outlined text-outline-variant text-[20px] leading-none">more_vert</button>
+    </div>
+
+    <!-- 限制提示条 -->
+    <div class="restrict-banner mx-4 mt-3 rounded-[10px] px-[10px] py-[8px] flex items-center gap-[7px] flex-shrink-0">
+      <span class="material-symbols-outlined text-on-surface-variant text-[15px] leading-none flex-shrink-0">info</span>
+      <span class="text-[11px] text-on-surface leading-[1.5]">对方关注或回复你之前，只能发一条文字消息</span>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages-area px-4 py-3 flex flex-col gap-[8px]" style="position:relative;z-index:1;">
+      <!-- 已发 -->
+      <div class="flex items-end gap-[7px] justify-end">
+        <div class="flex flex-col items-end gap-[3px]">
+          <div class="bubble-mine text-[12px] leading-[1.55] px-[11px] py-[8px]">11</div>
+          <div class="text-[9px] text-on-surface-variant/60 pr-1">刚刚</div>
+        </div>
+        <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
+      </div>
+      <!-- 发送中 -->
+      <div class="flex items-end gap-[7px] justify-end">
+        <div class="glass-light rounded-[14px_14px_4px_14px] px-[12px] py-[8px] flex items-center gap-[7px] border border-white/60 shadow-sm">
+          <div class="w-[15px] h-[15px] rounded-full border-2 border-primary border-t-transparent spinning flex-shrink-0"></div>
+          <span class="text-[10px] text-on-surface-variant">发送中</span>
+        </div>
+        <div class="relative flex-shrink-0">
+          <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover block" alt=""/>
+          <div class="absolute -top-[3px] -right-[3px] w-[14px] h-[14px] rounded-full bg-red-500 border-[1.5px] border-white flex items-center justify-center text-[8px] text-white font-bold leading-none">1</div>
+        </div>
+      </div>
+      <!-- 空白区引导 -->
+      <div class="flex flex-col items-center justify-center gap-[10px] py-[32px]">
+        <div class="glass-light w-[48px] h-[48px] rounded-full flex items-center justify-center border border-white/70 shadow-sm text-[22px]">💬</div>
+        <p class="text-[11px] text-on-surface-variant text-center leading-[1.7] max-w-[180px]">
+          对方关注或回复你之前，<br/>只能发一条文字消息
+        </p>
+      </div>
+    </div>
+
+    <!-- 输入栏（禁用） -->
+    <div class="input-area px-3 pb-[8px] pt-[6px] flex items-center gap-[6px] flex-shrink-0 mt-auto" style="position:relative;z-index:10;">
+      <div class="flex-1 rounded-full px-[12px] py-[5px] text-[13px] text-outline-variant"
+           style="background:rgba(207,220,227,0.45);border:1.5px solid rgba(255,255,255,0.5);line-height:1.4;">
+        发消息…
+      </div>
+      <span class="material-symbols-outlined text-[22px] leading-none opacity-30 cursor-not-allowed">sentiment_satisfied</span>
+      <span class="material-symbols-outlined text-[22px] leading-none opacity-30 cursor-not-allowed">add_circle</span>
+    </div>
+  </div>
+
+  <!-- 旧悬浮 tabs 已移除 -->
+
+</div><!-- /phone-inner -->
+</div><!-- /phone-shell -->
+
+<!-- ─── 状态切换（外部，仅桌面显示）──────────────────────── -->
+<div class="outer-tabs-wrap my-5 flex flex-col items-center gap-3">
+  <div class="state-tabs">
+    <button class="state-tab active" data-state="normal"   onclick="switchState('normal')">普通对话</button>
+    <button class="state-tab"        data-state="inspire"  onclick="switchState('inspire')">创作灵感</button>
+    <button class="state-tab"        data-state="stranger" onclick="switchState('stranger')">陌生人限制</button>
+  </div>
+  <div class="text-[11px] text-on-surface-variant/70 text-center">点击切换三种状态</div>
+</div>
+
+<!-- ─── 用户信息 Overlay ───────────────────────────── -->
+<div id="user-info-overlay" style="display:none;position:absolute;inset:0;z-index:100;background:#f5f7fa;flex-direction:column;">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;height:48px;padding:0 12px;border-bottom:1px solid #e5e9ed;background:#fff;flex-shrink:0;">
+    <button onclick="hideUserInfo()" style="background:none;border:none;padding:4px;cursor:pointer;display:flex;align-items:center;">
+      <span class="material-symbols-outlined" style="font-size:22px;color:#0061a4;">arrow_back_ios</span>
+    </button>
+    <div style="flex:1;text-align:center;font-weight:700;font-size:14px;color:#2a3439;font-family:Manrope,sans-serif;">艾薇贝儿</div>
+    <div style="width:34px;"></div>
+  </div>
+
+  <!-- 用户卡片 -->
+  <div style="background:#fff;display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #e5e9ed;">
+    <div style="position:relative;flex-shrink:0;">
+      <div style="padding:2px;background:linear-gradient(135deg,#0061a4,#2498f5);border-radius:50%;">
+        <img src="https://i.pravatar.cc/80?img=47" style="width:48px;height:48px;border-radius:50%;object-fit:cover;display:block;border:2px solid #fff;" alt=""/>
+      </div>
+      <div style="position:absolute;bottom:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#4caf50;border:2px solid #fff;"></div>
+    </div>
+    <div>
+      <div style="font-weight:700;font-size:14px;color:#2a3439;font-family:Manrope,sans-serif;">艾薇贝儿</div>
+      <div style="font-size:11px;color:#22648e;margin-top:2px;">游戏达人 · 在线</div>
+    </div>
+  </div>
+
+  <!-- 设置列表 -->
+  <div style="margin-top:12px;background:#fff;border-top:1px solid #e5e9ed;border-bottom:1px solid #e5e9ed;">
+
+    <!-- 消息免打扰 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #f0f2f4;">
+      <span style="font-size:14px;color:#2a3439;">消息免打扰</span>
+      <label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">
+        <input type="checkbox" id="toggle-mute" style="opacity:0;width:0;height:0;position:absolute;" onchange="syncToggle(this,'toggle-mute2')"/>
+        <span class="ui-toggle"></span>
+      </label>
+    </div>
+
+    <!-- 置顶聊天 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #f0f2f4;">
+      <span style="font-size:14px;color:#2a3439;">置顶聊天</span>
+      <label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">
+        <input type="checkbox" id="toggle-pin" style="opacity:0;width:0;height:0;position:absolute;"/>
+        <span class="ui-toggle"></span>
+      </label>
+    </div>
+
+    <!-- 加入黑名单 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;">
+      <span style="font-size:14px;color:#2a3439;">加入黑名单</span>
+      <label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">
+        <input type="checkbox" id="toggle-block" style="opacity:0;width:0;height:0;position:absolute;"/>
+        <span class="ui-toggle"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- 举报 -->
+  <div style="margin-top:12px;background:#fff;border-top:1px solid #e5e9ed;border-bottom:1px solid #e5e9ed;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;" onclick="">
+      <span style="font-size:14px;color:#2a3439;">举报该用户</span>
+      <span class="material-symbols-outlined" style="font-size:18px;color:#a9b4b9;">chevron_right</span>
+    </div>
+  </div>
+
+</div>
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/bottom-nav.js"></script>
+<script>
+let soundOn = false;
+function toggleSound() {
+  soundOn = !soundOn;
+  document.querySelectorAll('#sound-btn').forEach(btn => {
+    btn.textContent = soundOn ? 'volume_up' : 'volume_off';
+    btn.style.color = soundOn ? '#0061a4' : '#a9b4b9';
+  });
+}
+
+function switchState(s) {
+  ['normal','inspire','stranger'].forEach(id => {
+    const el = document.getElementById('state-' + id);
+    if (id === s) {
+      el.style.cssText = 'display:flex;flex-direction:column;';
+    } else {
+      el.style.cssText = 'display:none;';
+    }
+  });
+  document.querySelectorAll('.inner-tab, .state-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.state === s);
+  });
+  const area = document.querySelector('#state-' + s + ' .messages-area');
+  if (area) area.scrollTop = area.scrollHeight;
+}
+
+// ── 创作灵感 · 变体 C 涟漪迸发 ──────────────────────────
+function triggerInspire(btn) {
+  const inner = document.getElementById('state-normal');
+  const btnRect = btn.getBoundingClientRect();
+  const innerRect = inner.getBoundingClientRect();
+  const cx = btnRect.left - innerRect.left + btnRect.width / 2;
+  const cy = btnRect.top  - innerRect.top  + btnRect.height / 2;
+
+  // ① ✨ 旋转放大
+  const star = document.getElementById('inspire-star');
+  star.style.transform = 'rotate(180deg) scale(1.5)';
+  setTimeout(() => { star.style.transform = ''; }, 420);
+
+  // ② 按钮脉冲光晕
+  btn.style.animation = 'btnPulse 0.5s ease-out';
+  btn.addEventListener('animationend', () => { btn.style.animation = ''; }, { once: true });
+
+  // ③ 涟漪圈（3层）
+  [[90,'rgba(0,97,164,0.28)'],[150,'rgba(36,152,245,0.18)'],[220,'rgba(180,220,255,0.14)']].forEach(([size, color], i) => {
+    setTimeout(() => {
+      const r = document.createElement('div');
+      r.className = 'ripple-origin';
+      r.style.cssText = `width:${size}px;height:${size}px;left:${cx-size/2}px;top:${cy-size/2}px;background:${color};animation:rippleExpand ${0.5+i*0.08}s ease-out forwards;`;
+      inner.appendChild(r);
+      setTimeout(() => r.remove(), 700);
+    }, i * 65);
+  });
+
+  // ④ 粒子 + emoji 飞溅
+  const emojis = ['✨','⭐','💡','✦'];
+  for (let i = 0; i < 9; i++) {
+    setTimeout(() => {
+      const angle = (i / 9) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+      const dist  = 30 + Math.random() * 25;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      const el = document.createElement('div');
+      if (i % 3 === 0) {
+        el.className = 'inspire-emoji-particle';
+        el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+        el.style.cssText = `left:${cx+dx-8}px;top:${cy+dy-8}px;font-size:12px;animation:floatEmoji 0.65s ease-out forwards;`;
+      } else {
+        const size = 3 + Math.random() * 3;
+        el.className = 'inspire-spark';
+        el.style.cssText = `width:${size}px;height:${size}px;left:${cx+dx-size/2}px;top:${cy+dy-size/2}px;background:${['#0061a4','#2498f5','#80c8ff','#ffd700'][Math.floor(Math.random()*4)]};transform:translate(${dx*0.7}px,${dy*0.7}px);animation:sparkFly 0.55s ease-out forwards;`;
+      }
+      inner.appendChild(el);
+      setTimeout(() => el.remove(), 800);
+    }, i * 22);
+  }
+
+  // ⑤ 延迟弹出 sheet
+  setTimeout(() => {
+    document.getElementById('inspire-backdrop').classList.add('visible');
+    document.getElementById('inspire-sheet').classList.add('open');
+  }, 260);
+}
+
+function closeInspire() {
+  document.getElementById('inspire-backdrop').classList.remove('visible');
+  const sheet = document.getElementById('inspire-sheet');
+  sheet.classList.remove('open');
+  sheet.style.opacity = '0';
+  setTimeout(() => { sheet.style.opacity = ''; }, 50);
+}
+// ── 气泡长按菜单 ───────────────────────────────────────────
+
+let _activeBubble = null;
+let _menuEl = null;
+let _lpTimer = null;
+let _lpMoved = false;
+
+function initBubbleLongPress() {
+  // 创建菜单 DOM（单例，复用）
+  _menuEl = document.createElement('div');
+  _menuEl.className = 'bubble-menu';
+  _menuEl.innerHTML = `
+    <button class="menu-btn" id="menu-copy-btn">
+      <span class="material-symbols-outlined" style="font-size:17px;">content_copy</span>
+      <span>复制</span>
+    </button>
+    <div class="menu-divider"></div>
+    <button class="menu-btn" style="color:#ef5350;" id="menu-del-btn">
+      <span class="material-symbols-outlined" style="font-size:17px;">delete</span>
+      <span>删除</span>
+    </button>
+  `;
+  _menuEl.querySelector('#menu-copy-btn').addEventListener('click', copyBubble);
+  _menuEl.querySelector('#menu-del-btn').addEventListener('click', deleteBubble);
+  // 阻止菜单自身的事件冒泡到全局关闭逻辑
+  _menuEl.addEventListener('pointerdown', e => e.stopPropagation());
+  _menuEl.addEventListener('click', e => e.stopPropagation());
+  document.getElementById('state-normal').appendChild(_menuEl);
+
+  // 绑定所有气泡
+  document.querySelectorAll('#state-normal .bubble').forEach(b => {
+    b.addEventListener('pointerdown', onBubbleDown);
+    b.addEventListener('pointermove', onBubbleMove);
+    b.addEventListener('pointerup', onBubbleUp);
+    b.addEventListener('pointercancel', onBubbleUp);
+  });
+
+  // 点空白关闭菜单（用 click 而非 pointerdown，避免长按误触）
+  document.getElementById('state-normal').addEventListener('click', e => {
+    if (_menuEl.classList.contains('show') && !_menuEl.contains(e.target) && !e.target.closest('.bubble')) {
+      closeBubbleMenu();
+    }
+  });
+}
+
+function onBubbleDown(e) {
+  _lpMoved = false;
+  _activeBubble = this;
+  _lpTimer = setTimeout(() => {
+    if (!_lpMoved) openBubbleMenu(_activeBubble);
+  }, 600);
+}
+
+function onBubbleMove(e) {
+  _lpMoved = true;
+  clearTimeout(_lpTimer);
+}
+
+function onBubbleUp(e) {
+  clearTimeout(_lpTimer);
+}
+
+function openBubbleMenu(bubble) {
+  // 高亮气泡
+  document.querySelectorAll('#state-normal .bubble').forEach(b => b.classList.remove('bubble-selected'));
+  bubble.classList.add('bubble-selected');
+
+  // 定位菜单：显示在气泡正上方，水平居中
+  const inner = document.getElementById('state-normal');
+  const innerRect = inner.getBoundingClientRect();
+  const bRect = bubble.getBoundingClientRect();
+
+  _menuEl.style.visibility = 'hidden';
+  _menuEl.classList.remove('show');
+  _menuEl.classList.add('show');
+  _menuEl.style.visibility = '';
+
+  const menuW = 120; // 近似宽度
+  let left = bRect.left - innerRect.left + bRect.width / 2 - menuW / 2;
+  left = Math.max(8, Math.min(left, innerRect.width - menuW - 8));
+  const top = bRect.top - innerRect.top - 58;
+
+  _menuEl.style.left = left + 'px';
+  _menuEl.style.top  = Math.max(8, top) + 'px';
+
+  // 强制重绘以重触发动画
+  _menuEl.classList.remove('show');
+  void _menuEl.offsetWidth;
+  _menuEl.classList.add('show');
+}
+
+function closeBubbleMenu() {
+  _menuEl.classList.remove('show');
+  document.querySelectorAll('#state-normal .bubble').forEach(b => b.classList.remove('bubble-selected'));
+  _activeBubble = null;
+}
+
+function copyBubble() {
+  if (!_activeBubble) return;
+  const text = _activeBubble.dataset.text || _activeBubble.innerText.trim();
+  navigator.clipboard.writeText(text).catch(() => {});
+  closeBubbleMenu();
+  showToast('复制成功');
+}
+
+function deleteBubble() {
+  if (!_activeBubble) return;
+  const bubble = _activeBubble;
+  const row = bubble.closest('.flex.items-end');
+  closeBubbleMenu();
+  if (!row) return;
+  bubble.classList.add('bubble-deleting');
+  setTimeout(() => {
+    row.remove();
+    showToast('删除成功');
+  }, 220);
+}
+
+function showToast(msg) {
+  const inner = document.getElementById('state-normal');
+  const t = document.createElement('div');
+  t.className = 'chat-toast';
+  t.textContent = msg;
+  inner.appendChild(t);
+  void t.offsetWidth;
+  t.classList.add('show');
+  setTimeout(() => {
+    t.classList.add('hide');
+    setTimeout(() => t.remove(), 220);
+  }, 1800);
+}
+
+// ─────────────────────────────────────────────────────────
+
+// phone-inner 需要能正确撑满并容纳当前面板
+// 让 phone-inner 本身不用 relative 定位堆叠，改用正常 flex 流
+const app = document.getElementById('app');
+app.style.flexDirection = 'column';
+
+// ── 用户信息 overlay ──
+function showUserInfo() {
+  const overlay = document.getElementById('user-info-overlay');
+  overlay.style.display = 'flex';
+}
+function hideUserInfo() {
+  const overlay = document.getElementById('user-info-overlay');
+  overlay.style.display = 'none';
+}
+
+// 初始化
+switchState('normal');
+initBubbleLongPress();
+</script>
+</body>
+</html>

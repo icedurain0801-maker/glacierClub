@@ -14,7 +14,7 @@
       theme: {
         extend: {
           colors: {
-            primary: "#0050cb",
+            primary: "#0061a4",
             "background-light": "#F3F4F6",
             "background-dark": "#111827",
             "surface-light": "#FFFFFF",
@@ -62,33 +62,48 @@
   </button>
 </div>
 <!-- 二级 Tag：描边→黑实心 -->
-<div class="overflow-x-auto no-scrollbar py-2 px-3 flex gap-2">
-  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[13px] font-semibold border border-gray-900 dark:border-white whitespace-nowrap transition-all duration-150">All</button>
-  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Featured</button>
-  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Announcements</button>
-  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Community</button>
-  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Events</button>
-  <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Game Info</button>
+<div class="flex items-center border-b border-gray-100 dark:border-gray-800">
+  <div class="overflow-x-auto no-scrollbar py-2 pl-3 flex gap-2 flex-1">
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[13px] font-semibold border border-gray-900 dark:border-white whitespace-nowrap transition-all duration-150">All</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Featured</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Announcements</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Community</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Events</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Game Info</button>
+  </div>
+  <!-- 排序按钮 -->
+  <button id="sort-btn" onclick="toggleSort()" class="flex items-center gap-1 px-3 py-2 shrink-0 text-[12px] font-medium text-gray-500 dark:text-gray-400 border-l border-gray-100 dark:border-gray-800 whitespace-nowrap transition-colors duration-150 hover:text-gray-800 dark:hover:text-gray-200">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+    <span id="sort-label">回复时间</span>
+  </button>
 </div>
 </header>
 <main class="flex-1 overflow-y-auto pb-4">
 <div class="p-4 space-y-4"><!-- Pinned Section (Kept mostly as is but styled slightly better) -->
-<div class="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-start gap-4 mb-4">
-<div class="flex-1 space-y-2">
-<div class="flex items-center gap-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs px-2 py-0.5 rounded-md w-fit">
-<span class="material-icons text-[14px]">push_pin</span>
-            Pinned
-        </div>
-<p class="text-sm font-medium line-clamp-2 leading-snug text-gray-800 dark:text-gray-200">《超级能世界》福利礼包兑换码汇总（长期更新）</p>
-</div>
-<button class="text-purple-500 mt-1"><span class="material-icons text-xl">push_pin</span></button>
+<div class="bg-surface-light dark:bg-surface-dark rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 mb-4 space-y-1.5">
+  <div class="flex items-center gap-1.5 mb-1">
+    <span class="material-icons text-[13px] text-purple-600">push_pin</span>
+    <span class="text-xs font-medium text-purple-600">置顶</span>
+  </div>
+  <div class="flex items-center gap-2 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 active:bg-purple-100 dark:active:bg-purple-900/40 rounded px-1 py-0.5 transition-colors duration-100 select-none">
+    <span class="shrink-0 w-1 h-1 rounded-full bg-purple-400"></span>
+    <p class="text-sm text-gray-800 dark:text-gray-200 truncate">《超级能世界》福利礼包兑换码汇总（长期更新）</p>
+  </div>
+  <div class="flex items-center gap-2 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 active:bg-purple-100 dark:active:bg-purple-900/40 rounded px-1 py-0.5 transition-colors duration-100 select-none">
+    <span class="shrink-0 w-1 h-1 rounded-full bg-purple-400"></span>
+    <p class="text-sm text-gray-800 dark:text-gray-200 truncate">五一活动超级能情报站 | 官方活动全览与参与指南</p>
+  </div>
+  <div class="flex items-center gap-2 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 active:bg-purple-100 dark:active:bg-purple-900/40 rounded px-1 py-0.5 transition-colors duration-100 select-none">
+    <span class="shrink-0 w-1 h-1 rounded-full bg-purple-400"></span>
+    <p class="text-sm text-gray-800 dark:text-gray-200 truncate">互动有礼 | 超能道具大作战第6期活动规则说明</p>
+  </div>
 </div>
 <!-- Card 1 -->
-<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<article onclick="window.location.href='../home/mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-3">
 <div class="relative">
-<img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAjbFMaJ9Cn6aqixjzaeKUGXsURawx9555QPqEeeZtuRqMNHBCH4SS6rrPk5tNHtLg-l5erf6HbyDUVGW8n_No33CdcsI2v8W_45f-acjQ--2MIHL7rem9aDwKy7maRVLJWgV8pKGxAXSNqWoHNG25ifOfvpRGdNPBeoWw3I-BAnchK62-YNRgpJusRmil09J8_gWBeVB9KgjELMtUQGKc-SFBr6k76fjNRzP1yJXnKw8xCXMrc48l5tMnwY2c66CX7KnNuuNmk1_a"/>
+<img class="w-10 h-10 rounded-full object-cover" src="https://i.pravatar.cc/80?img=11"/>
 <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
 </div>
 <div><div class="flex flex-col gap-1">
@@ -111,9 +126,9 @@
 <div class="space-y-2">
 <p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">互动有礼 | 超能道具大作战第6期</span>全新的挑战已经开启，快来参与赢取丰厚奖励！</p>
 <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/game1/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/game2/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/game3/200"/>
 </div>
 </div>
 <div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
@@ -134,11 +149,11 @@
 </div>
 </article>
 <!-- Card 2 -->
-<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<article onclick="window.location.href='../home/mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-3">
 <div class="relative">
-<img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB05MvXiItzWwYR763tsFijVA3HA30TJfIIul0SnPfejp1ncR8bg-YPQSmGc9WGWk_KIkb0Vt3k-DX3VhYNQ_lNkgCWtn5Kq9oJx1wyWSN60FNk4wAAF9BlhTB-5XpkWWRFWnaZksLp678G3AkvNuBVLOgO8h_mm4CFCyfmFaPKnErFyZCSuCLyyxtX2q8ZBmMONqE9l4mWLNCxDFmfjPSvi5EJ9_SDh7yEhFcfDLiIkc_c3ENjPkovxTYSIPT096hikmOSpHpNh4LT"/>
+<img class="w-10 h-10 rounded-full object-cover" src="https://i.pravatar.cc/80?img=22"/>
 <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
 </div>
 <div><div class="flex flex-col gap-1">
@@ -161,9 +176,9 @@
 <div class="space-y-2">
 <p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">超能情报站 | 五一活动即将开启</span>假日好礼等你解锁，多重惊喜已备好，快来看看活动预览！</p>
 <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/event1/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/event2/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/event3/200"/>
 </div>
 </div>
 <div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
@@ -184,11 +199,11 @@
 </div>
 </article>
 <!-- Card 3 -->
-<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<article onclick="window.location.href='../home/mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-3">
 <div class="relative">
-<img class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvYBOCH0SKvqRo66bQEmoWtfsjKDAqVAEttqufqe5PbLCUGErOpKB9QmeuR7Pq_erC96Jh2Xzo_tCtBX_PR5TRfU-EJrr_fFJb1SdemMxImt-7y9E2L7N666YgYYZiDG37PWM3hsXSdxnwzxIY60X_SSTNE5-G_xLtYbgGlirNUdBIsKW5bnMOG_xjsRlTIMOVj3RhLBQQ8HCJRP7q4wdtUZmDUjtNNUlbP_Va0sijHuITnh1DQWn68RodVCUyeqZICg1FnZEJiVwQ"/>
+<img class="w-10 h-10 rounded-full object-cover" src="https://i.pravatar.cc/80?img=33"/>
 <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
 </div>
 <div><div class="flex flex-col gap-1">
@@ -211,9 +226,9 @@
 <div class="space-y-2">
 <p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">超能情报站 | 『狩魂者-蛮古』技能详情公开！</span>强大的暗夜战士即将加入战场，掌握他的核心机制！</p>
 <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
-<img class="aspect-square object-cover w-full" src="https://lh3.googleusercontent.com/aida/ADBb0ujnZ2aFUsZkwOvLi8EbhwuGZWLiAdWBv93L8WoFsUwCml4Caw2MCTBF3WoLNOQfILc9D3hdAZuNEwleGtIhWUdQc_mJDq6S-gnxGKaoTZvoVLHLYZEU9BMkYmI8TXsa7rwxR2zgRh4qF5NQ4R9eggruwPePTDJPCcx4nk-7Ak02-31Qwhi3xagQ74HR8ZO243DFiHxkwSSbtI99j1SIIrWbRgFS8rNAR2WILgIa8WzWLKguxYMSXLDjuzRXmQYdu6vrgurxKDYdBqI"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/hero1/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/hero2/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/hero3/200"/>
 </div>
 </div>
 <div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
@@ -234,7 +249,7 @@
 </div>
 </article></div>
 </main>
-<bottom-nav active="news" base="../"></bottom-nav>
+<bottom-nav active="chat" base="../"></bottom-nav>
 <style>.no-scrollbar::-webkit-scrollbar {
       display: none;
     }.no-scrollbar {
@@ -278,6 +293,47 @@ document.querySelectorAll('.l2-tag').forEach(btn => {
     });
   });
 });
+
+// 排序切换：回复时间 ↔ 发布时间
+var _sortMode = 'reply';
+function toggleSort() {
+  _sortMode = _sortMode === 'reply' ? 'publish' : 'reply';
+  document.getElementById('sort-label').textContent = _sortMode === 'reply' ? '回复时间' : '发布时间';
+}
 </script>
 <script src="../../shared/bottom-nav.js"></script>
+<style>
+.follow-btn { transition: all .2s cubic-bezier(.34,1.56,.64,1); }
+.follow-btn.followed { background: rgba(42,52,57,.12) !important; color: #8a9499 !important; }
+#follow-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(8px); background:rgba(30,34,40,.88); color:#fff; font-size:13px; padding:8px 18px; border-radius:20px; pointer-events:none; opacity:0; transition:opacity .2s,transform .2s; z-index:9999; white-space:nowrap; }
+#follow-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+<div id="follow-toast"></div>
+<script>
+(function(){
+  function showToast(msg) {
+    var t = document.getElementById('follow-toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._tid);
+    t._tid = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+  document.querySelectorAll('button').forEach(function(btn){
+    if (btn.textContent.trim() !== '关注') return;
+    btn.classList.add('follow-btn');
+    btn.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if (!this.classList.contains('followed')) {
+        this.classList.add('followed'); this.textContent = '✓ 已关注';
+        showToast('已关注');
+      } else {
+        var self = this; self.textContent = '取消关注'; self.style.opacity = '.5';
+        setTimeout(function(){
+          self.classList.remove('followed'); self.textContent = '关注'; self.style.opacity = '';
+          showToast('已取消关注');
+        }, 900);
+      }
+    });
+  });
+})();
+</script>
 </body></html>

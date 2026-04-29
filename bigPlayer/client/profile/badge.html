@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>徽章墙 - 原型文档</title>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+/* s4 光晕伪元素 — Tailwind 不支持伪元素 clip-path */
+#s4::before {
+  content: '';
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 200px; height: 300px;
+  background: linear-gradient(180deg, rgba(80,180,255,0.15) 0%, transparent 100%);
+  clip-path: polygon(40% 0%, 60% 0%, 100% 100%, 0% 100%);
+  pointer-events: none;
+}
+</style>
+</head>
+<body class="bg-[#f0f4f8] min-h-screen flex justify-center" style="font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;">
+<div class="flex w-fit min-h-screen">
+
+  <!-- ============ 侧边导航栏（通用） ============ -->
+  <nav id="sidebar" class="sidebar"></nav>
+
+  <!-- ============ 左侧：手机原型 ============ -->
+  <div class="relative flex-shrink-0 w-[375px] h-[667px] overflow-hidden sticky top-0 self-start bg-white shadow-[2px_0_16px_rgba(0,0,0,0.10)] my-5 ml-6 rounded-lg">
+
+    <!-- SCREEN 1: 徽章墙 -->
+    <div class="flex flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s1">
+      <div class="pb-3 flex-shrink-0 relative overflow-hidden" style="background:conic-gradient(from 180deg at 50% 0%, #2a9fd6 0deg, #4ec9f0 60deg, #a8dff5 120deg, #ddf0fa 160deg, #a8dff5 200deg, #4ec9f0 300deg, #2a9fd6 360deg)">
+        <!-- 二次元城堡背景 SVG -->
+        <svg class="absolute bottom-0 left-0 w-full" viewBox="0 0 375 130" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg" style="opacity:0.18;pointer-events:none">
+          <!-- 远山 -->
+          <ellipse cx="60" cy="130" rx="90" ry="55" fill="#fff"/>
+          <ellipse cx="310" cy="130" rx="100" ry="60" fill="#fff"/>
+          <!-- 地基 -->
+          <rect x="80" y="95" width="215" height="40" rx="4" fill="#fff"/>
+          <!-- 主塔身 -->
+          <rect x="140" y="52" width="95" height="50" fill="#fff"/>
+          <!-- 主塔城垛 -->
+          <rect x="137" y="42" width="18" height="14" rx="2" fill="#fff"/>
+          <rect x="162" y="42" width="18" height="14" rx="2" fill="#fff"/>
+          <rect x="187" y="42" width="18" height="14" rx="2" fill="#fff"/>
+          <rect x="212" y="42" width="18" height="14" rx="2" fill="#fff"/>
+          <!-- 主塔尖顶 -->
+          <polygon points="187,10 155,46 219,46" fill="#fff"/>
+          <!-- 旗帜 -->
+          <rect x="185" y="4" width="2" height="12" fill="#fff"/>
+          <polygon points="187,4 200,8 187,12" fill="#fff"/>
+          <!-- 左侧小塔 -->
+          <rect x="90" y="68" width="50" height="32" fill="#fff"/>
+          <polygon points="115,44 98,70 132,70" fill="#fff"/>
+          <rect x="88" y="60" width="13" height="10" rx="2" fill="#fff"/>
+          <rect x="103" y="60" width="13" height="10" rx="2" fill="#fff"/>
+          <rect x="118" y="60" width="13" height="10" rx="2" fill="#fff"/>
+          <!-- 右侧小塔 -->
+          <rect x="235" y="68" width="50" height="32" fill="#fff"/>
+          <polygon points="260,44 243,70 277,70" fill="#fff"/>
+          <rect x="233" y="60" width="13" height="10" rx="2" fill="#fff"/>
+          <rect x="248" y="60" width="13" height="10" rx="2" fill="#fff"/>
+          <rect x="263" y="60" width="13" height="10" rx="2" fill="#fff"/>
+          <!-- 拱门 -->
+          <rect x="172" y="78" width="31" height="24" rx="15" fill="rgba(0,0,0,0.12)"/>
+          <!-- 左小窗 -->
+          <rect x="104" y="76" width="12" height="14" rx="6" fill="rgba(0,0,0,0.1)"/>
+          <!-- 右小窗 -->
+          <rect x="259" y="76" width="12" height="14" rx="6" fill="rgba(0,0,0,0.1)"/>
+          <!-- 星星点缀 -->
+          <circle cx="40" cy="30" r="2" fill="#fff"/>
+          <circle cx="55" cy="18" r="1.5" fill="#fff"/>
+          <circle cx="330" cy="25" r="2" fill="#fff"/>
+          <circle cx="350" cy="40" r="1.5" fill="#fff"/>
+          <circle cx="20" cy="55" r="1" fill="#fff"/>
+        </svg>
+        <div class="flex items-center pt-11 px-4">
+          <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0">‹</div>
+          <div class="flex-1 flex justify-center gap-7">
+            <div class="text-white/75 text-[15px] py-1.5 cursor-pointer relative">头像框</div>
+            <div class="text-white/75 text-[15px] py-1.5 cursor-pointer relative">个人背景</div>
+            <div class="text-white font-semibold text-[15px] py-1.5 cursor-pointer relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-white after:rounded-sm">徽章墙</div>
+          </div>
+        </div>
+        <div class="flex items-center pt-2.5 px-4 gap-2.5">
+          <div class="w-11 h-11 rounded-full border-2 border-white/80 bg-[#ffd580] flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0">🧒</div>
+          <div class="text-white text-[15px] font-semibold">玩家139736218</div>
+          <div class="ml-auto text-white/95 text-xs flex items-center gap-0.5 cursor-pointer whitespace-nowrap" id="goto-my-badges">
+            共获得 1 个徽章
+            <svg width="12" height="12" viewBox="0 0 12 12"><path d="M4.5 2L8.5 6L4.5 10" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        <div class="mx-3 mt-2.5 bg-white rounded-xl px-3.5 py-3">
+          <div class="text-[13px] text-[#333] font-medium flex items-center gap-1.5 mb-3">
+            设置我的徽章展示
+            <span class="text-[#3ab4e8] cursor-pointer text-[13px] ml-auto" id="goto-set-display">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5L11.5 4.5L5 11H3V9L9.5 2.5Z" stroke="#3ab4e8" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <div class="flex gap-4">
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" data-goto="set"><div class="w-[62px] h-[62px] bg-[#d6eef8] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[26px] font-light">＋</div><div class="text-[11px] text-[#999]">添加徽章</div></div>
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" data-goto="set"><div class="w-[62px] h-[62px] bg-[#d6eef8] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[26px] font-light">＋</div><div class="text-[11px] text-[#999]">添加徽章</div></div>
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" data-goto="set"><div class="w-[62px] h-[62px] bg-[#d6eef8] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[26px] font-light">＋</div><div class="text-[11px] text-[#999]">添加徽章</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white flex items-center px-3 py-[7px] gap-1.5 border-b border-[#f0f0f0]">
+        <div class="text-[13px] text-white bg-[#3ab4e8] font-medium px-3 py-1 rounded-[14px] cursor-pointer transition-all" data-section="sec-active">活跃成就</div>
+        <div class="text-[13px] text-[#666] px-3 py-1 rounded-[14px] cursor-pointer transition-all" data-section="sec-social">社交影响</div>
+        <div class="text-[13px] text-[#666] px-3 py-1 rounded-[14px] cursor-pointer transition-all" data-section="sec-spread">互动传播</div>
+      </div>
+      <div class="flex-1 overflow-y-auto bg-white px-3.5 pb-4 min-h-0" id="badge-scroll">
+        <div id="sec-active">
+          <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>活跃成就 <span class="text-[#3ab4e8] font-bold">1</span>/30</div>
+          <div class="grid grid-cols-3 gap-y-1 pb-2">
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="花式点赞" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f44d.svg" class="w-8 h-8" alt=""></div><div class="absolute top-0 left-0 w-5 h-5 flex items-center justify-center leading-none"><img src="./assets/gift-box.svg" class="w-5 h-5" alt=""></div></div><div class="text-xs text-[#555] text-center">花式点赞</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="捧场专家" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4ac.svg" class="w-8 h-8" alt=""></div></div><div class="text-xs text-[#555] text-center">捧场专家</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="笔耕不辍" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4dd.svg" class="w-8 h-8" alt=""></div></div><div class="text-xs text-[#555] text-center">笔耕不辍</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="星之收藏者" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2b50.svg" class="w-8 h-8" alt=""></div><div class="absolute top-0 left-0 w-5 h-5 flex items-center justify-center leading-none"><img src="./assets/gift-box.svg" class="w-5 h-5" alt=""></div></div><div class="text-xs text-[#555] text-center">星之收藏者</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f680.svg" class="w-8 h-8" alt=""></div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div><div class="absolute top-0 left-0 w-5 h-5 flex items-center justify-center leading-none"><img src="./assets/gift-box.svg" class="w-5 h-5" alt=""></div></div><div class="text-xs text-[#555] text-center">准时上线</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能待机王" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f6a2.svg" class="w-8 h-8" alt=""></div></div><div class="text-xs text-[#555] text-center">超能待机王</div></div>
+          </div>
+        </div>
+        <div id="sec-social">
+          <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>社交影响 <span class="text-[#3ab4e8] font-bold">0</span>/10</div>
+          <div class="grid grid-cols-3 gap-y-1 pb-2">
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="赞爆了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f44d.svg" class="w-8 h-8" alt=""></div></div><div class="text-xs text-[#555] text-center">赞爆了</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="超能偶像" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f451.svg" class="w-8 h-8" alt=""></div></div><div class="text-xs text-[#555] text-center">超能偶像</div></div>
+          </div>
+        </div>
+        <div id="sec-spread">
+          <div class="flex items-center gap-2 pt-3.5 pb-2.5 text-sm font-semibold text-[#222]"><span class="w-[3px] h-[15px] bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>互动传播 <span class="text-[#3ab4e8] font-bold">0</span>/10</div>
+          <div class="grid grid-cols-3 gap-y-1 pb-2">
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="引流之主" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4e2.svg" class="w-8 h-8" alt=""></div></div><div class="text-xs text-[#555] text-center">引流之主</div></div>
+            <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="关注你了" data-earned="0"><div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2764.svg" class="w-8 h-8" alt=""></div></div><div class="text-xs text-[#555] text-center">关注你了</div></div>
+          </div>
+        </div>
+        <div class="text-center py-4 text-[13px] text-[#3ab4e8] cursor-pointer">关于徽章</div>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: 我的徽章 -->
+    <div class="hidden flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s2">
+      <div class="bg-[linear-gradient(180deg,#3ab4e8_0%,#7dcff0_60%,#c8e8f8_100%)] pt-11 px-4 pb-3.5 flex items-center flex-shrink-0">
+        <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0" data-back="s1">‹</div>
+        <div class="flex-1 text-center text-white text-[17px] font-semibold mr-7">我的徽章</div>
+      </div>
+      <div class="px-4 pt-4 pb-3 text-[15px] text-[#333]">共获得 <b class="text-[#3ab4e8]">1</b> 枚徽章</div>
+      <div class="grid grid-cols-3 gap-y-1 px-3.5">
+        <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1">
+          <div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)] text-white"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f680.svg" class="w-8 h-8" alt=""></div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div></div>
+          <div class="text-xs text-[#3ab4e8] text-center">准时上线</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 3: 设置徽章展示 -->
+    <div class="hidden flex-col h-[667px] overflow-hidden bg-[#f0f6fb]" id="s3">
+      <div class="bg-[linear-gradient(180deg,#3ab4e8_0%,#7dcff0_60%,#c8e8f8_100%)] pt-11 px-4 pb-3.5 flex items-center flex-shrink-0">
+        <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0" data-back="s1">‹</div>
+        <div class="flex-1 text-center text-white text-[17px] font-semibold mr-7">设置徽章展示</div>
+      </div>
+      <div class="px-3.5 py-4">
+        <div class="text-[15px] text-[#333] font-medium mb-3.5">展示的徽章 <b class="text-[#3ab4e8]">0</b>/3</div>
+        <div class="flex gap-5 mb-1.5">
+          <div class="w-[72px] h-[72px] bg-[#cde9f7] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[28px] font-light">＋</div>
+          <div class="w-[72px] h-[72px] bg-[#cde9f7] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[28px] font-light">＋</div>
+          <div class="w-[72px] h-[72px] bg-[#cde9f7] [clip-path:polygon(50%_0%,93.3%_25%,93.3%_75%,50%_100%,6.7%_75%,6.7%_25%)] flex items-center justify-center text-[#5abfe8] text-[28px] font-light">＋</div>
+        </div>
+        <div class="h-px bg-[#e8ecf0] my-3.5"></div>
+        <div class="text-[13px] text-[#888] mb-3">点击下方徽章选择</div>
+        <div class="grid grid-cols-3 gap-y-1">
+          <div class="flex flex-col items-center gap-1.5 p-2.5 cursor-pointer" data-name="准时上线" data-earned="1">
+            <div class="relative w-[72px] h-[72px] flex-shrink-0"><div class="w-[72px] h-[72px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)] text-white"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f680.svg" class="w-8 h-8" alt=""></div><div class="absolute top-0 right-0 bg-[#ff9500] text-white text-[10px] px-[5px] py-0.5 rounded-lg whitespace-nowrap font-medium">可升级</div></div>
+            <div class="text-xs text-[#3ab4e8] text-center">准时上线</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 4: 徽章详情 -->
+    <div class="hidden flex-col h-[667px] overflow-hidden relative bg-[radial-gradient(ellipse_120%_60%_at_50%_30%,#1a4060_0%,#0d2535_40%,#060e18_100%)]" id="s4">
+      <div class="pt-11 px-4 flex items-center relative z-10">
+        <div class="text-white/90 text-2xl cursor-pointer" id="detail-back">‹</div>
+      </div>
+      <div class="flex-1 flex flex-col items-center justify-center px-6 pb-12 relative z-10 overflow-y-auto min-h-0">
+        <div class="flex items-center justify-center gap-3 mb-7">
+          <div class="opacity-30"><div class="w-[60px] h-[60px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2b50.svg" class="w-6 h-6" alt=""></div></div>
+          <div><div class="w-24 h-24 [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)] text-white" id="detail-icon"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f680.svg" class="w-10 h-10" alt=""></div></div>
+          <div class="opacity-30"><div class="w-[60px] h-[60px] [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)] text-white"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4ac.svg" class="w-6 h-6" alt=""></div></div>
+        </div>
+        <div class="text-[13px] text-white/60 mb-2.5">2026-04-03 17:58:09 获得</div>
+        <div class="flex items-center gap-2 mb-2">
+          <div class="text-xl font-bold text-white" id="detail-name">准时上线</div>
+          <div class="bg-[#2ec87a] text-white text-[11px] px-[7px] py-0.5 rounded-[9px]">普通</div>
+        </div>
+        <div class="text-sm text-white/75 mb-9 text-center leading-relaxed">在社区内【<em class="not-italic text-white font-medium">连续登录</em>】3天</div>
+        <!-- 奖励展示区：最多5个（游戏道具+头像框） -->
+        <div id="s4-reward-panel" class="w-full mb-4 bg-white/[0.08] rounded-xl px-3 py-2.5">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] text-white/50">达成可获得</span>
+            <span id="s4-claim-btn" class="text-[10px] text-white/65 border border-white/25 px-2.5 py-0.5 rounded-full cursor-pointer hover:border-white/50 transition-colors">领取</span>
+          </div>
+          <div class="flex justify-center gap-2 flex-wrap">
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f48e.svg" class="w-6 h-6" alt=""></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">灵石</div><div class="text-[10px] text-white/45 text-center">×10</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f947.svg" class="w-6 h-6" alt=""></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">金锭</div><div class="text-[10px] text-white/45 text-center">×5</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4b0.svg" class="w-6 h-6" alt=""></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">元宝</div><div class="text-[10px] text-white/45 text-center">×3</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f7e2.svg" class="w-6 h-6" alt=""></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">丹玉</div><div class="text-[10px] text-white/45 text-center">×2</div></div>
+            <div class="flex flex-col items-center gap-[3px] min-w-[48px]"><div class="w-10 h-10 rounded-lg bg-white/[0.12] flex items-center justify-center border border-white/15"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5bc.svg" class="w-6 h-6" alt=""></div><div class="text-[10px] text-white/60 text-center whitespace-nowrap">深海龙头像</div><div class="text-[10px] text-white/45 text-center">×1</div></div>
+          </div>
+        </div>
+        <button class="bg-[#3ab4e8] text-white border-none rounded-[25px] py-3.5 text-base font-medium w-[260px] cursor-pointer transition-opacity active:opacity-80">佩戴徽章</button>
+      </div>
+    </div>
+
+    <!-- SCREEN 5: 徽章获得通知弹窗 -->
+    <div class="hidden flex-col h-[667px] overflow-hidden relative bg-[#f0f6fb]" id="s5">
+      <!-- 背景页模拟（灰色遮罩） -->
+      <div class="flex-shrink-0">
+        <div class="bg-[linear-gradient(180deg,#3ab4e8_0%,#7dcff0_60%,#c8e8f8_100%)] pt-11 px-4 pb-3.5 flex items-center">
+          <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0" data-back="s1">‹</div>
+          <div class="flex-1 text-center text-white text-[17px] font-semibold mr-7">获得徽章通知弹窗</div>
+        </div>
+      </div>
+      <!-- 弹窗遮罩 -->
+      <div class="absolute top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-10">
+        <div class="bg-white rounded-2xl w-[300px] px-5 py-7 flex flex-col items-center relative shadow-[0_8px_32px_rgba(0,0,0,0.25)]">
+          <div class="absolute top-2.5 right-3 w-6 h-6 rounded-full bg-[#f0f0f0] text-[#888] flex items-center justify-center text-sm cursor-pointer font-semibold" id="notify-close">×</div>
+          <div class="text-lg font-bold text-[#ff6b35] mb-3.5">恭喜获得</div>
+          <!-- 徽章大图 -->
+          <div class="mb-3.5">
+            <div class="w-[100px] h-[100px] rounded-full bg-[linear-gradient(145deg,#f5c842_0%,#e09800_100%)] flex items-center justify-center shadow-[0_4px_20px_rgba(224,152,0,0.5)]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3c5.svg" class="w-14 h-14" alt=""></div>
+          </div>
+          <!-- 名称 + 稀有度 -->
+          <div class="flex items-center gap-[7px] mb-1.5">
+            <span class="text-base font-bold text-[#1a2233]">签到达人</span>
+            <span class="text-[11px] px-[7px] py-0.5 rounded-[9px] font-medium bg-[#fff3e0] text-[#ff9500]">珍贵</span>
+          </div>
+          <div class="text-xs text-[#aaa] mb-3 text-center">在平台签到1次 | 2024/04/11获得</div>
+          <!-- 奖励展示（最多5个，亮色版） -->
+          <div id="s5-reward-panel" class="w-full bg-[#f8f9fa] rounded-xl px-3 py-2.5 mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] text-[#bbb]">达成可获得</span>
+              <span id="s5-claim-btn" class="text-[10px] text-[#3ab4e8] border border-[#3ab4e8]/50 px-2.5 py-0.5 rounded-full cursor-pointer hover:bg-[#3ab4e8]/10 transition-colors">领取</span>
+            </div>
+            <div class="flex justify-between">
+              <div class="flex flex-col items-center gap-[3px] w-[42px]"><div class="w-9 h-9 rounded-lg bg-[#fff0e6] flex items-center justify-center border border-[#ffd9b3]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f48e.svg" class="w-5 h-5" alt=""></div><div class="text-[10px] text-[#888] text-center whitespace-nowrap">灵石</div><div class="text-[10px] text-[#bbb] text-center">×10</div></div>
+              <div class="flex flex-col items-center gap-[3px] w-[42px]"><div class="w-9 h-9 rounded-lg bg-[#fff0e6] flex items-center justify-center border border-[#ffd9b3]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f947.svg" class="w-5 h-5" alt=""></div><div class="text-[10px] text-[#888] text-center whitespace-nowrap">金锭</div><div class="text-[10px] text-[#bbb] text-center">×5</div></div>
+              <div class="flex flex-col items-center gap-[3px] w-[42px]"><div class="w-9 h-9 rounded-lg bg-[#fff0e6] flex items-center justify-center border border-[#ffd9b3]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4b0.svg" class="w-5 h-5" alt=""></div><div class="text-[10px] text-[#888] text-center whitespace-nowrap">元宝</div><div class="text-[10px] text-[#bbb] text-center">×3</div></div>
+              <div class="flex flex-col items-center gap-[3px] w-[42px]"><div class="w-9 h-9 rounded-lg bg-[#fff0e6] flex items-center justify-center border border-[#ffd9b3]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f7e2.svg" class="w-5 h-5" alt=""></div><div class="text-[10px] text-[#888] text-center whitespace-nowrap">丹玉</div><div class="text-[10px] text-[#bbb] text-center">×2</div></div>
+              <div class="flex flex-col items-center gap-[3px] w-[42px]"><div class="w-9 h-9 rounded-lg bg-[#fff0e6] flex items-center justify-center border border-[#ffd9b3]"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5bc.svg" class="w-5 h-5" alt=""></div><div class="text-[10px] text-[#888] text-center whitespace-nowrap">深海龙头像</div><div class="text-[10px] text-[#bbb] text-center">×1</div></div>
+            </div>
+          </div>
+          <button class="w-full border border-[#ddd] bg-white rounded-[22px] py-[11px] text-sm text-[#555] cursor-pointer transition-colors hover:border-[#3ab4e8] hover:text-[#3ab4e8]" id="goto-detail-from-notify">查看详情</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 6: 角色信息确认 -->
+    <div class="hidden flex-col h-[667px] overflow-hidden bg-[#f5f8fc]" id="s6">
+      <div class="bg-[linear-gradient(180deg,#3ab4e8_0%,#7dcff0_60%,#c8e8f8_100%)] pt-11 px-4 pb-3.5 flex items-center flex-shrink-0">
+        <div class="text-white text-[22px] leading-none cursor-pointer w-7 flex-shrink-0" data-back="s5">‹</div>
+        <div class="flex-1 text-center text-white text-[17px] font-semibold mr-7">角色信息确认</div>
+      </div>
+      <div class="flex-1 px-4 py-5">
+        <div class="bg-white rounded-xl px-4 py-5">
+          <div class="mb-3.5">
+            <div class="text-[13px] text-[#333] font-medium mb-2 flex items-center gap-1">接收角色 <span class="text-[#ff4d4f] text-[13px]">*</span></div>
+            <div class="flex items-center justify-between border border-[#e0e6ed] rounded-lg px-3 py-2.5 text-[13px] text-[#333] cursor-pointer bg-[#fafbfc]">
+              <span>武帝无敌</span>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5L7 9L11 5" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+          <div class="text-xs text-[#aaa] text-center my-3.5">请仔细确认角色信息，确定后自动到账</div>
+          <button class="w-full bg-[#3ab4e8] text-white border-none rounded-lg py-3.5 text-[15px] font-semibold cursor-pointer tracking-[4px] transition-opacity active:opacity-85">确 定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="phone-toast" class="hidden absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#1a2233]/90 text-white text-[13px] px-4 py-2 rounded-full shadow-lg whitespace-nowrap transition-opacity duration-300">🎉 领取成功</div>
+
+  </div><!-- /phone-shell -->
+
+  <!-- ============ 右侧：文档说明区 ============ -->
+  <div id="doc-panel" class="flex-1 min-w-[300px] max-w-[480px] bg-white border-l border-[#e8ecf0] px-6 py-7 overflow-y-auto h-screen sticky top-0 ml-6 max-[768px]:hidden">
+
+    <!-- 页面1：徽章墙 -->
+    <div id="doc-s1">
+      <div class="text-base font-bold text-[#1a2233] mb-1">徽章墙</div>
+      <div class="text-xs text-[#aaa] mb-4">个性装扮 · 页面 1/6</div>
+
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-[#eaf6fd] select-none transition-colors hover:bg-[#d9f0fb] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v3.0.9</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="text-[10px] font-semibold text-white bg-[#3ab4e8] rounded-lg px-[7px] py-[1px] ml-1">最新</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>本版 C 端页面变更概览</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]"><b>徽章墙</b>：有奖励的徽章左上角新增礼包 icon</li>
+              <li class="text-xs text-[#555] leading-[1.9]"><b>徽章详情</b>：按钮上方新增「达成可获得」奖励展示区（最多 5 个）</li>
+              <li class="text-xs text-[#555] leading-[1.9]"><b>徽章获得通知</b>（新增页面）：达成徽章后弹出，展示徽章信息与奖励</li>
+              <li class="text-xs text-[#555] leading-[1.9]"><b>角色信息确认</b>（新增页面）：奖励含游戏道具时，引导用户选择接收角色</li>
+            </ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>本次变更</div>
+            <ul class="pl-[15px]"><li class="text-xs text-[#555] leading-[1.9]">徽章图标左上角新增礼包 icon，标识该徽章达成后可获得道具/头像框奖励</li></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.0.0 -->
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-white select-none transition-colors hover:bg-[#f5fbfe] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v1.0.0</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="hidden px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>页面说明</div>
+            <p class="text-xs text-[#555] leading-[1.8]">待填写</p>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>功能说明</div>
+            <ul class="pl-[15px]"><li class="text-xs text-[#555] leading-[1.9]">待填写</li></ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>交互说明</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">点击「共获得 N 个徽章」→ 跳转「我的徽章」页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击编辑图标或任意「添加徽章」→ 跳转「设置徽章展示」页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击任意徽章图标 → 跳转「徽章详情」页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">顶部分类 Tab → 页面内滚动定位到对应分组</li>
+            </ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>备注</div>
+            <div class="bg-[#f0f2f5] border-l-[3px] border-[#d0d4da] px-2.5 py-[7px] rounded-r-md text-[11px] text-[#888] leading-[1.7] mt-1.5">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面2：我的徽章 -->
+    <div class="hidden" id="doc-s2">
+      <div class="text-base font-bold text-[#1a2233] mb-1">我的徽章</div>
+      <div class="text-xs text-[#aaa] mb-4">个性装扮 · 页面 2/6</div>
+
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-white select-none transition-colors hover:bg-[#f5fbfe] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v1.0.0</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="hidden px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>页面说明</div>
+            <p class="text-xs text-[#555] leading-[1.8]">待填写</p>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>功能说明</div>
+            <ul class="pl-[15px]"><li class="text-xs text-[#555] leading-[1.9]">待填写</li></ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>交互说明</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">点击任意徽章 → 跳转「徽章详情」页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击返回 → 回到「徽章墙」页</li>
+            </ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>备注</div>
+            <div class="bg-[#f0f2f5] border-l-[3px] border-[#d0d4da] px-2.5 py-[7px] rounded-r-md text-[11px] text-[#888] leading-[1.7] mt-1.5">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面3：设置徽章展示 -->
+    <div class="hidden" id="doc-s3">
+      <div class="text-base font-bold text-[#1a2233] mb-1">设置徽章展示</div>
+      <div class="text-xs text-[#aaa] mb-4">个性装扮 · 页面 3/6</div>
+
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-white select-none transition-colors hover:bg-[#f5fbfe] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v1.0.0</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="hidden px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>页面说明</div>
+            <p class="text-xs text-[#555] leading-[1.8]">待填写</p>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>功能说明</div>
+            <ul class="pl-[15px]"><li class="text-xs text-[#555] leading-[1.9]">待填写</li></ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>交互说明</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">点击下方已获得徽章 → 填入上方展示卡槽</li>
+              <li class="text-xs text-[#555] leading-[1.9]">最多可展示 3 枚</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击返回 → 回到「徽章墙」页</li>
+            </ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>备注</div>
+            <div class="bg-[#f0f2f5] border-l-[3px] border-[#d0d4da] px-2.5 py-[7px] rounded-r-md text-[11px] text-[#888] leading-[1.7] mt-1.5">待填写</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面4：徽章详情 -->
+    <div class="hidden" id="doc-s4">
+      <div class="text-base font-bold text-[#1a2233] mb-1">徽章详情</div>
+      <div class="text-xs text-[#aaa] mb-4">个性装扮 · 页面 4/6</div>
+
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-[#eaf6fd] select-none transition-colors hover:bg-[#d9f0fb] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v3.0.9</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="text-[10px] font-semibold text-white bg-[#3ab4e8] rounded-lg px-[7px] py-[1px] ml-1">最新</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>本次变更</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">佩戴徽章按钮上方新增奖励展示区</li>
+              <li class="text-xs text-[#555] leading-[1.9]">奖励类型包含游戏道具和头像框，最多展示 5 个</li>
+              <li class="text-xs text-[#555] leading-[1.9]">奖励区右上角「领取」按钮：点击后顶部弹出「领取成功」toast，奖励区收起消失，徽章信息上移</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-white select-none transition-colors hover:bg-[#f5fbfe] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v1.0.0</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="hidden px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>交互说明</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">点击「佩戴徽章」→ 将该徽章加入展示位</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击返回 → 回到来源页面（我的徽章 / 设置展示 / 徽章墙）</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面5：徽章获得通知 -->
+    <div class="hidden" id="doc-s5">
+      <div class="text-base font-bold text-[#1a2233] mb-1">徽章获得通知</div>
+      <div class="text-xs text-[#aaa] mb-4">个性装扮 · 页面 5/6 · v3.0.9 新增</div>
+
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-[#eaf6fd] select-none transition-colors hover:bg-[#d9f0fb] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v3.0.9</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="text-[10px] font-semibold text-white bg-[#3ab4e8] rounded-lg px-[7px] py-[1px] ml-1">最新</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>页面说明</div>
+            <p class="text-xs text-[#555] leading-[1.8]">玩家达成徽章条件后弹出的通知弹窗，展示徽章图片、名称、稀有度、获得条件及可领取的奖品。</p>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>奖品展示</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">弹窗内「达成可获得」区域展示徽章配置的奖品（道具 / 头像框）</li>
+              <li class="text-xs text-[#555] leading-[1.9]">每行最多展示 5 个，每个奖品显示图标 + 名称 + 数量（头像框无数量）</li>
+            </ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>交互说明</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">点击 × 关闭弹窗 → 回到徽章墙</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击「查看详情」→ 进入徽章详情页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">点击奖励区「领取」→ 顶部弹出「领取成功」toast，奖励区收起，徽章名称与获得信息上移</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页面6：角色信息确认 -->
+    <div class="hidden" id="doc-s6">
+      <div class="text-base font-bold text-[#1a2233] mb-1">角色信息确认</div>
+      <div class="text-xs text-[#aaa] mb-4">个性装扮 · 页面 6/6 · v3.0.9 新增</div>
+
+      <div class="border border-[#e8ecf0] rounded-xl mb-2.5 overflow-hidden">
+        <div class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer bg-[#eaf6fd] select-none transition-colors hover:bg-[#d9f0fb] doc-version-hd">
+          <span class="text-[13px] font-bold text-[#1a2233]">v3.0.9</span>
+          <span class="text-[11px] text-[#aaa] ml-1">2026-04-07</span>
+          <span class="text-[10px] font-semibold text-white bg-[#3ab4e8] rounded-lg px-[7px] py-[1px] ml-1">最新</span>
+          <span class="ml-auto text-xs text-[#bbb] transition-transform doc-version-arrow">▼</span>
+        </div>
+        <div class="px-3.5 pt-3 pb-4 border-t border-[#e8ecf0] bg-[#fafcfe] doc-version-body">
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>跳转逻辑</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">徽章奖励中游戏道具数量 ≥ 1 时，点击「查看详情」跳转本页</li>
+              <li class="text-xs text-[#555] leading-[1.9]">游戏道具数量 = 0 时（仅头像框等），点击「查看详情」直接发放，不跳转本页</li>
+            </ul>
+          </div>
+          <div class="mb-4 last:mb-0">
+            <div class="text-xs font-semibold text-[#3ab4e8] mb-1.5 flex items-center gap-[5px]"><span class="w-[3px] h-3 bg-[#3ab4e8] rounded-sm flex-shrink-0"></span>角色来源</div>
+            <ul class="pl-[15px]">
+              <li class="text-xs text-[#555] leading-[1.9]">下拉列表展示用户冰川通行证下绑定的所有角色</li>
+              <li class="text-xs text-[#555] leading-[1.9]">默认选中角色 ID 最小的角色</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /doc-panel -->
+
+</div><!-- /page-wrapper -->
+
+<script>
+  let fromScreen = 's1';
+
+  function showScreen(id) {
+    const screens = ['s1','s2','s3','s4','s5','s6'];
+    screens.forEach(sid => {
+      const el = document.getElementById(sid);
+      if (el) el.classList.add('hidden');
+    });
+    document.getElementById(id).classList.remove('hidden');
+    screens.forEach(sid => {
+      const el = document.getElementById('doc-' + sid);
+      if (el) el.classList.add('hidden');
+    });
+    const doc = document.getElementById('doc-' + id);
+    if (doc) doc.classList.remove('hidden');
+    document.getElementById('doc-panel').scrollTop = 0;
+    // 重置奖励面板（每次进入 s4/s5 恢复显示）
+    if (id === 's4' || id === 's5') {
+      const p = document.getElementById(id + '-reward-panel');
+      if (p) { p.removeAttribute('style'); p.classList.remove('hidden'); }
+    }
+  }
+
+
+  document.getElementById('goto-my-badges').addEventListener('click', () => {
+    fromScreen = 's1'; showScreen('s2');
+  });
+  document.getElementById('goto-set-display').addEventListener('click', () => {
+    fromScreen = 's1'; showScreen('s3');
+  });
+  document.querySelectorAll('[data-goto="set"]').forEach(el => {
+    el.addEventListener('click', () => { fromScreen = 's1'; showScreen('s3'); });
+  });
+  document.querySelectorAll('[data-back]').forEach(el => {
+    el.addEventListener('click', () => showScreen(el.dataset.back));
+  });
+  document.getElementById('detail-back').addEventListener('click', () => showScreen(fromScreen));
+
+  // s5 通知弹窗
+  document.getElementById('notify-close').addEventListener('click', () => showScreen('s1'));
+  // 奖励中含游戏道具（面板未被领取/隐藏）时跳 s6 选角色，否则直接跳 s4 徽章详情
+  document.getElementById('goto-detail-from-notify').addEventListener('click', () => {
+    const rewardPanel = document.getElementById('s5-reward-panel');
+    const hasItems = rewardPanel && rewardPanel.style.display !== 'none';
+    fromScreen = 's5';
+    if (hasItems) {
+      showScreen('s6');
+    } else {
+      showScreen('s4');
+    }
+  });
+
+  document.querySelectorAll('[data-name][data-earned]').forEach(el => {
+    el.addEventListener('click', () => {
+      fromScreen = el.closest('[id^="s"]').id;
+      const name = el.dataset.name;
+      const earned = el.dataset.earned === '1';
+      document.getElementById('detail-name').textContent = name;
+      const icon = document.getElementById('detail-icon');
+      const codepoint = getBadgeIcon(name);
+      const earnedGrad = 'bg-[linear-gradient(145deg,#c89850_0%,#7a5020_60%,#4a3010_100%)]';
+      const unearnedGrad = 'bg-[linear-gradient(145deg,#d4d4d4_0%,#b0b0b0_100%)]';
+      icon.className = `w-24 h-24 [clip-path:polygon(50%_0%,97%_34%,79%_97%,21%_97%,3%_34%)] flex items-center justify-center ${earned ? earnedGrad : unearnedGrad}`;
+      icon.innerHTML = `<img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/${codepoint}.svg" class="w-10 h-10" alt="">`;
+      icon.style.cssText = '';
+      showScreen('s4');
+    });
+  });
+
+  document.querySelectorAll('[data-section]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-section]').forEach(b => {
+        b.className = 'text-[13px] text-[#666] px-3 py-1 rounded-[14px] cursor-pointer transition-all';
+      });
+      btn.className = 'text-[13px] text-white bg-[#3ab4e8] font-medium px-3 py-1 rounded-[14px] cursor-pointer transition-all';
+      const target = document.getElementById(btn.dataset.section);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // 版本块折叠展开
+  document.querySelectorAll('.doc-version-hd').forEach(hd => {
+    hd.addEventListener('click', () => {
+      const body = hd.nextElementSibling;
+      const arrow = hd.querySelector('.doc-version-arrow');
+      body.classList.toggle('hidden');
+      arrow.style.transform = body.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    });
+  });
+
+  function showToast(msg) {
+    const t = document.getElementById('phone-toast');
+    t.textContent = msg;
+    t.classList.remove('hidden', 'opacity-0');
+    t.classList.add('opacity-100');
+    setTimeout(() => {
+      t.classList.add('hidden');
+    }, 2000);
+  }
+
+  function claimReward(panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    // 平滑隐藏奖励框
+    panel.style.transition = 'opacity 0.3s, max-height 0.4s';
+    panel.style.overflow = 'hidden';
+    panel.style.opacity = '0';
+    panel.style.maxHeight = panel.offsetHeight + 'px';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        panel.style.maxHeight = '0';
+        panel.style.marginBottom = '0';
+        panel.style.paddingTop = '0';
+        panel.style.paddingBottom = '0';
+      });
+    });
+    setTimeout(() => { panel.style.display = 'none'; }, 420);
+    showToast('🎉 领取成功');
+  }
+
+  document.getElementById('s4-claim-btn').addEventListener('click', () => claimReward('s4-reward-panel'));
+  document.getElementById('s5-claim-btn').addEventListener('click', () => claimReward('s5-reward-panel'));
+
+  // s4 佩戴徽章
+  document.querySelector('#s4 button').addEventListener('click', () => showToast('✅ 已佩戴徽章'));
+
+  // s6 确定：toast 后返回 s5
+  document.querySelector('#s6 button').addEventListener('click', () => {
+    showToast('✅ 道具已发放至角色');
+    setTimeout(() => showScreen('s5'), 1200);
+  });
+
+  function getBadgeIcon(name) {
+    const map = {
+      '花式点赞':'1f44d','捧场专家':'1f4ac','笔耕不辍':'1f4dd',
+      '星之收藏者':'2b50','准时上线':'1f680','超能待机王':'1f6a2',
+      '赞爆了':'1f44d','超能偶像':'1f451','引流之主':'1f4e2','关注你了':'2764'
+    };
+    return map[name] || '1f3c5';
+  }
+</script>
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/sidebar.js"></script>
+<script>
+  initSidebar({
+    root: '../..',
+    currentHref: 'client-new/badge_src.html'
+  });
+</script>
+<script>
+  function _applyHash() {
+    const h = location.hash.slice(1);
+    if (h && document.getElementById(h)) showScreen(h);
+  }
+  _applyHash();
+  window.addEventListener('hashchange', _applyHash);
+</script>
+</body>
+</html>

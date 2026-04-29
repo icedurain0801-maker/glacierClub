@@ -9,7 +9,7 @@ class BottomNav extends HTMLElement {
       { id: 'news',    icon: 'explore',     label: '资讯',   href: `${base}news/news_post.html`,   fill: true },
       { id: 'post',    icon: 'add',         label: 'Post',   href: null,                            fill: false, fab: true },
       { id: 'chat',    icon: 'mood',        label: '动态',   href: `${base}news/news_feed.html`,    fill: true },
-      { id: 'profile', icon: 'person',      label: 'Profile',href: null,                            fill: false, badge: true },
+      { id: 'profile', icon: 'person',      label: '我的',   href: `${base}profile/profile.html`,   fill: true,  badge: true },
     ];
 
     this.innerHTML = `
@@ -23,8 +23,8 @@ class BottomNav extends HTMLElement {
 
           if (t.fab) {
             return `
-              <button class="flex flex-col items-center -mt-5 flex-1 transition-all">
-                <span class="flex items-center justify-center w-12 h-12 rounded-full bg-primary shadow-lg shadow-primary/30">
+              <button onclick="if(typeof togglePostMenu==='function')togglePostMenu()" class="flex flex-col items-center -mt-5 flex-1 transition-all">
+                <span id="post-btn-circle" class="flex items-center justify-center w-12 h-12 rounded-full bg-primary shadow-lg shadow-primary/30 transition-transform duration-300">
                   <span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24">add</span>
                 </span>
                 <span class="text-[10px] font-medium text-slate-400 mt-0.5">Post</span>

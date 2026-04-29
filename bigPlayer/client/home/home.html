@@ -126,7 +126,7 @@
   transition: transform 0.12s ease, background 0.12s ease;
 }
 .story-follow-btn:active { transform: scale(0.85); background: #005590; }
-.story-follow-btn.followed { background: #a9b4b9; }
+.story-follow-btn.followed { background: #22c55e; }
 .story-follow-btn.followed::after { content: '✓'; font-size: 9px; }
 .story-follow-btn:not(.followed)::after { content: '+'; }
 .story-avatar-ring.unseen {
@@ -170,7 +170,7 @@
   padding: 6px 6px 80px;
 }
 .waterfall-col { display: flex; flex-direction: column; gap: 6px; }
-.waterfall-col--right { margin-top: 14px; }
+.waterfall-col--right { margin-top: 0; }
 
 /* ── 通用卡片 ── */
 .wf-card {
@@ -333,35 +333,84 @@
 <nav id="sidebar" class="sidebar hidden"></nav>
 <div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
 <div class="phone-inner bg-surface" data-mode="connect" data-tab="recommend">
-<!-- Top Navigation - Made transparent and high z-index -->
-<nav class="absolute top-0 left-0 w-full z-[100] bg-transparent flex justify-between items-center px-6 h-16">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-white" style="">menu</span>
-<span class="font-headline font-bold text-lg tracking-tight text-white drop-shadow-sm" style="">探索中心</span>
-</div>
-<div class="flex items-center gap-4">
-<span class="material-symbols-outlined text-white" style="">search</span>
-</div>
-</nav>
 <main class="w-full space-y-3 pb-4">
 <!-- Main Banner - Extended to top -->
 <section class="relative w-full overflow-hidden aspect-[16/10]">
-<img class="w-full h-full object-cover" data-alt="Cinematic wide shot of a futuristic cyberpunk city at night with neon lights reflecting on wet pavement in high-fidelity 3D graphics" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-4taa7yNILD_pDldo0bJdy0lsdv-i1fVOXPvzOVNj-euNEZ9T0V9NOusYI5zZb8KOOdEgXsFzG3WiN_Kbc-_zJ_B2QiaB3SWwGbvm0WPq3PruXCe0ZxhqqMM5Q9Gpo1L4X0YoRctabfBCYGoXbqH_sUxNhAr68PYH7qO8TyszakD0NZX3cujuoO0zZ_NxrSyFAXwOxjzKNCi2s3bs5eohJKBGDQLyTuAc3jdbG3sKFgDTuIuDXXbbI577Ts7l-32pJ-lm67VWXFw" style=""/>
+<!-- Top Navigation - inside banner so it scrolls away -->
+<nav class="absolute top-0 left-0 w-full z-[100] flex justify-between items-center px-6 h-[51px]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-white" style="">menu</span>
+<span class="font-headline font-bold text-lg tracking-tight text-white drop-shadow-sm" style="">超能世界</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-white" style="cursor:pointer;" onclick="window.location.href='search.html'">search</span>
+</div>
+</nav>
+<img class="w-full h-full object-cover" data-alt="Cinematic wide shot of a futuristic cyberpunk city at night with neon lights reflecting on wet pavement in high-fidelity 3D graphics" src="https://q1-operation-bulletin-sz.oss-cn-shenzhen.aliyuncs.com/CLUB/2026/01/06/17676702977424195c1bc-eea2-4d8e-95d1-fc38492bcaf5.jpg" style=""/>
+<!-- Full overlay for text legibility -->
+<div class="absolute inset-0 bg-black/20"></div>
 <!-- Bottom fading gradient -->
 <div class="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-surface to-transparent"></div>
 <!-- Top fading gradient for header legibility -->
 <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/40 to-transparent"></div>
-<!-- Banner Content - Moved further up -->
-<div class="absolute inset-0 flex flex-col justify-center p-6 pt-16">
-<div class="flex justify-between items-center mb-2">
-<h2 class="font-headline text-2xl font-extrabold text-white leading-tight drop-shadow-md" style="">总帖子  55万</h2>
-<span class="inline-flex items-center px-3 py-1 rounded-full bg-primary text-on-primary text-xs font-bold shadow-lg" style="">福利任务</span>
+<!-- 文字层：数字行，锚定底部，留出图标宫格高度 -->
+<div class="absolute inset-x-0 bottom-0 px-6 pb-[100px] flex flex-col gap-2 z-10">
+<div class="flex items-center justify-between gap-0">
+  <!-- 左：总帖子 · 个人经验值 -->
+  <div class="flex items-center gap-0">
+    <div class="flex flex-col gap-0.5">
+      <span class="font-headline text-[28px] font-black text-white leading-none drop-shadow-md tracking-tight">55万</span>
+      <span class="text-[10px] font-medium text-white/80 tracking-wide">总帖子</span>
+    </div>
+    <div class="w-px h-8 bg-white/20 mx-4 flex-shrink-0"></div>
+    <div class="flex flex-col gap-0.5">
+      <span class="font-headline text-[28px] font-black text-white leading-none drop-shadow-md tracking-tight">92</span>
+      <span class="text-[10px] font-medium text-white/80 tracking-wide">个人经验值</span>
+    </div>
+  </div>
+  <!-- 右：福利任务胶囊，LV 火焰叠影徽章压在顶部中间 -->
+  <div class="relative flex-shrink-0">
+    <!-- P · 火焰叠影风格 LV 徽章 -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+      .lv-p{
+        position:absolute;top:-14px;left:50%;transform:translateX(-50%);
+        white-space:nowrap;z-index:10;
+        font-family:'Orbitron',monospace;
+        font-size:12px;font-weight:700;letter-spacing:.08em;
+      }
+      .lv-p[data-lv="1"]{color:#6a7888}
+      .lv-p[data-lv="2"]{color:#c8ffc8;text-shadow:0 0 4px #00ee40,0 0 10px rgba(0,200,50,.4)}
+      .lv-p[data-lv="3"]{color:#ffe8b0;text-shadow:0 0 4px #ff9800,0 0 10px rgba(240,120,0,.5),0 0 20px rgba(200,60,0,.25)}
+      .lv-p[data-lv="4"]{color:#f0c8ff;text-shadow:0 0 4px #cc44ff,0 0 12px rgba(180,40,255,.55),0 0 24px rgba(120,0,200,.3)}
+      .lv-p[data-lv="5"]{color:#ffc8c8;text-shadow:0 0 4px #ff2000,0 0 10px rgba(255,30,0,.6),0 0 22px rgba(200,0,0,.3)}
+      .lv-p[data-lv="6"]{color:#ffc0f0;text-shadow:0 0 4px #ff00b8,0 0 12px rgba(255,0,180,.6),0 0 24px rgba(200,0,140,.3);animation:lv-p6f .1s steps(2) infinite}
+      @keyframes lv-p6f{0%{opacity:1}50%{opacity:.9}100%{opacity:1}}
+      .lv-p[data-lv="7"]{color:#c0d8ff;text-shadow:0 0 4px #2060ff,0 0 12px rgba(40,100,255,.6),0 0 24px rgba(0,60,200,.3)}
+      .lv-p[data-lv="8"]{color:#b0f8ff;text-shadow:0 0 4px #00ccff,0 0 12px rgba(0,200,255,.65),0 0 28px rgba(0,160,220,.35);animation:lv-p8g 2s ease-in-out infinite alternate}
+      @keyframes lv-p8g{from{text-shadow:0 0 4px #00ccff,0 0 10px rgba(0,200,255,.55),0 0 24px rgba(0,160,220,.3)}to{text-shadow:0 0 6px #00eeff,0 0 18px rgba(0,230,255,.9),0 0 36px rgba(0,200,240,.5)}}
+      .lv-p[data-lv="9"]{color:#fff8b0;text-shadow:0 0 4px #ffc000,0 0 10px rgba(255,170,0,.7),0 0 22px rgba(240,100,0,.4),0 0 40px rgba(200,60,0,.2);animation:lv-p9g 1.6s ease-in-out infinite alternate;font-size:13px}
+      @keyframes lv-p9g{from{text-shadow:0 0 4px #ffc000,0 0 10px rgba(255,170,0,.6),0 0 22px rgba(240,100,0,.35)}to{text-shadow:0 0 6px #ffe000,0 0 18px rgba(255,210,0,.95),0 0 36px rgba(255,120,0,.5)}}
+      .lv-p[data-lv="10"]{
+        background:linear-gradient(90deg,#ff8080,#ffff40,#80ff80,#40e8ff,#cc80ff,#ff8080);
+        background-size:300%;
+        -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+        animation:lv-p10t 1.8s linear infinite;
+        font-size:13px;
+        filter:drop-shadow(0 0 8px rgba(255,120,200,.7)) drop-shadow(0 0 20px rgba(120,80,255,.5));
+      }
+      @keyframes lv-p10t{0%{background-position:200% 0}100%{background-position:-100% 0}}
+    </style>
+    <span class="lv-p" data-lv="2">LV2</span>
+    <a id="welfare-btn" href="task.html" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold text-white backdrop-blur-sm border border-[rgba(58,180,232,0.32)] shadow-sm" style="background:rgba(0,97,164,0.48)">
+      <span>🎁</span>福利任务
+    </a>
+  </div>
 </div>
-<div class="flex items-center gap-2">
-<p class="text-white/90 text-sm font-medium drop-shadow-sm" style="">经验值 92 </p>
-<span class="px-2 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold shadow-sm" style="">LV2</span>
 </div>
-<section class="grid grid-cols-5 gap-2 mt-6">
+<!-- 图标宫格层：独立锚定到底部 -->
+<div class="absolute inset-x-0 bottom-0 px-6 pb-4 z-10">
+<section class="grid grid-cols-5 gap-2">
 <div class="flex flex-col items-center gap-1.5">
 <div class="w-11 h-11 rounded-2xl bg-primary-container flex items-center justify-center text-primary transition-transform active:scale-90 shadow-lg border border-white/20">
 <span class="material-symbols-outlined text-xl" style='font-variation-settings: "FILL" 1;'>rocket_launch</span>
@@ -396,7 +445,7 @@
 </section>
 <!-- Icon Grid Navigation - Positioned exactly at bottom edge of banner -->
 <!-- New Tab Navigation Bar -->
-<section class="px-4">
+<section class="px-4 sticky top-0 z-50 bg-surface">
 <div class="flex items-center gap-8 border-b border-surface-container-high overflow-x-auto no-scrollbar">
 <div id="tab-follow" onclick="switchTab('follow')" class="tab-inactive pb-3 text-sm font-medium text-on-surface-variant flex-shrink-0">关注</div>
 <div id="tab-discover" onclick="switchTab('discover')" class="tab-inactive pb-3 text-sm font-medium text-on-surface-variant flex items-center gap-1 flex-shrink-0">
@@ -653,7 +702,7 @@
     <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">虚幻引擎5新作《龙之觉醒》首支预告片公布</p>
   </div>
   <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
-    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>1.5k</span></div>
+    <button class="news-like-btn flex items-center gap-0.5 cursor-pointer bg-transparent border-none p-0 text-[9px] text-on-surface-variant" data-count="1500" onclick="newsLike(this,event)"><span class="material-symbols-outlined text-[10px] news-like-icon" style="font-variation-settings:'FILL' 1;">thumb_up</span><span class="news-like-count">1.5k</span></button>
     <span>05-24</span>
   </div>
 </div>
@@ -668,7 +717,7 @@
     <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">独立游戏节获奖名单出炉：这款国产像素风爆了</p>
   </div>
   <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
-    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>864</span></div>
+    <button class="news-like-btn flex items-center gap-0.5 cursor-pointer bg-transparent border-none p-0 text-[9px] text-on-surface-variant" data-count="864" onclick="newsLike(this,event)"><span class="material-symbols-outlined text-[10px] news-like-icon" style="font-variation-settings:'FILL' 1;">thumb_up</span><span class="news-like-count">864</span></button>
     <span>05-23</span>
   </div>
 </div>
@@ -683,7 +732,7 @@
     <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">关于近期服务器连接波动的补偿方案说明</p>
   </div>
   <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
-    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>3.2k</span></div>
+    <button class="news-like-btn flex items-center gap-0.5 cursor-pointer bg-transparent border-none p-0 text-[9px] text-on-surface-variant" data-count="3200" onclick="newsLike(this,event)"><span class="material-symbols-outlined text-[10px] news-like-icon" style="font-variation-settings:'FILL' 1;">thumb_up</span><span class="news-like-count">3.2k</span></button>
     <span>05-22</span>
   </div>
 </div>
@@ -698,23 +747,129 @@
     <p class="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-white text-[10px] font-semibold leading-tight line-clamp-2">新赛季英雄平衡性调整完整公告</p>
   </div>
   <div class="flex items-center gap-2 px-2 py-1.5 text-[9px] text-on-surface-variant">
-    <div class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings:'FILL' 1;">thumb_up</span><span>2.1k</span></div>
+    <button class="news-like-btn flex items-center gap-0.5 cursor-pointer bg-transparent border-none p-0 text-[9px] text-on-surface-variant" data-count="2100" onclick="newsLike(this,event)"><span class="material-symbols-outlined text-[10px] news-like-icon" style="font-variation-settings:'FILL' 1;">thumb_up</span><span class="news-like-count">2.1k</span></button>
     <span>05-21</span>
   </div>
 </div>
 </div>
 </section>
+
+<!-- 彩带SVG层（全局，pointer-events:none） -->
+<svg id="newsConfettiSVG" style="position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;overflow:visible;"></svg>
+<!-- Toast -->
+<div id="newsToast" style="position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-20px);background:rgba(30,30,30,0.88);color:#fff;font-size:13px;font-weight:600;padding:8px 18px;border-radius:999px;pointer-events:none;z-index:10000;opacity:0;transition:opacity 0.25s,transform 0.25s;white-space:nowrap;">点赞成功，获得2经验值 ⚡</div>
+
+<script>
+(function(){
+  var COLORS=['#ff3b3b','#ff6b00','#ffcc00','#00c853','#00bcd4','#4d96ff','#c77dff','#ff4d94','#a8ff3e','#ff9e00','#f72585','#80ffdb'];
+  var TAU=Math.PI*2;
+  function rand(a,b){return a+Math.random()*(b-a);}
+  function pick(a){return a[Math.floor(Math.random()*a.length)];}
+  function easeOut(t){return t>=1?1:1-Math.pow(2,-10*t);}
+  function easeInQ(t){return t*t;}
+
+  function fireRipple(ox,oy){
+    var svg=document.getElementById('newsConfettiSVG');
+    var c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',ox);c.setAttribute('cy',oy);c.setAttribute('r',0);
+    c.setAttribute('fill','none');c.setAttribute('stroke','#4d96ff');c.setAttribute('stroke-width',2);
+    svg.appendChild(c);
+    var s=null;
+    (function f(ts){if(!s)s=ts;var t=(ts-s)/1000;if(t>=0.45){c.remove();return;}
+      var p=t/0.45;c.setAttribute('r',easeOut(p)*24);c.setAttribute('opacity',1-p);requestAnimationFrame(f);})(performance.now());
+  }
+
+  function fireConfetti(ox,oy){
+    var svg=document.getElementById('newsConfettiSVG');
+    var pieces=[];var N=22;
+    for(var i=0;i<N;i++){
+      var angle=rand(0,TAU),speed=rand(30,80),color=pick(COLORS),w=rand(3,9),h=rand(2,5);
+      var rotSpeed=rand(-400,400),initRot=rand(0,360),gravity=rand(50,110),life=rand(0.7,1.1),delay=rand(0,0.04);
+      var el=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      el.setAttribute('width',w);el.setAttribute('height',h);el.setAttribute('fill',color);el.setAttribute('rx',1.5);el.setAttribute('opacity',0);
+      svg.appendChild(el);
+      pieces.push({el,angle,speed,w,h,rotSpeed,initRot,gravity,life,delay});
+    }
+    var start=null;
+    (function frame(ts){
+      if(!start)start=ts;var elapsed=(ts-start)/1000;var alive=false;
+      for(var i=0;i<pieces.length;i++){
+        var p=pieces[i];var t=Math.max(0,elapsed-p.delay);
+        if(t>=p.life){p.el.setAttribute('opacity',0);continue;}
+        alive=true;var prog=t/p.life;
+        var dist=easeOut(prog)*p.speed*p.life;
+        var px=ox+Math.cos(p.angle)*dist;
+        var py=oy+Math.sin(p.angle)*dist+easeInQ(prog)*p.gravity*p.life*0.5;
+        var rot=p.initRot+p.rotSpeed*t;
+        var opacity=prog<0.55?1:Math.pow(1-(prog-0.55)/0.45,1.5);
+        p.el.setAttribute('transform','translate('+(px-p.w/2)+','+(py-p.h/2)+') rotate('+rot+' '+(p.w/2)+' '+(p.h/2)+')');
+        p.el.setAttribute('opacity',opacity);
+      }
+      if(alive)requestAnimationFrame(frame);
+      else{for(var i=0;i<pieces.length;i++)pieces[i].el.remove();}
+    })(performance.now());
+  }
+
+  function showToast(){
+    var t=document.getElementById('newsToast');
+    t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
+    clearTimeout(t._timer);
+    t._timer=setTimeout(function(){t.style.opacity='0';t.style.transform='translateX(-50%) translateY(-20px)';},2000);
+  }
+
+  window.newsLike=function(btn,e){
+    e.stopPropagation();
+    var icon=btn.querySelector('.news-like-icon');
+    var countEl=btn.querySelector('.news-like-count');
+    var liked=btn.dataset.liked==='1';
+    var rect=btn.getBoundingClientRect();
+    var ox=rect.left+rect.width/2,oy=rect.top+rect.height/2;
+    if(!liked){
+      btn.dataset.liked='1';
+      icon.style.color='#0061a4';
+      icon.style.fontVariationSettings="'FILL' 1,'wght' 700,'GRAD' 0,'opsz' 24";
+      btn.style.transform='scale(1.3)';
+      setTimeout(function(){btn.style.transform='';btn.style.transition='transform 0.2s';},150);
+      var n=parseInt(btn.dataset.count)+1;btn.dataset.count=n;
+      countEl.textContent=n>=1000?(n/1000).toFixed(1).replace('.0','')+'k':n;
+      countEl.style.color='#0061a4';
+      fireRipple(ox,oy);
+      fireConfetti(ox,oy);
+      showToast();
+    } else {
+      btn.dataset.liked='0';
+      icon.style.color='';
+      icon.style.fontVariationSettings="'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24";
+      var n=parseInt(btn.dataset.count)-1;btn.dataset.count=n;
+      countEl.textContent=n>=1000?(n/1000).toFixed(1).replace('.0','')+'k':n;
+      countEl.style.color='';
+    }
+  };
+})();
+</script>
+
 <!-- Recommended For You Feed -->
-<section class="space-y-6 px-4 mt-4">
-<div class="flex justify-between items-center px-1">
-<h3 class="font-headline text-xl font-extrabold tracking-tight" style="">为您推荐</h3>
-<div class="flex"><div class="flex items-center gap-1 text-on-surface-variant transition-opacity active:opacity-60 cursor-pointer">
-<span class="text-sm font-medium">换一批</span>
-<span class="material-symbols-outlined text-lg">refresh</span>
-</div></div>
+<section id="recommend-section" class="px-4 mt-4">
+<div class="flex justify-between items-center px-1 mb-4">
+<div class="flex items-center gap-2">
+<h3 class="font-headline text-xl font-extrabold tracking-tight">为您推荐</h3>
+  <div class="flex items-center gap-0.5 bg-surface-container rounded-full p-0.5">
+    <button id="layout-card-btn" onclick="setRecommendLayout('card')" class="flex items-center justify-center w-7 h-7 rounded-full bg-surface-container-lowest shadow-sm text-primary transition-all" title="卡片流">
+      <span class="material-symbols-outlined text-[17px]" style='font-variation-settings:"FILL" 1'>view_agenda</span>
+    </button>
+    <button id="layout-waterfall-btn" onclick="setRecommendLayout('waterfall')" class="flex items-center justify-center w-7 h-7 rounded-full text-on-surface-variant transition-all" title="瀑布流">
+      <span class="material-symbols-outlined text-[17px]">grid_view</span>
+    </button>
+  </div>
 </div>
+  <div class="flex items-center gap-1 text-on-surface-variant transition-opacity active:opacity-60 cursor-pointer">
+    <span class="text-sm font-medium">换一批</span>
+    <span class="material-symbols-outlined text-lg">refresh</span>
+  </div>
+</div>
+<div id="recommend-card-feed" class="space-y-6">
 <!-- Feed Post 1 -->
-<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<article onclick="window.location.href='mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-3">
 <div class="relative">
@@ -767,7 +922,7 @@
 </div>
 </article>
 <!-- Feed Post 2 -->
-<article class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)]">
+<article onclick="window.location.href='mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-3">
 <div class="relative">
@@ -812,8 +967,75 @@
 </div>
 </div>
 </div></article>
+</div><!-- /recommend-card-feed -->
+
+<!-- waterfall view (hidden by default) -->
+<div id="recommend-waterfall-feed" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:80px">
+    <!-- col left -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div onclick="window.location.href='mood-detail.html'" class="cursor-pointer active:opacity-80 transition-opacity" style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.08)">
+        <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDiQ9ZhJEp4_zBDiM9E0-1EjwVY5fzUCYgVQ2omhAQZI55dnzjqBkXrwwcsv_XtXOfLLLH3X5KxaOmJ0EFFp2beOtuPGhobPXz6reivEE0EB5e2gYCoujwQsPl2JIB0Jgbd6msmZ5Ly9j5Gz7MvMu4GOq7LEJiL7aRCHYJKX3NSMG7X_nJQcEXMdax1GQkylpF8RdGEJAk8fTiMm8XVB9pco1FxyTkYMur5t046kUpMY40CbhqjDrsBvE8mRPuBctEzgTts5J_fhHU" style="width:100%;display:block;object-fit:cover;aspect-ratio:3/4" alt=""/>
+        <div style="padding:8px 10px 10px">
+          <p style="font-size:12px;font-weight:700;color:#2a3439;line-height:1.4;margin-bottom:6px">终于在最高难度下通关了《永恒之境》！</p>
+          <div style="display:flex;align-items:center;gap:6px">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPXztMYF9Z6yqq4_s52sJcMtbDWWhm23ZU1e6Oeb3U1O14w7ZStlm3TYaAZDF6QM3gKe5B2YDV5PHJNsJB9ISfAi-H6_JILB7RD6hAAItI7EafTcJRPRWE9KRRHfhk63yWyH1L2-8h3YlP-U0HUViXP38ic-KN_ZdBacNa-DgFgJGOTlDLDEqOckvI92NyjWBamJgUGMvKvT6UmHcX6_AqS5tV49aqcK_Cmom2apDPSM0rf0BOy4vrFbOoXZyROfuLyNJoBu6pZ14" style="width:20px;height:20px;border-radius:50%;object-fit:cover" alt=""/>
+            <span style="font-size:10px;color:#566166;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">星空旅人_Aria</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+            <span style="display:flex;align-items:center;gap:3px;font-size:10px;color:#566166"><span class="material-symbols-outlined" style="font-size:13px">thumb_up</span>1,245</span>
+            <span style="display:flex;align-items:center;gap:3px;font-size:10px;color:#566166"><span class="material-symbols-outlined" style="font-size:13px">chat_bubble</span>328</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- col right -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div onclick="window.location.href='mood-detail.html'" class="cursor-pointer active:opacity-80 transition-opacity" style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.08)">
+        <div style="background:linear-gradient(135deg,#dbeafe,#ede9fe);padding:14px 12px 12px;min-height:80px">
+          <p style="font-size:12px;font-weight:700;color:#2a3439;line-height:1.5">今天的装机分享：白色主题海景房！</p>
+        </div>
+        <div style="padding:8px 10px 10px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuD86vB_lqXjCG9yF3L3OReif6f3DVDunAXNZfAQIOiaQUvaMrPUh6hGo-fRPUEkMMybp3P6I2lOhpZb5ahdDbxFt_4LJ8YgbjX1LekcrrhpbjJTLIikeVMQEQp5prVTopjO8U3C_TPBvKLabYprMNJG0p_Hr6SW8xrNF5f0q5O3mL4ITfa0_4welABx9LUYghbAqeW4Gg3TU3Y6LTg_NuIb9Vnv0fgmacjm7-ZaVtkXB0exEqxiu5uLLWzvYFw67MEf-cAcYhNTQlU" style="width:20px;height:20px;border-radius:50%;object-fit:cover" alt=""/>
+            <span style="font-size:10px;color:#566166;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Luna的小屋</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+            <span style="display:flex;align-items:center;gap:3px;font-size:10px;color:#566166"><span class="material-symbols-outlined" style="font-size:13px">thumb_up</span>452</span>
+            <span style="display:flex;align-items:center;gap:3px;font-size:10px;color:#566166"><span class="material-symbols-outlined" style="font-size:13px">chat_bubble</span>84</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /recommend-waterfall-feed -->
+
 </section>
 </div><!-- /data-tab-panel="recommend" -->
+
+<script>
+function setRecommendLayout(mode) {
+  var cardFeed = document.getElementById('recommend-card-feed');
+  var waterfallFeed = document.getElementById('recommend-waterfall-feed');
+  var cardBtn = document.getElementById('layout-card-btn');
+  var waterfallBtn = document.getElementById('layout-waterfall-btn');
+  if (mode === 'waterfall') {
+    cardFeed.style.display = 'none';
+    waterfallFeed.style.display = 'block';
+    waterfallBtn.classList.add('bg-surface-container-lowest','shadow-sm','text-primary');
+    waterfallBtn.classList.remove('text-on-surface-variant');
+    cardBtn.classList.remove('bg-surface-container-lowest','shadow-sm','text-primary');
+    cardBtn.classList.add('text-on-surface-variant');
+  } else {
+    cardFeed.style.display = '';
+    waterfallFeed.style.display = 'none';
+    cardBtn.classList.add('bg-surface-container-lowest','shadow-sm','text-primary');
+    cardBtn.classList.remove('text-on-surface-variant');
+    waterfallBtn.classList.remove('bg-surface-container-lowest','shadow-sm','text-primary');
+    waterfallBtn.classList.add('text-on-surface-variant');
+  }
+}
+</script>
 
 <div data-tab-panel="discover">
   <div class="waterfall-grid">
@@ -970,19 +1192,19 @@
 <!-- ── 攻略站 ── -->
 <div data-tab-panel="guide" class="pb-20">
 
-  <!-- Strategy Collection -->
+  <!-- 攻略合集 -->
   <div class="px-4 pt-4 pb-2">
-    <h2 class="text-[15px] font-bold text-on-background mb-2">Strategy Collection</h2>
+    <h2 class="text-[15px] font-bold text-on-background mb-2">攻略合集</h2>
     <!-- Filter Tags -->
     <div class="flex gap-1.5 overflow-x-auto no-scrollbar mb-3 pb-1">
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Metal</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Wood</span>
-      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">Water</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Fire</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Earth</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Thunder</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Body</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Spirit</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">金</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">木</span>
+      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">水</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">火</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">土</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">雷</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">体</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">灵</span>
     </div>
     <!-- Items card with small radius -->
     <div class="bg-surface-container-lowest rounded-lg overflow-hidden divide-y divide-outline-variant/30 shadow-sm">
@@ -990,38 +1212,38 @@
       <div class="flex gap-3 p-3">
         <img src="https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=120&h=80&fit=crop" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
         <div class="flex-1 min-w-0">
-          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">Beginner's Guide: Essential Tips for New Players</h3>
-          <p class="text-[10px] text-on-surface-variant">Author: Alex Chen &nbsp;|&nbsp; Views: 15.4K &nbsp;|&nbsp; 10/25</p>
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">新手指南：新玩家必知的核心技巧</h3>
+          <p class="text-[10px] text-on-surface-variant">阅读 15.4K &nbsp;|&nbsp; 10/25</p>
         </div>
       </div>
       <!-- Item 2 -->
       <div class="flex gap-3 p-3">
         <img src="https://images.unsplash.com/photo-1534423861386-85a16f5d13fd?w=120&h=80&fit=crop" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
         <div class="flex-1 min-w-0">
-          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">Advanced Strategy: Mastering the Five Elements</h3>
-          <p class="text-[10px] text-on-surface-variant">Author: Maria Rodriguez &nbsp;|&nbsp; Views: 22.1K &nbsp;|&nbsp; 10/20</p>
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">进阶攻略：精通五行之道</h3>
+          <p class="text-[10px] text-on-surface-variant">阅读 22.1K &nbsp;|&nbsp; 10/20</p>
         </div>
       </div>
     </div>
     <!-- More link -->
     <button class="w-full mt-2 py-2.5 text-[13px] font-medium text-primary active:opacity-60 transition-opacity">
-      更多『Water 攻略合集』的攻略 &gt;
+      更多『水系攻略合集』的攻略 &gt;
     </button>
   </div>
 
-  <!-- Legendary Elders -->
+  <!-- 传奇神将 -->
   <div class="px-4 pt-2 pb-2">
-    <h2 class="text-[15px] font-bold text-on-background mb-2">Legendary Elders</h2>
+    <h2 class="text-[15px] font-bold text-on-background mb-2">传奇神将</h2>
     <!-- Filter Tags -->
     <div class="flex gap-1.5 overflow-x-auto no-scrollbar mb-3 pb-1">
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Metal</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Wood</span>
-      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">Water</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Fire</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Earth</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Thunder</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Body</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Spirit</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">金</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">木</span>
+      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">水</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">火</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">土</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">雷</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">体</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">灵</span>
     </div>
     <!-- Grid -->
     <div class="grid grid-cols-5 gap-2">
@@ -1068,19 +1290,19 @@
     </div>
   </div>
 
-  <!-- Ancient Techniques -->
+  <!-- 上古秘技 -->
   <div class="px-4 pt-4 pb-2">
-    <h2 class="text-[15px] font-bold text-on-background mb-2">Ancient Techniques</h2>
+    <h2 class="text-[15px] font-bold text-on-background mb-2">上古秘技</h2>
     <!-- Filter Tags -->
     <div class="flex gap-1.5 overflow-x-auto no-scrollbar mb-3 pb-1">
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Metal</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Wood</span>
-      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">Water</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Fire</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Earth</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Thunder</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Body</span>
-      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">Spirit</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">金</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">木</span>
+      <span class="px-2.5 py-1 rounded-full border border-primary bg-primary/10 text-[10px] text-primary font-semibold whitespace-nowrap">水</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">火</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">土</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">雷</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">体</span>
+      <span class="px-2.5 py-1 rounded-full border border-outline-variant text-[10px] text-on-surface-variant whitespace-nowrap">灵</span>
     </div>
     <!-- Horizontal scroll cards (图1样式：竖版卡片+名字+类型) -->
     <div class="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
@@ -1088,67 +1310,125 @@
         <img src="https://picsum.photos/seed/tech1/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Yang Jian</p>
-          <p class="text-white/70 text-[9px] leading-tight">Warrior</p>
+          <p class="text-white text-[11px] font-bold leading-tight">杨戬</p>
+          <p class="text-white/70 text-[9px] leading-tight">战士</p>
         </div>
       </div>
       <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
         <img src="https://picsum.photos/seed/tech2/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Bai Hu</p>
-          <p class="text-white/70 text-[9px] leading-tight">Beast</p>
+          <p class="text-white text-[11px] font-bold leading-tight">白虎</p>
+          <p class="text-white/70 text-[9px] leading-tight">神兽</p>
         </div>
       </div>
       <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
         <img src="https://picsum.photos/seed/tech3/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Jing Ke</p>
-          <p class="text-white/70 text-[9px] leading-tight">Assassin</p>
+          <p class="text-white text-[11px] font-bold leading-tight">荆轲</p>
+          <p class="text-white/70 text-[9px] leading-tight">刺客</p>
         </div>
       </div>
       <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
         <img src="https://picsum.photos/seed/tech4/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Mu Lan</p>
-          <p class="text-white/70 text-[9px] leading-tight">Hero</p>
+          <p class="text-white text-[11px] font-bold leading-tight">花木兰</p>
+          <p class="text-white/70 text-[9px] leading-tight">英雄</p>
         </div>
       </div>
       <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
         <img src="https://picsum.photos/seed/tech5/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Kunlun</p>
-          <p class="text-white/70 text-[9px] leading-tight">Guardian</p>
+          <p class="text-white text-[11px] font-bold leading-tight">昆仑</p>
+          <p class="text-white/70 text-[9px] leading-tight">守护</p>
         </div>
       </div>
       <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
         <img src="https://picsum.photos/seed/tech6/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Da Peng</p>
-          <p class="text-white/70 text-[9px] leading-tight">Mage</p>
+          <p class="text-white text-[11px] font-bold leading-tight">大鹏</p>
+          <p class="text-white/70 text-[9px] leading-tight">法师</p>
         </div>
       </div>
       <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
         <img src="https://picsum.photos/seed/tech7/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Li Bai</p>
-          <p class="text-white/70 text-[9px] leading-tight">Fighter</p>
+          <p class="text-white text-[11px] font-bold leading-tight">李白</p>
+          <p class="text-white/70 text-[9px] leading-tight">武者</p>
         </div>
       </div>
       <div class="flex-shrink-0 w-[84px] h-[116px] relative rounded-[10px] overflow-hidden shadow-sm">
         <img src="https://picsum.photos/seed/tech8/168/232" class="w-full h-full object-cover"/>
         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
         <div class="absolute bottom-0 left-0 right-0 px-2 pb-2">
-          <p class="text-white text-[11px] font-bold leading-tight">Diao Chan</p>
-          <p class="text-white/70 text-[9px] leading-tight">Support</p>
+          <p class="text-white text-[11px] font-bold leading-tight">貂蝉</p>
+          <p class="text-white/70 text-[9px] leading-tight">辅助</p>
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- 玩家投稿 -->
+  <div class="px-4 pt-4 pb-2">
+    <h2 class="text-[15px] font-bold text-on-background mb-3">玩家投稿</h2>
+    <div class="bg-surface-container-lowest rounded-lg overflow-hidden divide-y divide-outline-variant/30 shadow-sm">
+      <!-- Item 1 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://picsum.photos/seed/ugc1/120/80" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">我用水系阵容打穿了最难关卡，详细复盘来了</h3>
+          <p class="text-[10px] text-on-surface-variant">云中鹤 &nbsp;|&nbsp; 阅读 8.2K &nbsp;|&nbsp; 04/27</p>
+        </div>
+      </div>
+      <!-- Item 2 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://picsum.photos/seed/ugc2/120/80" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">新手必看：五行克制关系图解，附实战技巧</h3>
+          <p class="text-[10px] text-on-surface-variant">墨竹书生 &nbsp;|&nbsp; 阅读 31.5K &nbsp;|&nbsp; 04/26</p>
+        </div>
+      </div>
+      <!-- Item 3 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://picsum.photos/seed/ugc3/120/80" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">杨戬满配出装思路与连招手法分享</h3>
+          <p class="text-[10px] text-on-surface-variant">青龙剑士 &nbsp;|&nbsp; 阅读 14.0K &nbsp;|&nbsp; 04/25</p>
+        </div>
+      </div>
+      <!-- Item 4 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://picsum.photos/seed/ugc4/120/80" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">联赛赛季末冲分指南：上分必踩的三个坑</h3>
+          <p class="text-[10px] text-on-surface-variant">白鹿行者 &nbsp;|&nbsp; 阅读 19.7K &nbsp;|&nbsp; 04/24</p>
+        </div>
+      </div>
+      <!-- Item 5 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://picsum.photos/seed/ugc5/120/80" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">妲己辅助流玩法，让你的队友无敌</h3>
+          <p class="text-[10px] text-on-surface-variant">焰灵姬迷 &nbsp;|&nbsp; 阅读 6.8K &nbsp;|&nbsp; 04/23</p>
+        </div>
+      </div>
+      <!-- Item 6 -->
+      <div class="flex gap-3 p-3">
+        <img src="https://picsum.photos/seed/ugc6/120/80" class="w-24 h-16 rounded object-cover flex-shrink-0"/>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-[13px] font-semibold text-on-background leading-snug mb-1">金系角色强度排名 2026 最新版，附评分详解</h3>
+          <p class="text-[10px] text-on-surface-variant">九天玄女 &nbsp;|&nbsp; 阅读 45.3K &nbsp;|&nbsp; 04/22</p>
+        </div>
+      </div>
+    </div>
+    <button class="w-full mt-2 py-2.5 text-[13px] font-medium text-primary active:opacity-60 transition-opacity">
+      查看更多玩家投稿 &gt;
+    </button>
   </div>
 
 </div><!-- /data-tab-panel="guide" -->
@@ -1304,5 +1584,55 @@ function toggleLike(btn) {
   var count = parseInt(countEl.textContent, 10);
   countEl.textContent = liked ? count + 1 : Math.max(0, count - 1);
 }
+</script>
+<style>
+.follow-btn { transition: all .2s cubic-bezier(.34,1.56,.64,1); }
+.follow-btn.followed { background: rgba(42,52,57,.12) !important; color: #8a9499 !important; }
+/* toast */
+#follow-toast {
+  position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(12px);
+  background:rgba(30,34,40,.92); color:#fff; font-size:13px; font-weight:500;
+  padding:9px 18px; border-radius:20px; white-space:nowrap;
+  opacity:0; pointer-events:none; z-index:9999;
+  transition: opacity .22s, transform .22s;
+}
+#follow-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+<div id="follow-toast"></div>
+<script>
+(function(){
+  /* 页内 toast，不跳页 */
+  function showToast(msg, duration) {
+    var t = document.getElementById('follow-toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._tid);
+    t._tid = setTimeout(function(){ t.classList.remove('show'); }, duration || 1800);
+  }
+  document.querySelectorAll('button').forEach(function(btn){
+    if (btn.textContent.trim() !== '关注') return;
+    btn.classList.add('follow-btn');
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if (!this.classList.contains('followed')) {
+        this.classList.add('followed');
+        this.textContent = '✓ 已关注';
+        showToast('已关注');
+      } else {
+        /* 取消关注：先变成"取消中…"，1s 后恢复，不弹窗不跳页 */
+        var self = this;
+        self.textContent = '取消关注';
+        self.style.opacity = '.5';
+        setTimeout(function(){
+          self.classList.remove('followed');
+          self.textContent = '关注';
+          self.style.opacity = '';
+          showToast('已取消关注');
+        }, 900);
+      }
+    });
+  });
+})();
 </script>
 </body></html>
