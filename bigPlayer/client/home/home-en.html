@@ -210,6 +210,65 @@
   .bottom-nav__publish-btn:active { background: #005590; }
   .bottom-nav__publish-btn .material-symbols-outlined { font-size: 22px; color: #fff; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
 
+  /* ── Stories ── */
+  .story-ring {
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    padding: 2.5px;
+    background: linear-gradient(135deg, #0061a4, #2498f5);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .story-ring--unseen { background: #d9e4ea; }
+  .story-avatar {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2.5px solid #fff;
+    display: block;
+  }
+  .story-plus {
+    position: absolute; bottom: -1px; right: -1px;
+    width: 18px; height: 18px;
+    background: #0061a4; border: 2px solid #fff;
+    border-radius: 50%;
+    font-size: 12px; font-weight: 700; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+
+  /* ── Follow buttons ── */
+  .follow-btn {
+    font-size: 11px; font-weight: 700;
+    color: #566166;
+    background: #f0f4f7;
+    border: none; border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; flex-shrink: 0;
+  }
+  .follow-btn-outline {
+    font-size: 12px; font-weight: 700;
+    color: #0061a4;
+    background: transparent;
+    border: 1.5px solid #0061a4;
+    border-radius: 999px;
+    padding: 5px 14px; cursor: pointer; flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .follow-btn-outline:active { background: #0061a4; color: #fff; }
+
+  /* ── User recommend card ── */
+  .user-rec-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 1px 6px rgba(42,52,57,0.07);
+  }
+  .user-rec-card__avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  }
+
   /* ── Guide element chips ── */
   .chip-inactive {
     background: #fff;
@@ -826,7 +885,117 @@
       <div style="height:20px;"></div>
     </div><!-- /tab-guides -->
 
-  <!-- ── Bottom Nav ── -->
+    <!-- ── Following panel ── -->
+    <div id="tab-following" class="pt-3" style="display:none;">
+
+      <!-- Following posts (same style as Discover) -->
+      <div class="post-card">
+        <div class="flex items-center gap-2.5 mb-2.5">
+          <img class="post-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
+            alt="author" loading="lazy">
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-semibold text-on-surface">StarSeeker <span class="post-card__lv">Lv.67</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">1 day ago</p>
+          </div>
+          <button class="follow-btn">Following</button>
+        </div>
+        <p class="post-card__title">The Ultimate Beginner's Roadmap — Everything You Need to Know</p>
+        <img class="post-card__cover"
+          src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
+          alt="cover" loading="lazy">
+        <div class="flex gap-4">
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">thumb_up</span>512
+          </div>
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">chat_bubble</span>88
+          </div>
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">visibility</span>3.4k
+          </div>
+        </div>
+      </div>
+
+      <div class="post-card">
+        <div class="flex items-center gap-2.5 mb-2.5">
+          <img class="post-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
+            alt="author" loading="lazy">
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-semibold text-on-surface">IronWolf <span class="post-card__lv">Lv.99</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">2 days ago</p>
+          </div>
+          <button class="follow-btn">Following</button>
+        </div>
+        <p class="post-card__title">S-Tier Heroes Ranked for April — Who's Worth Building?</p>
+        <img class="post-card__cover"
+          src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
+          alt="cover" loading="lazy">
+        <div class="flex gap-4">
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">thumb_up</span>384
+          </div>
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">chat_bubble</span>61
+          </div>
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">visibility</span>2.1k
+          </div>
+        </div>
+      </div>
+
+      <!-- People you may know -->
+      <div class="section-divider my-2"></div>
+      <div class="flex items-center justify-between px-4 py-3">
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">People You May Know</h2>
+        <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#0061a4;">
+          More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+        </button>
+      </div>
+
+      <div class="px-3 flex flex-col gap-2 pb-4">
+
+        <div class="user-rec-card">
+          <img class="user-rec-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2022/11/22/1669113940067_feee8425-a91b-47e4-bacc-ab67cd262679.png"
+            alt="" loading="lazy">
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-semibold text-on-surface">Niéli <span class="post-card__lv">Lv.150</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">Guide · 2.3k followers</p>
+          </div>
+          <button class="follow-btn-outline">+ Follow</button>
+        </div>
+
+        <div class="user-rec-card">
+          <img class="user-rec-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2023/04/21/1682036744718_6703b726-d02a-4ea7-8ec6-bc6559a80cd9.jpeg"
+            alt="" loading="lazy">
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-semibold text-on-surface">Berkurin <span class="post-card__lv">Lv.131</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">Strategy · 1.8k followers</p>
+          </div>
+          <button class="follow-btn-outline">+ Follow</button>
+        </div>
+
+        <div class="user-rec-card">
+          <img class="user-rec-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2023/01/06/1672984017367_069a1712-8db1-486b-9639-52e5a2bf3d59.jpg"
+            alt="" loading="lazy">
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-semibold text-on-surface">dbpei008 <span class="post-card__lv">Lv.150</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">Fan Art · 4.1k followers</p>
+          </div>
+          <button class="follow-btn-outline">+ Follow</button>
+        </div>
+
+      </div>
+
+      <div style="height:20px;"></div>
+    </div><!-- /tab-following -->
+
+  </div><!-- /scroll -->
+
   <div class="bottom-nav">
 
     <div class="bottom-nav__item active">
@@ -888,9 +1057,10 @@
     btn.className = 'tab-active text-[15px] py-2.5';
 
     const label = btn.textContent.trim();
-    document.getElementById('tab-recommend').style.display = label === 'Recommend' ? '' : 'none';
-    document.getElementById('tab-discover').style.display  = label === 'Discover'  ? '' : 'none';
-    document.getElementById('tab-guides').style.display    = label === 'Guides'    ? '' : 'none';
+    document.getElementById('tab-recommend').style.display  = label === 'Recommend'  ? '' : 'none';
+    document.getElementById('tab-discover').style.display   = label === 'Discover'   ? '' : 'none';
+    document.getElementById('tab-guides').style.display     = label === 'Guides'     ? '' : 'none';
+    document.getElementById('tab-following').style.display  = label === 'Following'  ? '' : 'none';
   }
   function selectChip(btn) {
     btn.closest('.flex').querySelectorAll('button').forEach(b => {
