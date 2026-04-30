@@ -161,7 +161,7 @@
   /* ── Phone shell ── */
   .phone-shell {
     width: 375px;
-    min-height: 812px;
+    height: 812px;
     background: #f7f9fb;
     border-radius: 44px;
     box-shadow:
@@ -171,6 +171,8 @@
       0 10px 20px rgba(0,0,0,0.18);
     overflow: hidden;
     position: relative;
+    display: flex;
+    flex-direction: column;
   }
   .dynamic-island {
     position: absolute;
@@ -187,6 +189,7 @@
     -webkit-backdrop-filter: blur(14px);
     border-top: 1px solid #e1e9ee;
     display: flex; align-items: flex-start; padding-top: 8px;
+    flex-shrink: 0;
   }
   .bottom-nav__item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding-top: 4px; }
   .bottom-nav__item .material-symbols-outlined { font-size: 24px; color: #a9b4b9; }
@@ -206,6 +209,18 @@
   }
   .bottom-nav__publish-btn:active { background: #005590; }
   .bottom-nav__publish-btn .material-symbols-outlined { font-size: 22px; color: #fff; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+  /* ── Guide element chips ── */
+  .chip-inactive {
+    background: #fff;
+    color: #566166;
+    border-color: #d9e4ea;
+  }
+  .chip-active {
+    background: #0061a4;
+    color: #fff;
+    border-color: #0061a4;
+  }
 
   /* ── Section divider ── */
   .section-divider { height: 8px; background: #f0f4f7; margin: 0; }
@@ -442,7 +457,7 @@
   </div>
 
   <!-- Scrollable content -->
-  <div class="no-scrollbar overflow-y-auto overflow-x-hidden" style="height:calc(812px - 54px - 82px);">
+  <div class="no-scrollbar overflow-y-auto overflow-x-hidden" style="flex:1; min-height:0;">
 
     <!-- ── Top bar + Tab nav (unified sticky, no gap) ── -->
     <div class="sticky top-0 z-20 bg-[#f7f9fb]">
@@ -472,7 +487,7 @@
 
 
     <!-- ── Tab: Recommend ── -->
-    <div id="tab-recommend">
+    <div id="tab-recommend" class="pt-3">
     <!-- ── Featured Posts ── -->
     <h2 class="font-headline text-[20px] font-extrabold text-on-surface px-4 pt-5 pb-3 tracking-tight">Featured Posts</h2>
     <div class="flex gap-3 px-4 pb-2 no-scrollbar overflow-x-auto">
@@ -639,7 +654,7 @@
     </div><!-- /tab-recommend -->
 
     <!-- ── Tab: Discover ── -->
-    <div id="tab-discover" style="display:none;">
+    <div id="tab-discover" class="pt-3" style="display:none;">
 
       <div class="post-card">
         <div class="flex items-center gap-2.5 mb-2.5">
@@ -700,7 +715,116 @@
       <div style="height:20px;"></div>
     </div><!-- /tab-discover -->
 
-  </div><!-- /scroll -->
+    <!-- ── Guides panel ── -->
+    <div id="tab-guides" class="pt-3" style="display:none;">
+
+      <div class="px-4 pt-4 pb-2">
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Ancient Secrets</h2>
+      </div>
+
+      <!-- Element filter chips -->
+      <div class="flex gap-2 px-4 pb-3 no-scrollbar overflow-x-auto">
+        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">All</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Wood</button>
+        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all" style="background:#0061a4;color:#fff;border-color:#0061a4;">Water</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Fire</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Earth</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Thunder</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Body</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Spirit</button>
+      </div>
+
+      <!-- Guide cards horizontal scroll -->
+      <div class="flex gap-3 px-4 pb-4 no-scrollbar overflow-x-auto">
+
+        <div class="guide-card flex-shrink-0 cursor-pointer" style="width:130px;">
+          <div class="relative rounded-xl overflow-hidden" style="height:160px;">
+            <img src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
+              class="w-full h-full object-cover" loading="lazy">
+            <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
+            <div class="absolute bottom-0 left-0 right-0 p-2">
+              <p class="text-[13px] font-bold text-white leading-tight">Yang Yan</p>
+              <p class="text-[10px] text-white/60 mt-0.5">Earth · Warlock</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-card flex-shrink-0 cursor-pointer" style="width:130px;">
+          <div class="relative rounded-xl overflow-hidden" style="height:160px;">
+            <img src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
+              class="w-full h-full object-cover" loading="lazy">
+            <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
+            <div class="absolute bottom-0 left-0 right-0 p-2">
+              <p class="text-[13px] font-bold text-white leading-tight">White Tiger</p>
+              <p class="text-[10px] text-white/60 mt-0.5">Water · Divine Beast</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-card flex-shrink-0 cursor-pointer" style="width:130px;">
+          <div class="relative rounded-xl overflow-hidden" style="height:160px;">
+            <img src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
+              class="w-full h-full object-cover" loading="lazy">
+            <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
+            <div class="absolute bottom-0 left-0 right-0 p-2">
+              <p class="text-[13px] font-bold text-white leading-tight">Rosalind</p>
+              <p class="text-[10px] text-white/60 mt-0.5">Water · Assassin</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-card flex-shrink-0 cursor-pointer" style="width:130px;">
+          <div class="relative rounded-xl overflow-hidden" style="height:160px;">
+            <img src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
+              class="w-full h-full object-cover" loading="lazy">
+            <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
+            <div class="absolute bottom-0 left-0 right-0 p-2">
+              <p class="text-[13px] font-bold text-white leading-tight">Hua Mulan</p>
+              <p class="text-[10px] text-white/60 mt-0.5">Fire · Hero</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Guide list section -->
+      <div class="flex items-center justify-between px-4 pb-2">
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Popular Guides</h2>
+        <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#0061a4;">
+          More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+        </button>
+      </div>
+
+      <div class="post-card">
+        <div class="flex items-center gap-2.5 mb-2.5">
+          <img class="post-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
+            alt="author" loading="lazy">
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-semibold text-on-surface">F2P Server 38 <span class="post-card__lv">Lv.85</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">3 days ago</p>
+          </div>
+          <span class="post-card__cat">Guide</span>
+        </div>
+        <p class="post-card__title">Rosalind Trial — Best Lineup for World Boss Clear</p>
+        <img class="post-card__cover"
+          src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
+          alt="cover" loading="lazy">
+        <div class="flex gap-4">
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">thumb_up</span>186
+          </div>
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">chat_bubble</span>32
+          </div>
+          <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">visibility</span>2.1k
+          </div>
+        </div>
+      </div>
+
+      <div style="height:20px;"></div>
+    </div><!-- /tab-guides -->
 
   <!-- ── Bottom Nav ── -->
   <div class="bottom-nav">
@@ -765,7 +889,20 @@
 
     const label = btn.textContent.trim();
     document.getElementById('tab-recommend').style.display = label === 'Recommend' ? '' : 'none';
-    document.getElementById('tab-discover').style.display = label === 'Discover' ? '' : 'none';
+    document.getElementById('tab-discover').style.display  = label === 'Discover'  ? '' : 'none';
+    document.getElementById('tab-guides').style.display    = label === 'Guides'    ? '' : 'none';
+  }
+  function selectChip(btn) {
+    btn.closest('.flex').querySelectorAll('button').forEach(b => {
+      b.style.background = '';
+      b.style.color = '';
+      b.style.borderColor = '';
+      b.className = 'chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all';
+    });
+    btn.style.background = '#0061a4';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#0061a4';
+    btn.className = 'chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all';
   }
   function openDrawer() {
     document.getElementById('drawer').classList.add('open');
