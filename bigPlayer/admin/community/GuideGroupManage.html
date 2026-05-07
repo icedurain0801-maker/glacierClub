@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>攻略组管理 - 大玩家后台</title>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f5f7fa;
+  min-height: 100vh;
+  display: flex;
+}
+.admin-main {
+  flex: 1;
+  min-height: 100vh;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* ── 页面卡片 ── */
+.page-card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+/* ── Tab 栏 ── */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 0 20px;
+}
+.tab-item {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #595959;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+.tab-item.active { color: #1890ff; font-weight: 500; }
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+  border-radius: 1px 1px 0 0;
+}
+
+/* ── 筛选栏 ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #595959;
+}
+.filter-required { color: #ff4d4f; }
+.filter-select, .filter-input {
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #262626;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  min-width: 140px;
+}
+.filter-input { min-width: 160px; cursor: text; }
+.filter-select:focus, .filter-input:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.2);
+}
+.filter-select:disabled { background: #f5f5f5; color: #bfbfbf; cursor: not-allowed; }
+.btn-query {
+  height: 32px;
+  padding: 0 16px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-query:hover { background: #40a9ff; }
+
+/* ── 操作栏 ── */
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.action-bar-left { display: flex; gap: 8px; }
+.btn-add {
+  height: 32px;
+  padding: 0 16px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-add:hover { background: #40a9ff; }
+.btn-copy {
+  height: 32px;
+  padding: 0 16px;
+  background: #fff;
+  color: #595959;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-copy:hover { border-color: #1890ff; color: #1890ff; }
+.btn-batch-audit {
+  height: 32px;
+  padding: 0 16px;
+  background: #fff;
+  color: #595959;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-batch-audit:hover { border-color: #1890ff; color: #1890ff; }
+.toolbar-icons { display: flex; gap: 8px; }
+.toolbar-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  font-size: 14px; cursor: pointer; color: #595959;
+  background: #fff;
+}
+.toolbar-icon:hover { border-color: #1890ff; color: #1890ff; }
+
+/* ── 表格 ── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead tr { background: #fafafa; }
+th {
+  padding: 12px 12px;
+  text-align: left;
+  font-weight: 500;
+  color: #262626;
+  border-bottom: 1px solid #e8e8e8;
+  white-space: nowrap;
+}
+th.col-check { width: 40px; }
+td {
+  padding: 14px 12px;
+  color: #595959;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+}
+tbody tr:hover { background: #fafeff; }
+
+/* 栏目标签 */
+.col-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-size: 12px;
+  background: #e6f7ff;
+  color: #1890ff;
+  border: 1px solid #91d5ff;
+  margin: 2px 2px 2px 0;
+  white-space: nowrap;
+}
+.col-tag-more {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-size: 12px;
+  background: #f5f5f5;
+  color: #595959;
+  border: 1px solid #d9d9d9;
+  margin: 2px 0;
+  cursor: pointer;
+}
+
+/* 状态 */
+.status-pass { color: #52c41a; font-weight: 500; }
+.status-reject { color: #ff4d4f; font-weight: 500; }
+.status-pending { color: #fa8c16; font-weight: 500; }
+
+/* 操作按钮 */
+.op-btn {
+  background: none; border: none;
+  font-size: 13px; cursor: pointer;
+  padding: 2px 4px;
+}
+.op-detail { color: #1890ff; }
+.op-detail:hover { color: #40a9ff; }
+.op-edit { color: #1890ff; }
+.op-edit:hover { color: #40a9ff; }
+.op-delete { color: #ff4d4f; }
+.op-delete:hover { color: #ff7875; }
+.op-audit { color: #1890ff; }
+.op-audit:hover { color: #40a9ff; }
+
+/* 拖拽排序图标 */
+.drag-handle {
+  color: #bfbfbf;
+  cursor: grab;
+  font-size: 14px;
+  user-select: none;
+}
+.drag-handle:hover { color: #595959; }
+
+/* 开关 */
+.toggle-switch {
+  position: relative; width: 36px; height: 20px;
+  display: inline-block; cursor: pointer; flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: #d9d9d9; border-radius: 20px;
+  transition: background 0.2s;
+}
+.toggle-track::before {
+  content: ''; position: absolute;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; top: 3px; left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-track { background: #1890ff; }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #bfbfbf;
+  font-size: 13px;
+  gap: 10px;
+}
+.empty-icon {
+  width: 48px; height: 48px;
+  opacity: 0.4;
+}
+
+/* checkbox */
+input[type="checkbox"] {
+  width: 14px; height: 14px;
+  cursor: pointer;
+  accent-color: #1890ff;
+}
+
+/* ── 分页 ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 14px 20px;
+  font-size: 13px;
+  color: #595959;
+}
+.page-total { margin-right: 8px; }
+.page-btn {
+  min-width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  cursor: pointer; font-size: 13px; background: #fff;
+  padding: 0 6px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.page-btn:hover { border-color: #1890ff; color: #1890ff; }
+.page-btn.active { background: #1890ff; border-color: #1890ff; color: #fff; }
+.page-btn.disabled { color: #d9d9d9; cursor: not-allowed; border-color: #d9d9d9; }
+.page-size-select {
+  height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 0 6px; font-size: 13px; outline: none;
+  cursor: pointer;
+}
+
+/* 表单分区分割线 */
+.form-section-divider {
+  font-size: 13px;
+  font-weight: 600;
+  color: #595959;
+  padding: 10px 0 10px;
+  margin-bottom: 0;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form-section-divider::before {
+  content: '';
+  width: 3px;
+  height: 13px;
+  background: #1890ff;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── 语种 Tab 条 ── */
+.lang-tab-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+  background: #fff;
+  gap: 0;
+}
+.lang-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.lang-tab {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #595959;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+  white-space: nowrap;
+}
+.lang-tab.active { color: #1890ff; font-weight: 500; }
+.lang-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+  border-radius: 1px 1px 0 0;
+}
+.lang-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #d9d9d9;
+  color: #666;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.lang-tab-close:hover { background: #bfbfbf; color: #333; }
+.lang-tab-add {
+  padding: 10px 8px;
+  font-size: 13px;
+  color: #1890ff;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: color 0.15s;
+}
+.lang-tab-add:hover { color: #40a9ff; }
+
+/* 语种选择弹窗 */
+.lang-picker-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+}
+.lang-picker-overlay.open { display: block; }
+.lang-picker {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+  z-index: 1101;
+  padding: 8px 0;
+  min-width: 130px;
+}
+.lang-picker-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #262626;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.lang-picker-item:hover { background: #f0f7ff; color: #1890ff; }
+.lang-picker-item.disabled { color: #bfbfbf; cursor: not-allowed; }
+.lang-picker-item.disabled:hover { background: none; color: #bfbfbf; }
+
+
+.drawer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 900;
+}
+.drawer-overlay.open { display: block; }
+
+.drawer {
+  position: fixed;
+  top: 0; right: -620px;
+  width: 580px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.14);
+  z-index: 901;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(.4,0,.2,1);
+}
+.drawer.open { right: 0; }
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.drawer-title { font-size: 16px; font-weight: 600; color: #262626; }
+.drawer-close {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f0f0f0;
+  color: #888; font-size: 16px; cursor: pointer;
+  border: none; font-weight: 600;
+  transition: background 0.15s;
+}
+.drawer-close:hover { background: #e0e0e0; }
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.drawer-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e8e8e8;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.btn-reset {
+  height: 34px; padding: 0 20px;
+  background: #fff; color: #595959;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  font-size: 13px; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-reset:hover { border-color: #d9d9d9; color: #262626; }
+.btn-submit {
+  height: 34px; padding: 0 24px;
+  background: #1890ff; color: #fff;
+  border: none; border-radius: 4px;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-submit:hover { background: #40a9ff; }
+
+/* ── 新增/编辑表单 ── */
+.form-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 8px;
+}
+.form-label {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #595959;
+  padding-top: 7px;
+  text-align: right;
+}
+.form-required { color: #ff4d4f; }
+.form-control { flex: 1; }
+.form-input, .form-select {
+  width: 100%;
+  height: 34px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #262626;
+  outline: none;
+  background: #fff;
+}
+.form-input:focus, .form-select:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.15);
+}
+.form-input:disabled, .form-select:disabled {
+  background: #f5f5f5; color: #bfbfbf; cursor: not-allowed;
+}
+.form-select-wrap {
+  display: flex; gap: 8px; align-items: center;
+}
+.btn-external {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  color: #595959; cursor: pointer; background: #fff;
+  flex-shrink: 0; font-size: 14px;
+  transition: all 0.2s;
+}
+.btn-external:hover { border-color: #1890ff; color: #1890ff; }
+
+/* 展示方式单选 */
+.radio-group {
+  display: flex; gap: 16px; align-items: center; padding-top: 7px;
+}
+.radio-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: #262626; cursor: pointer;
+}
+.radio-item input[type="radio"] {
+  width: 14px; height: 14px;
+  accent-color: #1890ff; cursor: pointer;
+}
+
+/* 攻略设置表格 */
+.guide-setting-table {
+  width: 100%;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.guide-setting-table .gst-header {
+  display: grid;
+  grid-template-columns: 36px 60px 1fr 80px 60px;
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  font-size: 12px; font-weight: 500; color: #262626;
+}
+.guide-setting-table .gst-header > div {
+  padding: 8px 10px; border-right: 1px solid #e8e8e8;
+}
+.guide-setting-table .gst-header > div:last-child { border-right: none; }
+
+.col-row {
+  border-bottom: 1px solid #f0f0f0;
+}
+.col-row:last-child { border-bottom: none; }
+
+.col-row-main {
+  display: grid;
+  grid-template-columns: 36px 60px 1fr 80px 60px;
+  align-items: center;
+  background: #fff;
+}
+.col-row-main > div {
+  padding: 10px 10px;
+  border-right: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+.col-row-main > div:last-child { border-right: none; }
+
+.col-row-content {
+  background: #fafcfe;
+  border-top: 1px solid #f0f0f0;
+  padding: 10px;
+}
+
+/* 内容项小表格 */
+.content-item-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.content-item-table th {
+  padding: 7px 8px;
+  background: #f0f7ff;
+  color: #595959;
+  font-weight: 500;
+  border-bottom: 1px solid #e8e8e8;
+  white-space: nowrap;
+}
+.content-item-table td {
+  padding: 8px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+}
+.content-item-table tbody tr:last-child td { border-bottom: none; }
+
+.content-item-input {
+  width: 100%;
+  height: 28px;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  padding: 0 7px;
+  font-size: 12px;
+  outline: none;
+}
+.content-item-input:focus { border-color: #1890ff; }
+
+.btn-icon-upload {
+  width: 28px; height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #595959; background: #fff;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.btn-icon-upload:hover { border-color: #1890ff; color: #1890ff; }
+
+.btn-add-item {
+  display: flex; align-items: center; justify-content: center;
+  gap: 5px; width: 100%; margin-top: 8px;
+  padding: 7px 0;
+  border: 1px dashed #d9d9d9; border-radius: 4px;
+  font-size: 12px; color: #595959; cursor: pointer;
+  background: #fff; transition: all 0.2s;
+}
+.btn-add-item:hover { border-color: #1890ff; color: #1890ff; }
+
+.btn-add-col {
+  display: flex; align-items: center; justify-content: center;
+  gap: 5px; width: 100%; margin-top: 10px;
+  padding: 8px 0;
+  border: 1px dashed #d9d9d9; border-radius: 4px;
+  font-size: 13px; color: #595959; cursor: pointer;
+  background: #fff; transition: all 0.2s;
+}
+.btn-add-col:hover { border-color: #1890ff; color: #1890ff; }
+
+.col-num-input {
+  width: 50px; height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 3px;
+  text-align: center; padding: 0 4px;
+  font-size: 13px; outline: none;
+}
+.col-num-input:focus { border-color: #1890ff; }
+
+/* ── 详情语种 Tab ── */
+.detail-lang-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e8e8e8;
+  margin-bottom: 16px;
+  margin-top: 4px;
+}
+.detail-lang-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #595959;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+  white-space: nowrap;
+}
+.detail-lang-tab.active { color: #1890ff; font-weight: 500; }
+.detail-lang-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+  border-radius: 1px 1px 0 0;
+}
+
+
+.detail-kv { margin-bottom: 14px; display: flex; gap: 10px; }
+.detail-key { font-size: 13px; color: #8c8c8c; flex-shrink: 0; }
+.detail-val { font-size: 13px; color: #262626; }
+.detail-section-title {
+  font-size: 13px; font-weight: 600; color: #1890ff;
+  margin: 18px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e8e8e8;
+}
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.detail-table th {
+  padding: 8px 10px;
+  background: #fafafa;
+  color: #595959;
+  font-weight: 500;
+  border: 1px solid #e8e8e8;
+  text-align: left;
+}
+.detail-table td {
+  padding: 10px;
+  border: 1px solid #f0f0f0;
+  color: #595959;
+  vertical-align: middle;
+}
+.detail-table td.url-cell {
+  font-size: 11px;
+  color: #1890ff;
+  word-break: break-all;
+}
+.detail-thumb {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: #e6f7ff;
+  display: flex; align-items: center; justify-content: center;
+  color: #1890ff; font-size: 16px;
+}
+</style>
+</head>
+<body>
+<nav id="sidebar" class="sidebar"></nav>
+
+<div class="admin-main" id="admin-main">
+  <div class="page-card">
+    <!-- Tab 栏 -->
+    <div class="tab-bar">
+      <div class="tab-item active" id="tab-list" onclick="switchTab('list')">攻略列表</div>
+      <div class="tab-item" id="tab-audit" onclick="switchTab('audit')">审核列表</div>
+    </div>
+
+    <!-- ══ 攻略列表内容 ══ -->
+    <div id="panel-list">
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <div class="filter-item">
+          <span><span class="filter-required">*</span> 所属版块：</span>
+          <select class="filter-select" id="filter-module">
+            <optgroup label="国内">
+              <option value="圣魂纷争">圣魂纷争</option>
+              <option value="超能世界">超能世界</option>
+              <option value="逍遥情缘">逍遥情缘</option>
+              <option value="太初界">太初界</option>
+              <option value="钓鱼世界">钓鱼世界</option>
+              <option value="泰坦降临">泰坦降临</option>
+              <option value="天墙传说">天墙传说</option>
+              <option value="择日飞仙">择日飞仙</option>
+            </optgroup>
+            <optgroup label="海外">
+              <option value="Saint Soul Strife">Saint Soul Strife</option>
+              <option value="Super World">Super World</option>
+              <option value="Titan's Fall">Titan's Fall</option>
+              <option value="Eternal Bonds">Eternal Bonds</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span>状态：</span>
+          <select class="filter-select" id="filter-status" style="min-width:100px;">
+            <option value="">不限</option>
+            <option value="pass">已通过</option>
+            <option value="reject">已拒绝</option>
+            <option value="pending">待审核</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span><span class="filter-required">*</span> 所属攻略组：</span>
+          <select class="filter-select" id="filter-group">
+            <option value="攻略站">攻略站</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span>攻略名称：</span>
+          <input type="text" class="filter-input" id="filter-name" placeholder="攻略名称">
+        </div>
+        <button class="btn-query" onclick="renderListTable()">查询</button>
+      </div>
+
+      <!-- 操作栏 -->
+      <div class="action-bar">
+        <div class="action-bar-left">
+          <button class="btn-add" onclick="openAddDrawer()">新增</button>
+          <button class="btn-copy">复制</button>
+        </div>
+        <div class="toolbar-icons">
+          <div class="toolbar-icon" title="列设置">⊟</div>
+          <div class="toolbar-icon" title="刷新" onclick="renderListTable()">↺</div>
+          <div class="toolbar-icon" title="全屏">⛶</div>
+        </div>
+      </div>
+
+      <!-- 表格 -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>排序</th>
+              <th>启用状态</th>
+              <th>攻略名称</th>
+              <th>攻略栏目</th>
+              <th>类型</th>
+              <th>状态</th>
+              <th>审核人</th>
+              <th>审核时间</th>
+              <th>审核备注</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="list-table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- 分页 -->
+      <div class="pagination">
+        <span class="page-total">共2条</span>
+        <div class="page-btn disabled">‹</div>
+        <div class="page-btn active">1</div>
+        <div class="page-btn">›</div>
+        <select class="page-size-select"><option>10条/页</option><option>20条/页</option></select>
+      </div>
+    </div>
+
+    <!-- ══ 审核列表内容 ══ -->
+    <div id="panel-audit" style="display:none;">
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <div class="filter-item">
+          <span><span class="filter-required">*</span> 所属版块：</span>
+          <select class="filter-select" id="audit-filter-module">
+            <optgroup label="国内">
+              <option value="圣魂纷争">圣魂纷争</option>
+              <option value="超能世界">超能世界</option>
+              <option value="逍遥情缘">逍遥情缘</option>
+              <option value="太初界">太初界</option>
+              <option value="钓鱼世界">钓鱼世界</option>
+              <option value="泰坦降临">泰坦降临</option>
+              <option value="天墙传说">天墙传说</option>
+              <option value="择日飞仙">择日飞仙</option>
+            </optgroup>
+            <optgroup label="海外">
+              <option value="Saint Soul Strife">Saint Soul Strife</option>
+              <option value="Super World">Super World</option>
+              <option value="Titan's Fall">Titan's Fall</option>
+              <option value="Eternal Bonds">Eternal Bonds</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span>攻略名称：</span>
+          <input type="text" class="filter-input" id="audit-filter-name" placeholder="攻略名称">
+        </div>
+        <button class="btn-query">查询</button>
+      </div>
+
+      <!-- 操作栏 -->
+      <div class="action-bar">
+        <div class="action-bar-left">
+          <button class="btn-batch-audit">批量审核</button>
+        </div>
+        <div class="toolbar-icons">
+          <div class="toolbar-icon" title="列设置">⊟</div>
+          <div class="toolbar-icon" title="设置">⚙</div>
+        </div>
+      </div>
+
+      <!-- 表格 -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="audit-check-all"></th>
+              <th>攻略名称</th>
+              <th>攻略栏目</th>
+              <th>类型</th>
+              <th>状态</th>
+              <th>申请人</th>
+              <th>申请时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <tr>
+              <td colspan="8">
+                <div class="empty-state">
+                  <svg class="empty-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="8" y="12" width="48" height="40" rx="3" stroke="#bfbfbf" stroke-width="2" fill="none"/>
+                    <path d="M20 28h24M20 36h16" stroke="#bfbfbf" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M8 20h48" stroke="#bfbfbf" stroke-width="2"/>
+                  </svg>
+                  暂无数据
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 新增/编辑侧边抽屉 ══ -->
+<div class="drawer-overlay" id="add-overlay" onclick="closeAddDrawer()"></div>
+<div class="drawer" id="add-drawer">
+  <div class="drawer-header">
+    <span class="drawer-title" id="add-drawer-title">新增攻略</span>
+    <button class="drawer-close" onclick="closeAddDrawer()">×</button>
+  </div>
+  <div class="drawer-body">
+    <!-- 所属版块 -->
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 所属版块：</div>
+      <div class="form-control">
+        <select class="form-select" disabled>
+          <optgroup label="国内">
+            <option>圣魂纷争</option>
+            <option>超能世界</option>
+            <option>逍遥情缘</option>
+            <option>太初界</option>
+            <option>钓鱼世界</option>
+            <option>泰坦降临</option>
+            <option>天墙传说</option>
+            <option>择日飞仙</option>
+          </optgroup>
+          <optgroup label="海外">
+            <option>Saint Soul Strife</option>
+            <option>Super World</option>
+            <option>Titan's Fall</option>
+            <option>Eternal Bonds</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+    <!-- 所属攻略组 -->
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 所属攻略组：</div>
+      <div class="form-control">
+        <div class="form-select-wrap">
+          <select class="form-select" id="f-group">
+            <option value="">请选择</option>
+            <option value="攻略站">攻略站</option>
+          </select>
+          <div class="btn-external" title="新开页面管理攻略组">&#x2197;</div>
+        </div>
+      </div>
+    </div>
+    <!-- 模块类型 -->
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 模块类型：</div>
+      <div class="form-control">
+        <select class="form-select" id="f-module-type">
+          <option value="攻略">攻略</option>
+          <option value="视频">视频</option>
+          <option value="帖子">帖子</option>
+        </select>
+      </div>
+    </div>
+    <!-- 展示方式 -->
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 展示方式：</div>
+      <div class="form-control">
+        <div class="radio-group">
+          <label class="radio-item">
+            <input type="radio" name="display-mode" value="small" checked> 小（一行5列）
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="display-mode" value="medium"> 中（一行3列）
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="display-mode" value="large"> 大（一行2列）
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 语种配置区（仅海外版块可见） ── -->
+    <div id="lang-section" style="display:none;">
+      <div class="form-section-divider">按语种配置内容</div>
+      <div class="lang-tab-bar" id="lang-tab-bar">
+        <div class="lang-tabs" id="lang-tabs">
+          <div class="lang-tab active" data-lang="英文">英文</div>
+        </div>
+        <div class="lang-tab-add" id="lang-tab-add" onclick="addLangTab()">+ 添加语种</div>
+      </div>
+    </div>
+
+    <!-- 模块名称 -->
+    <div class="form-row" style="margin-top:16px;">
+      <div class="form-label"><span class="form-required">*</span> 模块名称：</div>
+      <div class="form-control">
+        <input type="text" class="form-input" id="f-module-name" placeholder="输入模块名称">
+      </div>
+    </div>
+    <!-- 攻略设置 -->
+    <div class="form-row" style="align-items:flex-start;">
+      <div class="form-label" style="padding-top:10px;"><span class="form-required">*</span> 攻略设置：</div>
+      <div class="form-control">
+        <div class="guide-setting-table" id="col-setting-container">
+          <div class="gst-header">
+            <div>排序</div>
+            <div>序号</div>
+            <div>栏目名称</div>
+            <div>是否启用</div>
+            <div>操作</div>
+          </div>
+          <div id="col-rows">
+            <!-- 默认一行 -->
+            <div class="col-row" data-col-idx="0">
+              <div class="col-row-main">
+                <div><span class="drag-handle">≡</span></div>
+                <div><input class="col-num-input" type="number" value="1" min="1"></div>
+                <div><input class="content-item-input" placeholder="" style="height:28px;"></div>
+                <div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" checked>
+                    <span class="toggle-track"></span>
+                  </label>
+                </div>
+                <div>
+                  <button class="op-btn op-delete" onclick="removeColRow(this)" title="删除栏目">✕</button>
+                </div>
+              </div>
+              <div class="col-row-content">
+                <table class="content-item-table">
+                  <thead>
+                    <tr>
+                      <th style="width:36px;">排序</th>
+                      <th>名称</th>
+                      <th style="width:48px;">图标</th>
+                      <th>链接地址 ⓘ</th>
+                      <th style="width:36px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="drag-handle" style="font-size:12px;">≡</span></td>
+                      <td><input class="content-item-input" placeholder=""></td>
+                      <td>
+                        <div class="btn-icon-upload" title="上传图标">＋</div>
+                      </td>
+                      <td><input class="content-item-input" placeholder=""></td>
+                      <td>
+                        <button class="op-btn op-delete" onclick="removeContentItem(this)" title="删除">✕</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <button class="btn-add-item" onclick="addContentItem(this)">⊕ 添加内容项</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn-add-col" onclick="addColRow()">⊕ 添加栏目</button>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-footer">
+    <button class="btn-reset" onclick="resetAddForm()">重置</button>
+    <button class="btn-submit" onclick="submitAddForm()">提交</button>
+  </div>
+</div>
+
+<!-- ══ 语种选择弹窗 ══ -->
+<div class="lang-picker-overlay" id="lang-picker-overlay"></div>
+<div class="lang-picker" id="lang-picker" style="display:none;">
+  <div class="lang-picker-item" data-lang="英文">英文</div>
+  <div class="lang-picker-item" data-lang="繁体中文">繁体中文</div>
+  <div class="lang-picker-item" data-lang="日文">日文</div>
+  <div class="lang-picker-item" data-lang="韩文">韩文</div>
+  <div class="lang-picker-item" data-lang="德文">德文</div>
+  <div class="lang-picker-item" data-lang="法文">法文</div>
+  <div class="lang-picker-item" data-lang="泰文">泰文</div>
+  <div class="lang-picker-item" data-lang="越南文">越南文</div>
+</div>
+
+<!-- ══ 详情侧边抽屉 ══ -->
+<div class="drawer-overlay" id="detail-overlay" onclick="closeDetailDrawer()"></div>
+<div class="drawer" id="detail-drawer" style="width:520px;">
+  <div class="drawer-header">
+    <span class="drawer-title">攻略详情</span>
+    <button class="drawer-close" onclick="closeDetailDrawer()">×</button>
+  </div>
+  <div class="drawer-body" id="detail-drawer-body">
+    <!-- 动态填充 -->
+  </div>
+</div>
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/sidebar.js"></script>
+<script>
+  initSidebar({
+    root: '../..',
+    currentHref: 'admin/community/GuideGroupManage.html'
+  });
+
+  // ── Mock 数据 ──
+  const MOCK_GUIDES = [
+    {
+      id: 1, sort: 1, enabled: true, name: '通关秘籍',
+      langs: [
+        { lang: '英文', cols: [{ tag: '关卡攻略', items: [
+          { name: '时空穿越', icon: '🔷', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=302083&lang=zh-CN' },
+          { name: '印记空间', icon: '👁', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=302068&lang=zh-CN' },
+          { name: '深空探索', icon: '🤝', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=266443&lang=zh-CN' },
+        ]}] },
+        { lang: '繁体中文', cols: [{ tag: '關卡攻略', items: [
+          { name: '時空穿越', icon: '🔷', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=302083&lang=zh-TW' },
+          { name: '印記空間', icon: '👁', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=302068&lang=zh-TW' },
+        ]}] },
+        { lang: '日文', cols: [{ tag: 'ステージ攻略', items: [
+          { name: '時空転移', icon: '🔷', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=302083&lang=ja' },
+        ]}] },
+      ],
+      type: '攻略', status: '已通过', reviewer: '梁仓',
+      reviewTime: '2024-12-26 14:31:16', reviewNote: '通过',
+      displayMode: '小（一行5列）', applyTime: '2024-12-26 14:26:55'
+    },
+    {
+      id: 2, sort: 1, enabled: true, name: '英雄专区',
+      langs: [
+        { lang: '英文', name: 'Hero Zone', cols: [
+          { tag: 'Hero Encyclopedia', items: [
+            { name: 'Circle Fall', icon: '🔷', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=310001&lang=en' },
+            { name: 'Super Class', icon: '⚡', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=310002&lang=en' },
+            { name: 'Tech Class', icon: '🤖', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=310003&lang=en' },
+          ]},
+          { tag: 'Skill Guide', items: [
+            { name: 'Nature Class', icon: '🌿', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=310004&lang=en' },
+            { name: 'Special Class', icon: '✨', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=310005&lang=en' },
+          ]},
+        ] },
+        { lang: '繁体中文', name: '英雄專區', cols: [
+          { tag: '英雄圖鑑', items: [
+            { name: '圓落系', icon: '🔷', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=310001&lang=zh-TW' },
+            { name: '超人系', icon: '⚡', link: 'https://club.hnlingxi888.com/pages/post/detail/index?id=310002&lang=zh-TW' },
+          ]},
+        ] },
+      ],
+      type: '攻略', status: '已通过', reviewer: '梁仓',
+      reviewTime: '2024-12-26 14:31:16', reviewNote: '通过',
+      displayMode: '小（一行5列）', applyTime: '2024-12-26 14:26:55'
+    }
+  ];
+
+  function renderListTable() {
+    const tbody = document.getElementById('list-table-body');
+    tbody.innerHTML = MOCK_GUIDES.map((g, i) => {
+      const cols = (g.langs && g.langs[0] ? g.langs[0].cols : []);
+      const colTags = cols.slice(0, 3).map(c =>
+        `<span class="col-tag">${c.tag || c}</span>`
+      ).join('');
+      const moreTags = cols.length > 3
+        ? `<span class="col-tag-more">+${cols.length - 3}</span>`
+        : '';
+      return `
+        <tr>
+          <td><span class="drag-handle">≡</span></td>
+          <td>${g.sort}</td>
+          <td>
+            <label class="toggle-switch">
+              <input type="checkbox" ${g.enabled ? 'checked' : ''}>
+              <span class="toggle-track"></span>
+            </label>
+          </td>
+          <td>${g.name}</td>
+          <td style="max-width:180px;">${colTags}${moreTags}</td>
+          <td>${g.type}</td>
+          <td><span class="status-pass">${g.status}</span></td>
+          <td>${g.reviewer}</td>
+          <td>${g.reviewTime}</td>
+          <td>${g.reviewNote}</td>
+          <td>
+            <button class="op-btn op-detail" onclick="openDetailDrawer(${i})">详情</button>
+            <button class="op-btn op-edit" onclick="openEditDrawer(${i})">编辑</button>
+            <button class="op-btn op-delete">删除</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  renderListTable();
+
+  // ── Tab 切换 ──
+  function switchTab(tab) {
+    const listPanel  = document.getElementById('panel-list');
+    const auditPanel = document.getElementById('panel-audit');
+    const tabList    = document.getElementById('tab-list');
+    const tabAudit   = document.getElementById('tab-audit');
+    if (tab === 'list') {
+      listPanel.style.display = '';
+      auditPanel.style.display = 'none';
+      tabList.classList.add('active');
+      tabAudit.classList.remove('active');
+    } else {
+      listPanel.style.display = 'none';
+      auditPanel.style.display = '';
+      tabAudit.classList.add('active');
+      tabList.classList.remove('active');
+    }
+  }
+
+  // ── 新增抽屉 ──
+  function openAddDrawer() {
+    document.getElementById('add-drawer-title').textContent = '新增攻略';
+    document.getElementById('add-overlay').classList.add('open');
+    document.getElementById('add-drawer').classList.add('open');
+  }
+  function openEditDrawer(idx) {
+    document.getElementById('add-drawer-title').textContent = '编辑攻略';
+    document.getElementById('add-overlay').classList.add('open');
+    document.getElementById('add-drawer').classList.add('open');
+  }
+  function closeAddDrawer() {
+    document.getElementById('add-overlay').classList.remove('open');
+    document.getElementById('add-drawer').classList.remove('open');
+    hideLangTabBar();
+  }
+  function resetAddForm() {
+    document.getElementById('f-module-name').value = '';
+    document.getElementById('f-group').value = '';
+    document.querySelectorAll('input[name="display-mode"]')[0].checked = true;
+  }
+  function submitAddForm() { closeAddDrawer(); }
+
+  // ── 详情抽屉 ──
+  function renderDetailCols(cols, langName) {
+    const nameHtml = langName
+      ? `<div class="detail-kv"><span class="detail-key">攻略名称</span><span class="detail-val">${langName}</span></div>`
+      : '';
+    const colsHtml = cols.filter(c => c.items).map((col, ci) => `
+      <div class="detail-section-title">栏目${ci+1}：${col.tag}</div>
+      <table class="detail-table">
+        <thead><tr><th>名称</th><th>图片</th><th>链接</th></tr></thead>
+        <tbody>
+          ${col.items.map(item => `
+            <tr>
+              <td>${item.name}</td>
+              <td><div class="detail-thumb">${item.icon}</div></td>
+              <td class="url-cell">${item.link}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `).join('');
+    return nameHtml + colsHtml;
+  }
+
+  function openDetailDrawer(idx) {
+    const g = MOCK_GUIDES[idx];
+    const body = document.getElementById('detail-drawer-body');
+    const overseas = isOverseasSelected();
+
+    const kvHtml = `
+      <div class="detail-kv"><span class="detail-key">模块类型</span><span class="detail-val">${g.type}</span></div>
+      <div class="detail-kv"><span class="detail-key">展示方式</span><span class="detail-val">${g.displayMode}</span></div>
+      <div class="detail-kv"><span class="detail-key">申请时间</span><span class="detail-val">${g.applyTime}</span></div>
+    `;
+
+    if (overseas && g.langs && g.langs.length) {
+      const tabsHtml = g.langs.map((l, i) => `
+        <div class="detail-lang-tab ${i === 0 ? 'active' : ''}" data-li="${i}">${l.lang}</div>
+      `).join('');
+
+      const panelsHtml = g.langs.map((l, i) => `
+        <div class="detail-lang-panel" data-li="${i}" style="${i === 0 ? '' : 'display:none;'}">
+          ${renderDetailCols(l.cols, l.name || g.name)}
+        </div>
+      `).join('');
+
+      body.innerHTML = `
+        ${kvHtml}
+        <div class="detail-lang-tab-bar">${tabsHtml}</div>
+        ${panelsHtml}
+      `;
+
+      body.querySelectorAll('.detail-lang-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+          const li = this.dataset.li;
+          body.querySelectorAll('.detail-lang-tab').forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          body.querySelectorAll('.detail-lang-panel').forEach(p => {
+            p.style.display = p.dataset.li === li ? '' : 'none';
+          });
+        });
+      });
+    } else {
+      const cols = g.langs && g.langs[0] ? g.langs[0].cols : [];
+      body.innerHTML = `<div class="detail-kv"><span class="detail-key">攻略名称</span><span class="detail-val">${g.name}</span></div>` + kvHtml + renderDetailCols(cols);
+    }
+
+    document.getElementById('detail-overlay').classList.add('open');
+    document.getElementById('detail-drawer').classList.add('open');
+  }
+  function closeDetailDrawer() {
+    document.getElementById('detail-overlay').classList.remove('open');
+    document.getElementById('detail-drawer').classList.remove('open');
+  }
+
+  // ── 栏目行操作 ──
+  let colIdx = 1;
+  function addColRow() {
+    const container = document.getElementById('col-rows');
+    const div = document.createElement('div');
+    div.className = 'col-row';
+    div.dataset.colIdx = colIdx;
+    div.innerHTML = `
+      <div class="col-row-main">
+        <div><span class="drag-handle">≡</span></div>
+        <div><input class="col-num-input" type="number" value="${colIdx + 1}" min="1"></div>
+        <div><input class="content-item-input" placeholder="" style="height:28px;"></div>
+        <div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div>
+          <button class="op-btn op-delete" onclick="removeColRow(this)" title="删除栏目">✕</button>
+        </div>
+      </div>
+      <div class="col-row-content">
+        <table class="content-item-table">
+          <thead>
+            <tr>
+              <th style="width:36px;">排序</th>
+              <th>名称</th>
+              <th style="width:48px;">图标</th>
+              <th>链接地址 ⓘ</th>
+              <th style="width:36px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="drag-handle" style="font-size:12px;">≡</span></td>
+              <td><input class="content-item-input" placeholder=""></td>
+              <td><div class="btn-icon-upload" title="上传图标">＋</div></td>
+              <td><input class="content-item-input" placeholder=""></td>
+              <td><button class="op-btn op-delete" onclick="removeContentItem(this)" title="删除">✕</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="btn-add-item" onclick="addContentItem(this)">⊕ 添加内容项</button>
+      </div>
+    `;
+    container.appendChild(div);
+    colIdx++;
+  }
+
+  function removeColRow(btn) {
+    const row = btn.closest('.col-row');
+    if (document.querySelectorAll('.col-row').length <= 1) {
+      alert('至少保留一个栏目');
+      return;
+    }
+    row.remove();
+  }
+
+  function addContentItem(btn) {
+    const tbody = btn.previousElementSibling.querySelector('tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="drag-handle" style="font-size:12px;">≡</span></td>
+      <td><input class="content-item-input" placeholder=""></td>
+      <td><div class="btn-icon-upload" title="上传图标">＋</div></td>
+      <td><input class="content-item-input" placeholder=""></td>
+      <td><button class="op-btn op-delete" onclick="removeContentItem(this)" title="删除">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function removeContentItem(btn) {
+    const tr = btn.closest('tr');
+    const tbody = tr.closest('tbody');
+    if (tbody.querySelectorAll('tr').length <= 1) {
+      alert('至少保留一个内容项');
+      return;
+    }
+    tr.remove();
+  }
+
+  // ── 语种 Tab 逻辑 ──
+  const OVERSEAS_VALUES = ['Saint Soul Strife','Super World',"Titan's Fall",'Eternal Bonds'];
+
+  // 判断当前选中的版块是否属于海外
+  function isOverseasSelected() {
+    const sel = document.getElementById('filter-module');
+    return OVERSEAS_VALUES.includes(sel ? sel.value : '');
+  }
+
+  function showLangTabBar() {
+    document.getElementById('lang-section').style.display = '';
+  }
+  function hideLangTabBar() {
+    document.getElementById('lang-section').style.display = 'none';
+    // 重置为只有英文
+    const tabs = document.getElementById('lang-tabs');
+    tabs.innerHTML = '<div class="lang-tab active" data-lang="英文">英文</div>';
+    bindLangTabs();
+  }
+
+  function bindLangTabs() {
+    document.querySelectorAll('#lang-tabs .lang-tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+        document.querySelectorAll('#lang-tabs .lang-tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+  }
+  bindLangTabs();
+
+  // 新增语种 tab
+  function addLangTab() {
+    const addBtn = document.getElementById('lang-tab-add');
+    const rect = addBtn.getBoundingClientRect();
+    const picker = document.getElementById('lang-picker');
+    const overlay = document.getElementById('lang-picker-overlay');
+
+    // 更新 picker 中哪些语种已存在（disable 掉）
+    const existing = Array.from(document.querySelectorAll('#lang-tabs .lang-tab'))
+      .map(t => t.dataset.lang);
+    picker.querySelectorAll('.lang-picker-item').forEach(item => {
+      if (existing.includes(item.dataset.lang)) {
+        item.classList.add('disabled');
+      } else {
+        item.classList.remove('disabled');
+      }
+    });
+
+    picker.style.display = 'block';
+    picker.style.top  = (rect.bottom + 4) + 'px';
+    picker.style.left = rect.left + 'px';
+    overlay.classList.add('open');
+  }
+
+  // picker 点击选择
+  document.getElementById('lang-picker').addEventListener('click', function(e) {
+    const item = e.target.closest('.lang-picker-item');
+    if (!item || item.classList.contains('disabled')) return;
+
+    const lang = item.dataset.lang;
+    const tabs = document.getElementById('lang-tabs');
+
+    // 取消所有 active
+    tabs.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+
+    const tab = document.createElement('div');
+    tab.className = 'lang-tab active';
+    tab.dataset.lang = lang;
+    tab.innerHTML = `${lang}<span class="lang-tab-close" data-lang="${lang}" title="移除">×</span>`;
+    tabs.appendChild(tab);
+
+    tab.addEventListener('click', function(e) {
+      if (e.target.classList.contains('lang-tab-close')) return;
+      tabs.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+    tab.querySelector('.lang-tab-close').addEventListener('click', function(e) {
+      e.stopPropagation();
+      // 若删除的是 active tab，激活前一个
+      const wasActive = tab.classList.contains('active');
+      tab.remove();
+      if (wasActive) {
+        const remaining = tabs.querySelectorAll('.lang-tab');
+        if (remaining.length) remaining[remaining.length - 1].classList.add('active');
+      }
+    });
+
+    closeLangPicker();
+  });
+
+  // 点遮罩关闭 picker
+  document.getElementById('lang-picker-overlay').addEventListener('click', closeLangPicker);
+  function closeLangPicker() {
+    document.getElementById('lang-picker').style.display = 'none';
+    document.getElementById('lang-picker-overlay').classList.remove('open');
+  }
+
+  // 监听抽屉内版块 select（disabled 的 select 不触发，用 filter-module 联动控制）
+  // 实际新增表单的版块为只读，使用筛选栏版块来控制语种 tab 显隐
+  document.getElementById('filter-module').addEventListener('change', function() {
+    // 同步抽屉内版块只读 select 的显示值
+    const val = this.value;
+    const drawerSel = document.querySelector('#add-drawer .form-select[disabled]');
+    if (drawerSel) {
+      // 找到匹配 option 并选中
+      Array.from(drawerSel.options).forEach(opt => {
+        if (opt.value === val || opt.text === val) opt.selected = true;
+      });
+    }
+    // 控制语种 tab 显隐（仅当抽屉打开时有意义，抽屉关闭时也安全执行）
+    if (OVERSEAS_VALUES.includes(val)) {
+      showLangTabBar();
+    } else {
+      hideLangTabBar();
+    }
+  });
+</script>
+
+<!-- ── 说明悬浮按钮 ── -->
+<style>
+.help-fab {
+  position: fixed; right: 24px; bottom: 24px;
+  width: 120px; height: 120px;
+  background: linear-gradient(145deg, #1890ff 0%, #096dd9 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(24,144,255,0.45);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px; cursor: pointer; z-index: 800; user-select: none;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.help-fab:hover { box-shadow: 0 6px 24px rgba(24,144,255,0.6); transform: translateY(-2px); }
+.help-fab.dragging { transition: none; }
+.help-fab-icon { font-size: 36px; line-height: 1; }
+.help-fab-text { font-size: 13px; color: #fff; font-weight: 500; letter-spacing: 0.5px; }
+
+.help-panel {
+  position: fixed; top: 0; right: -480px; width: 480px; height: 100vh;
+  background: #fff; box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  z-index: 850; display: flex; flex-direction: column;
+  transition: right 0.3s cubic-bezier(.4,0,.2,1);
+}
+.help-panel.open { right: 0; }
+.help-panel-overlay { display: none; position: fixed; inset: 0; z-index: 849; }
+.help-panel-overlay.open { display: block; }
+.help-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px; border-bottom: 1px solid #e8e8e8; flex-shrink: 0;
+}
+.help-panel-title {
+  font-size: 16px; font-weight: 600; color: #262626;
+  display: flex; align-items: center; gap: 8px;
+}
+.help-panel-title::before {
+  content: ''; width: 4px; height: 18px;
+  background: #1890ff; border-radius: 2px;
+}
+.help-panel-close {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f5f5f5; font-size: 16px; color: #888;
+  cursor: pointer; border: none; transition: background 0.15s;
+}
+.help-panel-close:hover { background: #e0e0e0; color: #333; }
+.help-panel-body { flex: 1; overflow-y: auto; padding: 20px; }
+
+.help-version-block { border: 1px solid #e8e8e8; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.help-version-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer; background: #fff; user-select: none;
+  transition: background 0.15s;
+}
+.help-version-hd:hover { background: #f0f7ff; }
+.help-version-hd.is-latest { background: #e6f7ff; }
+.help-version-num { font-size: 13px; font-weight: 700; color: #262626; }
+.help-version-date { font-size: 11px; color: #aaa; margin-left: 4px; }
+.help-version-badge { font-size: 10px; font-weight: 600; color: #fff; background: #1890ff; border-radius: 8px; padding: 1px 7px; margin-left: 4px; }
+.help-version-arrow { margin-left: auto; font-size: 11px; color: #bbb; transition: transform 0.2s; }
+.help-version-block.open .help-version-arrow { transform: rotate(180deg); }
+.help-version-body { display: none; padding: 14px 16px; border-top: 1px solid #e8e8e8; background: #fafcfe; }
+.help-version-block.open .help-version-body { display: block; }
+.help-section { margin-bottom: 14px; }
+.help-section:last-child { margin-bottom: 0; }
+.help-section-title { font-size: 12px; font-weight: 600; color: #1890ff; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+.help-section-title::before { content: ''; width: 3px; height: 12px; background: #1890ff; border-radius: 2px; flex-shrink: 0; }
+.help-section p { font-size: 12px; color: #555; line-height: 1.9; }
+.help-section ul { padding-left: 16px; }
+.help-section ul li { font-size: 12px; color: #555; line-height: 2; }
+</style>
+
+<div class="help-fab" id="help-fab">
+  <div class="help-fab-icon">📋</div>
+  <div class="help-fab-text">需求说明</div>
+</div>
+
+<div class="help-panel-overlay" id="help-panel-overlay"></div>
+<div class="help-panel" id="help-panel">
+  <div class="help-panel-header">
+    <div class="help-panel-title">攻略组管理 — 需求说明</div>
+    <button class="help-panel-close" id="help-panel-close">×</button>
+  </div>
+  <div class="help-panel-body">
+    <div class="help-version-block open">
+      <div class="help-version-hd is-latest">
+        <span class="help-version-num">v3.1.0</span>
+        <span class="help-version-date">2026-05-07</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+        <div class="help-section">
+          <div class="help-section-title">核心规则</div>
+          <ul>
+            <li><strong>语种匹配：</strong>玩家进入社区时，系统依据其客户端 languageId 自动定位对应语种的攻略站并展示，无需玩家手动切换。</li>
+            <li><strong>兜底策略：</strong>若玩家的 languageId 在当前攻略组中无对应语种配置，自动降级展示英文攻略站，保障所有用户均有内容可见。</li>
+            <li><strong>英文不可删除：</strong>英文作为全球兜底语种，在后台编辑态为固定 Tab，不提供删除入口，确保兜底链路始终有效。</li>
+            <li><strong>语种来源：</strong>可选语种列表由配置中心 LanguageClub 统一下发，后台动态读取，新增或下线语种无需前端发版。</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">后台交互说明</div>
+          <ul>
+            <li>新增 / 编辑海外版块攻略时，抽屉顶部展示语种 Tab 栏；国内版块不显示此 Tab 栏。</li>
+            <li>英文 Tab 固定置首，其余语种 Tab 可由运营按需添加，已添加的语种可移除（英文除外）。</li>
+            <li>各语种 Tab 下的攻略内容相互独立，切换 Tab 即切换对应语种的配置表单。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const helpFab     = document.getElementById('help-fab');
+  const helpPanel   = document.getElementById('help-panel');
+  const helpOverlay = document.getElementById('help-panel-overlay');
+
+  function closeHelpPanel() { helpPanel.classList.remove('open'); helpOverlay.classList.remove('open'); }
+  function openHelpPanel()  { helpPanel.classList.add('open');    helpOverlay.classList.add('open'); }
+  function toggleHelpPanel() { helpPanel.classList.contains('open') ? closeHelpPanel() : openHelpPanel(); }
+
+  document.getElementById('help-panel-close').addEventListener('click', closeHelpPanel);
+  helpOverlay.addEventListener('click', closeHelpPanel);
+
+  helpPanel.querySelectorAll('.help-version-hd').forEach(hd => {
+    hd.addEventListener('click', () => hd.closest('.help-version-block').classList.toggle('open'));
+  });
+
+  let isDragging = false, dragOffX = 0, dragOffY = 0;
+  helpFab.addEventListener('mousedown', e => {
+    isDragging = false;
+    const rect = helpFab.getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+    function onMove(e) {
+      isDragging = true;
+      helpFab.classList.add('dragging');
+      const x = Math.min(Math.max(0, e.clientX - dragOffX), window.innerWidth  - helpFab.offsetWidth);
+      const y = Math.min(Math.max(0, e.clientY - dragOffY), window.innerHeight - helpFab.offsetHeight);
+      helpFab.style.left = x + 'px'; helpFab.style.top = y + 'px';
+      helpFab.style.right = 'auto'; helpFab.style.bottom = 'auto';
+    }
+    function onUp() {
+      helpFab.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!isDragging) toggleHelpPanel();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+</script>
+</body>
+</html>
