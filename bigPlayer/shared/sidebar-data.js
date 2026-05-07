@@ -153,6 +153,18 @@ const SIDEBAR_DATA = [
                 screenId: 'category'
               }
             ]
+          },
+          {
+            type: 'dir',
+            label: '攻略站管理',
+            children: [
+              {
+                type: 'item',
+                label: '攻略组管理',
+                version: 'v3.1.0',
+                href: 'admin/community/GuideGroupManage.html'
+              }
+            ]
           }
         ]
       },
