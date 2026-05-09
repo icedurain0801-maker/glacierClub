@@ -951,7 +951,7 @@ input[type="checkbox"] {
       </div>
     </div>
     <!-- 所属攻略组 -->
-    <div class="form-row">
+    <div class="form-row" id="f-group-row">
       <div class="form-label"><span class="form-required">*</span> 所属攻略组：</div>
       <div class="form-control">
         <div class="form-select-wrap">
@@ -1219,16 +1219,70 @@ input[type="checkbox"] {
     }
   }
 
+  function syncGroupByModule() {
+    const isOverseas = isOverseasSelected();
+    const fGroupRow = document.getElementById('f-group-row');
+    const fGroup = document.getElementById('f-group');
+    if (isOverseas) {
+      fGroupRow.style.display = 'none';
+      fGroup.value = '攻略站';
+    } else {
+      fGroupRow.style.display = '';
+      fGroup.value = '';
+      fGroup.disabled = false;
+    }
+  }
+
   // ── 新增抽屉 ──
   function openAddDrawer() {
     document.getElementById('add-drawer-title').textContent = '新增攻略';
     document.getElementById('add-overlay').classList.add('open');
     document.getElementById('add-drawer').classList.add('open');
+    syncGroupByModule();
   }
   function openEditDrawer(idx) {
+    const g = MOCK_GUIDES[idx];
     document.getElementById('add-drawer-title').textContent = '编辑攻略';
     document.getElementById('add-overlay').classList.add('open');
     document.getElementById('add-drawer').classList.add('open');
+    syncGroupByModule();
+
+    // 填充模块名称（取当前激活语种的名称，海外取第一语种，国内取 g.name）
+    const isOverseas = isOverseasSelected();
+    const firstName = g.langs && g.langs[0] ? (g.langs[0].name || g.name) : g.name;
+    document.getElementById('f-module-name').value = isOverseas ? firstName : g.name;
+
+    // 海外：同步语种 Tab
+    if (isOverseas) {
+      showLangTabBar();
+      const tabs = document.getElementById('lang-tabs');
+      // 重置为只有英文，再把数据里已有的语种都补上
+      tabs.innerHTML = '<div class="lang-tab active" data-lang="英文">英文</div>';
+      if (g.langs) {
+        g.langs.slice(1).forEach(l => {
+          const tab = document.createElement('div');
+          tab.className = 'lang-tab';
+          tab.dataset.lang = l.lang;
+          tab.innerHTML = `${l.lang}<span class="lang-tab-close" data-lang="${l.lang}" title="移除">×</span>`;
+          tab.addEventListener('click', function(e) {
+            if (e.target.classList.contains('lang-tab-close')) return;
+            tabs.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+          });
+          tab.querySelector('.lang-tab-close').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const wasActive = tab.classList.contains('active');
+            tab.remove();
+            if (wasActive) {
+              const remaining = tabs.querySelectorAll('.lang-tab');
+              if (remaining.length) remaining[remaining.length - 1].classList.add('active');
+            }
+          });
+          tabs.appendChild(tab);
+        });
+      }
+      bindLangTabs();
+    }
   }
   function closeAddDrawer() {
     document.getElementById('add-overlay').classList.remove('open');
@@ -1502,13 +1556,18 @@ input[type="checkbox"] {
     const val = this.value;
     const drawerSel = document.querySelector('#add-drawer .form-select[disabled]');
     if (drawerSel) {
-      // 找到匹配 option 并选中
       Array.from(drawerSel.options).forEach(opt => {
         if (opt.value === val || opt.text === val) opt.selected = true;
       });
     }
-    // 控制语种 tab 显隐（仅当抽屉打开时有意义，抽屉关闭时也安全执行）
-    if (OVERSEAS_VALUES.includes(val)) {
+
+    const isOverseas = OVERSEAS_VALUES.includes(val);
+
+    // 控制攻略组行显隐（委托给 syncGroupByModule）
+    syncGroupByModule();
+
+    // 控制语种 tab 显隐
+    if (isOverseas) {
       showLangTabBar();
     } else {
       hideLangTabBar();
@@ -1617,11 +1676,12 @@ input[type="checkbox"] {
           </ul>
         </div>
         <div class="help-section">
-          <div class="help-section-title">后台交互说明</div>
+          <div class="help-section-title">新增 / 编辑表单差异（国内 vs 海外）</div>
           <ul>
-            <li>新增 / 编辑海外版块攻略时，抽屉顶部展示语种 Tab 栏；国内版块不显示此 Tab 栏。</li>
-            <li>英文 Tab 固定置首，其余语种 Tab 可由运营按需添加，已添加的语种可移除（英文除外）。</li>
-            <li>各语种 Tab 下的攻略内容相互独立，切换 Tab 即切换对应语种的配置表单。</li>
+            <li><strong>所属攻略组：</strong>海外版块固定使用 C 端内置的「攻略站」，不开放选择，该字段在表单中隐藏；国内版块正常展示下拉选择及跳转编辑按钮。</li>
+            <li><strong>语种 Tab 栏：</strong>海外版块新增 / 编辑时，表单中部出现语种配置分区，英文 Tab 固定置首不可删除，其余语种可按需添加或移除；国内版块无此分区。</li>
+            <li><strong>编辑回填：</strong>编辑海外攻略时，已配置的语种 Tab 自动还原，各语种下的模块名称与攻略内容同步回填，与新增表单字段保持完全一致。</li>
+            <li><strong>详情查看：</strong>海外版块详情面板通过语种 Tab 分区展示各语种的模块名称与攻略内容；国内版块详情无语种分区，直接展示内容。</li>
           </ul>
         </div>
       </div>

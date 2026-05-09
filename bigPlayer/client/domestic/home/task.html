@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<title>福利任务</title>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          primary: "#2775FF",
+          "primary-light": "#5B9FFF",
+          "background-light": "#FFFFFF",
+          "background-dark": "#121212",
+          "header-bg": "#0a1628",
+        },
+        fontFamily: {
+          display: ["Space Grotesk", "sans-serif"],
+          body: ["Inter", "sans-serif"],
+        },
+        borderRadius: {
+          DEFAULT: "0.5rem",
+        },
+      },
+    },
+  };
+</script>
+<style>
+body {
+  font-family: "Inter", sans-serif;
+  min-height: max(884px, 100dvh);
+}
+
+/* ── Header ── */
+.task-header {
+  background: #0a1628;
+  padding: 16px 20px 24px;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+.task-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.task-nav-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.07);
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: rgba(255,255,255,0.6);
+  transition: background 0.15s;
+}
+.task-nav-btn:hover { background: rgba(255,255,255,0.12); }
+.task-nav-btn .material-symbols-outlined { font-size: 18px; }
+.task-header-title {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ── XP card ── */
+.xp-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Ring */
+.xp-ring-wrap {
+  position: relative;
+  width: 84px; height: 84px;
+  flex-shrink: 0;
+}
+.xp-ring-svg {
+  width: 84px; height: 84px;
+  transform: rotate(-90deg);
+}
+.xp-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.xp-ring-pct {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 20px; font-weight: 700;
+  color: #fff; line-height: 1;
+}
+.xp-ring-sublabel {
+  font-size: 9px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Right info */
+.xp-info { flex: 1; min-width: 0; }
+.xp-level-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.xp-badge {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 12px; font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.55);
+}
+.xp-badge.active {
+  background: #2775FF;
+  color: #fff;
+}
+.xp-bar-track {
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.xp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2775FF, #5B9FFF);
+  border-radius: 2px;
+  /* width set inline */
+}
+.xp-desc {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  line-height: 1.5;
+}
+.xp-desc strong { color: rgba(255,255,255,0.75); }
+
+/* Record link */
+.xp-record-btn {
+  display: flex; align-items: center; gap: 2px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  background: none; border: none; cursor: pointer;
+  margin-top: 8px;
+  padding: 0;
+  transition: color 0.15s;
+}
+.xp-record-btn:hover { color: rgba(255,255,255,0.7); }
+.xp-record-btn .material-symbols-outlined { font-size: 14px; }
+</style>
+</head>
+<body class="bg-gray-100 flex justify-center text-slate-900 font-sans">
+
+<nav id="sidebar" class="sidebar hidden"></nav>
+<div class="w-full max-w-[428px] h-[100dvh] bg-white shadow-2xl flex flex-col overflow-hidden">
+<header class="task-header">
+  <!-- SVG gradient defs (hidden) -->
+  <svg width="0" height="0" style="position:absolute;overflow:hidden">
+    <defs>
+      <linearGradient id="xpRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#2775FF"/>
+        <stop offset="100%" stop-color="#5B9FFF"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div class="task-topbar">
+    <button class="task-nav-btn" onclick="history.back()">
+      <span class="material-symbols-outlined">arrow_back_ios</span>
+    </button>
+    <span class="task-header-title">福利任务</span>
+    <button class="task-nav-btn">
+      <span class="material-symbols-outlined">help_outline</span>
+    </button>
+  </div>
+
+  <div class="xp-card">
+    <!-- Ring progress -->
+    <div class="xp-ring-wrap">
+      <svg class="xp-ring-svg" viewBox="0 0 84 84">
+        <!-- track -->
+        <circle cx="42" cy="42" r="36"
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          stroke-width="5.5"/>
+        <!-- fill: circumference = 2π×36 ≈ 226.2, 54% → dashoffset = 226.2×(1-0.54) ≈ 104 -->
+        <circle cx="42" cy="42" r="36"
+          fill="none"
+          stroke="url(#xpRingGrad)"
+          stroke-width="5.5"
+          stroke-linecap="round"
+          stroke-dasharray="226.2"
+          stroke-dashoffset="104"/>
+      </svg>
+      <div class="xp-ring-center">
+        <span class="xp-ring-pct">54%</span>
+        <span class="xp-ring-sublabel">到升级</span>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="xp-info">
+      <div class="xp-level-pair">
+        <span class="xp-badge active">LV 2</span>
+        <span class="xp-badge">LV 3</span>
+      </div>
+      <div class="xp-bar-track">
+        <div class="xp-bar-fill" style="width:54%"></div>
+      </div>
+      <p class="xp-desc">
+        累计 <strong>108 XP</strong>，还需 <strong>92 XP</strong> 升级
+      </p>
+      <button class="xp-record-btn">
+        获取记录
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="px-4 py-6 pb-24">
+  <!-- 每日任务 -->
+  <section class="mb-10">
+    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 border-b dark:border-slate-800 pb-2">
+      每日任务
+    </h2>
+    <div class="space-y-6">
+      <div class="flex items-center justify-between group">
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px">send</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-base">发帖</h3>
+              <span class="text-xs text-slate-500 dark:text-slate-400">0/3</span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">每日发表 1 篇创作 <span class="text-primary font-medium">+10</span> 经验值</p>
+          </div>
+        </div>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm">
+          去发帖
+        </button>
+      </div>
+      <div class="flex items-center justify-between group">
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px">chat_bubble</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-base">评论</h3>
+              <span class="text-xs text-slate-500 dark:text-slate-400">0/6</span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">每日发表 1 次评论 <span class="text-primary font-medium">+5</span> 经验值</p>
+          </div>
+        </div>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">
+          去评论
+        </button>
+      </div>
+      <div class="flex items-center justify-between group">
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px">thumb_up</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-base">点赞</h3>
+              <span class="text-xs text-slate-500 dark:text-slate-400">0/10</span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">每日点赞 1 次 <span class="text-primary font-medium">+2</span> 经验值</p>
+          </div>
+        </div>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">
+          去点赞
+        </button>
+      </div>
+      <div class="flex items-center justify-between group">
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px">visibility</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-base">浏览</h3>
+              <span class="text-xs text-slate-500 dark:text-slate-400">0/5</span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">每日浏览 1 篇创作 <span class="text-primary font-medium">+2</span> 经验值</p>
+          </div>
+        </div>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">
+          去浏览
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 每周任务 -->
+  <section class="mb-10">
+    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 border-b dark:border-slate-800 pb-2">
+      每周任务
+    </h2>
+    <div class="space-y-6">
+      <div class="flex items-center justify-between group">
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px">publish</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-base">置顶</h3>
+              <span class="text-xs text-slate-500 dark:text-slate-400">0/2</span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">每周创作被置顶 1 次 <span class="text-primary font-medium">+1000</span> 经验值</p>
+          </div>
+        </div>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">
+          去发帖
+        </button>
+      </div>
+      <div class="flex items-center justify-between group">
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px">star</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-base">加精</h3>
+              <span class="text-xs text-slate-500 dark:text-slate-400">0/4</span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">每周创作被加精 1 次 <span class="text-primary font-medium">+500</span> 经验值</p>
+          </div>
+        </div>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">
+          去发帖
+        </button>
+      </div>
+      <div class="flex items-center justify-between group">
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px">favorite</span>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-base">获赞</h3>
+              <span class="text-xs text-slate-500 dark:text-slate-400">0/50</span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">每周获赞 1 次 <span class="text-primary font-medium">+2</span> 经验值</p>
+          </div>
+        </div>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">
+          去发帖
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 等级说明 -->
+  <section>
+    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 border-b dark:border-slate-800 pb-2">
+      等级说明
+    </h2>
+    <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+      <table class="w-full text-sm text-left">
+        <thead class="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+          <tr>
+            <th class="px-4 py-3 font-medium" scope="col">等级</th>
+            <th class="px-4 py-3 font-medium" scope="col">所需经验值</th>
+            <th class="px-4 py-3 font-medium" scope="col">尊享特权</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+          <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
+            <td class="px-4 py-3 font-semibold text-yellow-600 dark:text-yellow-500">LV1</td>
+            <td class="px-4 py-3">0</td>
+            <td class="px-4 py-3 text-slate-500 dark:text-slate-400">无</td>
+          </tr>
+          <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
+            <td class="px-4 py-3 font-semibold text-yellow-600 dark:text-yellow-500">LV2</td>
+            <td class="px-4 py-3">80</td>
+            <td class="px-4 py-3">会员积分: 100</td>
+          </tr>
+          <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
+            <td class="px-4 py-3 font-semibold text-yellow-600 dark:text-yellow-500">LV3</td>
+            <td class="px-4 py-3">200</td>
+            <td class="px-4 py-3">会员积分: 100</td>
+          </tr>
+          <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
+            <td class="px-4 py-3 font-semibold text-yellow-600 dark:text-yellow-500">LV4</td>
+            <td class="px-4 py-3">500</td>
+            <td class="px-4 py-3">会员积分: 100</td>
+          </tr>
+          <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
+            <td class="px-4 py-3 font-semibold text-yellow-600 dark:text-yellow-500">LV5</td>
+            <td class="px-4 py-3">1000</td>
+            <td class="px-4 py-3">会员积分: 100</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<bottom-nav active="home" base="../"></bottom-nav>
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/sidebar.js"></script>
+<script src="../../shared/bottom-nav.js"></script>
+<script>
+  initSidebar({
+    root: '../..',
+    currentHref: 'client/home/task.html'
+  });
+</script>
+</div>
+</body></html>

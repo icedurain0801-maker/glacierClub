@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资讯页原型</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f0f1a;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 40px 20px;
+    font-family: -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  }
+  /* 滚动条隐藏 */
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+/* ─── IosFrame ─────────────────────────────────────────────── */
+const iosFrameStyles = {
+  wrapper: {
+    display: 'inline-block', padding: 12, background: '#111',
+    borderRadius: 58, position: 'relative',
+    boxShadow: '0 0 0 1px #2a2a2a, inset 0 0 0 1px #333, 0 30px 80px rgba(0,0,0,0.7)',
+  },
+  screen: { position: 'relative', borderRadius: 46, overflow: 'hidden' },
+  statusBar: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 50,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    paddingLeft: 20, paddingRight: 20,
+    fontSize: 14, fontWeight: 600,
+    fontFamily: '-apple-system, "SF Pro Text", sans-serif',
+    zIndex: 50, pointerEvents: 'none', color: '#fff',
+  },
+  dynamicIsland: {
+    position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+    width: 120, height: 34, background: '#000', borderRadius: 999, zIndex: 60,
+  },
+  statusLeft: { display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 600 },
+  statusRight: { display: 'flex', alignItems: 'center', gap: 5 },
+  content: {
+    position: 'absolute', top: 50, left: 0, right: 0, bottom: 30,
+    overflowY: 'auto', overflowX: 'hidden',
+    scrollbarWidth: 'none',
+  },
+  homeIndicator: {
+    position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+    width: 130, height: 4, background: 'rgba(0,0,0,0.28)', borderRadius: 999, zIndex: 50,
+  },
+};
+
+function StatusBarIcons({ battery = 100 }) {
+  return (
+    <div style={iosFrameStyles.statusRight}>
+      {/* signal */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 11 }}>
+        {[3, 5, 8, 11].map((h, i) => (
+          <div key={i} style={{ width: 3, height: h, borderRadius: 1, background: i < 3 ? '#fff' : 'rgba(255,255,255,0.35)' }} />
+        ))}
+      </div>
+      {/* wifi */}
+      <svg width="15" height="11" viewBox="0 0 15 11">
+        <circle cx="7.5" cy="10" r="1.2" fill="#fff"/>
+        <path d="M4 7a5 5 0 016 0" stroke="#fff" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+        <path d="M1.5 4.5a9 9 0 0112 0" stroke="#fff" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      </svg>
+      {/* battery */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <div style={{
+          width: 24, height: 11, border: '1.2px solid rgba(255,255,255,0.8)',
+          borderRadius: 2.5, padding: '1.5px', position: 'relative',
+        }}>
+          <div style={{ width: `${battery}%`, height: '100%', background: '#fff', borderRadius: 1 }} />
+        </div>
+        <div style={{ width: 2, height: 5, background: 'rgba(255,255,255,0.6)', borderRadius: '0 1px 1px 0' }} />
+      </div>
+    </div>
+  );
+}
+
+function IosFrame({ children, width = 393, height = 852 }) {
+  return (
+    <div style={iosFrameStyles.wrapper}>
+      <div style={{ ...iosFrameStyles.screen, width, height, background: '#f2f2f7' }}>
+        <div style={iosFrameStyles.statusBar}>
+          <div style={iosFrameStyles.statusLeft}>
+            <span style={{ letterSpacing: 1 }}>●●●●○</span>
+            <span style={{ marginLeft: 4 }}>中国移动</span>
+            <svg width="14" height="11" viewBox="0 0 14 11" style={{ marginLeft: 2 }}>
+              <path d="M7 9l-5-4.5h3V1h4v3.5h3z" fill="#fff"/>
+            </svg>
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: 0.5 }}>9:41 AM</span>
+          <StatusBarIcons battery={100} />
+        </div>
+        <div style={iosFrameStyles.dynamicIsland} />
+        <div style={iosFrameStyles.content}>{children}</div>
+        <div style={iosFrameStyles.homeIndicator} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── Banner ────────────────────────────────────────────────── */
+function Banner() {
+  const [dot, setDot] = React.useState(1);
+
+  return (
+    <div style={{ background: '#1a1520', height: 210, position: 'relative', overflow: 'hidden' }}>
+
+      {/* 左侧半露卡 */}
+      <div style={{
+        position: 'absolute', left: -48, top: 16, width: 130, height: 178,
+        borderRadius: 14, overflow: 'hidden',
+        background: 'linear-gradient(160deg, #1a2550 0%, #0e1a3a 100%)',
+        boxShadow: '2px 0 12px rgba(0,0,0,0.3)',
+      }}>
+        <div style={{
+          width: '100%', height: '100%',
+          background: 'url(https://picsum.photos/seed/game-left/260/356) center/cover',
+          filter: 'brightness(0.5) saturate(0.8)',
+        }}/>
+        <div style={{
+          position: 'absolute', bottom: 14, left: 10,
+          fontSize: 16, fontWeight: 900, color: '#fff',
+          textShadow: '0 1px 8px rgba(0,0,0,0.9)',
+          writingMode: 'horizontal-tb',
+        }}>神行游侠</div>
+      </div>
+
+      {/* 主 Banner 卡 */}
+      <div style={{
+        position: 'absolute', left: 88, top: 0, right: 74, height: 210,
+        borderRadius: 16, overflow: 'hidden',
+        boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
+      }}>
+        {/* 左半区：暖调 */}
+        <div style={{
+          position: 'absolute', left: 0, top: 0, width: '52%', height: '100%',
+          background: 'linear-gradient(160deg, #8b6a3a 0%, #c4a050 30%, #7a4e28 70%, #3a2018 100%)',
+        }}>
+          <div style={{
+            width: '100%', height: '100%',
+            background: 'url(https://picsum.photos/seed/tea-party/220/420) center/cover',
+            mixBlendMode: 'luminosity', opacity: 0.6,
+          }}/>
+          {/* 暖色调叠加 */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(160deg, rgba(200,150,60,0.45) 0%, rgba(120,70,20,0.3) 100%)',
+          }}/>
+        </div>
+
+        {/* 右半区：冷暗调 */}
+        <div style={{
+          position: 'absolute', right: 0, top: 0, width: '48%', height: '100%',
+          background: 'linear-gradient(160deg, #1a1230 0%, #2a1440 30%, #0a0a1a 100%)',
+        }}>
+          <div style={{
+            width: '100%', height: '100%',
+            background: 'url(https://picsum.photos/seed/warrior-dark/200/420) center/cover',
+            mixBlendMode: 'luminosity', opacity: 0.5,
+          }}/>
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(160deg, rgba(60,20,80,0.4) 0%, rgba(10,5,20,0.5) 100%)',
+          }}/>
+        </div>
+
+        {/* 斜线分割线 */}
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0,
+          left: 'calc(52% - 1px)', width: 2,
+          background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 30%, rgba(255,255,255,0.25) 70%, rgba(255,255,255,0) 100%)',
+        }}/>
+
+        {/* 左侧文字：安塔茶话会 */}
+        <div style={{
+          position: 'absolute', bottom: 28, left: 12, zIndex: 10,
+          fontSize: 24, fontWeight: 900, color: '#fff',
+          textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 20px rgba(200,150,50,0.6)',
+          letterSpacing: 1,
+        }}>安塔茶话会</div>
+
+        {/* 右侧文字：狩魂者 */}
+        <div style={{
+          position: 'absolute', bottom: 28, right: 10, zIndex: 10,
+          fontSize: 24, fontWeight: 900, color: '#fff',
+          textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 20px rgba(100,50,150,0.6)',
+          letterSpacing: 1,
+          textAlign: 'right',
+        }}>狩魂者</div>
+
+        {/* 游戏名标签（左上角） */}
+        <div style={{
+          position: 'absolute', top: 14, left: 12, zIndex: 20,
+          display: 'flex', alignItems: 'center', gap: 5,
+          background: 'rgba(10,8,20,0.65)', backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 8, padding: '4px 10px 4px 8px',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14">
+            <rect x="1" y="1" width="12" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2"/>
+            <line x1="1" y1="5" x2="13" y2="5" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8"/>
+            <line x1="4" y1="1" x2="4" y2="5" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8"/>
+          </svg>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: 600, letterSpacing: 0.5 }}>英雄塔</span>
+        </div>
+      </div>
+
+      {/* 右侧半露卡 */}
+      <div style={{
+        position: 'absolute', right: -36, top: 16, width: 120, height: 178,
+        borderRadius: 14, overflow: 'hidden',
+        background: 'linear-gradient(160deg, #1a3020 0%, #0e2018 100%)',
+      }}>
+        <div style={{
+          width: '100%', height: '100%',
+          background: 'url(https://picsum.photos/seed/game-right/240/356) center/cover',
+          filter: 'brightness(0.45) saturate(0.7)',
+        }}/>
+        <div style={{
+          position: 'absolute', bottom: 14, left: 10,
+          fontSize: 16, fontWeight: 900, color: '#fff',
+          textShadow: '0 1px 8px rgba(0,0,0,0.9)',
+        }}>砍</div>
+      </div>
+
+      {/* 分页点 */}
+      <div style={{
+        position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+        display: 'flex', gap: 5, alignItems: 'center',
+      }}>
+        {[0,1,2,3].map(i => (
+          <div key={i} onClick={() => setDot(i)} style={{
+            width: i === dot ? 18 : 6, height: 6, borderRadius: 3,
+            background: i === dot ? '#fff' : 'rgba(255,255,255,0.35)',
+            transition: 'all 0.3s ease', cursor: 'pointer',
+          }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Tab Nav ───────────────────────────────────────────────── */
+function TabNav() {
+  const [active, setActive] = React.useState(0);
+  const tabs = [
+    {
+      label: '官方资讯',
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 17 17">
+          <rect x="1.5" y="1.5" width="14" height="14" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.4"/>
+          <line x1="1.5" y1="6" x2="15.5" y2="6" stroke="currentColor" strokeWidth="1.2"/>
+          <line x1="5" y1="1.5" x2="5" y2="6" stroke="currentColor" strokeWidth="1.2"/>
+          <line x1="4.5" y1="9.5" x2="12.5" y2="9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          <line x1="4.5" y1="12" x2="9.5" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+    {
+      label: '攻略大全',
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 17 17">
+          <rect x="2" y="2" width="13" height="13" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3"/>
+          <line x1="5" y1="5" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          <line x1="12" y1="5" x2="5" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+    {
+      label: '趣味栏目',
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 17 17">
+          <circle cx="8.5" cy="8.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.3"/>
+          <circle cx="6.2" cy="7" r="1" fill="currentColor"/>
+          <circle cx="10.8" cy="7" r="1" fill="currentColor"/>
+          <path d="M5.5 10.5 Q8.5 13 11.5 10.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+  ];
+  return (
+    <div style={{
+      background: '#fff', borderBottom: '1px solid #ebebeb',
+      display: 'flex', alignItems: 'stretch', height: 44,
+      position: 'sticky', top: 0, zIndex: 30,
+    }}>
+      {tabs.map((t, i) => (
+        <button key={i} onClick={() => setActive(i)} style={{
+          flex: 1, border: 'none', background: 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+          fontSize: 13.5, fontWeight: i === active ? 600 : 400,
+          color: i === active ? '#1a1a1a' : '#888',
+          position: 'relative', cursor: 'pointer',
+          padding: 0,
+        }}>
+          <span style={{ display: 'flex', color: i === active ? '#1a1a1a' : '#aaa' }}>{t.icon}</span>
+          {t.label}
+          {i === active && (
+            <div style={{
+              position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+              width: 32, height: 2.5, background: '#c0392b', borderRadius: 2,
+            }} />
+          )}
+        </button>
+      ))}
+      {/* Search */}
+      <button style={{
+        width: 44, border: 'none', background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <circle cx="8" cy="8" r="5.5" fill="none" stroke="#555" strokeWidth="1.5"/>
+          <line x1="12" y1="12" x2="16" y2="16" stroke="#555" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+/* ─── Sort Row ───────────────────────────────────────────────── */
+function SortRow() {
+  return (
+    <div style={{
+      padding: '7px 16px', display: 'flex', justifyContent: 'flex-end',
+      background: '#f2f2f7',
+    }}>
+      <span style={{
+        fontSize: 13, color: '#666', display: 'flex', alignItems: 'center', gap: 4,
+      }}>
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <path d="M2 3.5h10M4 7h6M6 10.5h2" stroke="#666" strokeWidth="1.3" strokeLinecap="round"/>
+        </svg>
+        最新
+      </span>
+    </div>
+  );
+}
+
+/* ─── News Card ─────────────────────────────────────────────── */
+const cardData = [
+  {
+    id: 1,
+    coverBg: 'linear-gradient(135deg, #c8a060 0%, #f0d090 25%, #d09040 55%, #8050a0 85%, #503070 100%)',
+    coverSeed: 'antatep',
+    coverTextLine1: '',
+    coverTextMain: '安塔茶话会',
+    title: '互动有礼｜超能道具大作战第6期',
+    date: '04/17', author: '安塔',
+    likes: 865, comments: 1881,
+    hasVideo: false,
+  },
+  {
+    id: 2,
+    coverBg: 'linear-gradient(135deg, #101828 0%, #1a2a50 40%, #0a1830 100%)',
+    coverSeed: 'chaoneng',
+    coverTextLine1: '',
+    coverTextMain: '超能情报站',
+    title: '超能情报站｜五一活动即将开启，假日好礼等你解锁',
+    date: '04/15', author: '策划阿哲',
+    likes: 702, comments: 177,
+    hasVideo: false,
+  },
+  {
+    id: 3,
+    coverBg: 'linear-gradient(135deg, #080810 0%, #101018 35%, #1a0808 100%)',
+    coverSeed: 'shouhun',
+    coverTextLine1: '',
+    coverTextMain: '狩魂者',
+    title: "超能情报站｜『狩魂者-蛮古』技能详情公开！",
+    date: '04/14', author: '策划阿哲',
+    likes: 725, comments: 191,
+    hasVideo: true, videoDur: '00:34',
+  },
+];
+
+function HeartIcon() {
+  return (
+    <svg width="15" height="14" viewBox="0 0 15 14">
+      <path d="M7.5 12.5S1 8.5 1 4.5C1 2.5 2.5 1 4.5 1c1.2 0 2.3.7 3 1.7C8.2 1.7 9.3 1 10.5 1 12.5 1 14 2.5 14 4.5c0 4-6.5 8-6.5 8z" fill="none" stroke="#aaa" strokeWidth="1.1"/>
+    </svg>
+  );
+}
+function CommentIcon() {
+  return (
+    <svg width="15" height="14" viewBox="0 0 15 14">
+      <path d="M1.5 1.5h12a1 1 0 011 1v7a1 1 0 01-1 1H5l-3.5 3V2.5a1 1 0 011-1z" fill="none" stroke="#aaa" strokeWidth="1.1"/>
+    </svg>
+  );
+}
+
+function NewsCard({ item }) {
+  return (
+    <div style={{
+      margin: '0 12px 10px', borderRadius: 14, overflow: 'hidden',
+      background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.07)',
+    }}>
+      {/* Cover */}
+      <div style={{
+        height: 182, position: 'relative', overflow: 'hidden',
+        background: item.coverBg,
+      }}>
+        {/* 背景图（placeholder模拟游戏氛围） */}
+        <img
+          src={`https://picsum.photos/seed/${item.coverSeed}/393/364`}
+          alt=""
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', opacity: 0.45, mixBlendMode: 'luminosity',
+          }}
+        />
+        {/* 渐变蒙版 */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%)',
+        }}/>
+
+        {/* 覆盖文字 */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{
+            fontSize: 30, fontWeight: 900, color: '#fff',
+            textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0 30px rgba(0,0,0,0.4)',
+            letterSpacing: 2,
+          }}>{item.coverTextMain}</span>
+        </div>
+
+        {/* 视频按钮 */}
+        {item.hasVideo && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          }}>
+            <div style={{
+              width: 46, height: 46, borderRadius: 23,
+              background: 'rgba(0,0,0,0.52)', border: '1.5px solid rgba(255,255,255,0.75)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="16" height="18" viewBox="0 0 16 18">
+                <path d="M2 1l13 8-13 8V1z" fill="#fff"/>
+              </svg>
+            </div>
+            <span style={{
+              fontSize: 16, color: '#fff', fontWeight: 600, letterSpacing: 1.5,
+              textShadow: '0 1px 4px rgba(0,0,0,0.7)',
+            }}>{item.videoDur}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Text Content */}
+      <div style={{ padding: '11px 14px 10px' }}>
+        <div style={{
+          fontSize: 15, fontWeight: 600, color: '#1c1c1e', lineHeight: 1.45,
+          marginBottom: 9,
+        }}>{item.title}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 12, color: '#9a9a9a' }}>
+            {item.date}｜{item.author}
+          </span>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: '#9a9a9a', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <HeartIcon />{item.likes}
+            </span>
+            <span style={{ fontSize: 12, color: '#9a9a9a', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <CommentIcon />{item.comments}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Bottom Tab Bar ─────────────────────────────────────────── */
+function BottomTabBar() {
+  const [active, setActive] = React.useState(1);
+
+  function HomeIcon({ active }) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 22 22">
+        <path d="M2 10L11 2l9 8v10H14v-6H8v6H2V10z" fill="none" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.5" strokeLinejoin="round"/>
+      </svg>
+    );
+  }
+  function NewsIcon({ active }) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 22 22">
+        <rect x="2.5" y="2.5" width="17" height="17" rx="3" fill="none" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.5"/>
+        <line x1="2.5" y1="7.5" x2="19.5" y2="7.5" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.3"/>
+        <line x1="6.5" y1="2.5" x2="6.5" y2="7.5" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.3"/>
+        <line x1="6" y1="11.5" x2="16" y2="11.5" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.2" strokeLinecap="round"/>
+        <line x1="6" y1="14.5" x2="12" y2="14.5" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    );
+  }
+  function CircleIcon({ active }) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 22 22">
+        <circle cx="11" cy="11" r="8.5" fill="none" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.5"/>
+        <circle cx="11" cy="11" r="3" fill="none" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.3"/>
+        <line x1="11" y1="2.5" x2="11" y2="6" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="11" y1="16" x2="11" y2="19.5" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="2.5" y1="11" x2="6" y2="11" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="16" y1="11" x2="19.5" y2="11" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.3" strokeLinecap="round"/>
+      </svg>
+    );
+  }
+  function MeIcon({ active }) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 22 22">
+        <circle cx="11" cy="8" r="4" fill="none" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.5"/>
+        <path d="M3 20c0-4 3.6-7 8-7s8 3 8 7" fill="none" stroke={active ? '#c0392b' : '#9a9a9a'} strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    );
+  }
+
+  const tabs = [
+    { label: '首页', Icon: HomeIcon },
+    { label: '资讯', Icon: NewsIcon },
+    null,
+    { label: '玩家圈', Icon: CircleIcon },
+    { label: '我的', Icon: MeIcon, badge: 2 },
+  ];
+
+  return (
+    <div style={{
+      height: 58, background: '#fff', borderTop: '1px solid #e5e5e5',
+      display: 'flex', alignItems: 'center', flexShrink: 0,
+    }}>
+      {tabs.map((t, i) => {
+        if (!t) {
+          return (
+            <div key="plus" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 20,
+                background: 'linear-gradient(135deg, #e03020 0%, #a01810 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 3px 10px rgba(180,30,20,0.4)',
+                marginBottom: 4,
+              }}>
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <line x1="9" y1="3" x2="9" y2="15" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="3" y1="9" x2="15" y2="9" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </div>
+          );
+        }
+        const { label, Icon, badge } = t;
+        const isActive = active === i;
+        return (
+          <button key={i} onClick={() => setActive(i)} style={{
+            flex: 1, height: '100%', border: 'none', background: 'transparent',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', gap: 2, cursor: 'pointer', position: 'relative',
+          }}>
+            <Icon active={isActive} />
+            <span style={{ fontSize: 10, color: isActive ? '#c0392b' : '#9a9a9a' }}>{label}</span>
+            {badge && (
+              <div style={{
+                position: 'absolute', top: 6, left: '50%', marginLeft: 4,
+                width: 16, height: 16, borderRadius: 8,
+                background: '#c0392b', color: '#fff',
+                fontSize: 10, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1.5px solid #fff',
+              }}>{badge}</div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── News Page ─────────────────────────────────────────────── */
+function NewsPage() {
+  return (
+    <div style={{ background: '#f2f2f7', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      <Banner />
+      <TabNav />
+      <div style={{ flex: 1 }}>
+        <SortRow />
+        {cardData.map(item => <NewsCard key={item.id} item={item} />)}
+        <div style={{ height: 6 }} />
+      </div>
+      <BottomTabBar />
+    </div>
+  );
+}
+
+/* ─── App ───────────────────────────────────────────────────── */
+function App() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+      <div style={{
+        color: 'rgba(255,255,255,0.4)', fontSize: 12, letterSpacing: 2,
+        textTransform: 'uppercase',
+      }}>BigPlayer · 资讯页原型</div>
+      <IosFrame width={393} height={852}>
+        <NewsPage />
+      </IosFrame>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
