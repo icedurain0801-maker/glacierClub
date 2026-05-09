@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gaming News Feed</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#0061a4",
+            "background-light": "#F3F4F6",
+            "background-dark": "#111827",
+            "surface-light": "#FFFFFF",
+            "surface-dark": "#1F2937",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f2f3ff",
+            "surface-container": "#eaedff",
+            "on-surface": "#131b2e",
+            "on-surface-variant": "#424656",
+            "secondary-container": "#dee3ed",
+            "on-secondary-container": "#5f656d",
+          },
+          fontFamily: {
+            display: ["Inter", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "0.5rem",
+          },
+        },
+      },
+    };
+  </script>
+<style>
+    body {
+      height: 100dvh;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex justify-center text-gray-900 font-display antialiased">
+<div class="w-full max-w-[428px] h-[100dvh] bg-white shadow-2xl flex flex-col overflow-hidden">
+<header class="bg-white/95 dark:bg-surface-dark backdrop-blur-md sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800">
+<!-- 一级 Tab：Twitter/X 风格下划线 -->
+<div class="flex">
+  <button data-l1="official" class="l1-tab flex-1 py-3.5 text-[15px] font-bold text-gray-900 dark:text-white relative transition-colors duration-150">
+    Official
+    <span class="l1-indicator absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-[#1d9bf0] rounded-full"></span>
+  </button>
+  <button data-l1="guides" class="l1-tab flex-1 py-3.5 text-[15px] font-bold text-gray-400 dark:text-gray-500 relative transition-colors duration-150">
+    Guides
+    <span class="l1-indicator absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-[#1d9bf0] rounded-full opacity-0"></span>
+  </button>
+  <button data-l1="fun" class="l1-tab flex-1 py-3.5 text-[15px] font-bold text-gray-400 dark:text-gray-500 relative transition-colors duration-150">
+    Fun
+    <span class="l1-indicator absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-[#1d9bf0] rounded-full opacity-0"></span>
+  </button>
+</div>
+<!-- 二级 Tag：描边→黑实心 -->
+<div class="flex items-center border-b border-gray-100 dark:border-gray-800">
+  <div class="overflow-x-auto no-scrollbar py-2 pl-3 flex gap-2 flex-1">
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[13px] font-semibold border border-gray-900 dark:border-white whitespace-nowrap transition-all duration-150">All</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Featured</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Announcements</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Community</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Events</button>
+    <button data-l2 class="l2-tag px-3.5 py-1 rounded-full text-gray-500 dark:text-gray-400 text-[13px] font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap transition-all duration-150">Game Info</button>
+  </div>
+  <!-- 排序按钮 -->
+  <button id="sort-btn" onclick="toggleSort()" class="flex items-center gap-1 px-3 py-2 shrink-0 text-[12px] font-medium text-gray-500 dark:text-gray-400 border-l border-gray-100 dark:border-gray-800 whitespace-nowrap transition-colors duration-150 hover:text-gray-800 dark:hover:text-gray-200">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+    <span id="sort-label">回复时间</span>
+  </button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto pb-4">
+<div class="p-4 space-y-4"><!-- Pinned Section (Kept mostly as is but styled slightly better) -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-gray-700 mb-4 space-y-1.5">
+  <div class="flex items-center gap-1.5 mb-1">
+    <span class="material-icons text-[13px] text-purple-600">push_pin</span>
+    <span class="text-xs font-medium text-purple-600">置顶</span>
+  </div>
+  <div class="flex items-center gap-2 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 active:bg-purple-100 dark:active:bg-purple-900/40 rounded px-1 py-0.5 transition-colors duration-100 select-none">
+    <span class="shrink-0 w-1 h-1 rounded-full bg-purple-400"></span>
+    <p class="text-sm text-gray-800 dark:text-gray-200 truncate">《超级能世界》福利礼包兑换码汇总（长期更新）</p>
+  </div>
+  <div class="flex items-center gap-2 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 active:bg-purple-100 dark:active:bg-purple-900/40 rounded px-1 py-0.5 transition-colors duration-100 select-none">
+    <span class="shrink-0 w-1 h-1 rounded-full bg-purple-400"></span>
+    <p class="text-sm text-gray-800 dark:text-gray-200 truncate">五一活动超级能情报站 | 官方活动全览与参与指南</p>
+  </div>
+  <div class="flex items-center gap-2 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 active:bg-purple-100 dark:active:bg-purple-900/40 rounded px-1 py-0.5 transition-colors duration-100 select-none">
+    <span class="shrink-0 w-1 h-1 rounded-full bg-purple-400"></span>
+    <p class="text-sm text-gray-800 dark:text-gray-200 truncate">互动有礼 | 超能道具大作战第6期活动规则说明</p>
+  </div>
+</div>
+<!-- Card 1 -->
+<article onclick="window.location.href='../home/mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-full object-cover" src="https://i.pravatar.cc/80?img=11"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+</div>
+<div><div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<p class="text-sm font-bold truncate">安塔</p>
+<span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">LV.18</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1">
+<span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-600 text-[10px] font-medium border border-green-100 shrink-0">
+<span class="material-symbols-outlined text-[10px]">verified</span>官方认证
+</span>
+</div>
+<p class="text-[10px] text-on-surface-variant">04/17</p>
+</div>
+</div></div>
+</div>
+<button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+</div>
+<div class="space-y-2">
+<p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">互动有礼 | 超能道具大作战第6期</span>全新的挑战已经开启，快来参与赢取丰厚奖励！</p>
+<div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/game1/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/game2/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/game3/200"/>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
+<div class="flex gap-6">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">thumb_up</span>
+<span class="text-xs font-semibold">865</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span class="text-xs font-semibold">1881</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">share</span>
+<span class="text-xs font-semibold">24</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article onclick="window.location.href='../home/mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-full object-cover" src="https://i.pravatar.cc/80?img=22"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+</div>
+<div><div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<p class="text-sm font-bold truncate">策划阿哲</p>
+<span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">LV.30</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1">
+<span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-600 text-[10px] font-medium border border-green-100 shrink-0">
+<span class="material-symbols-outlined text-[10px]">verified</span>官方认证
+</span>
+</div>
+<p class="text-[10px] text-on-surface-variant">04/15</p>
+</div>
+</div></div>
+</div>
+<button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+</div>
+<div class="space-y-2">
+<p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">超能情报站 | 五一活动即将开启</span>假日好礼等你解锁，多重惊喜已备好，快来看看活动预览！</p>
+<div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/event1/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/event2/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/event3/200"/>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
+<div class="flex gap-6">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">thumb_up</span>
+<span class="text-xs font-semibold">702</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span class="text-xs font-semibold">177</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">share</span>
+<span class="text-xs font-semibold">12</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article onclick="window.location.href='../home/mood-detail.html'" class="bg-surface-container-lowest rounded-[10px] p-4 space-y-3 shadow-[0_4px_16px_rgba(42,52,57,0.07)] cursor-pointer active:opacity-80 transition-opacity">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-full object-cover" src="https://i.pravatar.cc/80?img=33"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white rounded-full"></div>
+</div>
+<div><div class="flex flex-col gap-1">
+<div class="flex items-center gap-2">
+<p class="text-sm font-bold truncate">策划阿哲</p>
+<span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">LV.30</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1">
+<span class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 text-[10px] font-medium border border-orange-100 shrink-0">
+<span class="material-symbols-outlined text-[10px]">chat_bubble</span>话题达人
+</span>
+</div>
+<p class="text-[10px] text-on-surface-variant">04/14</p>
+</div>
+</div></div>
+</div>
+<button class="px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">关注</button>
+</div>
+<div class="space-y-2">
+<p class="text-sm leading-relaxed font-medium"><span class="text-lg font-bold block mb-1">超能情报站 | 『狩魂者-蛮古』技能详情公开！</span>强大的暗夜战士即将加入战场，掌握他的核心机制！</p>
+<div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/hero1/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/hero2/200"/>
+<img class="aspect-square object-cover w-full" src="https://picsum.photos/seed/hero3/200"/>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-surface-container-low">
+<div class="flex gap-6">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">thumb_up</span>
+<span class="text-xs font-semibold">725</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span class="text-xs font-semibold">191</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">share</span>
+<span class="text-xs font-semibold">18</span>
+</div>
+</div>
+</div>
+</article></div>
+</main>
+<bottom-nav active="chat" base="../"></bottom-nav>
+<style>.no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }.no-scrollbar {
+      -ms-overflow-style: none;scrollbar-width: none;}
+    .pb-safe {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+  </style>
+<script>
+// 一级 Tab — Twitter/X 风格
+document.querySelectorAll('.l1-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.l1-tab').forEach(b => {
+      const active = b === btn;
+      b.classList.toggle('text-gray-900', active);
+      b.classList.toggle('dark:text-white', active);
+      b.classList.toggle('text-gray-400', !active);
+      b.classList.toggle('dark:text-gray-500', !active);
+      b.querySelector('.l1-indicator').classList.toggle('opacity-0', !active);
+    });
+  });
+});
+
+// 二级 Tag — 描边→黑实心
+document.querySelectorAll('.l2-tag').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.l2-tag').forEach(b => {
+      const active = b === btn;
+      b.classList.toggle('bg-gray-900', active);
+      b.classList.toggle('dark:bg-white', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('dark:text-gray-900', active);
+      b.classList.toggle('border-gray-900', active);
+      b.classList.toggle('dark:border-white', active);
+      b.classList.toggle('font-semibold', active);
+      b.classList.toggle('text-gray-500', !active);
+      b.classList.toggle('dark:text-gray-400', !active);
+      b.classList.toggle('border-gray-200', !active);
+      b.classList.toggle('dark:border-gray-700', !active);
+      b.classList.toggle('font-medium', !active);
+    });
+  });
+});
+
+// 排序切换：回复时间 ↔ 发布时间
+var _sortMode = 'reply';
+function toggleSort() {
+  _sortMode = _sortMode === 'reply' ? 'publish' : 'reply';
+  document.getElementById('sort-label').textContent = _sortMode === 'reply' ? '回复时间' : '发布时间';
+}
+</script>
+<script src="../../shared/bottom-nav.js"></script>
+<style>
+.follow-btn { transition: all .2s cubic-bezier(.34,1.56,.64,1); }
+.follow-btn.followed { background: rgba(42,52,57,.12) !important; color: #8a9499 !important; }
+#follow-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(8px); background:rgba(30,34,40,.88); color:#fff; font-size:13px; padding:8px 18px; border-radius:20px; pointer-events:none; opacity:0; transition:opacity .2s,transform .2s; z-index:9999; white-space:nowrap; }
+#follow-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+<div id="follow-toast"></div>
+<script>
+(function(){
+  function showToast(msg) {
+    var t = document.getElementById('follow-toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._tid);
+    t._tid = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+  document.querySelectorAll('button').forEach(function(btn){
+    if (btn.textContent.trim() !== '关注') return;
+    btn.classList.add('follow-btn');
+    btn.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if (!this.classList.contains('followed')) {
+        this.classList.add('followed'); this.textContent = '✓ 已关注';
+        showToast('已关注');
+      } else {
+        var self = this; self.textContent = '取消关注'; self.style.opacity = '.5';
+        setTimeout(function(){
+          self.classList.remove('followed'); self.textContent = '关注'; self.style.opacity = '';
+          showToast('已取消关注');
+        }, 900);
+      }
+    });
+  });
+})();
+</script>
+</div>
+</body></html>

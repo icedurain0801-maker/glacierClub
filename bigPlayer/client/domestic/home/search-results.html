@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "on-surface-variant": "#566166",
+        "primary": "#0061a4",
+        "primary-dim": "#005590",
+        "secondary-container": "#cbe6ff",
+        "on-secondary-container": "#0a5780",
+        "surface-container-low": "#f0f4f7",
+        "surface-variant": "#d9e4ea",
+        "outline": "#717c82",
+        "on-primary-container": "#00548f",
+        "surface-container": "#e8eff3",
+        "on-background": "#2a3439",
+        "on-surface": "#2a3439",
+        "background": "#f7f9fb",
+        "surface": "#f7f9fb",
+        "outline-variant": "#a9b4b9",
+        "surface-container-high": "#e1e9ee",
+        "surface-container-highest": "#d9e4ea",
+      },
+      fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+    }
+  }
+}
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: 22px; line-height: 1; user-select: none;
+  }
+  body { min-height: 100dvh; }
+  .phone-shell { width: 375px; flex-shrink: 0; }
+  .phone-inner {
+    width: 375px; height: 667px;
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+  }
+  @media (max-width: 430px) {
+    body { background: #f7f9fb; align-items: flex-start; }
+    .phone-shell { width: 100vw; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; position: static !important; }
+    .phone-inner { width: 100vw; height: 100dvh; min-height: unset; }
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ── 蓝色渐变顶区 ── */
+  .search-top {
+    background: linear-gradient(175deg, #003d7a 0%, #0061a4 55%, #1a7fc4 100%);
+    padding: 20px 16px 28px;
+    flex-shrink: 0;
+  }
+  .back-row {
+    display: flex; align-items: center; gap: 6px;
+    color: rgba(255,255,255,0.75);
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 18px; cursor: pointer;
+  }
+  .back-row .material-symbols-outlined { font-size: 20px; color: rgba(255,255,255,0.75); }
+  .input-glass {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 14px;
+    padding: 10px 14px;
+  }
+  .input-glass .material-symbols-outlined { color: rgba(255,255,255,0.65); font-size: 20px; }
+  .input-glass input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-size: 14px; font-family: Inter, sans-serif; color: #ffffff;
+    -webkit-appearance: none;
+  }
+  .input-glass input::placeholder { color: rgba(255,255,255,0.45); }
+  .input-glass input::-webkit-search-cancel-button { display: none; }
+  .input-glass:focus-within { outline: none; box-shadow: none; }
+
+  /* ── Tab 栏 ── */
+  .results-body {
+    background: #f7f9fb;
+    border-radius: 22px 22px 0 0;
+    margin-top: -16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid #e1e9ee;
+    background: #fff;
+    border-radius: 22px 22px 0 0;
+    flex-shrink: 0;
+  }
+  .tab-item {
+    flex: 1; text-align: center;
+    font-size: 13px; font-weight: 500;
+    color: #566166;
+    padding: 13px 0;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .tab-item.active {
+    font-weight: 700;
+    color: #1f2937;
+    border-bottom: 2px solid #0061a4;
+  }
+  .tab-panel { display: none; flex: 1; overflow-y: auto; }
+  .tab-panel.active { display: flex; flex-direction: column; padding-top: 10px; }
+  .tab-panel::-webkit-scrollbar { display: none; }
+
+  /* ── 结果卡片 ── */
+  .result-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px;
+    margin: 0 12px 12px;
+    box-shadow: 0 4px 16px rgba(42,52,57,0.07);
+    flex-shrink: 0;
+  }
+  .card-user-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card-user-left { display: flex; align-items: center; gap: 10px; }
+  .card-avatar-wrap { position: relative; }
+  .card-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #93c5fd, #3b82f6);
+  }
+  .card-avatar.official { background: linear-gradient(135deg, #bae6fd, #0284c7); }
+  .card-online-dot {
+    position: absolute; bottom: -2px; right: -2px;
+    width: 14px; height: 14px;
+    background: #0061a4; border: 2px solid #fff;
+    border-radius: 50%;
+  }
+  .card-user-info { display: flex; flex-direction: column; gap: 2px; }
+  .card-name-row { display: flex; align-items: center; gap: 6px; }
+  .card-username { font-size: 14px; font-weight: 700; color: #2a3439; }
+  .card-lv {
+    font-size: 10px; font-weight: 700;
+    background: rgba(0,97,164,0.10); color: #0061a4;
+    padding: 2px 6px; border-radius: 999px;
+  }
+  .card-badge-row { display: flex; align-items: center; gap: 6px; }
+  .official-badge {
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 10px; font-weight: 500; color: #16a34a;
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    padding: 2px 5px; border-radius: 4px;
+  }
+  .official-badge .material-symbols-outlined { font-size: 10px; }
+  .card-time { font-size: 10px; color: #566166; }
+  .card-meta-plain { font-size: 11px; color: #a9b4b9; margin-top: 1px; }
+  .card-body { margin-bottom: 12px; }
+  .card-body p { font-size: 14px; line-height: 1.6; color: #2a3439; }
+  .card-body .card-title { font-size: 15px; font-weight: 700; display: block; margin-bottom: 4px; }
+  .card-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px; border-radius: 8px; overflow: hidden;
+    margin-top: 8px;
+  }
+  .card-grid-item {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.9);
+  }
+  .card-single-img {
+    width: 100%; border-radius: 8px; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9);
+    height: 160px;
+  }
+  .card-stats {
+    display: flex; align-items: center; gap: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #f0f4f7;
+    font-size: 12px; color: #566166; font-weight: 600;
+  }
+  .card-stats-item { display: flex; align-items: center; gap: 6px; }
+  .card-stats-item .material-symbols-outlined { font-size: 18px; }
+
+  /* ── 关注按钮（卡片内）── */
+  .follow-btn {
+    padding: 6px 16px; border-radius: 999px;
+    background: #cbe6ff; color: #0a5780;
+    font-size: 12px; font-weight: 700;
+    border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  }
+
+  /* ── 综合 Tab 顶部用户横条 ── */
+  .user-strip {
+    display: flex; gap: 12px;
+    overflow-x: auto; padding: 0 14px 12px;
+    flex-shrink: 0;
+  }
+  .user-strip::-webkit-scrollbar { display: none; }
+  .user-strip-item { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+  .strip-ring {
+    width: 56px; height: 56px; border-radius: 50%;
+    padding: 2.5px;
+    background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+    position: relative; flex-shrink: 0;
+  }
+  .strip-follow-btn {
+    position: absolute; bottom: -1px; right: -1px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #0061a4; border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 11px; font-weight: 700; color: #fff;
+    line-height: 1;
+  }
+  .strip-name { font-size: 9px; color: #566166; text-align: center; width: 56px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  /* ── section 标题 ── */
+  .section-title {
+    font-size: 12px; font-weight: 700;
+    color: #0061a4;
+    padding: 4px 14px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .section-count { font-size: 11px; font-weight: 400; color: #a9b4b9; }
+
+  /* ── 用户列表行 ── */
+  .user-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #f0f4f7;
+  }
+  .user-row:last-child { border-bottom: none; }
+  .user-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, #93c5fd, #3b82f6);
+    flex-shrink: 0;
+  }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-size: 14px; font-weight: 600; color: #1f2937; }
+  .user-sub { font-size: 11px; color: #a9b4b9; margin-top: 2px; }
+
+  /* ── 空状态 ── */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 48px 24px 24px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: .45; }
+  .empty-title { font-size: 15px; font-weight: 600; color: #566166; margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; color: #a9b4b9; }
+
+  /* ── 热词胶囊 ── */
+  .hot-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+  .hot-chip {
+    background: #e8f0fb; color: #0061a4;
+    font-size: 12px; border-radius: 999px;
+    padding: 5px 12px; cursor: pointer;
+  }
+</style>
+</head>
+<body class="bg-[#f0f4f8] font-body text-on-surface flex justify-center items-start">
+<nav id="sidebar" class="sidebar hidden"></nav>
+
+<div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
+<div class="phone-inner">
+
+  <!-- 顶部蓝色区 -->
+  <div class="search-top">
+    <div class="back-row" onclick="window.location.href='search.html'">
+      <span class="material-symbols-outlined">arrow_back</span>
+      <span>返回</span>
+    </div>
+    <div class="input-glass">
+      <span class="material-symbols-outlined">search</span>
+      <input type="search" id="search-input" placeholder="请输入帖子内容/标题"/>
+    </div>
+  </div>
+
+  <!-- 结果区 -->
+  <div class="results-body">
+
+    <!-- Tab 栏 -->
+    <div class="tab-bar">
+      <div class="tab-item active" data-tab="all" onclick="switchTab('all')">综合</div>
+      <div class="tab-item" data-tab="posts" onclick="switchTab('posts')">创作</div>
+      <div class="tab-item" data-tab="users" onclick="switchTab('users')">用户</div>
+    </div>
+
+    <!-- 综合面板 -->
+    <div class="tab-panel active" id="panel-all">
+    </div>
+
+    <!-- 创作面板 -->
+    <div class="tab-panel" id="panel-posts">
+    </div>
+
+    <!-- 用户面板 -->
+    <div class="tab-panel" id="panel-users">
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/bottom-nav.js"></script>
+<script>
+// ── Tab 切换 ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(el => {
+    el.classList.toggle('active', el.id === 'panel-' + tab);
+  });
+}
+
+// ── URL 参数读取 ──
+const params = new URLSearchParams(location.search);
+const query = params.get('q') || '';
+document.getElementById('search-input').value = query;
+
+// ── mock 数据 ──
+const MOCK_POSTS = [
+  {
+    id: 1, official: true,
+    username: '茂加', level: 'lv14', time: '1年前',
+    avatar: 'https://picsum.photos/seed/p1/112/112',
+    text: '【茂加社区升级计划3.0】亲爱的旅行者们，今天完成升级计划了吗？',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#f97316,#dc2626)',
+    imageLabel: '炽焰圣凤',
+    likes: 1703, comments: 218
+  },
+  {
+    id: 2, official: false,
+    username: '浩瀚星河', level: 'lv9', time: '1年前',
+    avatar: 'https://picsum.photos/seed/p2/112/112',
+    text: '社区升级了，比以前好看了',
+    hasImage: false,
+    likes: 1, comments: 2
+  },
+  {
+    id: 3, official: false,
+    username: '星河入梦、', level: 'lv7', time: '2年前',
+    avatar: 'https://picsum.photos/seed/p3/112/112',
+    text: '升级后发现很多新功能，特别是搜索变快了好多，点赞！',
+    hasImage: false,
+    likes: 34, comments: 9
+  },
+  {
+    id: 4, official: true,
+    username: '茂加', level: 'lv14', time: '2年前',
+    avatar: 'https://picsum.photos/seed/p1/112/112',
+    text: '【茂加社区升级计划2.0】今天完成了吗？',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#0061a4,#0891b2)',
+    imageLabel: '升级公告',
+    likes: 4201, comments: 512
+  },
+  {
+    id: 5, official: false,
+    username: '夜行者', level: 'lv11', time: '1年前',
+    avatar: 'https://picsum.photos/seed/p5/112/112',
+    text: '社区升级后排版真的好看，收藏了！',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#7c3aed,#db2777)',
+    imageLabel: '新版截图',
+    likes: 89, comments: 14
+  },
+  {
+    id: 6, official: false,
+    username: '风影追月', level: 'lv5', time: '3年前',
+    avatar: 'https://picsum.photos/seed/p6/112/112',
+    text: '界面清爽了好多，继续加油！',
+    hasImage: false,
+    likes: 12, comments: 3
+  }
+];
+
+const MOCK_USERS = [
+  { username: '潇潇星河', level: 'lv8', followers: 56, avatar: 'https://picsum.photos/seed/u1/112/112' },
+  { username: '星河', level: 'lv5', followers: 12, avatar: 'https://picsum.photos/seed/u2/112/112' },
+  { username: '星河飞扬', level: 'lv12', followers: 203, avatar: 'https://picsum.photos/seed/u3/112/112' },
+  { username: '星河入梦、', level: 'lv7', followers: 44, avatar: 'https://picsum.photos/seed/u4/112/112' },
+  { username: '星河暗恋记', level: 'lv3', followers: 8, avatar: 'https://picsum.photos/seed/u5/112/112' },
+  { username: '星河以北', level: 'lv6', followers: 31, avatar: 'https://picsum.photos/seed/u6/112/112' },
+  { username: '星河暖阳', level: 'lv9', followers: 77, avatar: 'https://picsum.photos/seed/u7/112/112' }
+];
+
+const HOT_KEYWORDS = ['星灵', '狩魂者', 'S5赛季', '公会招募', '新手攻略', '炽焰圣凤', '超能联赛', '装备强化'];
+
+// ── 生成卡片 HTML ──
+function postCardHTML(post) {
+  const avatarClass = post.official ? 'card-avatar official' : 'card-avatar';
+  const lvNum = parseInt((post.level || 'lv1').replace('lv','')) || 1;
+  const badgeRow = post.official
+    ? `<div class="card-badge-row">
+         <span class="official-badge"><span class="material-symbols-outlined">verified</span>官方认证</span>
+         <span class="card-time">${post.time}</span>
+       </div>`
+    : `<div class="card-badge-row"><span class="card-time">${post.time}</span></div>`;
+  const imageHTML = post.hasImage
+    ? `<div class="card-single-img" style="background:${post.imageBg};">${post.imageLabel}</div>`
+    : '';
+  return `
+    <div class="result-card">
+      <div class="card-user-row">
+        <div class="card-user-left">
+          <div class="card-avatar-wrap">
+            <img class="${avatarClass}" src="${post.avatar}" alt="${post.username}" style="object-fit:cover;"/>
+            <div class="card-online-dot"></div>
+          </div>
+          <div class="card-user-info">
+            <div class="card-name-row">
+              <span class="card-username">${post.username}</span>
+              <span class="card-lv">LV.${lvNum}</span>
+            </div>
+            ${badgeRow}
+          </div>
+        </div>
+        <button class="follow-btn">关注</button>
+      </div>
+      <div class="card-body">
+        <p>${post.text}</p>
+        ${imageHTML}
+      </div>
+      <div class="card-stats">
+        <div class="card-stats-item">
+          <span class="material-symbols-outlined">thumb_up</span>
+          <span>${post.likes}</span>
+        </div>
+        <div class="card-stats-item">
+          <span class="material-symbols-outlined">chat_bubble</span>
+          <span>${post.comments}</span>
+        </div>
+        <div class="card-stats-item">
+          <span class="material-symbols-outlined">share</span>
+          <span>转发</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── 空状态 HTML ──
+function emptyStateHTML() {
+  const chips = HOT_KEYWORDS.map(k => `<span class="hot-chip">${k}</span>`).join('');
+  return `
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">没有找到相关内容</div>
+      <div class="empty-sub">换个关键词试试？</div>
+    </div>
+    <div class="section-title">大家都在搜</div>
+    <div class="hot-chips">${chips}</div>`;
+}
+
+// ── 生成综合 Tab 顶部用户横条 ──
+function userStripHTML() {
+  const items = MOCK_USERS.slice(0, 6).map(u => `
+    <div class="user-strip-item">
+      <div class="strip-ring">
+        <img src="${u.avatar}" alt="${u.username}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;"/>
+        <button class="strip-follow-btn" onclick="this.textContent=this.textContent==='+'?'✓':'+';this.style.background=this.textContent==='✓'?'#22c55e':'#0061a4'">+</button>
+      </div>
+      <span class="strip-name">${u.username}</span>
+    </div>`).join('');
+  return `
+    <div class="section-title">相关用户</div>
+    <div class="user-strip">${items}</div>`;
+}
+
+// ── 渲染综合面板 ──
+function renderAll() {
+  // demo：关键词含 'empty' 时强制展示空状态
+  if (query.toLowerCase().includes('empty')) {
+    document.getElementById('panel-all').innerHTML = emptyStateHTML();
+    document.getElementById('panel-posts').innerHTML = emptyStateHTML();
+    document.getElementById('panel-users').innerHTML = emptyStateHTML();
+    return;
+  }
+  let html = userStripHTML();
+  if (MOCK_POSTS.length) {
+    html += `<div class="section-title">相关创作</div>`;
+    html += MOCK_POSTS.map(postCardHTML).join('');
+  }
+  document.getElementById('panel-all').innerHTML = html || emptyStateHTML();
+}
+
+// ── 渲染创作面板 ──
+function renderPosts() {
+  if (query.toLowerCase().includes('empty')) return;
+  const official = MOCK_POSTS.filter(p => p.official);
+  const community = MOCK_POSTS.filter(p => !p.official);
+  let html = '';
+  if (official.length) {
+    html += `<div class="section-title">官方相关 <span class="section-count">共 ${official.length} 条</span></div>`;
+    html += official.map(postCardHTML).join('');
+  }
+  if (community.length) {
+    html += `<div class="section-title">相关创作 <span class="section-count">共 ${community.length} 条</span></div>`;
+    html += community.map(postCardHTML).join('');
+  }
+  document.getElementById('panel-posts').innerHTML = html || emptyStateHTML();
+}
+
+// ── 渲染用户面板 ──
+function renderUsers() {
+  if (query.toLowerCase().includes('empty')) return;
+  const rows = MOCK_USERS.map(u => `
+    <div class="user-row">
+      <img class="user-avatar" src="${u.avatar}" alt="${u.username}" style="object-fit:cover;"/>
+      <div class="user-info">
+        <div class="user-name">${u.username}</div>
+        <div class="user-sub">${u.level} · ${u.followers} 关注者</div>
+      </div>
+      <div class="follow-btn">+关注</div>
+    </div>`).join('');
+  document.getElementById('panel-users').innerHTML = rows || emptyStateHTML();
+}
+
+// ── 初始化渲染 ──
+renderAll();
+renderPosts();
+renderUsers();
+</script>
+</body>
+</html>

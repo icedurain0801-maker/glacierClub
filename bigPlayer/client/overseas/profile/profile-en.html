@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Profile B-v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=Manrope:ital,wght@0,700;0,800;1,800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-family:'Material Symbols Outlined';}
+body{background:#d0d9de;display:flex;justify-content:center;align-items:flex-start;padding:40px 0 80px;min-height:100vh;}
+.shell{width:375px;height:812px;background:#f7f9fb;border-radius:44px;
+  box-shadow:0 0 0 10px #e0e5e8,0 0 0 12px #c8d0d5,0 36px 72px rgba(0,0,0,.18);
+  overflow:hidden;position:relative;display:flex;flex-direction:column;}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:124px;height:36px;background:#000;border-radius:20px;z-index:100;}
+.hero-cover{height:180px;position:relative;flex-shrink:0;overflow:hidden;}
+.hero-cover img{width:100%;height:100%;object-fit:cover;display:block;}
+.hero-cover-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,12,20,.9) 0%,rgba(5,12,20,.3) 50%,transparent 100%);}
+.sb-over{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:2;}
+.sb-time{font-family:Manrope;font-size:15px;font-weight:700;color:#fff;}
+.sb-icons{display:flex;align-items:center;gap:5px;}
+.top-actions{position:absolute;bottom:14px;right:14px;display:flex;gap:8px;}
+.top-action-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.16);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid rgba(255,255,255,.22);}
+.top-action-btn .material-symbols-outlined{font-size:17px;color:#fff;}
+.profile-band{display:flex;align-items:flex-end;gap:14px;padding:0 16px 14px;background:#f7f9fb;flex-shrink:0;}
+.avatar-wrap{margin-top:-40px;position:relative;z-index:2;}
+.avatar{width:76px;height:76px;border-radius:50%;border:3px solid #f7f9fb;overflow:hidden;background:#c8d0d5;}
+.avatar img{width:100%;height:100%;object-fit:cover;}
+.avatar-lv{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);background:#0061a4;color:#fff;font-size:9px;font-weight:700;font-family:Inter;border-radius:8px;padding:1px 6px;white-space:nowrap;border:1.5px solid #f7f9fb;}
+.band-info{flex:1;min-width:0;padding-bottom:4px;}
+.band-name{font-family:Manrope;font-size:17px;font-weight:800;color:#1a2a34;line-height:1.2;}
+.band-id{font-size:11px;color:#a9b4b9;font-family:Inter;margin-top:2px;}
+.edit-profile-btn{flex-shrink:0;height:auto;padding:0;border:none;font-size:14px;font-weight:600;color:#0061a4;font-family:Inter;background:transparent;cursor:pointer;display:flex;align-items:center;gap:3px;margin-bottom:4px;}
+.edit-profile-btn .material-symbols-outlined{font-size:16px;}
+
+/* ── REDESIGN: stats + quick ── */
+
+/* Stats: inline inside band-bottom strip, no border boxes */
+.stats-inline{display:flex;gap:0;padding:0 16px 14px;background:#f7f9fb;flex-shrink:0;border-bottom:1px solid #eef2f5;}
+.si{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;position:relative;}
+.si+.si::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:1px;background:#e1e9ee;}
+.si-num{font-family:Manrope;font-size:20px;font-weight:800;color:#1a2a34;}
+.si-lbl{font-size:10px;color:#a9b4b9;font-family:Inter;font-weight:500;}
+/* accent the two key numbers */
+.si-num.accent{color:#0061a4;}
+
+/* Quick actions: horizontal scrollable pill strip */
+.quick-pills{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;flex-shrink:0;background:#f7f9fb;}
+.quick-pills::-webkit-scrollbar{display:none;}
+.qpill{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;
+  background:#fff;border:1px solid #e1e9ee;border-radius:18px;cursor:pointer;
+  white-space:nowrap;position:relative;flex-shrink:0;}
+.qpill .material-symbols-outlined{font-size:17px;color:#566166;}
+.qpill-lbl{font-size:13px;font-weight:600;color:#566166;font-family:Inter;}
+.qpill-badge{min-width:16px;height:16px;background:#e53935;border-radius:8px;font-size:10px;font-weight:700;color:#fff;font-family:Inter;display:flex;align-items:center;justify-content:center;padding:0 4px;flex-shrink:0;}
+/* active pill */
+.qpill.active{background:#0061a4;border-color:#0061a4;}
+.qpill.active .material-symbols-outlined{color:#fff;}
+.qpill.active .qpill-lbl{color:#fff;}
+
+/* ── end redesign ── */
+
+.body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;}
+.body::-webkit-scrollbar{display:none;}
+.tabs-block{position:sticky;top:0;z-index:10;background:#f7f9fb;}
+.tabs-row{display:flex;padding:0 14px;border-bottom:1px solid #e1e9ee;}
+.tab{flex:1;text-align:center;padding:9px 0;font-size:14px;font-weight:500;color:#a9b4b9;cursor:pointer;position:relative;font-family:Inter;}
+.tab.on{color:#0061a4;font-weight:700;}
+.tab.on::after{content:'';position:absolute;bottom:-1px;left:20%;right:20%;height:2px;background:#0061a4;border-radius:1px;}
+.search-trigger{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #e1e9ee;cursor:pointer;}
+.search-trigger-inner{flex:1;height:32px;background:#f0f4f7;border-radius:8px;display:flex;align-items:center;gap:6px;padding:0 10px;}
+.search-trigger-inner .material-symbols-outlined{font-size:16px;color:#a9b4b9;}
+.search-trigger-inner span.ph{font-size:13px;color:#a9b4b9;font-family:Inter;}
+.search-active{display:none;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #e1e9ee;background:#f7f9fb;}
+.search-active.open{display:flex;}
+.search-active .siw{flex:1;height:32px;background:#e8f0f7;border-radius:8px;display:flex;align-items:center;gap:6px;padding:0 10px;border:1.5px solid #0061a4;}
+.search-active .siw .material-symbols-outlined{font-size:16px;color:#0061a4;flex-shrink:0;}
+.search-active .siw input{flex:1;border:none;background:transparent;font-size:13px;color:#1a2a34;font-family:Inter;outline:none;}
+.search-active .siw input::placeholder{color:#a9b4b9;}
+.search-cancel{flex-shrink:0;font-size:13px;font-weight:600;color:#0061a4;font-family:Inter;cursor:pointer;}
+.chips{display:flex;gap:6px;padding:8px 14px;overflow-x:auto;border-bottom:1px solid #f0f4f7;}
+.chips::-webkit-scrollbar{display:none;}
+.chip{flex-shrink:0;padding:4px 13px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter;}
+.chip.on{background:#0061a4;color:#fff;}
+.chip.off{background:#f0f4f7;color:#566166;}
+
+/* Comment item */
+.comment-item{padding:10px 14px;border-bottom:1px solid #f0f4f7;}
+.comment-time{font-size:11px;color:#a9b4b9;font-family:Inter;margin-bottom:6px;}
+.comment-post-card{display:flex;align-items:center;gap:10px;background:#f7f9fb;border:1px solid #e8edf0;border-radius:8px;overflow:hidden;margin-bottom:6px;cursor:pointer;}
+.comment-post-card-info{flex:1;min-width:0;padding:8px 10px;}
+.comment-post-card-title{font-size:13px;font-weight:600;color:#2a3439;font-family:Inter;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;}
+.comment-post-card-body{font-size:12px;color:#566166;font-family:Inter;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.comment-post-card-thumb{width:68px;height:56px;object-fit:cover;flex-shrink:0;}
+.comment-post-card-nothumb{width:68px;height:56px;background:#eef2f5;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.comment-post-card-nothumb .material-symbols-outlined{font-size:22px;color:#c8d0d5;}
+.comment-text{font-size:13px;color:#1a2a34;font-family:Inter;line-height:1.5;}
+.comment-item.deleted{background:#fffaf8;}
+.comment-item.deleted .comment-post-card{opacity:.5;}
+.comment-item.deleted .comment-post-card-title{color:#a9b4b9;}
+.comment-item.deleted .comment-post-card-body{color:#c8d0d5;}
+.comment-item.deleted .comment-text{color:#c8d0d5;}
+
+/* Posts tab */
+.post-row{display:flex;gap:10px;padding:10px 14px;align-items:flex-start;border-bottom:1px solid #f0f4f7;position:relative;}
+.post-thumb{width:68px;height:76px;border-radius:8px;object-fit:cover;flex-shrink:0;}
+.post-info{flex:1;min-width:0;padding-right:6px;}
+.post-title{font-size:13px;font-weight:600;color:#1a2a34;font-family:Inter;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;}
+.post-body{font-size:12px;color:#566166;font-family:Inter;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px;}
+.post-bottom{display:flex;align-items:center;gap:6px;}
+.post-status{font-size:10px;font-weight:700;border-radius:4px;padding:1px 6px;font-family:Inter;}
+.ps-pub{color:#0a8a5a;background:rgba(10,138,90,.1);}
+.ps-fail{color:#e53935;background:rgba(229,57,53,.08);}
+.ps-del{color:#ff6b35;background:rgba(255,107,53,.08);}
+.post-time{font-size:11px;color:#a9b4b9;font-family:Inter;}
+.post-edit-fab{position:absolute;bottom:10px;right:14px;width:26px;height:26px;border-radius:50%;background:#fff;border:1.5px solid #0061a4;color:#0061a4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0;}
+.post-edit-fab .material-symbols-outlined{font-size:13px;}
+.post-row.deleted{background:#fffaf8;}
+.post-row.deleted .post-thumb{opacity:.5;}
+.post-row.deleted .post-title{color:#a9b4b9;}
+.post-row.deleted .post-body{color:#c8d0d5;}
+
+/* Activity items (Comments / Likes / Saves) */
+.act-item{padding:10px 14px 0;position:relative;}
+.act-item::before{content:'';position:absolute;left:20px;top:22px;bottom:0;width:1px;background:#e8edf0;}
+.act-item:last-child::before{display:none;}
+.act-header{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-left:20px;}
+.act-dot{width:7px;height:7px;border-radius:50%;background:#0061a4;flex-shrink:0;margin-left:-23px;margin-right:10px;border:1.5px solid #f7f9fb;z-index:1;position:relative;}
+.act-meta{font-size:11px;color:#a9b4b9;font-family:Inter;}
+.act-comment-text{font-size:13px;color:#1a2a34;font-family:Inter;line-height:1.45;margin-bottom:8px;padding-left:20px;}
+/* post mini card inside activity */
+.act-card{display:flex;align-items:center;gap:0;background:#f7f9fb;border:1px solid #e8edf0;border-radius:8px;overflow:hidden;margin-left:0;margin-bottom:12px;}
+.act-card-body{flex:1;min-width:0;padding:9px 10px;}
+.act-card-title{font-size:12px;font-weight:600;color:#2a3439;font-family:Inter;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px;}
+.act-card-excerpt{font-size:11px;color:#8a9ba3;font-family:Inter;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.act-card-thumb{width:72px;height:64px;object-fit:cover;flex-shrink:0;}
+.act-card-nothumb{width:72px;height:64px;background:#eef2f5;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.act-card-nothumb .material-symbols-outlined{font-size:22px;color:#c8d0d5;}
+.bnav{height:82px;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-top:1px solid #e1e9ee;display:flex;align-items:flex-start;padding-top:8px;flex-shrink:0;}
+.bi{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding-top:4px;}
+.bi .material-symbols-outlined{font-size:24px;color:#a9b4b9;}
+.bi.on .material-symbols-outlined{color:#0061a4;font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24;}
+.bi-label{font-size:10px;color:#a9b4b9;font-weight:500;font-family:Inter;}
+.bi.on .bi-label{color:#0061a4;}
+.bpub{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;}
+.bpub-btn{width:46px;height:46px;background:#0061a4;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,97,164,.35);margin-top:-10px;}
+.bpub-btn .material-symbols-outlined{font-size:22px;color:#fff;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="island"></div>
+  <div class="hero-cover" style="flex-shrink:0;">
+    <img src="https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2026/04/08/1775617584868ba2c9c28-9068-48c3-8660-09f49de6bf67.jpg" alt="">
+    <div class="hero-cover-overlay"></div>
+    <div class="sb-over">
+      <span class="sb-time">9:41</span>
+      <div class="sb-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#fff" opacity=".9"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="#fff" opacity=".9"/><rect x="9" y="2" width="3" height="10" rx="1" fill="#fff" opacity=".9"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#fff" opacity=".9"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#fff"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="#fff" stroke-width="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="#fff"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="#fff"/></svg>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="top-action-btn"><span class="material-symbols-outlined">military_tech</span></div>
+      <div class="top-action-btn"><span class="material-symbols-outlined">settings</span></div>
+    </div>
+  </div>
+  <div class="profile-band">
+    <div class="avatar-wrap">
+      <div class="avatar"><img src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg" alt=""></div>
+      <div class="avatar-lv">Lv.67</div>
+    </div>
+    <div class="band-info"><div class="band-name">StarSeeker</div></div>
+    <button class="edit-profile-btn"><span class="material-symbols-outlined">edit</span>Edit</button>
+  </div>
+
+  <!-- Stats inline (no border boxes) -->
+  <div class="stats-inline">
+    <div class="si"><span class="si-num">12</span><span class="si-lbl">Posts</span></div>
+    <div class="si"><span class="si-num accent">3.4k</span><span class="si-lbl">Likes</span></div>
+    <div class="si"><span class="si-num">28</span><span class="si-lbl">Following</span></div>
+    <div class="si"><span class="si-num accent">156</span><span class="si-lbl">Followers</span></div>
+  </div>
+
+  <!-- Quick: horizontal pill strip -->
+  <div class="quick-pills">
+    <div class="qpill active">
+      <span class="material-symbols-outlined">notifications</span>
+      <span class="qpill-lbl">Messages</span>
+      <span class="qpill-badge">1</span>
+    </div>
+    <div class="qpill"><span class="material-symbols-outlined">draft</span><span class="qpill-lbl">Drafts</span></div>
+    <div class="qpill"><span class="material-symbols-outlined">bookmark</span><span class="qpill-lbl">Saved</span></div>
+    <div class="qpill"><span class="material-symbols-outlined">history</span><span class="qpill-lbl">History</span></div>
+    <div class="qpill"><span class="material-symbols-outlined">settings</span><span class="qpill-lbl">Settings</span></div>
+  </div>
+
+  <div class="body">
+    <div class="tabs-block">
+      <div class="tabs-row">
+        <div class="tab on" onclick="switchTab('posts',this)">Posts</div>
+        <div class="tab" onclick="switchTab('comments',this)">Comments</div>
+        <div class="tab" onclick="switchTab('likes',this)">Likes</div>
+        <div class="tab" onclick="switchTab('saves',this)">Saves</div>
+      </div>
+    </div>
+
+    <!-- Posts panel -->
+    <div id="panel-posts">
+      <div class="search-trigger" id="st" onclick="openSearch()">
+        <div class="search-trigger-inner"><span class="material-symbols-outlined">search</span><span class="ph">Search my posts...</span></div>
+      </div>
+      <div class="search-active" id="sa">
+        <div class="siw"><span class="material-symbols-outlined">search</span><input type="text" id="si" placeholder="Search my posts..." oninput="filterPosts(this.value)"></div>
+        <span class="search-cancel" onclick="closeSearch()">Cancel</span>
+      </div>
+      <div id="postList">
+        <div class="post-row" data-title="The Ultimate Beginner's Roadmap — Everything You Need to Know">
+          <img class="post-thumb" src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg" alt="">
+          <div class="post-info">
+            <p class="post-title">The Ultimate Beginner's Roadmap — Everything You Need to Know</p>
+            <p class="post-body">A complete guide covering early-game priorities, hero selection, and resource management.</p>
+            <div class="post-bottom"><span class="post-status ps-pub">Published</span><span class="post-time">Apr 28, 2026</span></div>
+          </div>
+          <button class="post-edit-fab"><span class="material-symbols-outlined">edit</span></button>
+        </div>
+        <div class="post-row" data-title="S-Tier Heroes Ranked for April — Who's Worth Building?">
+          <img class="post-thumb" src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png" alt="">
+          <div class="post-info">
+            <p class="post-title">S-Tier Heroes Ranked for April — Who's Worth Building?</p>
+            <p class="post-body">Updated tier list after the 3.2 patch. Vespera and Dragonheart remain top picks.</p>
+            <div class="post-bottom"><span class="post-status ps-pub">Published</span><span class="post-time">Apr 12, 2026</span></div>
+          </div>
+          <button class="post-edit-fab"><span class="material-symbols-outlined">edit</span></button>
+        </div>
+        <div class="post-row" data-title="Ancient Secrets Trial — My Solo Clear Strategy">
+          <div class="post-thumb" style="background:#f0f4f7;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:8px;width:68px;height:52px;"><span class="material-symbols-outlined" style="font-size:20px;color:#c8d0d5;">image</span></div>
+          <div class="post-info">
+            <p class="post-title">Ancient Secrets Trial — My Solo Clear Strategy</p>
+            <p class="post-body">Skill rotation and equipment loadout for the final boss solo clear.</p>
+            <div class="post-bottom"><span class="post-status ps-fail">Not Approved</span><span class="post-time">Apr 5, 2026</span></div>
+          </div>
+          <button class="post-edit-fab"><span class="material-symbols-outlined">edit</span></button>
+        </div>
+        <div class="post-row deleted" data-title="Farming Routes for Rare Drops — Map &amp; Timing Guide">
+          <img class="post-thumb" src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg" alt="">
+          <div class="post-info">
+            <p class="post-title">Farming Routes for Rare Drops — Map &amp; Timing Guide</p>
+            <p class="post-body">Efficient routes and spawn timings for the rarest crafting materials.</p>
+            <div class="post-bottom"><span class="post-status ps-del">Deleted</span><span class="post-time">Mar 19, 2026</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comments panel -->
+    <div id="panel-comments" style="display:none;">
+      <div class="comment-item">
+        <div class="comment-time">Feb 8 · 17:07 &nbsp;·&nbsp; Commented on a post</div>
+        <div class="comment-post-card">
+          <div class="comment-post-card-info">
+            <p class="comment-post-card-title">The Ultimate Beginner's Roadmap — Everything You Need to Know</p>
+            <p class="comment-post-card-body">A complete guide covering early-game priorities, hero selection, and resource management.</p>
+          </div>
+          <img class="comment-post-card-thumb" src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg" alt="">
+        </div>
+        <p class="comment-text">Bro this guide actually carried me through the trial, absolute legend 🙌</p>
+      </div>
+      <div class="comment-item">
+        <div class="comment-time">Feb 8 · 17:06 &nbsp;·&nbsp; Commented on a post</div>
+        <div class="comment-post-card">
+          <div class="comment-post-card-info">
+            <p class="comment-post-card-title">S-Tier Heroes Ranked for April — Who's Worth Building?</p>
+            <p class="comment-post-card-body">Updated tier list after the 3.2 patch. Vespera and Dragonheart remain top picks.</p>
+          </div>
+          <img class="comment-post-card-thumb" src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png" alt="">
+        </div>
+        <p class="comment-text">Please drop more farming guides, this format is really easy to follow!</p>
+      </div>
+      <div class="comment-item deleted">
+        <div class="comment-time">Jan 22 · 14:32 &nbsp;·&nbsp; Commented on a post</div>
+        <div class="comment-post-card">
+          <div class="comment-post-card-info">
+            <p class="comment-post-card-title">Farming Routes for Rare Drops — Map &amp; Timing Guide</p>
+            <p class="comment-post-card-body">Efficient routes and spawn timings for the rarest crafting materials.</p>
+          </div>
+          <img class="comment-post-card-thumb" src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg" alt="">
+        </div>
+        <p class="comment-text">This post has been deleted by the author.</p>
+      </div>
+      <div class="comment-item">
+        <div class="comment-time">Apr 12 · 09:40 &nbsp;·&nbsp; Commented on a post</div>
+        <div class="comment-post-card">
+          <div class="comment-post-card-info">
+            <p class="comment-post-card-title">Ancient Secrets Trial — New Boss Mechanics Explained</p>
+          </div>
+          <div class="comment-post-card-nothumb"><span class="material-symbols-outlined">image</span></div>
+        </div>
+        <p class="comment-text">IronWolf really fell off this patch, sad to see.</p>
+      </div>
+    </div>
+
+    <!-- Likes panel -->
+    <div id="panel-likes" style="display:none;">
+      <div class="post-row">
+        <img class="post-thumb" src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg" alt="">
+        <div class="post-info">
+          <p class="post-title">【Sun God Skin】Background &amp; Design Thoughts</p>
+          <p class="post-body">A deep dive into the visual language behind the new skin concept — from initial sketches to final render.</p>
+          <div class="post-bottom"><span class="post-time">Apr 28 · 16:47</span></div>
+        </div>
+      </div>
+      <div class="post-row">
+        <img class="post-thumb" src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png" alt="">
+        <div class="post-info">
+          <p class="post-title">【Iron Wolf】Hero Background &amp; Design Process</p>
+          <p class="post-body">How the art team built IronWolf from concept to in-game model, including early rejected designs.</p>
+          <div class="post-bottom"><span class="post-time">Apr 28 · 16:47</span></div>
+        </div>
+      </div>
+      <div class="post-row">
+        <img class="post-thumb" src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg" alt="">
+        <div class="post-info">
+          <p class="post-title">Event | New Hero — Q&amp;A Giveaway</p>
+          <p class="post-body">Answer trivia about the new hero to win exclusive in-game items. Event runs until May 20.</p>
+          <div class="post-bottom"><span class="post-time">Aug 11 · 17:46</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Saves panel -->
+    <div id="panel-saves" style="display:none;">
+      <div class="post-row">
+        <img class="post-thumb" src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg" alt="">
+        <div class="post-info">
+          <p class="post-title">F2P Early-Game Strategy Guide</p>
+          <p class="post-body">Hey guys, I'm back — I wrote a guide earlier called《Complete Beginner Tips &amp; Pitfall Avoidance》, and this is the follow-up…</p>
+          <div class="post-bottom"><span class="post-time">Nov 13 · 11:25</span></div>
+        </div>
+      </div>
+      <div class="post-row">
+        <img class="post-thumb" src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png" alt="">
+        <div class="post-info">
+          <p class="post-title">My Epic Figure Just Arrived</p>
+          <p class="post-body">Finally got the limited-edition IronWolf statue — unboxing thread with photos.</p>
+          <div class="post-bottom"><span class="post-time">Mar 6 · 18:53</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:8px;"></div>
+  </div><!-- /.body -->
+
+  <nav class="bnav">
+    <div class="bi" onclick="location.href='../home/home-en.html'"><span class="material-symbols-outlined">home</span><span class="bi-label">Home</span></div>
+    <div class="bi" onclick="location.href='../news/news-en.html'"><span class="material-symbols-outlined">article</span><span class="bi-label">News</span></div>
+    <div class="bpub"><div class="bpub-btn"><span class="material-symbols-outlined">add</span></div><span class="bi-label">Post</span></div>
+    <div class="bi" onclick="location.href='../feed/feed-en.html'"><span class="material-symbols-outlined">groups</span><span class="bi-label">Community</span></div>
+    <div class="bi on"><span class="material-symbols-outlined">person</span><span class="bi-label">Profile</span></div>
+  </nav>
+</div><!-- /.shell -->
+<script>
+function switchTab(name, el) {
+  ['posts','comments','likes','saves'].forEach(t => {
+    document.getElementById('panel-'+t).style.display = t===name ? '' : 'none';
+  });
+  document.querySelectorAll('.tabs-row .tab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+}
+function openSearch(){document.getElementById('st').style.display='none';const a=document.getElementById('sa');a.classList.add('open');setTimeout(()=>document.getElementById('si').focus(),50);}
+function closeSearch(){document.getElementById('st').style.display='';document.getElementById('sa').classList.remove('open');document.getElementById('si').value='';filterPosts('');}
+function filterPosts(q){document.querySelectorAll('#postList .post-row').forEach(r=>{r.style.display=(!q||r.dataset.title.toLowerCase().includes(q.toLowerCase()))?'':'none';});}
+</script>
+</body>
+</html>

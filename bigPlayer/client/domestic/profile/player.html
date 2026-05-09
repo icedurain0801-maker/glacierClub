@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>玩家信息</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>tailwind.config={theme:{extend:{colors:{primary:'#0061a4'}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+  ::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .tl-card {
+    display: flex;
+    background: #f7f9fb;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .tl-card:active { background: #edf1f5; }
+  .tl-stripe { width: 4px; flex-shrink: 0; }
+  .tl-body { flex: 1; min-width: 0; padding: 10px 12px; }
+  .time-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    font-size: 9.5px;
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+
+  /* 搜索下拉行 */
+  #search-bar-row {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1);
+    background: #fff;
+    border-bottom: 1px solid transparent;
+    transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1), border-color 0.28s;
+  }
+  #search-bar-row.open {
+    max-height: 52px;
+    border-color: #e8eff3;
+  }
+  #search-bar-row .inner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+  }
+  .search-box-row {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    background: #f0f4f8; border-radius: 20px; padding: 5px 10px;
+  }
+  .search-box-row input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 12px; color: #1a2a35; min-width: 0;
+  }
+  .search-box-row input::placeholder { color: #a9b4b9; }
+  .search-empty {
+    display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 0; color: #a9b4b9; gap: 6px;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body class="bg-gray-100 flex justify-center selection:bg-blue-200 text-gray-900 font-sans">
+
+<main class="w-full max-w-[428px] h-[100dvh] bg-[#f0f4f8] relative shadow-2xl flex flex-col overflow-hidden">
+
+  <!-- ── Header: Blue Gradient Hero ── -->
+  <header class="relative shrink-0">
+
+    <!-- Blue gradient bg -->
+    <div class="h-48 relative overflow-hidden" style="background:conic-gradient(from 180deg at 50% -20%, #1058c0 0deg, #1a6fd8 50deg, #3a9af0 110deg, #aad4fa 160deg, #3a9af0 200deg, #1a6fd8 310deg, #1058c0 360deg)">
+
+      <!-- 城堡 SVG 背景 -->
+      <svg class="absolute bottom-0 left-0 w-full" viewBox="0 0 428 145" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg" style="opacity:0.32;pointer-events:none">
+        <defs>
+          <linearGradient id="wallGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fff" stop-opacity="0.95"/>
+            <stop offset="100%" stop-color="#cef" stop-opacity="0.85"/>
+          </linearGradient>
+          <linearGradient id="darkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2080b0" stop-opacity="0.45"/>
+            <stop offset="100%" stop-color="#104060" stop-opacity="0.6"/>
+          </linearGradient>
+        </defs>
+        <ellipse cx="60"  cy="148" rx="115" ry="68" fill="url(#wallGrad)"/>
+        <ellipse cx="368" cy="148" rx="125" ry="72" fill="url(#wallGrad)"/>
+        <rect x="68" y="103" width="292" height="45" rx="5" fill="url(#wallGrad)"/>
+        <line x1="68"  y1="118" x2="360" y2="118" stroke="rgba(100,160,200,0.3)" stroke-width="1"/>
+        <line x1="68"  y1="130" x2="360" y2="130" stroke="rgba(100,160,200,0.3)" stroke-width="1"/>
+        <line x1="120" y1="103" x2="120" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="180" y1="103" x2="180" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="248" y1="103" x2="248" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="308" y1="103" x2="308" y2="148" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <rect x="150" y="56" width="128" height="52" fill="url(#wallGrad)"/>
+        <line x1="150" y1="74" x2="278" y2="74" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <line x1="150" y1="88" x2="278" y2="88" stroke="rgba(100,160,200,0.25)" stroke-width="1"/>
+        <rect x="148" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="170" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="192" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="214" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="236" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <rect x="258" y="44" width="17" height="15" rx="2" fill="url(#wallGrad)"/>
+        <polygon points="214,6 176,48 252,48" fill="url(#wallGrad)"/>
+        <polygon points="214,6 176,48 252,48" fill="none" stroke="rgba(180,220,240,0.5)" stroke-width="1"/>
+        <rect x="212" y="1" width="3" height="16" fill="url(#wallGrad)"/>
+        <polygon points="215,1 232,7 215,14" fill="url(#wallGrad)"/>
+        <rect x="198" y="82" width="32" height="26" rx="16" fill="url(#darkGrad)"/>
+        <circle cx="176" cy="68" r="7" fill="url(#darkGrad)"/>
+        <circle cx="176" cy="68" r="4" fill="rgba(200,240,255,0.2)"/>
+        <circle cx="252" cy="68" r="7" fill="url(#darkGrad)"/>
+        <circle cx="252" cy="68" r="4" fill="rgba(200,240,255,0.2)"/>
+        <rect x="78"  y="74" width="62" height="34" fill="url(#wallGrad)"/>
+        <polygon points="109,46 84,76 134,76" fill="url(#wallGrad)"/>
+        <polygon points="109,46 84,76 134,76" fill="none" stroke="rgba(180,220,240,0.4)" stroke-width="1"/>
+        <rect x="76"  y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="94"  y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="112" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="100" y="84" width="20" height="24" rx="10" fill="url(#darkGrad)"/>
+        <rect x="108" y="40" width="2" height="10" fill="url(#wallGrad)"/>
+        <polygon points="110,40 120,44 110,48" fill="url(#wallGrad)"/>
+        <rect x="288" y="74" width="62" height="34" fill="url(#wallGrad)"/>
+        <polygon points="319,46 294,76 344,76" fill="url(#wallGrad)"/>
+        <polygon points="319,46 294,76 344,76" fill="none" stroke="rgba(180,220,240,0.4)" stroke-width="1"/>
+        <rect x="286" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="304" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="322" y="64" width="14" height="12" rx="2" fill="url(#wallGrad)"/>
+        <rect x="308" y="84" width="20" height="24" rx="10" fill="url(#darkGrad)"/>
+        <rect x="318" y="40" width="2" height="10" fill="url(#wallGrad)"/>
+        <polygon points="320,40 330,44 320,48" fill="url(#wallGrad)"/>
+        <rect x="20" y="100" width="36" height="48" fill="url(#wallGrad)"/>
+        <polygon points="38,82 22,102 54,102" fill="url(#wallGrad)"/>
+        <rect x="19"  y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="31"  y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="43"  y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="372" y="100" width="36" height="48" fill="url(#wallGrad)"/>
+        <polygon points="390,82 374,102 406,102" fill="url(#wallGrad)"/>
+        <rect x="370" y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="382" y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <rect x="394" y="92" width="10" height="10" rx="1" fill="url(#wallGrad)"/>
+        <circle cx="362" cy="18" r="13" fill="url(#wallGrad)"/>
+        <circle cx="369" cy="14" r="10" fill="rgba(40,140,190,0.55)"/>
+        <circle cx="28"  cy="30" r="2.5" fill="#fff"/>
+        <circle cx="48"  cy="14" r="1.8" fill="#fff"/>
+        <circle cx="16"  cy="52" r="1.5" fill="#fff"/>
+        <circle cx="70"  cy="22" r="1.2" fill="#fff"/>
+        <circle cx="395" cy="28" r="2.2" fill="#fff"/>
+        <circle cx="412" cy="44" r="1.5" fill="#fff"/>
+        <circle cx="340" cy="10" r="1.8" fill="#fff"/>
+        <polygon points="140,20 141.5,23 145,23 142.5,25 143.5,28.5 140,26.5 136.5,28.5 137.5,25 135,23 138.5,23" fill="#fff" opacity="0.8"/>
+        <polygon points="290,14 291,17 294,17 292,18.5 292.7,22 290,20.5 287.3,22 288,18.5 286,17 289,17" fill="#fff" opacity="0.7"/>
+      </svg>
+
+      <!-- Status Bar -->
+      <div class="flex justify-between items-center px-6 pt-2 text-xs font-semibold text-white relative z-10">
+        <div class="flex items-center space-x-1">
+          <span>●●●●○</span>
+          <span>中国移动</span>
+        </div>
+        <div>9:41 AM</div>
+        <div class="flex items-center space-x-1">
+          <span>100%</span>
+          <div class="w-6 h-3 border border-white rounded-[2px] relative flex items-center p-[1px]">
+            <div class="bg-white h-full w-full rounded-[1px]"></div>
+            <div class="absolute -right-1 w-0.5 h-1 bg-white rounded-r-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Back button + More button -->
+      <div class="absolute z-10 flex items-center justify-between w-full px-3" style="top:36px">
+        <button onclick="history.back()"
+          class="flex items-center justify-center rounded-full border border-white/30"
+          style="width:28px;height:28px;background:rgba(255,255,255,0.22);backdrop-filter:blur(8px)"
+          aria-label="返回">
+          <span class="material-symbols-outlined text-white" style="font-size:18px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">arrow_back_ios</span>
+        </button>
+        <button class="flex items-center justify-center rounded-full border border-white/30"
+          style="width:28px;height:28px;background:rgba(255,255,255,0.22);backdrop-filter:blur(8px)"
+          aria-label="更多">
+          <span class="material-symbols-outlined text-white" style="font-size:18px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">more_horiz</span>
+        </button>
+      </div>
+
+      <!-- Avatar + username + action buttons -->
+      <div class="absolute bottom-5 left-0 right-0 px-5 flex items-end justify-between">
+        <!-- Left: avatar + name -->
+        <div class="flex flex-col items-start gap-1.5">
+          <!-- Avatar -->
+          <div class="relative">
+            <div class="w-[60px] h-[60px] rounded-full border-[3px] border-white/90 overflow-hidden" style="box-shadow:0 4px 16px rgba(0,0,0,0.18)">
+              <img src="https://picsum.photos/seed/player88/120/120" class="w-full h-full object-cover" alt="头像"/>
+            </div>
+            <div class="absolute -bottom-0.5 -right-0.5 w-[20px] h-[20px] bg-[#4ec9f0] rounded-full border-2 border-white flex items-center justify-center text-[10px] leading-none">🐾</div>
+          </div>
+          <!-- Username -->
+          <div class="text-white font-bold text-[15px] leading-tight" style="text-shadow:0 1px 4px rgba(0,0,0,0.2)">台湾玩fuck</div>
+        </div>
+
+        <!-- Right: message + follow buttons -->
+        <div class="flex items-center gap-2 pb-1">
+          <!-- Message button -->
+          <button class="flex items-center justify-center rounded-full border border-white/50"
+            style="width:34px;height:34px;background:rgba(255,255,255,0.22);backdrop-filter:blur(8px)"
+            aria-label="私信">
+            <span class="material-symbols-outlined text-white" style="font-size:18px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">mail</span>
+          </button>
+          <!-- Follow button -->
+          <button id="follow-btn"
+            class="flex items-center gap-1 rounded-full border border-white/50 text-white text-[13px] font-semibold px-3.5 py-1.5"
+            style="background:rgba(255,255,255,0.22);backdrop-filter:blur(8px);height:34px"
+            onclick="toggleFollow()">
+            <span class="material-symbols-outlined text-white" id="follow-icon" style="font-size:15px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">person_add</span>
+            <span id="follow-text">关注</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="flex items-center gap-4 px-5 py-3 bg-white shadow-sm">
+      <div class="flex items-center gap-1.5 cursor-pointer" onclick="alert('关注列表')">
+        <span class="text-[17px] font-extrabold text-[#1a3a4a] leading-tight">6</span>
+        <span class="text-[12px] text-[#566166]">关注</span>
+      </div>
+      <div class="w-px h-4 bg-gray-200"></div>
+      <div class="flex items-center gap-1.5 cursor-pointer" onclick="alert('粉丝列表')">
+        <span class="text-[17px] font-extrabold text-[#1a3a4a] leading-tight">8</span>
+        <span class="text-[12px] text-[#566166]">粉丝</span>
+      </div>
+    </div>
+
+  </header>
+
+  <!-- ── Scrollable body ── -->
+  <div class="flex-1 overflow-y-auto hide-scrollbar pt-3 pb-2">
+
+    <!-- Tab bar + post list -->
+    <div class="mx-3 bg-white rounded-2xl overflow-hidden shadow-sm">
+      <!-- Tabs -->
+      <div class="flex items-center border-b border-[#e8eff3] px-1" id="tab-bar">
+        <div class="flex flex-1">
+          <button data-tab="creations" class="tab-btn flex-1 text-center py-2.5 text-[13px] font-bold text-[#1f2937] relative">
+            创作
+            <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full"></span>
+          </button>
+          <button data-tab="likes" class="tab-btn flex-1 text-center py-2.5 text-[13px] text-[#566166] relative">
+            点赞
+            <span class="tab-line absolute bottom-0 left-[20%] right-[20%] h-0.5 bg-[#0061a4] rounded-full hidden"></span>
+          </button>
+        </div>
+        <button id="search-icon-btn" onclick="openSearch()"
+          class="flex items-center justify-center w-8 h-8 rounded-full mr-1 active:bg-gray-100" style="flex-shrink:0">
+          <span class="material-symbols-outlined text-[#566166]" style="font-size:18px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20">search</span>
+        </button>
+      </div>
+
+      <!-- 搜索框行（方案B：从下方滑出） -->
+      <div id="search-bar-row">
+        <div class="inner">
+          <div class="search-box-row">
+            <span class="material-symbols-outlined text-[#a9b4b9]" style="font-size:14px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;flex-shrink:0">search</span>
+            <input type="text" id="search-input" placeholder="搜索创作内容" oninput="filterPosts()" autocomplete="off"/>
+            <span id="search-clear" onclick="clearSearch()" style="display:none;cursor:pointer;color:#a9b4b9;font-size:16px;flex-shrink:0;line-height:1">×</span>
+          </div>
+          <button onclick="closeSearch()" class="text-[12px] text-[#0061a4] font-medium flex-shrink-0">取消</button>
+        </div>
+      </div>
+
+      <!-- Creations panel -->
+      <div id="tab-creations" class="tab-panel">
+        <!-- 帖子列表 -->
+        <div id="post-list" class="p-3 space-y-2"></div>
+        <!-- 空状态 -->
+        <div class="search-empty" id="search-empty">
+          <span class="material-symbols-outlined text-[32px] opacity-30" style="font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 40">search_off</span>
+          <span>没有找到相关内容</span>
+        </div>
+      </div>
+
+      <!-- Likes panel -->
+      <div id="tab-likes" class="tab-panel hidden">
+        <div class="flex flex-col items-center justify-center py-12 text-gray-400 space-y-2">
+          <span class="material-symbols-outlined text-4xl opacity-30" style="font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 40">favorite</span>
+          <span class="text-sm">暂无点赞</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+let followed = false;
+
+function toggleFollow() {
+  followed = !followed;
+  const btn = document.getElementById('follow-btn');
+  const icon = document.getElementById('follow-icon');
+  const text = document.getElementById('follow-text');
+  if (followed) {
+    btn.style.background = 'rgba(255,255,255,0.9)';
+    btn.style.color = '#0061a4';
+    btn.style.borderColor = 'rgba(0,97,164,0.3)';
+    icon.textContent = 'person_check';
+    icon.style.color = '#0061a4';
+    text.textContent = '已关注';
+    text.style.color = '#0061a4';
+  } else {
+    btn.style.background = 'rgba(255,255,255,0.22)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'rgba(255,255,255,0.5)';
+    icon.textContent = 'person_add';
+    icon.style.color = '#fff';
+    text.textContent = '关注';
+    text.style.color = '#fff';
+  }
+}
+
+// Tab switching
+(function () {
+  const btns = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.tab-panel');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      btns.forEach(b => {
+        const active = b.dataset.tab === target;
+        b.classList.toggle('font-bold', active);
+        b.classList.toggle('text-[#1f2937]', active);
+        b.classList.toggle('text-[#566166]', !active);
+        b.querySelector('.tab-line').classList.toggle('hidden', !active);
+      });
+      panels.forEach(p => {
+        p.classList.toggle('hidden', p.id !== 'tab-' + target);
+      });
+    });
+  });
+})();
+
+// ── 创作数据 ──────────────────────────────────────────────
+const posts = [
+  { date: '03-20 · 09:46', action: '发布了该帖子', title: '123', body: '123123', img: 'https://picsum.photos/seed/post1/160/120' },
+  { date: '02-02 · 14:42', action: '发布了动态',   title: '',    body: 'efagrsae' },
+  { date: '12-05 · 10:35', action: '发布了该帖子', title: '123', body: '123' },
+  { date: '12-03 · 17:14', action: '发布了该帖子', title: '',    body: '测测测测测测测额膀侧测测测测测额膀侧测测测测额膀侧测测测测额膀侧测测测测额膀侧测测测测额膀侧测测测测测...' },
+  { date: '09-25 · 09:16', action: '发布了动态',   title: '',    body: '早上好！今天天气不错，继续游戏冲冲冲 💪' },
+];
+
+function renderPosts(list) {
+  const container = document.getElementById('post-list');
+  const empty = document.getElementById('search-empty');
+  if (list.length === 0) {
+    container.innerHTML = '';
+    empty.style.display = 'flex';
+    return;
+  }
+  empty.style.display = 'none';
+  container.innerHTML = list.map(p => `
+    <div class="tl-card">
+      <div class="tl-stripe" style="background:linear-gradient(180deg,#0061a4,#3ab4e8)"></div>
+      <div class="tl-body">
+        <div class="time-pill" style="background:#e8f4ff;color:#0061a4">
+          <span style="font-size:8px">●</span> ${p.date} · ${p.action}
+        </div>
+        ${p.title || p.img ? `
+        <div class="flex gap-2.5 items-center">
+          <div class="flex-1 min-w-0">
+            ${p.title ? `<div class="text-[13px] font-semibold text-[#1a2a35] truncate">${p.title}</div>` : ''}
+            ${p.body  ? `<div class="text-[11px] text-slate-500 truncate mt-0.5">${p.body}</div>` : ''}
+          </div>
+          ${p.img ? `<img src="${p.img}" class="w-[66px] h-[48px] rounded-lg object-cover flex-shrink-0" alt=""/>` : ''}
+        </div>` : `
+        <div class="text-[12px] text-[#2a3439] line-clamp-3 leading-relaxed">${p.body}</div>`}
+      </div>
+    </div>
+  `).join('');
+}
+
+// 初始渲染
+renderPosts(posts);
+
+// ── 搜索逻辑（方案B：第二行展开）──────────────────────────
+let searchOpen = false;
+
+function openSearch() {
+  searchOpen = true;
+  document.getElementById('search-bar-row').classList.add('open');
+  document.getElementById('search-icon-btn').style.display = 'none';
+  setTimeout(() => document.getElementById('search-input').focus(), 50);
+}
+
+function closeSearch() {
+  searchOpen = false;
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  document.getElementById('search-bar-row').classList.remove('open');
+  document.getElementById('search-icon-btn').style.display = '';
+  renderPosts(posts);
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  document.getElementById('search-input').focus();
+  renderPosts(posts);
+}
+
+function filterPosts() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  document.getElementById('search-clear').style.display = q ? 'block' : 'none';
+  renderPosts(q ? posts.filter(p => (p.title + p.body + p.action).toLowerCase().includes(q)) : posts);
+}
+
+// 切换到点赞 tab 时关闭搜索
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const showSearch = btn.dataset.tab === 'creations';
+      document.getElementById('search-icon-btn').style.display = showSearch ? '' : (searchOpen ? 'none' : '');
+      if (!showSearch && searchOpen) closeSearch();
+    });
+  });
+});
+</script>
+</body>
+</html>
