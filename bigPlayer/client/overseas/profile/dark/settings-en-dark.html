@@ -240,5 +240,198 @@ function confirmLogout() {
   alert('Log out?');
 }
 </script>
+
+
+<!-- ══ Page Nav v3.1.1 ══ -->
+<style>
+#pnav-fab{position:fixed;left:16px;top:80px;z-index:9998;width:36px;height:36px;border-radius:10px;background:rgba(0,97,164,.92);box-shadow:0 3px 12px rgba(0,97,164,.35);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
+#pnav-fab:hover{transform:scale(1.08);}
+#pnav-fab svg{width:18px;height:18px;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;}
+#pnav-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:9997;opacity:0;pointer-events:none;transition:opacity .2s;}
+#pnav-overlay.open{opacity:1;pointer-events:auto;}
+#pnav-drawer{position:fixed;top:0;left:-300px;width:280px;height:100vh;background:#fff;z-index:9998;box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:left .24s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+#pnav-drawer.open{left:0;}
+#pnav-head{padding:20px 16px 12px;border-bottom:1px solid #e1e9ee;flex-shrink:0;}
+#pnav-head h3{font-family:Manrope,system-ui,sans-serif;font-size:14px;font-weight:800;color:#0061a4;margin:0 0 2px;}
+#pnav-head p{font-family:Inter,system-ui,sans-serif;font-size:11px;color:#a9b4b9;margin:0;}
+#pnav-close{position:absolute;top:14px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:#f0f4f7;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#pnav-close svg{width:14px;height:14px;stroke:#566166;stroke-width:2.5;stroke-linecap:round;fill:none;}
+#pnav-list{flex:1;overflow-y:auto;padding:8px 0 24px;}
+.pnav-section{padding:12px 16px 4px;}
+.pnav-section-label{font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:700;color:#a9b4b9;letter-spacing:.08em;text-transform:uppercase;}
+.pnav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:500;color:#2a3439;transition:background .12s;}
+.pnav-item:hover{background:#f0f4f7;}
+.pnav-item.current{background:#eff6ff;color:#0061a4;font-weight:700;}
+.pnav-item .pnav-dot{width:6px;height:6px;border-radius:50%;background:#d9e4ea;flex-shrink:0;}
+.pnav-item.current .pnav-dot{background:#0061a4;}
+.pnav-item .pnav-num{font-size:10px;font-weight:700;color:#a9b4b9;width:16px;flex-shrink:0;text-align:right;}
+.pnav-item.current .pnav-num{color:#0061a4;}
+</style>
+
+<button id="pnav-fab" onclick="openPnav()" title="页面目录">
+  <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="16" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div id="pnav-overlay" onclick="closePnav()"></div>
+<div id="pnav-drawer">
+  <div id="pnav-head">
+    <h3>Overseas · 页面目录</h3>
+    <p>Light 模式 · 共 15 页</p>
+    <button id="pnav-close" onclick="closePnav()">
+      <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
+    </button>
+  </div>
+  <nav id="pnav-list">
+    <div class="pnav-section"><span class="pnav-section-label">Home · 首页模块</span></div>
+    <a class="pnav-item" href="../../home/light/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
+    <a class="pnav-item" href="../../home/light/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
+    <a class="pnav-item" href="../../home/light/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
+    <a class="pnav-item" href="../../home/light/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
+    <a class="pnav-item" href="../../home/light/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
+    <a class="pnav-item" href="../../feed/light/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">News · 资讯模块</span></div>
+    <a class="pnav-item" href="../../news/light/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
+    <a class="pnav-item" href="../../profile/light/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
+    <a class="pnav-item" href="../../profile/light/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
+    <a class="pnav-item" href="../../profile/light/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
+    <a class="pnav-item" href="../../profile/light/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
+    <a class="pnav-item" href="../../profile/light/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
+    <a class="pnav-item" href="../../profile/light/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">Publish · 发布模块</span></div>
+    <a class="pnav-item" href="../../publish/light/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
+    <a class="pnav-item" href="../../publish/light/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
+  </nav>
+</div>
+<script>
+(function(){
+  var cur = location.pathname.split('/').pop();
+  document.querySelectorAll('.pnav-item').forEach(function(a){
+    if(a.getAttribute('data-file')===cur){a.classList.add('current');}
+  });
+})();
+function openPnav(){
+  document.getElementById('pnav-drawer').classList.add('open');
+  document.getElementById('pnav-overlay').classList.add('open');
+}
+function closePnav(){
+  document.getElementById('pnav-drawer').classList.remove('open');
+  document.getElementById('pnav-overlay').classList.remove('open');
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();});
+</script>
+<!-- ══ /Page Nav ══ -->
+
+<!-- ══ Spec Panel v3.1.1 ══ -->
+<style>
+#spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:#0061a4;box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
+#spec-fab:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(0,97,164,.50);}
+#spec-fab svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+#spec-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;opacity:0;pointer-events:none;transition:opacity .22s;}
+#spec-overlay.open{opacity:1;pointer-events:auto;}
+#spec-panel{position:fixed;top:0;right:-560px;width:540px;max-width:90vw;height:100vh;background:#fff;z-index:9999;box-shadow:-4px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1);}
+#spec-panel.open{right:0;}
+#spec-panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 16px;border-bottom:1px solid #e1e9ee;flex-shrink:0;}
+#spec-panel-title{font-family:Manrope,system-ui,sans-serif;font-size:16px;font-weight:800;color:#0061a4;margin:0;}
+#spec-panel-ver{font-size:11px;font-weight:600;color:#a9b4b9;margin-left:8px;}
+#spec-panel-close{width:32px;height:32px;border-radius:50%;border:none;background:#f0f4f7;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#spec-panel-close svg{width:16px;height:16px;stroke:#566166;stroke-width:2.5;stroke-linecap:round;fill:none;}
+#spec-body{flex:1;overflow-y:auto;padding:20px 24px 32px;font-family:Inter,system-ui,sans-serif;font-size:13px;color:#2a3439;line-height:1.7;}
+#spec-body h2{font-family:Manrope,sans-serif;font-size:15px;font-weight:800;color:#0061a4;margin:24px 0 8px;border-bottom:2px solid #e8eff3;padding-bottom:6px;}
+#spec-body h3{font-family:Manrope,sans-serif;font-size:13px;font-weight:700;color:#2a3439;margin:16px 0 6px;}
+#spec-body h4{font-size:12px;font-weight:700;color:#566166;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em;}
+#spec-body p{margin:4px 0 8px;}
+#spec-body ul,#spec-body ol{padding-left:18px;margin:4px 0 8px;}
+#spec-body li{margin-bottom:3px;}
+#spec-body table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:12px;}
+#spec-body th{background:#f0f4f7;color:#566166;font-weight:700;padding:6px 10px;text-align:left;border:1px solid #e1e9ee;}
+#spec-body td{padding:5px 10px;border:1px solid #e8eff3;color:#2a3439;vertical-align:top;}
+#spec-body tr:nth-child(even) td{background:#f7f9fb;}
+#spec-body code{background:#f0f4f7;padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:Consolas,monospace;color:#0061a4;}
+#spec-body pre{background:#f0f4f7;border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0 12px;}
+#spec-body pre code{background:none;padding:0;color:#2a3439;font-size:12px;}
+#spec-body strong{color:#1a2a34;}
+#spec-body blockquote{border-left:3px solid #0061a4;margin:8px 0;padding:6px 12px;background:#eff6ff;border-radius:0 6px 6px 0;color:#566166;font-size:12px;}
+#spec-body hr{border:none;border-top:1px solid #e8eff3;margin:16px 0;}
+</style>
+<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.1">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+</button>
+<div id="spec-overlay" onclick="closeSpecPanel()"></div>
+<div id="spec-panel">
+  <div id="spec-panel-head">
+    <div style="display:flex;align-items:baseline;gap:0">
+      <span id="spec-panel-title">海外版 UI 变更需求说明</span>
+      <span id="spec-panel-ver">v3.1.1</span>
+    </div>
+    <button id="spec-panel-close" onclick="closeSpecPanel()">
+      <svg viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
+    </button>
+  </div>
+  <div id="spec-body"></div>
+</div>
+<script>
+(function(){
+  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面均有亮色（Light）和深色（Dark）两套模式，需同时实现。\n\n### 首页模块（Home）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 1 | 首页（社区主页） | home/light/home-en.html | home/dark/home-en-dark.html |\n| 2 | 帖子详情 | home/light/post-detail-en.html | home/dark/post-detail-en-dark.html |\n| 3 | 心情详情 | home/light/mood-detail-en.html | home/dark/mood-detail-en-dark.html |\n| 4 | 搜索页 | home/light/search-en.html | home/dark/search-en-dark.html |\n| 5 | 搜索结果页 | home/light/search-results-en.html | home/dark/search-results-en-dark.html |\n\n### Feed 模块\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 6 | Feed 流 | feed/light/feed-en.html | feed/dark/feed-en-dark.html |\n\n### 资讯模块（News）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 7 | 资讯列表 | news/light/news-en.html | news/dark/news-en-dark.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 8 | 我的主页 | profile/light/profile-en.html | profile/dark/profile-en-dark.html |\n| 9 | 他人主页 | profile/light/profile-other-en.html | profile/dark/profile-other-en-dark.html |\n| 10 | 设置页 | profile/light/settings-en.html | profile/dark/settings-en-dark.html |\n| 11 | 通知页 | profile/light/notifications-en.html | profile/dark/notifications-en-dark.html |\n| 12 | 聊天页 | profile/light/chat-en.html | profile/dark/chat-en-dark.html |\n| 13 | 草稿箱 | profile/light/drafts-en.html | profile/dark/drafts-en-dark.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 14 | 发帖页 | publish/light/post_publish-en.html | publish/dark/post_publish-en-dark.html |\n| 15 | 发心情页 | publish/light/mood_publish-en.html | publish/dark/mood_publish-en-dark.html |\n\n> **深色模式说明**：系统跟随设备 dark mode 设置自动切换，同一页面亮色/深色为同一功能页，不计为两个页面，但两套皮肤必须完整实现。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n| 级别 | 字号 | 字重 | 字体 | 场景 |\n|------|------|------|------|------|\n| Display | 26px | 900 | Manrope | 评分大数字 |\n| Headline L | 17px | 800 | Manrope | 推荐卡标题、页面主标题 |\n| Headline M | 14px | 700 | Inter | 帖子标题、列表主文字 |\n| Label L | 15px | 700 | Manrope | CTA 按钮、顶栏标题 |\n| Body M | 12-13px | 400 | Inter | 正文描述、评论 |\n| Label M | 11px | 500-700 | Inter | 标签、元信息 |\n| Caption | 10px | 500-700 | Inter | 底导标签、等级 Badge |\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 主色按压态 | #005590 |\n| 深色背景强调色 | #2498f5 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器/禁用背景 | #f0f4f7 |\n| 分隔填充 | #e8eff3 |\n| 导航栏边框 | #e1e9ee |\n| Story 未看环 | #d9e4ea |\n| 主文字/标题 | #2a3439 |\n| 次级文字/标签 | #566166 |\n| 辅助文字 | #717c82 |\n| 占位符/禁用文字 | #a9b4b9 |\n| 禁用浅色 | #c8d0d5 |\n| 蓝色强调块背景 | #cbe6ff |\n| 蓝色强调块内文字 | #0a5780 |\n| 公告条背景 | #eff6ff |\n| 话题标签背景 | #fef3c7 |\n| 话题标签边框 | #fbbf24 |\n| 话题标签文字 | #b45309 |\n| 深色推荐卡主体 | #0f1c27 |\n| 未读 Badge | #e53935 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 主色按压态 | #3882ef |\n| 高亮强调色（评分） | #79c0ff |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| Story 未看环 | #30363d |\n| 深色推荐卡主体 | #0a1520 |\n| 蓝色强调块背景 | #1f3a56 |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n| 话题标签背景 | #2d1f06 |\n| 话题标签边框 | #d97706 |\n| 话题标签文字 | #f59e0b |\n| 未读 Badge | #e53935 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片（帖子卡、新闻卡） | 12-16px |\n| 横滑 Featured Card | 14px |\n| 搜索框/输入框 | 8-10px |\n| 方形标签/Chip | 4-6px |\n| 胶囊标签/主要按钮 | 999px |\n| 快捷入口图标背景 | 10-12px |\n| 头像 | 50% |\n| 等级 Badge | 8px |\n\n### 4.5 背景底色 & 边框 — 亮色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #f7f9fb | — |\n| 顶部导航栏 | #ffffff | bottom: 1px solid #e1e9ee |\n| 底部导航栏 | rgba(255,255,255,0.96) + blur(14px) | top: 1px solid #e1e9ee |\n| 内容卡片 | #ffffff | 仅阴影 0 1px 6px rgba(42,52,57,0.07) |\n| 页面分隔块 | #f0f4f7 | — |\n| 输入框 | #f0f4f7 | 激活：1.5px solid #0061a4 |\n| 公告条 | #eff6ff | left: 3px solid #0061a4 |\n\n### 4.6 背景底色 & 边框 — 深色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #0d1117 | — |\n| 顶部导航栏 | #0d1117 | bottom: 1px solid #21262d |\n| 底部导航栏 | rgba(13,17,23,0.96) + blur(14px) | top: 1px solid #21262d |\n| 内容卡片 | #161b22 | 1px solid #21262d |\n| 页面分隔块 | #161b22 | — |\n| 输入框 | #1c2128 | 激活：1.5px solid #4493f8 |\n| 公告条 | #1a3a5c | left: 3px solid #4493f8 |\n\n### 4.7 图标规范\n\n图标库：Material Symbols Outlined\n\n底部导航图标：home / explore / add / article / person（24px）\n\n默认样式：FILL 0, wght 400，激活态：FILL 1, wght 500\n\n### 4.8 底部导航栏\n\n- 高度：82px，padding-top: 8px\n- 默认图标色：亮色 #a9b4b9 / 深色 #6e7681\n- 选中图标色：亮色 #0061a4 / 深色 #4493f8\n- 发布按钮：46x46px 圆形，上浮 margin-top: -10px\n\n### 4.9 动效规范\n\n| 类型 | CSS |\n|------|-----|\n| 卡片按压 | transform: scale(0.99)，transition 0.15s |\n| 大卡按压 | transform: scale(0.975)，transition 0.15s |\n| 按钮颜色过渡 | transition: background 0.15s |\n| 隐藏滚动条 | scrollbar-width: none |\n\n---\n\n## 五、开发注意事项\n\n1. 所有页面均需同时实现**亮色和深色模式**，通过系统 prefers-color-scheme 自动切换\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover，不得拉伸\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n5. 首页抽屉菜单从左侧滑出（宽 280px），背景蒙层 rgba(0,0,0,0.45)\n6. 发布页顶栏发布按钮初始为禁用态（灰色），有内容后激活为主色";
+  function md2html(t){
+    var h = t
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      .replace(/`([^`]+)`/g,'<code>$1</code>');
+    var lines = h.split('\n');
+    var out = [];
+    var inTable = false;
+    var tableRows = [];
+    function flushTable(){
+      if(!tableRows.length) return;
+      var html = '<table>';
+      var firstDataRow = true;
+      tableRows.forEach(function(r){
+        var cells = r.split('|').slice(1,-1).map(function(c){return c.trim();});
+        if(cells.every(function(c){return /^[-: ]+$/.test(c);})){firstDataRow=false;return;}
+        if(firstDataRow){html+='<tr>'+cells.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr>';firstDataRow=false;}
+        else{html+='<tr>'+cells.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';}
+      });
+      html += '</table>';
+      out.push(html);
+      tableRows = [];
+      inTable = false;
+    }
+    lines.forEach(function(line){
+      if(/^\| /.test(line)){inTable=true;tableRows.push(line);return;}
+      if(inTable){flushTable();}
+      if(/^#### /.test(line)){out.push('<h4>'+line.slice(5)+'</h4>');}
+      else if(/^### /.test(line)){out.push('<h3>'+line.slice(4)+'</h3>');}
+      else if(/^## /.test(line)){out.push('<h2>'+line.slice(3)+'</h2>');}
+      else if(/^---$/.test(line)){out.push('<hr>');}
+      else if(/^> /.test(line)){out.push('<blockquote>'+line.slice(2)+'</blockquote>');}
+      else if(/^[\d]+\. /.test(line)){out.push('<li>'+line.replace(/^\d+\. /,'')+'</li>');}
+      else if(/^[*-] /.test(line)){out.push('<li>'+line.slice(2)+'</li>');}
+      else if(line.trim()===''){out.push('');}
+      else{out.push('<p>'+line+'</p>');}
+    });
+    if(inTable) flushTable();
+    var joined = out.join('\n');
+    joined = joined.replace(/(<li>[\s\S]*?<\/li>)/g, function(m){ return '<ul>'+m+'</ul>'; });
+    return joined;
+  }
+  document.getElementById('spec-body').innerHTML = md2html(raw);
+})();
+function openSpecPanel(){
+  document.getElementById('spec-panel').classList.add('open');
+  document.getElementById('spec-overlay').classList.add('open');
+}
+function closeSpecPanel(){
+  document.getElementById('spec-panel').classList.remove('open');
+  document.getElementById('spec-overlay').classList.remove('open');
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSpecPanel();});
+</script>
+<!-- ══ /Spec Panel ══ -->
+
 </body>
 </html>
