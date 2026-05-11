@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档修改记录 - SDK管理后台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f0f4f8;
+  min-height: 100vh;
+  display: flex;
+}
+
+.page-wrapper {
+  display: flex;
+  flex: 1;
+  min-height: 100vh;
+}
+
+/* 侧边栏 */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #001529;
+  min-height: 100vh;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-logo {
+  padding: 16px 16px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-logo-icon {
+  width: 28px; height: 28px;
+  background: #1890ff;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #fff; font-weight: 700;
+}
+.sidebar-logo-text {
+  font-size: 15px; font-weight: 700; color: #fff;
+  letter-spacing: 0.5px;
+}
+.sidebar-logo-tag {
+  font-size: 10px; font-weight: 500;
+  background: rgba(24,144,255,0.2); color: #1890ff;
+  padding: 2px 7px; border-radius: 8px;
+}
+
+/* 主内容区 */
+.main {
+  flex: 1;
+  padding: 32px 40px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.main-title {
+  font-size: 20px; font-weight: 700; color: #1a2233;
+  margin-bottom: 4px;
+}
+.main-sub {
+  font-size: 13px; color: #aaa; margin-bottom: 24px;
+}
+
+/* 搜索/筛选栏 */
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px;
+}
+.search-input {
+  flex: 1; max-width: 260px;
+  border: 1px solid #dde3ea; border-radius: 7px;
+  padding: 7px 12px; font-size: 13px; color: #333;
+  outline: none; background: #fff;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: #3ab4e8; }
+.search-input::placeholder { color: #bbb; }
+
+/* 表格 */
+.table-wrap {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead tr {
+  background: #f5f8fc;
+  border-bottom: 1px solid #e8ecf0;
+}
+thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px; font-weight: 600; color: #888;
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid #f0f3f7;
+  transition: background 0.15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #f8fbfd; }
+tbody td {
+  padding: 12px 16px;
+  color: #333; line-height: 1.6;
+  vertical-align: top;
+}
+
+.td-version {
+  font-weight: 600; color: #1a2233;
+  white-space: nowrap; width: 90px;
+}
+.td-changes {
+  color: #555;
+}
+.td-changes ul {
+  margin: 0; padding-left: 16px;
+}
+.td-changes ul li { margin-bottom: 2px; }
+.td-date {
+  white-space: nowrap; color: #888; width: 110px;
+}
+.td-operator {
+  white-space: nowrap; color: #555; width: 80px;
+}
+
+/* 行数统计 */
+.table-footer {
+  padding: 10px 16px;
+  font-size: 12px; color: #bbb;
+  background: #fafbfc;
+  border-top: 1px solid #f0f3f7;
+}
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">S</div>
+      <span class="sidebar-logo-text">SDK 管理后台</span>
+      <span class="sidebar-logo-tag">管理端</span>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="main-title">文档修改记录</div>
+    <div class="main-sub">记录所有SDK管理后台原型页面的版本变更历史</div>
+
+    <div class="toolbar">
+      <input class="search-input" id="search" type="text" placeholder="搜索版本号 / 修改记录 / 操作人…">
+    </div>
+
+    <div class="table-wrap">
+      <table id="changelog-table">
+        <thead>
+          <tr>
+            <th>版本号</th>
+            <th>修改记录</th>
+            <th>日期</th>
+            <th>操作人</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+        </tbody>
+      </table>
+      <div class="table-footer" id="row-count"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ---- 数据（最新版在最前）----
+const CHANGELOG = [
+  {
+    version: 'v2.7.2',
+    changes: [
+      '1. 编辑方案-基本信息：新增「渠道接入类型」字段（官方/抖音全端）',
+      '2. 切换「抖音全端」时弹窗二次确认提示',
+      '3. 确认后仅显示「实名认证」和「单价」两个字段，取消则保持当前官方配置',
+    ],
+    date: '2026/04/20',
+    operator: '刘福毅'
+  },
+];
+
+// ---- 渲染 ----
+function render(data) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  data.forEach(row => {
+    const tr = document.createElement('tr');
+
+    const changesHtml = Array.isArray(row.changes)
+      ? '<ul>' + row.changes.map(c => '<li>' + c + '</li>').join('') + '</ul>'
+      : row.changes;
+
+    tr.innerHTML =
+      '<td class="td-version">' + row.version + '</td>' +
+      '<td class="td-changes">' + changesHtml + '</td>' +
+      '<td class="td-date">' + row.date + '</td>' +
+      '<td class="td-operator">' + row.operator + '</td>';
+    tbody.appendChild(tr);
+  });
+  document.getElementById('row-count').textContent = '共 ' + data.length + ' 条记录';
+}
+
+// ---- 搜索 ----
+document.getElementById('search').addEventListener('input', function() {
+  const kw = this.value.trim().toLowerCase();
+  if (!kw) { render(CHANGELOG); return; }
+  const filtered = CHANGELOG.filter(row => {
+    const changes = Array.isArray(row.changes) ? row.changes.join(' ') : row.changes;
+    return (
+      row.version.toLowerCase().includes(kw) ||
+      changes.toLowerCase().includes(kw) ||
+      row.date.includes(kw) ||
+      row.operator.toLowerCase().includes(kw)
+    );
+  });
+  render(filtered);
+});
+
+render(CHANGELOG);
+</script>
+</body>
+</html>

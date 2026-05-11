@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>编辑方案 - SDK管理后台</title>
+<style>
+/* ── 全局 ── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f0f2f5;
+  min-height: 100vh;
+  display: flex;
+  color: #333;
+}
+
+/* ── 侧边栏 ── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #001529;
+  min-height: 100vh;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-logo {
+  padding: 16px 16px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-logo-icon {
+  width: 28px; height: 28px;
+  background: #1890ff;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #fff; font-weight: 700;
+}
+.sidebar-logo-text {
+  font-size: 15px; font-weight: 700; color: #fff;
+  letter-spacing: 0.5px;
+}
+.sidebar-logo-tag {
+  font-size: 10px; font-weight: 500;
+  background: rgba(24,144,255,0.2); color: #1890ff;
+  padding: 2px 7px; border-radius: 8px;
+}
+
+/* 侧边栏搜索 */
+.sidebar-search {
+  padding: 12px 12px 8px;
+}
+.sidebar-search input {
+  width: 100%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.65);
+  outline: none;
+}
+.sidebar-search input::placeholder { color: rgba(255,255,255,0.3); }
+
+/* 导航组 */
+.nav-group { padding: 10px 0 4px; }
+.nav-group-label {
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 1px;
+  padding: 0 16px 6px;
+  text-transform: uppercase;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.65);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  position: relative;
+}
+.nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
+.nav-item.active {
+  color: #fff;
+  background: #1890ff;
+}
+.nav-item .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+
+.nav-dir {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.65);
+  cursor: pointer;
+  transition: color 0.15s;
+  user-select: none;
+}
+.nav-dir:hover { color: rgba(255,255,255,0.85); }
+.nav-dir .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+.nav-dir-arrow {
+  margin-left: auto;
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  transition: transform 0.2s;
+}
+.nav-dir.open > .nav-dir-arrow { transform: rotate(90deg); }
+
+.nav-children { padding-left: 16px; overflow: hidden; }
+.nav-children .nav-item { padding: 7px 16px; font-size: 12px; }
+
+/* ── 主内容区 ── */
+.main-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* 顶部栏 */
+.top-bar {
+  background: #fff;
+  padding: 0 24px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.breadcrumb {
+  font-size: 13px;
+  color: #999;
+}
+.breadcrumb a { color: #1890ff; text-decoration: none; }
+.breadcrumb span { color: #333; }
+.top-bar-actions {
+  display: flex; align-items: center; gap: 16px;
+  font-size: 13px; color: #666;
+}
+.top-bar-actions .avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: #87d068;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 12px; font-weight: 600;
+}
+
+/* 主体 */
+.admin-main {
+  flex: 1;
+  padding: 16px 24px 24px;
+  overflow-y: auto;
+}
+
+/* ── 页面卡片 ── */
+.page-card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+
+/* ── Tab 栏 ── */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 0 20px;
+  background: #fff;
+}
+.tab-item {
+  padding: 12px 20px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+  white-space: nowrap;
+}
+.tab-item:hover { color: #1890ff; }
+.tab-item.active { color: #1890ff; font-weight: 500; }
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+  border-radius: 1px 1px 0 0;
+}
+
+/* ── 筛选栏 ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+}
+.filter-select, .filter-input {
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+  outline: none;
+  min-width: 140px;
+}
+.filter-input { min-width: 180px; cursor: text; }
+.filter-select:focus, .filter-input:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.2);
+}
+.btn-query {
+  height: 32px;
+  padding: 0 16px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-query:hover { background: #40a9ff; }
+.btn-reset {
+  height: 32px;
+  padding: 0 16px;
+  background: #fff;
+  color: #666;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-reset:hover { border-color: #1890ff; color: #1890ff; }
+
+/* ── 操作栏 ── */
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.action-bar-left { display: flex; gap: 8px; }
+.btn-add {
+  height: 32px;
+  padding: 0 16px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-add:hover { background: #40a9ff; }
+.btn-export {
+  height: 32px;
+  padding: 0 16px;
+  background: #fff;
+  color: #666;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-export:hover { border-color: #1890ff; color: #1890ff; }
+.toolbar-icons { display: flex; gap: 8px; }
+.toolbar-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  font-size: 14px; cursor: pointer; color: #666;
+  background: #fff;
+}
+.toolbar-icon:hover { border-color: #1890ff; color: #1890ff; }
+
+/* ── 表格 ── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead tr { background: #fafafa; }
+th {
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 500;
+  color: #262626;
+  border-bottom: 1px solid #e8e8e8;
+  white-space: nowrap;
+}
+td {
+  padding: 14px 14px;
+  color: #595959;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+}
+tbody tr:hover { background: #fafeff; }
+
+/* 状态标签 */
+.status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-pass { color: #52c41a; background: #f6ffed; border: 1px solid #b7eb8f; }
+.status-pending { color: #fa8c16; background: #fff7e6; border: 1px solid #ffd591; }
+.status-reject { color: #ff4d4f; background: #fff1f0; border: 1px solid #ffa39e; }
+.status-draft  { color: #999; background: #f5f5f5; border: 1px solid #e8e8e8; }
+
+/* 操作按钮 */
+.op-btn {
+  background: none; border: none;
+  font-size: 13px; cursor: pointer;
+  padding: 2px 6px;
+}
+.op-edit { color: #1890ff; }
+.op-edit:hover { color: #40a9ff; }
+.op-delete { color: #ff4d4f; }
+.op-delete:hover { color: #ff7875; }
+.op-view { color: #722ed1; }
+.op-view:hover { color: #9254de; }
+.op-copy { color: #13c2c2; }
+.op-copy:hover { color: #36cfc9; }
+
+/* ── 分页 ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 14px 20px;
+  font-size: 13px;
+  color: #666;
+}
+.page-total { margin-right: 8px; }
+.page-btn {
+  min-width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  cursor: pointer; font-size: 13px; background: #fff;
+  padding: 0 6px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.page-btn:hover { border-color: #1890ff; color: #1890ff; }
+.page-btn.active { background: #1890ff; border-color: #1890ff; color: #fff; }
+.page-btn.disabled { color: #d9d9d9; cursor: not-allowed; border-color: #d9d9d9; }
+.page-jump { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+.page-jump input {
+  width: 44px; height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  text-align: center; font-size: 13px; outline: none;
+}
+.page-size-select {
+  height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 0 6px; font-size: 13px; outline: none;
+  cursor: pointer;
+}
+
+/* ============================================================
+   编辑/新增 页面
+   ============================================================ */
+.form-page { display: none; }
+.form-page.visible { display: flex; flex-direction: column; }
+
+/* 顶部 Tab — 编辑方案页（橙色高亮 active tab） */
+.form-top-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+}
+.form-top-tab {
+  padding: 5px 14px;
+  font-size: 13px;
+  color: #666;
+  background: #f5f5f5;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.form-top-tab:hover { background: #eee; }
+.form-top-tab .tab-close {
+  font-size: 11px; color: #999; cursor: pointer; line-height: 1;
+}
+.form-top-tab .tab-close:hover { color: #ff4d4f; }
+.form-top-tab.active {
+  background: #fa8c16;
+  color: #fff;
+  border-color: #fa8c16;
+}
+.form-top-tab.active .tab-close { color: rgba(255,255,255,0.7); }
+.form-top-tab.active .tab-close:hover { color: #fff; }
+
+/* 表单页头部（标题 + 返回 + tab 合并为一行） */
+.form-page-header {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 48px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+}
+.form-page-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #262626;
+}
+.form-header-tabs {
+  display: flex;
+  align-items: stretch;
+  margin-left: 32px;
+  height: 100%;
+}
+.form-header-tab {
+  padding: 0 18px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.form-header-tab:hover { color: #1890ff; }
+.form-header-tab.active { color: #1890ff; font-weight: 500; }
+.form-header-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+}
+.form-header-tab.tab-orange { color: #fa8c16; font-weight: 600; }
+.form-header-tab.tab-orange:hover { color: #d46b08; }
+.btn-back {
+  margin-left: auto;
+  background: none; border: none;
+  color: #1890ff;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+.btn-back:hover { color: #40a9ff; text-decoration: underline; }
+
+/* (form-tab-bar merged into form-page-header) */
+
+/* ── 表单区块（独立白色卡片，灰色间距分隔） ── */
+.form-sections {
+  padding: 16px 24px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+.form-section {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  padding: 20px 24px 16px;
+  margin-bottom: 16px;
+}
+.form-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 18px;
+  padding-bottom: 0;
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-section-title .sec-icon {
+  font-size: 15px;
+}
+
+/* 子标题（如 登录 / 注册 / 基础客服） */
+.form-sub-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #262626;
+  margin: 16px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex; align-items: center; gap: 6px;
+}
+.form-sub-title .sub-icon { font-size: 13px; }
+
+/* 表单行 */
+.form-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.form-row:last-child { margin-bottom: 0; }
+.form-label {
+  width: 180px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #666;
+  padding-top: 7px;
+  text-align: right;
+  padding-right: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.form-required { color: #ff4d4f; margin-right: 2px; }
+.form-control {
+  flex: 1;
+  max-width: 480px;
+}
+.form-control-wide {
+  flex: 1;
+  max-width: 720px;
+}
+.form-control-full {
+  flex: 1;
+}
+.form-input, .form-select {
+  width: 100%;
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  background: #fff;
+}
+.form-input:focus, .form-select:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.15);
+}
+.form-textarea {
+  width: 100%;
+  min-height: 80px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+.form-textarea:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.15);
+}
+.form-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.form-static {
+  font-size: 13px;
+  color: #333;
+  padding-top: 7px;
+  line-height: 1.4;
+}
+
+/* 表单两列/三列布局 */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 24px;
+}
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0 16px;
+}
+
+/* 内联控件 */
+.form-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.form-inline .form-input,
+.form-inline .form-select {
+  width: auto;
+  flex: 1;
+  min-width: 120px;
+}
+.form-inline-label {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+}
+
+/* 单选/多选 */
+.form-radio-group, .form-checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 7px;
+  font-size: 13px;
+  color: #333;
+  flex-wrap: wrap;
+}
+.form-radio-group label, .form-checkbox-group label {
+  display: flex; align-items: center; gap: 4px; cursor: pointer;
+  white-space: nowrap;
+}
+
+/* 开关 */
+.toggle-wrap { display: flex; align-items: center; gap: 8px; padding-top: 5px; }
+.toggle-switch {
+  position: relative; width: 36px; height: 20px;
+  display: inline-block; cursor: pointer; flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: #d9d9d9; border-radius: 20px;
+  transition: background 0.2s;
+}
+.toggle-track::before {
+  content: ''; position: absolute;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; top: 3px; left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-track { background: #1890ff; }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+.toggle-label { font-size: 13px; color: #666; }
+
+/* 上传区 */
+.upload-box {
+  width: 80px; height: 80px;
+  border: 1.5px dashed #d9d9d9;
+  border-radius: 4px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer; color: #bfbfbf;
+  font-size: 22px;
+}
+.upload-box:hover { border-color: #1890ff; color: #1890ff; }
+
+/* 表单底部操作（固定底部） */
+.form-footer {
+  padding: 14px 24px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  background: #fff;
+  border-top: 1px solid #e8e8e8;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+.btn-primary {
+  height: 34px; padding: 0 28px;
+  background: #1890ff; color: #fff;
+  border: none; border-radius: 4px;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+}
+.btn-primary:hover { background: #40a9ff; }
+.btn-default {
+  height: 34px; padding: 0 28px;
+  background: #fff; color: #666;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-default:hover { border-color: #1890ff; color: #1890ff; }
+
+/* 证书指纹区域 */
+.fingerprint-area {
+  margin-top: 12px;
+  border: 1.5px solid #ff4d4f;
+  border-radius: 6px;
+  padding: 16px 16px 12px;
+  background: #fff;
+}
+.fingerprint-list { display: flex; flex-direction: column; gap: 10px; }
+.fingerprint-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fingerprint-num {
+  font-size: 13px;
+  color: #333;
+  flex-shrink: 0;
+}
+.fingerprint-input {
+  flex: 1;
+  max-width: 500px;
+}
+.fingerprint-type-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fingerprint-type-btn.active {
+  border-color: #1890ff;
+  color: #1890ff;
+  background: #e6f7ff;
+}
+.fingerprint-type-btn:hover { border-color: #1890ff; color: #1890ff; }
+.fingerprint-error {
+  font-size: 12px;
+  color: #ff4d4f;
+  margin: 6px 0 0 90px;
+}
+.fingerprint-add {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #1890ff;
+  text-decoration: none;
+  cursor: pointer;
+}
+.fingerprint-add:hover { text-decoration: underline; }
+.fingerprint-remove {
+  width: 24px; height: 24px;
+  border: none; background: none;
+  color: #ff4d4f; font-size: 16px;
+  cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.fingerprint-remove:hover { background: #fff1f0; }
+
+/* 未成年人合规设置 表格 */
+.minor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.minor-table th {
+  background: #fafafa;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 500;
+  color: #262626;
+  border: 1px solid #e8e8e8;
+  font-size: 12px;
+}
+.minor-table td {
+  padding: 10px 12px;
+  border: 1px solid #e8e8e8;
+  color: #595959;
+  font-size: 12px;
+}
+.minor-table label {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+}
+
+/* 短信签名（所属公司附属字段） */
+.sms-sign-line {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e8e8e8;
+  font-size: 13px;
+  color: #666;
+}
+.sms-sign-value {
+  color: #fa8c16;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+/* 富文本编辑器 */
+.richtext-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid #d9d9d9;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #fafafa;
+}
+.richtext-btn {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.richtext-btn:hover { background: #e8e8e8; }
+.richtext-sep {
+  font-size: 10px;
+  color: #bbb;
+  margin: 0 2px;
+}
+.richtext-body {
+  border: 1px solid #d9d9d9;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  padding: 12px 14px;
+  min-height: 160px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #333;
+  outline: none;
+  background: #fff;
+}
+.richtext-body:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.15);
+}
+.richtext-count {
+  text-align: right;
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+/* 所属公司 radio 三列网格 */
+.company-radio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px 16px;
+  font-size: 13px;
+  color: #333;
+}
+.company-radio-grid label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 0;
+}
+.company-radio-grid label.company-selected {
+  color: #1890ff;
+  font-weight: 500;
+}
+
+/* 描述说明块（如实名认证政策） */
+.policy-block {
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: #595959;
+  line-height: 1.8;
+  margin-top: 8px;
+}
+.policy-block .word-count {
+  text-align: right;
+  color: #999;
+  margin-top: 4px;
+  font-size: 11px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── 侧边栏 ── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-icon">S</div>
+    <span class="sidebar-logo-text">SDK 管理后台</span>
+    <span class="sidebar-logo-tag">管理端</span>
+  </div>
+
+  <div class="sidebar-search">
+    <input type="text" placeholder="搜索菜单...">
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">概览</div>
+    <a class="nav-item" href="#"><span class="nav-icon">📊</span> 数据总览</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">应用管理</div>
+    <div class="nav-dir open" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">📦</span> 方案管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-children">
+      <a class="nav-item active"><span class="nav-icon">·</span> 方案列表</a>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">🔧</span> SDK配置
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">🎮</span> 游戏管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">运营管理</div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">📢</span> 公告管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">🎁</span> 活动管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">💰</span> 支付管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">用户与数据</div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">👤</span> 用户管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">📈</span> 数据分析
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">📋</span> 日志管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">系统设置</div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">⚙️</span> 系统配置
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">🔐</span> 权限管理
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <div class="nav-dir" onclick="this.classList.toggle('open')">
+      <span class="nav-icon">🛠</span> 开发者工具
+      <span class="nav-dir-arrow">▸</span>
+    </div>
+    <a class="nav-item"><span class="nav-icon">📄</span> 系统日志</a>
+    <a class="nav-item"><span class="nav-icon">❓</span> 帮助中心</a>
+  </div>
+</nav>
+
+<!-- ── 主内容区 ── -->
+<div class="main-wrap">
+  <!-- 顶部栏 -->
+  <div class="top-bar">
+    <div class="breadcrumb">
+      <a href="planList.html">首页</a> / <a href="planList.html">应用管理</a> / <span id="breadcrumb-current">编辑方案</span>
+    </div>
+    <div class="top-bar-actions">
+      <span>🔔</span>
+      <span>🌐 简体中文</span>
+      <span style="display:flex;align-items:center;gap:6px;">
+        <span class="avatar">管</span> 管理员
+      </span>
+    </div>
+  </div>
+
+  <!-- ===================== 编辑/新增页 ===================== -->
+  <div class="admin-main" style="display:flex;flex-direction:column;">
+
+    <!-- 顶部 Tab 页签栏 -->
+    <div class="form-top-tabs">
+      <div class="form-top-tab">首页 <span class="tab-close">×</span></div>
+      <div class="form-top-tab" onclick="location.href='planList.html'">方案列表 <span class="tab-close" onclick="event.stopPropagation();location.href='planList.html'">×</span></div>
+      <div class="form-top-tab active"><span id="form-top-tab-label">编辑方案...</span> <span class="tab-close" onclick="location.href='planList.html'">×</span></div>
+    </div>
+
+    <!-- ══════ 表单内容区 ══════ -->
+    <div class="form-sections" id="form-sections">
+
+      <!-- ════════════════════════════════════════════
+           图1: 基本信息
+           ════════════════════════════════════════════ -->
+      <!-- 基础信息 卡片 -->
+      <div class="form-section" id="sec-basic-info">
+        <div class="form-sub-title"><span class="sub-icon">📋</span> 基础信息</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 方案名：</div>
+          <div class="form-control">
+            <input type="text" class="form-input" id="f-product-name" value="移动端SDK官方默认方案" placeholder="请输入方案名">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 方案类型：</div>
+          <div class="form-control" style="max-width:200px;">
+            <select class="form-select" id="f-plan-type">
+              <option selected>移动端SDK</option>
+              <option>H5 SDK</option>
+              <option>小程序SDK</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 所属公司：</div>
+          <div class="form-control-full">
+            <div class="company-radio-grid">
+              <label class="company-selected"><input type="radio" name="company" value="q1" checked> 冰川(q1.com)</label>
+              <label><input type="radio" name="company" value="q1main"> 千阳(q1.com)</label>
+              <label><input type="radio" name="company" value="you03"> 海南冰川(you03.com)</label>
+              <label><input type="radio" name="company" value="superyours"> 深圳超游网络有限公司(superyours.co...)</label>
+              <label><input type="radio" name="company" value="csgames"> 屠龙(csgames.net)</label>
+              <label><input type="radio" name="company" value="sikoyi"> 心流互娱(sikoyi.com)</label>
+            </div>
+            <div class="sms-sign-line">短信签名：<span class="sms-sign-value" id="sms-sign-value">冰川网络</span></div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 渠道接入类型：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="channel-type" value="official" checked> 官方</label>
+              <label><input type="radio" name="channel-type" value="douyin"> 抖音全端</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row channel-official">
+          <div class="form-label"><span class="form-required">*</span> LOGO显示：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="logo-display" value="hide" checked> 隐藏</label>
+              <label><input type="radio" name="logo-display" value="default"> 显示默认</label>
+              <label><input type="radio" name="logo-display" value="custom"> 自定义</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 抖音全端专属字段（默认隐藏） -->
+      <div class="form-section channel-douyin" id="sec-douyin-fields" style="display:none;">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 抖音全端配置</div>
+
+        <div class="form-row">
+          <div class="form-label">实名认证开关：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="douyin-realname" value="off" checked disabled> 关闭</label>
+              <label><input type="radio" name="douyin-realname" value="on" disabled> 开启</label>
+            </div>
+            <div class="form-hint">默认关闭，不可编辑</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 单价：</div>
+          <div class="form-control-wide">
+            <div class="form-inline" style="padding-top:0;">
+              <span class="form-inline-label">玩家充值1元获得</span>
+              <input type="text" class="form-input" id="f-douyin-price" placeholder="" style="width:80px;">
+              <span class="form-inline-label">货币单位</span>
+              <span class="form-inline-label" style="color:#999;margin-left:8px;">1元=N游戏币，建议10的倍数</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 其他设置 卡片（基础信息下方） ── -->
+      <div class="form-section" id="sec-idfa-hotfix">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 其他设置</div>
+
+        <div class="form-row">
+          <div class="form-label">IDFA预授权弹窗(仅iOS)：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="idfa" value="hide" checked> 隐藏</label>
+              <label><input type="radio" name="idfa" value="show"> 展示</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 安卓是否热更：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="android-hotfix" value="no" checked> 否</label>
+              <label><input type="radio" name="android-hotfix" value="yes"> 是</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════
+           图2: 合规信息
+           ════════════════════════════════════════════ -->
+      <!-- 合规信息 页头 -->
+      <div class="channel-official" style="font-size:16px;font-weight:700;color:#262626;margin-bottom:16px;">合规信息</div>
+
+      <!-- ── 隐私协议 卡片 ── -->
+      <div class="form-section channel-official" id="sec-privacy">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 隐私协议</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 用户协议和隐私政策：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;">
+              <label><input type="radio" name="protocol-mode" checked> 需要(合规推荐)</label>
+              <label><input type="radio" name="protocol-mode"> 不需要</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 用户协议链接：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" value="https://protocol.q1.com/UserProtocol.html">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 隐私协议链接：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" value="https://protocol.q1.com/privacy/yzsy/PrivacyPolicy.html">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">隐私协议政策摘要：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" placeholder="输入链接地址">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 儿童隐私政策：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;">
+              <label><input type="radio" name="child-privacy" checked> 需要(合规推荐)</label>
+              <label><input type="radio" name="child-privacy"> 不需要</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 儿童隐私协议链接：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" value="https://protocol.q1.com/privacy/yzsy/PrivacyChildren.html">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">个人信息清单：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" placeholder="输入链接地址">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">第三方共享个人信息清单：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" placeholder="输入链接地址">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 权限撤回说明&amp;按钮：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;">
+              <label><input type="radio" name="revoke-btn" checked> 需要(合规推荐)</label>
+              <label><input type="radio" name="revoke-btn"> 不需要</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">是否开启保密协议：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;">
+              <label><input type="radio" name="confidential" value="off" checked onchange="toggleConfidentialUrl()"> 关闭</label>
+              <label><input type="radio" name="confidential" value="on" onchange="toggleConfidentialUrl()"> 开启</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row" id="row-confidential-url" style="display:none;">
+          <div class="form-label"><span class="form-required">*</span> 保密协议链接：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" placeholder="请输入保密协议链接">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 实名认证 卡片 ── -->
+      <div class="form-section channel-official" id="sec-realname">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 实名认证</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 登录注册实名认证：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label style="color:#ccc;cursor:not-allowed;"><input type="radio" name="realname-mode" value="off" disabled> 关闭</label>
+              <label><input type="radio" name="realname-mode" value="optional"> 开启，非强制实名</label>
+              <label><input type="radio" name="realname-mode" value="force" checked> 开启，强制实名(合规推荐)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 实名信息校验：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="realname-verify" value="real" checked> 走国家接口验证真实实名(合规推荐)</label>
+              <label><input type="radio" name="realname-verify" value="format"> 只判断格式不验证姓名和身份证真实匹配</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 实名不通过提示时机：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="realname-timing" value="realtime" checked> 实时提示</label>
+              <label><input type="radio" name="realname-timing" value="after-login"> 角色登录后提示</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">实名奖励方案：</div>
+          <div class="form-control-wide">
+            <select class="form-select">
+              <option value="" selected disabled style="color:#bbb;">实名奖励方案</option>
+              <option>方案A - 游戏礼包</option>
+              <option>方案B - 虚拟道具</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">实名页面文本内容 <span title="安卓：2.13.0、IOS：3.3.0版本及以上才支持富文本显示，低版本即使设置了富文本样式也不会生效" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid #999;font-size:9px;color:#999;cursor:help;">?</span>：</div>
+          <div class="form-control-full">
+            <!-- 富文本工具栏 -->
+            <div class="richtext-toolbar">
+              <select class="richtext-btn" style="width:60px;border:none;outline:none;font-size:12px;color:#666;background:transparent;cursor:pointer;">
+                <option>字号</option>
+                <option>12px</option>
+                <option>14px</option>
+                <option>16px</option>
+                <option>18px</option>
+              </select>
+              <span class="richtext-sep">▾</span>
+              <button class="richtext-btn" style="font-size:14px;font-family:serif;">A</button>
+              <button class="richtext-btn" style="font-weight:700;font-size:14px;">B</button>
+              <button class="richtext-btn" title="插入链接">🔗</button>
+              <button class="richtext-btn" title="插入图片">🖼</button>
+            </div>
+            <!-- 富文本编辑区 -->
+            <div class="richtext-body" contenteditable="true" id="realname-text-editor">
+              根据国家新闻出版署《关于防止未成年人沉迷网络游戏的通知》和《关于进一步严格管理切实防止未成年人沉迷网络游戏的通知》规定，未实名账号不可进行游戏体验，请尽快完成实名认证。
+            </div>
+            <div class="richtext-count"><span id="realname-char-count">84</span>/100</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 未成年人合规设置 卡片 ── -->
+      <div class="form-section channel-official" id="sec-minor">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 未成年人合规设置</div>
+
+        <div class="form-row">
+          <div class="form-label">适龄提示：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="age-rating" value="off" checked> 关闭</label>
+              <label><input type="radio" name="age-rating" value="8"> 8+</label>
+              <label><input type="radio" name="age-rating" value="12"> 12+</label>
+              <label><input type="radio" name="age-rating" value="16"> 16+</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">协议按钮：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="protocol-btn" value="none" checked> 不需要</label>
+              <label><input type="radio" name="protocol-btn" value="sdk"> 需要(合规推荐，sdk按钮)</label>
+              <label><input type="radio" name="protocol-btn" value="game"> 需要(合规推荐，游戏按钮)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">注销按钮：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="logout-btn" value="none" checked> 不需要</label>
+              <label><input type="radio" name="logout-btn" value="sdk"> 需要(合规推荐，sdk按钮)</label>
+              <label><input type="radio" name="logout-btn" value="game"> 需要(合规推荐，游戏按钮)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 未成年及游客时长限制：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="minor-time-limit" value="on" checked> 开启(合规推荐)</label>
+              <label><input type="radio" name="minor-time-limit" value="off"> 关闭</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 其他设置 卡片（从基本信息区移至此处） ── -->
+      <div class="form-section channel-official" id="sec-other-settings">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 其他设置</div>
+
+        <div class="form-row">
+          <div class="form-label">首次登录弹窗补充信息：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" placeholder="此处录入信息会展示在默认内容下方，单独成段落，不支持换行">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">二次签名校验(仅安卓)：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:40px;">
+              <label><input type="radio" name="sign-verify" value="off" checked onchange="toggleFingerprint()"> 关闭</label>
+              <label><input type="radio" name="sign-verify" value="on" onchange="toggleFingerprint()"> 开启</label>
+            </div>
+
+            <!-- 证书指纹区域（开启时显示） -->
+            <div class="fingerprint-area" id="fingerprint-area" style="display:none;">
+              <div class="fingerprint-list" id="fingerprint-list">
+                <div class="fingerprint-item">
+                  <div class="form-label" style="width:auto;padding-top:7px;padding-right:4px;"><span class="form-required">*</span> 证书指纹：</div>
+                  <span class="fingerprint-num">1.</span>
+                  <input type="text" class="form-input fingerprint-input" placeholder="请输入">
+                  <button class="fingerprint-type-btn active" data-type="SHA1">SHA1</button>
+                  <button class="fingerprint-type-btn" data-type="MD5">MD5</button>
+                </div>
+              </div>
+              <div class="fingerprint-error" id="fingerprint-error">格式不正确</div>
+              <a href="javascript:void(0)" class="fingerprint-add" onclick="addFingerprint()">添加指纹+</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════
+           登录注册
+           ════════════════════════════════════════════ -->
+      <div class="channel-official" style="font-size:16px;font-weight:700;color:#262626;margin-bottom:16px;">登录注册</div>
+
+      <!-- ── 登录 卡片 ── -->
+      <div class="form-section channel-official" id="sec-login">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 登录</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 是否允许登录：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="allow-login" value="allow" checked> 允许</label>
+              <label><input type="radio" name="allow-login" value="deny"> 不允许（白名单内可登录）</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 登录方式：</div>
+          <div class="form-control-full">
+            <div class="form-checkbox-group" style="padding-top:0;gap:20px;flex-wrap:wrap;">
+              <label><input type="checkbox" checked> 验证码登录</label>
+              <label><input type="checkbox" checked> 密码登录</label>
+              <label><input type="checkbox" checked> 本机号码一键登录</label>
+            </div>
+            <div class="form-checkbox-group" style="padding-top:6px;gap:20px;flex-wrap:wrap;">
+              <label><input type="checkbox"> 微信</label>
+              <label><input type="checkbox"> QQ</label>
+              <label><input type="checkbox"> TapTap</label>
+            </div>
+            <div class="form-checkbox-group" style="padding-top:6px;gap:20px;flex-wrap:wrap;">
+              <label><input type="checkbox"> 华为游戏中心（仅鸿蒙）</label>
+              <label><input type="checkbox"> 抖音</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 登录主页面：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="login-page" value="sms"> 验证码登录</label>
+              <label><input type="radio" name="login-page" value="pwd" checked> 密码登录</label>
+              <label><input type="radio" name="login-page" value="onekey"> 本机号码一键登录</label>
+            </div>
+            <div class="form-radio-group" style="padding-top:6px;gap:28px;">
+              <label><input type="radio" name="login-page" value="third"> 第三方登录 <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#ff4d4f;color:#fff;font-size:9px;margin-left:2px;">!</span></label>
+              <label><input type="radio" name="login-page" value="select"> 登录方式选择页面</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 游客登录：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="guest-login" value="off" checked> 关闭(合规推荐)</label>
+              <label><input type="radio" name="guest-login" value="on"> 开启</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 游客账号升级：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="guest-upgrade" value="off"> 关闭</label>
+              <label><input type="radio" name="guest-upgrade" value="on" checked> 开启(合规推荐)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 模拟器登录 <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid #999;font-size:9px;color:#999;">?</span>：</div>
+          <div class="form-control" style="max-width:360px;">
+            <select class="form-select">
+              <option selected>允许</option>
+              <option>不允许（按模拟器特征检测）</option>
+              <option>不允许（按操作系统版本检测）</option>
+              <option>不允许（按模拟器特征+操作系统版本检测）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 滑块验证功能 <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid #999;font-size:9px;color:#999;">?</span>：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="slider-verify" value="off"> 关闭</label>
+              <label><input type="radio" name="slider-verify" value="on" checked> 开启</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 注册 卡片 ── -->
+      <div class="form-section channel-official" id="sec-register">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 注册</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 是否允许注册：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:20px;">
+              <label><input type="radio" name="allow-register" value="allow" checked> 允许</label>
+              <label><input type="radio" name="allow-register" value="limit"> 允许：限时限量注册（白名单可注册）</label>
+              <label><input type="radio" name="allow-register" value="stop"> 允许：时间段内停止注册(白名单可注册)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 个性注册：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="custom-register" value="off"> 关闭</label>
+              <label><input type="radio" name="custom-register" value="on" checked> 开启</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 随机填充联密：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:20px;">
+              <label><input type="radio" name="random-fill" value="off"> 关闭</label>
+              <label><input type="radio" name="random-fill" value="on" checked> 开启，显示注册弹框</label>
+              <label><input type="radio" name="random-fill" value="on-hide"> 开启，首次不显示注册弹框</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 快速游戏 <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid #999;font-size:9px;color:#999;">?</span>：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="quick-game" value="off" checked> 关闭</label>
+              <label><input type="radio" name="quick-game" value="on"> 开启</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 个性注册入口 <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid #999;font-size:9px;color:#999;">?</span>：</div>
+          <div class="form-control-full">
+            <div class="form-checkbox-group" style="padding-top:0;gap:28px;">
+              <label><input type="checkbox"> 手机登录页面</label>
+              <label><input type="checkbox" checked> 账号登录页面</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 手机注册设置密码：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:20px;">
+              <label><input type="radio" name="phone-reg-pwd" value="off" checked> 关闭</label>
+              <label><input type="radio" name="phone-reg-pwd" value="optional"> 开启，非强制设密码</label>
+              <label><input type="radio" name="phone-reg-pwd" value="force"> 开启，强制设密码</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 模拟器注册 <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid #999;font-size:9px;color:#999;">?</span>：</div>
+          <div class="form-control" style="max-width:240px;">
+            <select class="form-select">
+              <option selected>允许</option>
+              <option>禁止</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 账号信息完善 卡片 ── -->
+      <div class="form-section channel-official" id="sec-account-complete">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 账号信息完善</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 手机绑定：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="phone-bindx" value="off" checked> 关闭</label>
+              <label><input type="radio" name="phone-bindx" value="optional"> 开启，非强制绑定</label>
+              <label><input type="radio" name="phone-bindx" value="force"> 开启，强制绑定</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 登录注册-其他设置 卡片 ── -->
+      <div class="form-section channel-official" id="sec-login-other">
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 其他设置</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 注册登录窗口能否关闭：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="login-closable" value="allow"> 允许关闭</label>
+              <label><input type="radio" name="login-closable" value="deny" checked> 不允许关闭</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 快速切换账号：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:28px;">
+              <label><input type="radio" name="quick-switch" value="off" checked> 关闭</label>
+              <label><input type="radio" name="quick-switch" value="on"> 开启</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════
+           支付
+           ════════════════════════════════════════════ -->
+      <div class="channel-official" style="font-size:16px;font-weight:700;color:#262626;margin-bottom:16px;">支付</div>
+
+      <!-- ── 支付合规 卡片 ── -->
+      <div class="form-section channel-official" id="sec-payment-compliance">
+        <div class="form-sub-title"><span class="sub-icon">📋</span> 支付合规</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 游客支付提示：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:24px;">
+              <label><input type="radio" name="guest-pay-tip"> 关闭</label>
+              <label><input type="radio" name="guest-pay-tip"> 开启，非强制升级提示</label>
+              <label><input type="radio" name="guest-pay-tip" checked> 开启，强制升级提示(合规推荐)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 支付前实名认证：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:24px;">
+              <label><input type="radio" name="pay-realname"> 不需要</label>
+              <label><input type="radio" name="pay-realname"> 需要，非强制实名</label>
+              <label><input type="radio" name="pay-realname" checked> 需要，强制实名(合规推荐)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 未成年防沉迷充值限制：</div>
+          <div class="form-control">
+            <div class="form-radio-group" style="padding-top:0;">
+              <label><input type="radio" name="minor-recharge-limit" checked> 开启（合规推荐）</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 支付设置 卡片 ── -->
+      <div class="form-section channel-official" id="sec-payment-settings">
+        <div class="form-sub-title"><span class="sub-icon">📋</span> 支付设置</div>
+
+        <div class="form-row">
+          <div class="form-label">支付优惠：</div>
+          <div class="form-control-full">
+            <div class="form-checkbox-group" style="padding-top:0;gap:24px;">
+              <label><input type="checkbox" checked> 优惠券</label>
+              <label><input type="checkbox"> 余额功能</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">默认支付方式：</div>
+          <div class="form-control-full">
+            <div class="form-checkbox-group" style="padding-top:0;gap:24px;">
+              <label><input type="checkbox" checked disabled> 微信</label>
+              <label><input type="checkbox" checked disabled> 支付宝</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 支付展示 表格 -->
+        <div class="form-row">
+          <div class="form-label">支付展示：</div>
+          <div class="form-control-full">
+            <table class="minor-table" style="margin-top:0;">
+              <thead>
+                <tr>
+                  <th style="width:50px;">排序</th>
+                  <th style="width:100px;">支付方式</th>
+                  <th style="width:80px;">设为推荐</th>
+                  <th>推荐语</th>
+                  <th style="width:120px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align:center;font-size:16px;color:#999;cursor:grab;">≡</td>
+                  <td>微信</td>
+                  <td>
+                    <label class="toggle-switch">
+                      <input type="checkbox" checked>
+                      <span class="toggle-track"></span>
+                    </label>
+                  </td>
+                  <td><input type="text" class="form-input" placeholder="推荐语" style="height:28px;font-size:12px;"></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;font-size:16px;color:#999;cursor:grab;">≡</td>
+                  <td>支付宝</td>
+                  <td>
+                    <label class="toggle-switch">
+                      <input type="checkbox" checked>
+                      <span class="toggle-track"></span>
+                    </label>
+                  </td>
+                  <td><input type="text" class="form-input" placeholder="推荐语" style="height:28px;font-size:12px;"></td>
+                  <td><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#333;cursor:pointer;white-space:nowrap;"><input type="checkbox"> 官方营销文案</label></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">是否折叠支付方式 <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid #999;font-size:9px;color:#999;cursor:help;">?</span>：</div>
+          <div class="form-control-full">
+            <div class="form-radio-group" style="padding-top:0;gap:24px;">
+              <label><input type="radio" name="fold-pay-methods"> 是</label>
+              <label><input type="radio" name="fold-pay-methods" checked> 否</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">免密支付：</div>
+          <div class="form-control">
+            <div class="form-checkbox-group" style="padding-top:0;">
+              <label><input type="checkbox"> 支付宝</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════
+           图4: 悬浮球 / 广告回传 / 客服信息
+           ════════════════════════════════════════════ -->
+      <div class="form-section channel-official" id="sec-floating">
+        <div class="form-section-title">悬浮球</div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 悬浮球功能：</div>
+          <div class="form-control-wide">
+            <div class="form-radio-group" style="padding-top:0;">
+              <label><input type="radio" name="float-ball" value="off"> 关闭</label>
+              <label><input type="radio" name="float-ball" value="on"> 开启</label>
+              <label><input type="radio" name="float-ball" value="on-hidden" checked> 开启（不显示）</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label"><span class="form-required">*</span> 用户中心URL地址：</div>
+          <div class="form-control-wide">
+            <select class="form-select">
+              <option>官方默认地址包(5fbe3c69d6d3f6002fa33d9e)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section channel-official" id="sec-ad">
+        <div class="form-section-title">广告回传</div>
+
+        <div class="form-row">
+          <div class="form-label">第三方广告回传：</div>
+          <div class="form-control">
+            <div class="form-checkbox-group" style="padding-top:0;">
+              <label><input type="checkbox"> 广点通</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section channel-official" id="sec-customer-service">
+        <div class="form-section-title">客服信息</div>
+
+        <div class="form-sub-title"><span class="sub-icon" style="font-size:14px;">☑</span> 基础客服</div>
+
+        <div class="form-row">
+          <div class="form-label">客服联系方式 ⓘ：</div>
+          <div class="form-control-wide">
+            <textarea class="form-textarea" style="min-height:70px;" placeholder="所属公司非冰川（q1.com）时必须填写，未填写默认以跳转到客服中心，仅支持html富文本和纯文本"></textarea>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">Vip客服联系方式 ⓘ：</div>
+          <div class="form-control-wide">
+            <textarea class="form-textarea" style="min-height:70px;" placeholder="请输入，仅支持html富文本和纯文本"></textarea>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">免登陆客服聊天地址：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" placeholder="请输入">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">需登陆客服聊天地址：</div>
+          <div class="form-control-wide">
+            <input type="text" class="form-input" placeholder="请输入">
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.form-sections -->
+
+    <!-- 底部固定操作栏 -->
+    <div class="form-footer">
+      <button class="btn-primary" onclick="handleSubmit()">更 新</button>
+      <button class="btn-default" onclick="handleReset()">重 置</button>
+      <button class="btn-default" onclick="handlePreview()">预 览</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Mock 数据（编辑时用于回填） ──
+const MOCK_DATA = [
+  { id: 1, name: '超能世界-官方渠道方案', code: '530de175540f772de', desc: '官方渠道全功能接入方案', sdkVer: 'v4.8.0', cpVer: 'v1.2.0', status: '审核通过', createTime: '2025-01-09 11:14:30', updateTime: '2026-04-15 14:23:10' },
+  { id: 2, name: '天墙传说-应用宝渠道方案', code: 'c536e77f5e42b77be', desc: '应用宝渠道定制接入方案', sdkVer: 'v4.8.0', cpVer: 'v1.1.0', status: '审核通过', createTime: '2025-02-14 09:30:15', updateTime: '2026-04-12 11:15:42' },
+  { id: 3, name: '逍遥情缘-华为渠道方案', code: '64f1af526006f717e4', desc: '华为渠道接入支付定制', sdkVer: 'v4.7.2', cpVer: 'v1.0.8', status: '待审核', createTime: '2025-03-22 16:45:20', updateTime: '2026-04-10 09:30:00' },
+  { id: 4, name: '太初界-全渠道方案', code: '4947a9c7e8c7e1c0c', desc: '太初界全渠道通用方案', sdkVer: 'v4.8.0', cpVer: 'v2.0.0', status: '审核通过', createTime: '2024-12-01 10:00:00', updateTime: '2026-04-08 17:42:30' },
+  { id: 5, name: '钓鱼世界-小米渠道方案', code: '093e47a0d0f7d766a', desc: '小米渠道专属方案', sdkVer: 'v4.6.1', cpVer: 'v1.0.5', status: '已拒绝', createTime: '2025-05-10 14:20:00', updateTime: '2026-03-25 08:55:10' },
+  { id: 6, name: '超能世界-海外发行方案', code: '87fa5e3a5b1e8956c', desc: '海外版本定制方案含多语言', sdkVer: 'v4.8.0', cpVer: 'v1.3.0', status: '审核通过', createTime: '2025-06-18 09:10:00', updateTime: '2026-04-14 16:20:00' },
+  { id: 7, name: '泰坦降临-官方渠道方案', code: '6734e4c5a5fa16950c', desc: '泰坦降临官方渠道方案', sdkVer: 'v4.8.0', cpVer: 'v1.0.0', status: '待审核', createTime: '2025-07-02 11:30:00', updateTime: '2026-04-13 10:05:22' },
+  { id: 8, name: '择日飞仙-测试方案', code: '0753e7a6c361685faa', desc: '内部测试用方案配置', sdkVer: 'v4.7.2', cpVer: 'v0.9.1', status: '草稿', createTime: '2025-08-15 15:45:00', updateTime: '2026-03-30 14:30:00' },
+  { id: 9, name: '天墙传说-OPPO渠道方案', code: '9b12f7e86dc247a1b', desc: 'OPPO渠道专属支付集成', sdkVer: 'v4.8.0', cpVer: 'v1.1.2', status: '审核通过', createTime: '2025-04-20 08:20:00', updateTime: '2026-04-11 11:40:35' },
+  { id: 10, name: '逍遥情缘-vivo渠道方案', code: 'f1c89a42d5e7083bb', desc: 'vivo渠道适配方案', sdkVer: 'v4.7.2', cpVer: 'v1.0.9', status: '审核通过', createTime: '2025-09-05 13:15:00', updateTime: '2026-04-09 09:25:18' },
+];
+
+// ── 页面初始化：根据 URL 参数判断新增/编辑 ──
+const params = new URLSearchParams(location.search);
+const mode = params.get('mode') || 'add';
+const idx = parseInt(params.get('idx'));
+
+const bc = document.getElementById('breadcrumb-current');
+const tabLabel = document.getElementById('form-top-tab-label');
+
+if (mode === 'edit' && !isNaN(idx)) {
+  bc.textContent = '编辑方案';
+  tabLabel.textContent = '编辑方案...';
+  const d = MOCK_DATA[idx];
+  if (d) document.getElementById('f-product-name').value = d.name;
+} else {
+  bc.textContent = '新增方案';
+  tabLabel.textContent = '新增方案...';
+  document.getElementById('f-product-name').value = '';
+}
+
+function handleSubmit() {
+  alert('更新成功');
+  location.href = 'planList.html';
+}
+
+function handleReset() {
+  if (confirm('确定要重置所有字段？')) {
+    document.getElementById('form-sections').querySelectorAll('input[type="text"], textarea').forEach(el => {
+      if (!el.disabled) el.value = '';
+    });
+  }
+}
+
+function handlePreview() {
+  alert('预览功能开发中');
+}
+
+// ── 表单 Tab 切换（滚动到对应区块） ──
+document.querySelectorAll('.form-header-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.form-header-tab').forEach(t => t.classList.remove('active'));
+    this.classList.add('active');
+    const panel = this.dataset.panel;
+    if (panel) {
+      const target = document.getElementById(panel);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// ── 开关交互 ──
+document.querySelectorAll('.toggle-switch input').forEach(input => {
+  input.addEventListener('change', function() {
+    const label = this.closest('.toggle-wrap').querySelector('.toggle-label');
+    if (label) label.textContent = this.checked ? '已开启' : '已关闭';
+  });
+});
+
+// ── 所属公司 → 短信签名联动 ──
+const SMS_SIGN_MAP = {
+  'q1':         '冰川网络',
+  'q1main':     '千阳科技',
+  'you03':      '海南冰川',
+  'superyours': '超游网络',
+  'csgames':    '屠龙网络',
+  'sikoyi':     '心流互娱',
+};
+document.querySelectorAll('input[name="company"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll('.company-radio-grid label').forEach(l => l.classList.remove('company-selected'));
+    this.closest('label').classList.add('company-selected');
+    document.getElementById('sms-sign-value').textContent = SMS_SIGN_MAP[this.value] || this.value;
+  });
+});
+
+// ── 二次签名校验 → 证书指纹联动 ──
+let fingerprintCounter = 1;
+
+function toggleFingerprint() {
+  const area = document.getElementById('fingerprint-area');
+  const isOn = document.querySelector('input[name="sign-verify"][value="on"]').checked;
+  area.style.display = isOn ? '' : 'none';
+}
+
+function toggleConfidentialUrl() {
+  const row = document.getElementById('row-confidential-url');
+  const isOn = document.querySelector('input[name="confidential"][value="on"]').checked;
+  row.style.display = isOn ? '' : 'none';
+}
+
+function addFingerprint() {
+  fingerprintCounter++;
+  const list = document.getElementById('fingerprint-list');
+  const item = document.createElement('div');
+  item.className = 'fingerprint-item';
+  item.innerHTML =
+    '<div class="form-label" style="width:auto;padding-top:7px;padding-right:4px;visibility:hidden;"><span class="form-required">*</span> 证书指纹：</div>' +
+    '<span class="fingerprint-num">' + fingerprintCounter + '.</span>' +
+    '<input type="text" class="form-input fingerprint-input" placeholder="请输入">' +
+    '<button class="fingerprint-type-btn active" data-type="SHA1" onclick="switchFpType(this,\'SHA1\')">SHA1</button>' +
+    '<button class="fingerprint-type-btn" data-type="MD5" onclick="switchFpType(this,\'MD5\')">MD5</button>' +
+    '<button class="fingerprint-remove" onclick="removeFingerprint(this)" title="删除">×</button>';
+  list.appendChild(item);
+}
+
+function removeFingerprint(btn) {
+  btn.closest('.fingerprint-item').remove();
+  // 重新编号
+  document.querySelectorAll('#fingerprint-list .fingerprint-num').forEach(function(el, i) {
+    el.textContent = (i + 1) + '.';
+  });
+  fingerprintCounter = document.querySelectorAll('#fingerprint-list .fingerprint-item').length;
+}
+
+function switchFpType(btn, type) {
+  var btns = btn.closest('.fingerprint-item').querySelectorAll('.fingerprint-type-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+}
+
+// 初始化：SHA1/MD5 按钮切换
+document.querySelectorAll('.fingerprint-type-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() { switchFpType(this, this.dataset.type); });
+});
+
+// ── 实名页面文本内容 字数统计 ──
+const realnameEditor = document.getElementById('realname-text-editor');
+const realnameCount = document.getElementById('realname-char-count');
+if (realnameEditor && realnameCount) {
+  realnameEditor.addEventListener('input', function() {
+    realnameCount.textContent = this.textContent.length;
+  });
+}
+
+// ── 渠道接入类型切换 ──
+function toggleChannelType(type) {
+  const officialEls = document.querySelectorAll('.channel-official');
+  const douyinEls = document.querySelectorAll('.channel-douyin');
+  if (type === 'douyin') {
+    officialEls.forEach(el => el.style.display = 'none');
+    douyinEls.forEach(el => el.style.display = '');
+  } else {
+    officialEls.forEach(el => el.style.display = '');
+    douyinEls.forEach(el => el.style.display = 'none');
+  }
+}
+document.querySelectorAll('input[name="channel-type"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    if (this.value === 'douyin') {
+      var confirmed = confirm('该模式仅针对抖音全端SDK包体适用，只有少量配置项生效，请确认后再选择');
+      if (confirmed) {
+        toggleChannelType('douyin');
+      } else {
+        // 取消：恢复选中官方
+        document.querySelector('input[name="channel-type"][value="official"]').checked = true;
+      }
+    } else {
+      toggleChannelType('official');
+    }
+  });
+});
+</script>
+
+<!-- ══════ 需求说明 悬浮按钮 + 面板 ══════ -->
+<style>
+/* 悬浮按钮 */
+.help-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(145deg, #1890ff 0%, #096dd9 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(24,144,255,0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  z-index: 900;
+  user-select: none;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.help-fab:hover { box-shadow: 0 6px 24px rgba(24,144,255,0.6); transform: translateY(-2px); }
+.help-fab:active { transform: translateY(0); }
+.help-fab.dragging { transition: none; box-shadow: 0 8px 28px rgba(24,144,255,0.5); }
+.help-fab-icon { font-size: 36px; line-height: 1; }
+.help-fab-text { font-size: 13px; color: #fff; font-weight: 500; letter-spacing: 0.5px; }
+
+/* 说明面板 */
+.help-panel {
+  position: fixed;
+  top: 0; right: -480px;
+  width: 480px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(.4,0,.2,1);
+}
+.help-panel.open { right: 0; }
+
+.help-panel-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 949;
+}
+.help-panel-overlay.open { display: block; }
+
+.help-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.help-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.help-panel-title::before {
+  content: '';
+  width: 4px; height: 18px;
+  background: #1890ff;
+  border-radius: 2px;
+}
+.help-panel-close {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f5f5f5;
+  font-size: 16px; color: #888; cursor: pointer; border: none;
+  transition: background 0.15s;
+}
+.help-panel-close:hover { background: #e0e0e0; color: #333; }
+
+.help-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* 版本块 */
+.help-version-block {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.help-version-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer;
+  background: #fff; user-select: none;
+  transition: background 0.15s;
+}
+.help-version-hd:hover { background: #f0f7ff; }
+.help-version-hd.is-latest { background: #e6f7ff; }
+.help-version-num { font-size: 13px; font-weight: 700; color: #262626; }
+.help-version-date { font-size: 11px; color: #aaa; margin-left: 4px; }
+.help-version-badge {
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: #1890ff; border-radius: 8px; padding: 1px 7px; margin-left: 4px;
+}
+.help-version-arrow {
+  margin-left: auto; font-size: 11px; color: #bbb;
+  transition: transform 0.2s;
+}
+.help-version-block.open .help-version-arrow { transform: rotate(180deg); }
+.help-version-body {
+  display: none;
+  padding: 14px 16px;
+  border-top: 1px solid #e8e8e8;
+  background: #fafcfe;
+}
+.help-version-block.open .help-version-body { display: block; }
+
+/* 说明内容 */
+.help-section { margin-bottom: 14px; }
+.help-section:last-child { margin-bottom: 0; }
+.help-section-title {
+  font-size: 12px; font-weight: 600; color: #1890ff;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 5px;
+}
+.help-section-title::before {
+  content: ''; width: 3px; height: 12px;
+  background: #1890ff; border-radius: 2px; flex-shrink: 0;
+}
+.help-section p { font-size: 12px; color: #555; line-height: 1.9; }
+.help-section ul { padding-left: 16px; }
+.help-section ul li { font-size: 12px; color: #555; line-height: 2; }
+.help-note {
+  background: #f0f5ff; border-left: 3px solid #91d5ff;
+  padding: 7px 10px; border-radius: 0 6px 6px 0;
+  font-size: 11px; color: #555; line-height: 1.8; margin-top: 6px;
+}
+</style>
+
+<div class="help-fab" id="help-fab">
+  <div class="help-fab-icon">📋</div>
+  <div class="help-fab-text">需求说明</div>
+</div>
+
+<div class="help-panel-overlay" id="help-panel-overlay"></div>
+<div class="help-panel" id="help-panel">
+  <div class="help-panel-header">
+    <div class="help-panel-title">方案管理 — 需求说明</div>
+    <button class="help-panel-close" id="help-panel-close">×</button>
+  </div>
+  <div class="help-panel-body">
+
+    <div class="help-version-block open">
+      <div class="help-version-hd is-latest">
+        <span class="help-version-num">v1.0.0</span>
+        <span class="help-version-date">2026-04-20</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▾</span>
+      </div>
+      <div class="help-version-body">
+        <div class="help-section">
+          <div class="help-section-title">页面说明</div>
+          <p>方案管理页面用于统一管理 SDK 接入方案的创建、编辑、审核与配置，涵盖基本信息、合规信息、登录注册、支付、悬浮球、客服等模块。</p>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">主要功能</div>
+          <ul>
+            <li>方案列表：查询、筛选、新增、编辑、复制、删除</li>
+            <li>基础信息：方案名、方案类型、所属公司、渠道接入类型、LOGO显示</li>
+            <li>合规信息：隐私协议、保密协议、实名认证、未成年人合规设置</li>
+            <li>登录注册：登录方式、第三方登录、注册配置、协议与安全</li>
+            <li>支付设置：支付方式、支付优惠、默认支付方式</li>
+            <li>其他配置：悬浮球、广告回传、客服信息</li>
+          </ul>
+        </div>
+        <div class="help-note">
+          💡 渠道接入类型切换（官方/抖音全端）时，页面会联动显示/隐藏对应配置区块。
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── 说明面板开关 ──
+  const helpFab     = document.getElementById('help-fab');
+  const helpPanel   = document.getElementById('help-panel');
+  const helpOverlay = document.getElementById('help-panel-overlay');
+
+  function closeHelpPanel() {
+    helpPanel.classList.remove('open');
+    helpOverlay.classList.remove('open');
+  }
+  function openHelpPanel() {
+    helpPanel.classList.add('open');
+    helpOverlay.classList.add('open');
+  }
+  function toggleHelpPanel() {
+    const isOpen = helpPanel.classList.contains('open');
+    isOpen ? closeHelpPanel() : openHelpPanel();
+  }
+
+  document.getElementById('help-panel-close').addEventListener('click', closeHelpPanel);
+  helpOverlay.addEventListener('click', closeHelpPanel);
+
+  // 版本块折叠
+  helpPanel.querySelectorAll('.help-version-hd').forEach(hd => {
+    hd.addEventListener('click', () => {
+      hd.closest('.help-version-block').classList.toggle('open');
+    });
+  });
+
+  // ── 拖拽逻辑 ──
+  let isDragging = false, dragOffX = 0, dragOffY = 0;
+
+  helpFab.addEventListener('mousedown', e => {
+    isDragging = false;
+    const rect = helpFab.getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+
+    function onMove(e) {
+      isDragging = true;
+      helpFab.classList.add('dragging');
+      const x = Math.min(Math.max(0, e.clientX - dragOffX), window.innerWidth  - helpFab.offsetWidth);
+      const y = Math.min(Math.max(0, e.clientY - dragOffY), window.innerHeight - helpFab.offsetHeight);
+      helpFab.style.left   = x + 'px';
+      helpFab.style.top    = y + 'px';
+      helpFab.style.right  = 'auto';
+      helpFab.style.bottom = 'auto';
+    }
+
+    function onUp() {
+      helpFab.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      if (!isDragging) toggleHelpPanel();
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+    e.preventDefault();
+  });
+</script>
+
+</body>
+</html>

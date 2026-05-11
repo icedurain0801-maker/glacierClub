@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Yaoshen Ji — EN Home</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ── Shell: grey canvas + centered phone ── */
+    body {
+      min-height: 100vh;
+      background: #e8e8e8;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+    }
+
+    .phone-shell {
+      width: 375px;
+      min-height: 812px;
+      background: #ffffff;
+      border-radius: 44px;
+      box-shadow:
+        0 0 0 10px #1a1a1a,
+        0 0 0 12px #3a3a3a,
+        0 40px 80px rgba(0,0,0,0.35),
+        0 10px 20px rgba(0,0,0,0.2);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Dynamic Island ── */
+    .dynamic-island {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 124px;
+      height: 36px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 100;
+    }
+
+    /* ── Status bar ── */
+    .status-bar {
+      height: 54px;
+      padding: 16px 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 10;
+    }
+
+    .status-time {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: #000;
+    }
+
+    .status-icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-icons svg { fill: #000; }
+
+    /* ── App content ── */
+    .app-content {
+      height: calc(812px - 54px - 82px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .app-content::-webkit-scrollbar { display: none; }
+
+    /* ── Top nav bar ── */
+    .top-bar {
+      padding: 10px 16px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .brand-logo {
+      font-size: 26px;
+      font-weight: 800;
+      color: #1677ff;
+      letter-spacing: -1px;
+      font-style: italic;
+    }
+
+    .brand-logo span { color: #0a54cc; }
+
+    .top-bar-icons {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: background 0.15s;
+    }
+
+    .icon-btn:active { background: #f0f0f0; }
+
+    .icon-btn svg { width: 22px; height: 22px; stroke: #1a1a1a; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .avatar-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: none;
+      cursor: pointer;
+      background: #e0e0e0;
+      flex-shrink: 0;
+    }
+
+    .avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* ── Tab nav ── */
+    .tab-nav {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px 0;
+      gap: 24px;
+      background: #fff;
+      border-bottom: 1px solid #f0f0f0;
+      position: sticky;
+      top: 54px;
+      z-index: 20;
+    }
+
+    .tab-item {
+      font-size: 15px;
+      color: #888;
+      font-weight: 500;
+      padding-bottom: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .tab-item.active {
+      color: #1a1a1a;
+      font-weight: 700;
+    }
+
+    .tab-item.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2.5px;
+      background: #1a1a1a;
+      border-radius: 2px;
+    }
+
+    /* ── Section header ── */
+    .section-header {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1a1a1a;
+      padding: 20px 16px 12px;
+      letter-spacing: -0.3px;
+    }
+
+    /* ── Featured scroll ── */
+    .featured-scroll {
+      display: flex;
+      gap: 12px;
+      padding: 0 16px 20px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .featured-scroll::-webkit-scrollbar { display: none; }
+
+    .featured-card {
+      flex-shrink: 0;
+      width: 270px;
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .featured-card:active { transform: scale(0.98); }
+
+    .featured-img {
+      width: 100%;
+      height: 148px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .featured-body {
+      padding: 10px 12px 12px;
+    }
+
+    .featured-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .game-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .game-info { flex: 1; min-width: 0; }
+
+    .game-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a1a1a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .game-tagline {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .rating-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    .rating-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #1677ff;
+      letter-spacing: 0.3px;
+    }
+
+    .rating-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1677ff;
+      line-height: 1;
+    }
+
+    /* ── Top Recommendations big card ── */
+    .rec-card {
+      margin: 0 16px 16px;
+      border-radius: 16px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .rec-card:active { transform: scale(0.99); }
+
+    .rec-img-wrap {
+      position: relative;
+    }
+
+    .rec-img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .rec-body {
+      padding: 14px 14px 16px;
+      background: #1a1a1a;
+    }
+
+    .rec-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .rec-name {
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+      flex: 1;
+      line-height: 1.3;
+    }
+
+    .rec-rating {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      margin-left: 10px;
+      flex-shrink: 0;
+    }
+
+    .rec-rating-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #4da6ff;
+    }
+
+    .rec-rating-value {
+      font-size: 26px;
+      font-weight: 900;
+      color: #4da6ff;
+      line-height: 1;
+    }
+
+    .rec-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .rec-tag {
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+
+    .rec-desc {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .rec-cta {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      background: #1677ff;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      text-align: center;
+      letter-spacing: 0.2px;
+      transition: background 0.2s;
+    }
+
+    .rec-cta:active { background: #0a5fd4; }
+
+    /* ── Community hot posts ── */
+    .post-card {
+      margin: 0 16px 12px;
+      padding: 14px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .post-card:active { transform: scale(0.99); }
+
+    .post-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .post-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .post-author-info { flex: 1; min-width: 0; }
+
+    .post-author-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .post-author-lv {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: #1677ff;
+      border: 1px solid #1677ff;
+      border-radius: 3px;
+      padding: 0 4px;
+      margin-left: 4px;
+    }
+
+    .post-date {
+      font-size: 11px;
+      color: #bbb;
+      margin-top: 2px;
+    }
+
+    .post-category-tag {
+      font-size: 11px;
+      color: #fff;
+      background: #1677ff;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .post-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a1a;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .post-cover {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 10px;
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .post-footer {
+      display: flex;
+      gap: 16px;
+    }
+
+    .post-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #999;
+    }
+
+    .post-stat svg { width: 14px; height: 14px; stroke: #bbb; fill: none; stroke-width: 1.8; }
+
+    /* ── Quick links grid ── */
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      padding: 0 16px 24px;
+    }
+
+    .quick-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .quick-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .quick-label {
+      font-size: 11px;
+      color: #555;
+      font-weight: 500;
+      text-align: center;
+    }
+
+    /* ── Bottom tab bar ── */
+    .bottom-bar {
+      height: 82px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(0,0,0,0.08);
+      display: flex;
+      align-items: flex-start;
+      padding-top: 8px;
+      position: relative;
+    }
+
+    .tab-bar-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+
+    .tab-bar-item svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: #ccc;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .tab-bar-item.active svg { stroke: #1677ff; }
+
+    .tab-bar-label {
+      font-size: 10px;
+      color: #ccc;
+      font-weight: 500;
+    }
+
+    .tab-bar-item.active .tab-bar-label { color: #1677ff; }
+
+    /* Center publish button */
+    .tab-bar-publish {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+    }
+
+    .publish-btn {
+      width: 46px;
+      height: 46px;
+      background: #1677ff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(22,119,255,0.4);
+      margin-top: -10px;
+    }
+
+    .publish-btn svg {
+      width: 22px;
+      height: 22px;
+      stroke: #fff;
+      fill: none;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+    }
+
+    /* ── Divider ── */
+    .section-divider {
+      height: 8px;
+      background: #f6f6f6;
+      margin: 4px 0;
+    }
+
+    /* ── Announcement banner ── */
+    .announcement {
+      margin: 8px 16px 4px;
+      padding: 10px 14px;
+      background: #f0f6ff;
+      border-radius: 10px;
+      border-left: 3px solid #1677ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .announcement-icon { font-size: 16px; flex-shrink: 0; }
+
+    .announcement-text {
+      font-size: 12px;
+      color: #444;
+      flex: 1;
+      line-height: 1.4;
+    }
+
+    .announcement-arrow {
+      font-size: 14px;
+      color: #bbb;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone-shell">
+
+    <!-- Dynamic Island -->
+    <div class="dynamic-island"></div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-time">9:41</div>
+      <div class="status-icons">
+        <!-- Signal -->
+        <svg width="17" height="12" viewBox="0 0 17 12">
+          <rect x="0" y="7" width="3" height="5" rx="1" fill="#000"/>
+          <rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="#000"/>
+          <rect x="9" y="2" width="3" height="10" rx="1" fill="#000"/>
+          <rect x="13.5" y="0" width="3" height="12" rx="1" fill="#000"/>
+        </svg>
+        <!-- WiFi -->
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+          <path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#000"/>
+          <path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="#000" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+          <path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="#000" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        </svg>
+        <!-- Battery -->
+        <svg width="25" height="12" viewBox="0 0 25 12">
+          <rect x="0" y="1" width="21" height="10" rx="2.5" stroke="#000" stroke-width="1.2" fill="none"/>
+          <rect x="22" y="4" width="3" height="4" rx="1" fill="#000"/>
+          <rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="#000"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- App Content -->
+    <div class="app-content">
+
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <div class="brand-logo">Yao<span>Shen</span></div>
+        <div class="top-bar-icons">
+          <!-- Search -->
+          <button class="icon-btn">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+          </button>
+          <!-- Avatar -->
+          <button class="avatar-btn">
+            <img src="https://opsoss.q1.com/club/avatar/2023/01/06/1672984017367_069a1712-8db1-486b-9639-52e5a2bf3d59.jpg" alt="avatar">
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Nav -->
+      <div class="tab-nav">
+        <div class="tab-item active">Categories</div>
+        <div class="tab-item">Rankings</div>
+        <div class="tab-item">News</div>
+        <div class="tab-item">Community</div>
+      </div>
+
+      <!-- Announcement -->
+      <div class="announcement">
+        <div class="announcement-icon">📣</div>
+        <div class="announcement-text">New Hero Rosalind is now live! Check out the beginner's guide.</div>
+        <div class="announcement-arrow">›</div>
+      </div>
+
+      <!-- Featured Games -->
+      <div class="section-header">Featured Posts</div>
+      <div class="featured-scroll">
+
+        <!-- Card 1 -->
+        <div class="featured-card">
+          <img class="featured-img"
+            src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
+            alt="Rosalind Guide" loading="lazy">
+          <div class="featured-body">
+            <div class="featured-meta">
+              <img class="game-icon"
+                src="https://opsoss.q1.com/CLUB/2024/01/03/1704266966028a7b3e1d3-3dc0-472d-a900-ac90578929e4.jpg"
+                alt="game icon" loading="lazy">
+              <div class="game-info">
+                <div class="game-name">Rosalind Trial Guide</div>
+                <div class="game-tagline">Best lineup for new hero clear!</div>
+              </div>
+              <div class="rating-badge">
+                <div class="rating-label">Score</div>
+                <div class="rating-value">9.4</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="featured-card">
+          <img class="featured-img"
+            src="https://opsoss.q1.com/club/images/2026/03/26/1774853212372_da6d63c4-9966-4363-a64c-63d3c64065fc_428565.jpg"
+            alt="Maintenance Notice" loading="lazy">
+          <div class="featured-body">
+            <div class="featured-meta">
+              <img class="game-icon"
+                src="https://opsoss.q1.com/CLUB/2024/01/03/1704266966028a7b3e1d3-3dc0-472d-a900-ac90578929e4.jpg"
+                alt="game icon" loading="lazy">
+              <div class="game-info">
+                <div class="game-name">Maintenance Notice</div>
+                <div class="game-tagline">Mar 31 & Apr 1 scheduled update</div>
+              </div>
+              <div class="rating-badge">
+                <div class="rating-label">Official</div>
+                <div class="rating-value">v2.4</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="featured-card">
+          <img class="featured-img"
+            src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
+            alt="National Day" loading="lazy">
+          <div class="featured-body">
+            <div class="featured-meta">
+              <img class="game-icon"
+                src="https://opsoss.q1.com/CLUB/2024/01/03/1704266966028a7b3e1d3-3dc0-472d-a900-ac90578929e4.jpg"
+                alt="game icon" loading="lazy">
+              <div class="game-info">
+                <div class="game-name">National Day Festival</div>
+                <div class="game-tagline">Fireworks & celebration event on now</div>
+              </div>
+              <div class="rating-badge">
+                <div class="rating-label">Event</div>
+                <div class="rating-value">🎉</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Links -->
+      <div class="section-divider"></div>
+      <div class="section-header">Quick Access</div>
+      <div class="quick-grid">
+        <div class="quick-item">
+          <div class="quick-icon" style="background:#fff0f0;">📅</div>
+          <div class="quick-label">Daily Check-in</div>
+        </div>
+        <div class="quick-item">
+          <div class="quick-icon" style="background:#f0f8ff;">🎁</div>
+          <div class="quick-label">Gift Center</div>
+        </div>
+        <div class="quick-item">
+          <div class="quick-icon" style="background:#f0fff8;">💰</div>
+          <div class="quick-label">Points Mall</div>
+        </div>
+        <div class="quick-item">
+          <div class="quick-icon" style="background:#fff8f0;">🔧</div>
+          <div class="quick-label">Enhance</div>
+        </div>
+        <div class="quick-item">
+          <div class="quick-icon" style="background:#f8f0ff;">⭐</div>
+          <div class="quick-label">Level Up</div>
+        </div>
+      </div>
+
+      <!-- Top Recommendations -->
+      <div class="section-divider"></div>
+      <div class="section-header">Top Recommendations</div>
+
+      <!-- Big featured card 1 -->
+      <div class="rec-card">
+        <div class="rec-img-wrap">
+          <img class="rec-img"
+            src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
+            alt="Hidden Knowledge" loading="lazy">
+        </div>
+        <div class="rec-body">
+          <div class="rec-top">
+            <div class="rec-name">Hidden Facts About Yaoshen Ji</div>
+            <div class="rec-rating">
+              <div class="rec-rating-label">Helpful</div>
+              <div class="rec-rating-value">9.1</div>
+            </div>
+          </div>
+          <div class="rec-tags">
+            <div class="rec-tag">Guide</div>
+            <div class="rec-tag">Tips & Tricks</div>
+            <div class="rec-tag">Beginner Friendly</div>
+          </div>
+          <div class="rec-desc">Based on this week's most-read player guides — things your in-game tutorial never told you.</div>
+          <button class="rec-cta">Read Full Guide →</button>
+        </div>
+      </div>
+
+      <!-- Big featured card 2 -->
+      <div class="rec-card">
+        <div class="rec-img-wrap">
+          <img class="rec-img"
+            src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
+            alt="Fan Art" loading="lazy">
+        </div>
+        <div class="rec-body">
+          <div class="rec-top">
+            <div class="rec-name">Water Spirit Goddess — Fan Art Edition</div>
+            <div class="rec-rating">
+              <div class="rec-rating-label">Rating</div>
+              <div class="rec-rating-value">8.8</div>
+            </div>
+          </div>
+          <div class="rec-tags">
+            <div class="rec-tag">Fan Art</div>
+            <div class="rec-tag">Illustration</div>
+            <div class="rec-tag">Community Pick</div>
+          </div>
+          <div class="rec-desc">Hand-drawn art by community member Melody — special edition for the college exam season.</div>
+          <button class="rec-cta">View Artwork →</button>
+        </div>
+      </div>
+
+      <!-- Hot Community Posts header -->
+      <div class="section-divider"></div>
+      <div class="section-header">Hot in Community</div>
+
+      <!-- Post card -->
+      <div class="post-card">
+        <div class="post-header">
+          <img class="post-avatar"
+            src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
+            alt="author" loading="lazy">
+          <div class="post-author-info">
+            <div class="post-author-name">
+              F2P Server 38 <span class="post-author-lv">Lv.85</span>
+            </div>
+            <div class="post-date">3 days ago</div>
+          </div>
+          <div class="post-category-tag">Guide</div>
+        </div>
+        <div class="post-title">Hidden Facts About Yaoshen Ji That Nobody Tells You</div>
+        <img class="post-cover"
+          src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
+          alt="post cover" loading="lazy">
+        <div class="post-footer">
+          <div class="post-stat">
+            <svg viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            229
+          </div>
+          <div class="post-stat">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            47
+          </div>
+          <div class="post-stat">
+            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            1.2k
+          </div>
+        </div>
+      </div>
+
+      <!-- Post card 2 -->
+      <div class="post-card">
+        <div class="post-header">
+          <img class="post-avatar"
+            src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
+            alt="author" loading="lazy">
+          <div class="post-author-info">
+            <div class="post-author-name">
+              Melody <span class="post-author-lv">Lv.120</span>
+            </div>
+            <div class="post-date">3 years ago</div>
+          </div>
+          <div class="post-category-tag">Fan Art</div>
+        </div>
+        <div class="post-title">Water Spirit Goddess — Hand-drawn (Exam Season Special)</div>
+        <img class="post-cover"
+          src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
+          alt="post cover" loading="lazy">
+        <div class="post-footer">
+          <div class="post-stat">
+            <svg viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            273
+          </div>
+          <div class="post-stat">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            29
+          </div>
+          <div class="post-stat">
+            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            1.6k
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom padding -->
+      <div style="height: 16px;"></div>
+
+    </div><!-- /app-content -->
+
+    <!-- Bottom Tab Bar -->
+    <div class="bottom-bar">
+
+      <!-- Home (active) -->
+      <div class="tab-bar-item active">
+        <svg viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <div class="tab-bar-label">Home</div>
+      </div>
+
+      <!-- News -->
+      <div class="tab-bar-item">
+        <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
+        <div class="tab-bar-label">News</div>
+      </div>
+
+      <!-- Publish center button -->
+      <div class="tab-bar-publish">
+        <div class="publish-btn">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="tab-bar-item">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <div class="tab-bar-label">Community</div>
+      </div>
+
+      <!-- Profile -->
+      <div class="tab-bar-item">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div class="tab-bar-label">Profile</div>
+      </div>
+
+    </div>
+
+  </div><!-- /phone-shell -->
+</body>
+</html>

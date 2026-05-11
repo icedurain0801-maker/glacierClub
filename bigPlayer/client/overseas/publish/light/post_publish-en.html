@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Submit a Post — X-Hero</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=Manrope:ital,wght@0,700;0,800;1,800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-family:'Material Symbols Outlined';}
+body{background:#d0d9de;display:flex;justify-content:center;align-items:flex-start;padding:40px 0 80px;min-height:100vh;}
+.shell{width:375px;height:812px;background:#f7f9fb;border-radius:44px;
+  box-shadow:0 0 0 10px #e0e5e8,0 0 0 12px #c8d0d5,0 36px 72px rgba(0,0,0,.18);
+  overflow:hidden;position:relative;display:flex;flex-direction:column;}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  width:124px;height:36px;background:#000;border-radius:20px;z-index:100;}
+
+/* topbar */
+.topbar{height:54px;background:#fff;border-bottom:1px solid #e1e9ee;
+  display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0;
+  box-shadow:0 2px 4px rgba(0,97,164,.05);}
+.tb-back{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;background:transparent;}
+.tb-back .material-symbols-outlined{font-size:20px;color:#566166;}
+.tb-drafts{font-size:12px;font-weight:600;color:#0061a4;font-family:Inter;cursor:pointer;background:transparent;border:none;}
+.tb-title{flex:1;text-align:center;font-family:Manrope;font-size:15px;font-weight:800;color:#0061a4;}
+.tb-save{font-size:12px;font-weight:600;color:#c8d0d5;font-family:Inter;cursor:not-allowed;background:transparent;border:none;white-space:nowrap;}
+.tb-save.active{color:#566166;cursor:pointer;}
+.tb-publish{height:28px;padding:0 14px;background:#0061a4;color:#fff;font-size:12px;font-weight:700;font-family:Inter;border-radius:14px;border:none;cursor:pointer;white-space:nowrap;}
+
+/* body */
+.body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;}
+.body::-webkit-scrollbar{display:none;}
+
+/* title section */
+.title-section{padding:16px 16px 12px;background:#fff;border-bottom:1px solid #f0f4f7;}
+.title-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.title-label{font-size:11px;font-weight:700;color:#0061a4;font-family:Inter;text-transform:uppercase;letter-spacing:.06em;}
+.title-counter{font-size:10px;font-weight:600;color:#a9b4b9;font-family:Inter;
+  background:#f0f4f7;padding:2px 8px;border-radius:10px;}
+.title-input{width:100%;border:none;background:transparent;outline:none;
+  font-family:Manrope;font-size:18px;font-weight:800;color:#1a2a34;line-height:1.3;}
+.title-input::placeholder{color:#c8d0d5;font-weight:700;}
+
+/* divider */
+.divider{height:1px;background:linear-gradient(to right,transparent,#d8dfe4,transparent);margin:0 16px;}
+
+/* compose */
+.compose-area{padding:16px 16px 0;}
+.compose-textarea{width:100%;border:none;background:transparent;outline:none;resize:none;
+  font-family:Inter;font-size:15px;color:#1a2a34;line-height:1.65;min-height:200px;overflow:hidden;}
+.compose-textarea::placeholder{color:#c8d0d5;}
+
+/* attachment counters */
+.attach-row{display:flex;justify-content:space-between;align-items:center;
+  padding:12px 16px;border-top:1px solid #f0f4f7;margin-top:8px;}
+.attach-stats{display:flex;gap:14px;}
+.attach-stat{display:flex;align-items:center;gap:4px;font-size:12px;color:#a9b4b9;font-family:Inter;}
+.attach-stat .material-symbols-outlined{font-size:15px;}
+.word-count{font-size:11px;font-weight:600;color:#a9b4b9;font-family:Inter;letter-spacing:.02em;}
+
+/* tags */
+.tags-section{padding:12px 16px 8px;border-top:1px solid #f0f4f7;}
+.tags-label{font-size:12px;font-weight:700;color:#566166;font-family:Inter;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;}
+.tags-row{display:flex;flex-wrap:wrap;gap:6px;}
+.tag-chip{padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;font-family:Inter;border:none;}
+.tag-chip.on{background:#0061a4;color:#fff;}
+.tag-chip.off{background:#eef2f5;color:#566166;}
+
+/* section selector */
+.section-bar{flex-shrink:0;background:#fff;border-top:1px solid #e1e9ee;padding:10px 14px;}
+.section-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
+  background:#f0f4f7;border-radius:16px;border:none;cursor:pointer;font-family:Inter;}
+.section-btn .material-symbols-outlined{font-size:15px;color:#a9b4b9;}
+.section-btn-pre{font-size:11px;color:#a9b4b9;}
+.section-btn-name{font-size:13px;font-weight:600;color:#2a3439;}
+.section-btn .expand-icon{font-size:16px;color:#a9b4b9;}
+
+/* toolbar */
+.toolbar{flex-shrink:0;background:#fff;border-top:1px solid #e1e9ee;
+  padding:8px 10px 12px;display:flex;justify-content:space-between;align-items:center;}
+.tool-btn{width:34px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;border:none;background:transparent;}
+.tool-btn .material-symbols-outlined{font-size:20px;color:#566166;}
+.tool-btn.active{background:rgba(0,97,164,.08);}
+.tool-btn.active .material-symbols-outlined{color:#0061a4;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="island"></div>
+
+  <!-- Topbar -->
+  <div class="topbar" style="margin-top:54px;">
+    <button class="tb-back" onclick="location.href='../../home/light/home-en.html'">
+      <span class="material-symbols-outlined">arrow_back</span>
+    </button>
+    <button class="tb-drafts" onclick="location.href='drafts-en.html'">Drafts</button>
+    <div class="tb-title">Submit a Post</div>
+    <button class="tb-save" id="saveDraftBtn" disabled>Save Draft</button>
+    <button class="tb-publish">Post</button>
+  </div>
+
+  <div class="body">
+    <!-- Title input -->
+    <div class="title-section">
+      <div class="title-meta">
+        <span class="title-label">Title</span>
+        <span class="title-counter" id="titleCounter">0/100</span>
+      </div>
+      <input class="title-input" id="titleInput" type="text" maxlength="100"
+        placeholder="Enter a title (required)"
+        oninput="onTitleInput()"/>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Body textarea -->
+    <div class="compose-area">
+      <textarea class="compose-textarea" id="mainTextarea"
+        placeholder="Start writing…"
+        oninput="onBodyInput()"></textarea>
+    </div>
+
+    <!-- Attachment counters + word count -->
+    <div class="attach-row">
+      <div class="attach-stats">
+        <span class="attach-stat">
+          <span class="material-symbols-outlined">image</span>
+          <span id="imgCount">0</span>/3 images
+        </span>
+        <span class="attach-stat">
+          <span class="material-symbols-outlined">videocam</span>
+          <span id="vidCount">0</span>/3 videos
+        </span>
+      </div>
+      <span class="word-count" id="wordCount">0 / 5000 words</span>
+    </div>
+
+    <!-- Suggested topics -->
+    <div class="tags-section">
+      <div class="tags-label">Suggested Topics</div>
+      <div class="tags-row">
+        <button class="tag-chip on">#Guides</button>
+        <button class="tag-chip off">#FanArt</button>
+        <button class="tag-chip off">#LongReads</button>
+        <button class="tag-chip off">#PlayerStories</button>
+        <button class="tag-chip off">+ Explore more</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section selector -->
+  <div class="section-bar">
+    <button class="section-btn">
+      <span class="material-symbols-outlined">grid_view</span>
+      <span class="section-btn-pre">Section:</span>
+      <span class="section-btn-name">Guides — Ancient Secrets</span>
+      <span class="material-symbols-outlined expand-icon">unfold_more</span>
+    </button>
+  </div>
+
+  <!-- Formatting toolbar -->
+  <div class="toolbar">
+    <button class="tool-btn active">
+      <span class="material-symbols-outlined">text_fields</span>
+    </button>
+    <button class="tool-btn">
+      <span class="material-symbols-outlined">format_list_bulleted</span>
+    </button>
+    <button class="tool-btn">
+      <span class="material-symbols-outlined">mood</span>
+    </button>
+    <button class="tool-btn">
+      <span class="material-symbols-outlined">image</span>
+    </button>
+    <button class="tool-btn">
+      <span class="material-symbols-outlined">videocam</span>
+    </button>
+    <button class="tool-btn">
+      <span class="material-symbols-outlined">insert_chart</span>
+    </button>
+    <button class="tool-btn">
+      <span class="material-symbols-outlined">link</span>
+    </button>
+    <button class="tool-btn">
+      <span class="material-symbols-outlined">alternate_email</span>
+    </button>
+  </div>
+</div>
+
+<script>
+function onTitleInput() {
+  const val = document.getElementById('titleInput').value;
+  document.getElementById('titleCounter').textContent = val.length + '/100';
+  updateSaveBtn();
+}
+
+function onBodyInput() {
+  const ta = document.getElementById('mainTextarea');
+  ta.style.height = '200px';
+  ta.style.height = Math.max(200, ta.scrollHeight) + 'px';
+  const words = ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0;
+  document.getElementById('wordCount').textContent = words + ' / 5000 words';
+  updateSaveBtn();
+}
+
+function updateSaveBtn() {
+  const btn = document.getElementById('saveDraftBtn');
+  const hasContent = document.getElementById('titleInput').value.trim().length > 0
+    || document.getElementById('mainTextarea').value.trim().length > 0;
+  btn.disabled = !hasContent;
+  btn.className = hasContent ? 'tb-save active' : 'tb-save';
+}
+</script>
+</body>
+</html>

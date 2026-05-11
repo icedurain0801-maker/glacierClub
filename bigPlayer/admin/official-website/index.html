@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>冰游汇社区 - 专注打造游戏体验社区</title>
+<style>
+/* ── Reset & Base ── */
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+  color:#fff;
+  background:#23272a;
+  overflow-x:hidden;
+}
+a{text-decoration:none;color:inherit}
+img{max-width:100%;display:block}
+
+/* ── Navbar ── */
+.navbar{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 40px;height:64px;
+  background:rgba(16,19,34,0.85);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  transition:background 0.3s;
+}
+.nav-brand{
+  font-size:18px;font-weight:800;
+  background:linear-gradient(135deg,#7289da,#5865f2);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:0.5px;
+}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{
+  font-size:14px;color:rgba(255,255,255,0.7);
+  transition:color 0.2s;font-weight:500;
+}
+.nav-links a:hover{color:#fff}
+.nav-cta{
+  padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;
+  background:#5865f2;color:#fff;
+  transition:background 0.2s,transform 0.15s;
+  cursor:pointer;border:none;
+}
+.nav-cta:hover{background:#4752c4;transform:translateY(-1px)}
+
+/* ── Hero Section ── */
+.hero{
+  position:relative;
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  padding:120px 60px 80px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%,rgba(88,101,242,0.35),transparent),
+    radial-gradient(ellipse 60% 50% at 80% 20%,rgba(114,137,218,0.2),transparent),
+    radial-gradient(ellipse 50% 40% at 20% 60%,rgba(78,93,148,0.15),transparent),
+    linear-gradient(180deg,#0d1117 0%,#161b2e 40%,#1a1f36 100%);
+  overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%235865f2' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events:none;
+}
+
+/* floating particles */
+.hero-particles{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.particle{
+  position:absolute;border-radius:50%;
+  background:rgba(88,101,242,0.25);
+  animation:float-up linear infinite;
+}
+@keyframes float-up{
+  0%{transform:translateY(100vh) scale(0);opacity:0}
+  10%{opacity:1}
+  90%{opacity:0.6}
+  100%{transform:translateY(-10vh) scale(1);opacity:0}
+}
+
+/* Hero layout: left text + right image */
+.hero-inner{
+  position:relative;z-index:2;
+  display:flex;align-items:center;gap:48px;
+  max-width:1200px;width:100%;
+}
+.hero-content{flex:1;min-width:0}
+.hero-badge{
+  display:inline-block;
+  padding:6px 16px;border-radius:20px;
+  font-size:12px;font-weight:600;letter-spacing:1px;
+  background:rgba(88,101,242,0.15);
+  border:1px solid rgba(88,101,242,0.3);
+  color:#7289da;margin-bottom:24px;
+  text-transform:uppercase;
+}
+.hero h1{
+  font-size:clamp(36px,5vw,58px);
+  font-weight:900;line-height:1.1;
+  margin-bottom:20px;
+  background:linear-gradient(135deg,#fff 0%,#c5cae9 50%,#7289da 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{
+  font-size:clamp(15px,1.6vw,19px);
+  color:rgba(255,255,255,0.6);
+  line-height:1.6;max-width:480px;margin-bottom:36px;
+}
+.hero-actions{display:flex;gap:16px;flex-wrap:wrap}
+
+/* Hero mascot image — blended into background */
+.hero-mascot{
+  flex:0 0 auto;
+  width:clamp(320px,38vw,520px);
+  position:relative;
+  margin-right:-60px;
+  margin-bottom:-80px;
+}
+.hero-mascot-img{
+  width:100%;height:auto;
+  border-radius:0;
+  box-shadow:none;
+  animation:mascot-float 5s ease-in-out infinite;
+  /* Fade edges into background */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black 5%, black 85%, transparent 100%);
+  -webkit-mask-composite: destination-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black 5%, black 85%, transparent 100%);
+  mask-composite: intersect;
+  mix-blend-mode:lighten;
+  filter:brightness(1.05) contrast(1.05);
+}
+@keyframes mascot-float{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-10px)}
+}
+/* Ambient glow behind character */
+.hero-mascot::before{
+  content:'';position:absolute;
+  top:30%;left:50%;
+  width:80%;height:80%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(88,101,242,0.3) 0%,rgba(88,101,242,0.1) 40%,transparent 70%);
+  pointer-events:none;
+  z-index:-1;
+  filter:blur(40px);
+}
+/* Secondary glow for depth */
+.hero-mascot::after{
+  content:'';position:absolute;
+  top:50%;left:40%;
+  width:60%;height:60%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(114,137,218,0.2) 0%,transparent 60%);
+  pointer-events:none;
+  z-index:-1;
+  filter:blur(30px);
+}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 32px;border-radius:28px;
+  font-size:16px;font-weight:700;
+  background:linear-gradient(135deg,#5865f2,#4752c4);
+  color:#fff;border:none;cursor:pointer;
+  transition:transform 0.2s,box-shadow 0.2s;
+  box-shadow:0 4px 24px rgba(88,101,242,0.4);
+}
+.btn-primary:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 32px rgba(88,101,242,0.5);
+}
+.btn-primary svg{width:20px;height:20px}
+.btn-secondary{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 32px;border-radius:28px;
+  font-size:16px;font-weight:600;
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15);
+  color:#fff;cursor:pointer;
+  transition:background 0.2s,transform 0.2s;
+}
+.btn-secondary:hover{
+  background:rgba(255,255,255,0.14);
+  transform:translateY(-2px);
+}
+
+/* wave divider */
+.wave-divider{
+  position:relative;width:100%;
+  margin-top:-1px;
+  line-height:0;
+}
+.wave-divider svg{display:block;width:100%;height:auto}
+
+/* ── Section Common ── */
+.section{padding:100px 24px}
+.section-dark{background:#0d1117}
+.section-gradient{
+  background:linear-gradient(180deg,#0d1117,#161b2e 40%,#1a1f36 100%);
+}
+.section-title{
+  font-size:clamp(28px,4vw,42px);
+  font-weight:800;text-align:center;
+  margin-bottom:16px;line-height:1.2;
+}
+.section-subtitle{
+  font-size:clamp(15px,1.8vw,18px);
+  color:rgba(255,255,255,0.5);
+  text-align:center;max-width:600px;
+  margin:0 auto 64px;line-height:1.6;
+}
+
+/* ── Features Bento Grid ── */
+.features-grid{
+  display:grid;
+  grid-template-columns:1.4fr 1fr;
+  grid-template-rows:auto auto;
+  gap:20px;max-width:1100px;margin:0 auto;
+}
+.feature-card{
+  position:relative;
+  background:rgba(88,101,242,0.08);
+  border:1px solid rgba(88,101,242,0.15);
+  border-radius:20px;
+  padding:36px 32px;
+  transition:transform 0.3s,border-color 0.3s,box-shadow 0.3s;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.feature-card:hover{
+  transform:translateY(-4px);
+  border-color:rgba(88,101,242,0.35);
+  box-shadow:0 12px 40px rgba(88,101,242,0.15);
+}
+/* Reverse the column sizes for second row */
+.features-grid .feature-card:nth-child(3){grid-column:1}
+.features-grid .feature-card:nth-child(4){grid-column:2}
+.features-grid .feature-card:nth-child(3),
+.features-grid .feature-card:nth-child(4){grid-row:2}
+
+/* Large cards (1st and 4th) get extra min-height */
+.feature-card:nth-child(1),
+.feature-card:nth-child(4){min-height:280px}
+
+.feature-icon{
+  width:44px;height:44px;
+  border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:20px;font-size:22px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.08);
+}
+.feature-card h3{
+  font-size:20px;font-weight:700;
+  margin-bottom:12px;color:#fff;
+}
+.feature-card p{
+  font-size:14px;line-height:1.7;
+  color:rgba(255,255,255,0.55);
+}
+/* Decorative visual element inside large cards */
+.feature-card-visual{
+  margin-top:auto;padding-top:24px;
+  display:flex;align-items:center;gap:8px;
+}
+.feature-card-visual .dot{
+  width:28px;height:28px;border-radius:50%;
+  border:2px solid rgba(255,255,255,0.1);
+  overflow:hidden;
+}
+.feature-card-visual .dot-filled{
+  background:linear-gradient(135deg,#5865f2,#7289da);
+  border-color:rgba(88,101,242,0.4);
+}
+.feature-card-visual .dot-pink{
+  background:linear-gradient(135deg,#e84393,#fd79a8);
+  border-color:rgba(232,67,147,0.4);
+}
+.feature-card-visual .dot-count{
+  font-size:12px;color:rgba(255,255,255,0.4);
+  margin-left:4px;font-weight:600;
+}
+.feature-card-visual .avatar{
+  width:32px;height:32px;border-radius:50%;
+  object-fit:cover;
+  border:2px solid rgba(88,101,242,0.4);
+}
+.feature-card-link{
+  margin-top:auto;padding-top:20px;
+  font-size:13px;font-weight:600;
+  color:rgba(255,255,255,0.5);
+  letter-spacing:1px;text-transform:uppercase;
+  transition:color 0.2s;
+}
+.feature-card-link:hover{color:rgba(255,255,255,0.8)}
+/* Card image decoration */
+.feature-card-img{
+  margin-top:auto;padding-top:20px;
+  position:relative;
+}
+.feature-card-img img{
+  width:100%;max-width:200px;height:auto;
+  border-radius:12px;opacity:0.85;
+  box-shadow:0 8px 24px rgba(0,0,0,0.3);
+}
+/* Responsive: stack on mobile */
+@media(max-width:768px){
+  .features-grid{
+    grid-template-columns:1fr;
+  }
+  .features-grid .feature-card:nth-child(3),
+  .features-grid .feature-card:nth-child(4){grid-column:1}
+}
+
+/* ── Stats Bar ── */
+.stats-bar{
+  display:flex;justify-content:center;flex-wrap:wrap;
+  gap:48px;max-width:900px;margin:0 auto;
+  padding:60px 0;
+}
+.stat-item{text-align:center}
+.stat-number{
+  font-size:clamp(36px,5vw,52px);
+  font-weight:900;
+  background:linear-gradient(135deg,#5865f2,#7289da);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1;
+}
+.stat-label{
+  font-size:14px;color:rgba(255,255,255,0.45);
+  margin-top:8px;font-weight:500;
+}
+
+/* ── CTA Section ── */
+.cta-section{
+  text-align:center;
+  padding:100px 24px 120px;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 100%,rgba(88,101,242,0.25),transparent),
+    linear-gradient(180deg,#1a1f36,#0d1117);
+}
+.cta-section h2{
+  font-size:clamp(30px,4.5vw,48px);
+  font-weight:900;margin-bottom:16px;
+}
+.cta-section p{
+  font-size:18px;color:rgba(255,255,255,0.5);
+  margin-bottom:40px;max-width:500px;margin-left:auto;margin-right:auto;
+}
+.download-btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:16px 40px;border-radius:28px;
+  font-size:17px;font-weight:700;
+  background:linear-gradient(135deg,#5865f2,#4752c4);
+  color:#fff;border:none;cursor:pointer;
+  transition:transform 0.2s,box-shadow 0.2s;
+  box-shadow:0 4px 24px rgba(88,101,242,0.4);
+}
+.download-btn:hover{
+  transform:translateY(-3px);
+  box-shadow:0 10px 40px rgba(88,101,242,0.5);
+}
+.download-btn svg{width:22px;height:22px}
+
+/* ── Footer ── */
+.footer{
+  background:#080b11;
+  padding:48px 24px 32px;
+  border-top:1px solid rgba(255,255,255,0.05);
+}
+.footer-inner{
+  max-width:1100px;margin:0 auto;
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:16px;
+}
+.footer-brand{font-size:15px;font-weight:700;color:rgba(255,255,255,0.4)}
+.footer-links{display:flex;gap:24px}
+.footer-links a{font-size:13px;color:rgba(255,255,255,0.35);transition:color 0.2s}
+.footer-links a:hover{color:rgba(255,255,255,0.7)}
+.footer-copy{
+  width:100%;text-align:center;
+  font-size:12px;color:rgba(255,255,255,0.2);
+  margin-top:32px;padding-top:24px;
+  border-top:1px solid rgba(255,255,255,0.04);
+}
+
+/* ── Animations ── */
+.fade-in{opacity:0;transform:translateY(30px);transition:opacity 0.6s ease,transform 0.6s ease}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+.fade-in.delay-1{transition-delay:0.1s}
+.fade-in.delay-2{transition-delay:0.2s}
+.fade-in.delay-3{transition-delay:0.3s}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .navbar{padding:0 20px}
+  .nav-links{display:none}
+  .hero{padding:100px 20px 60px}
+  .hero-inner{flex-direction:column;text-align:center}
+  .hero p{margin-left:auto;margin-right:auto}
+  .hero-actions{justify-content:center}
+  .hero-mascot{width:clamp(240px,70vw,340px);order:-1;margin-bottom:-40px;margin-right:0;opacity:0.7}
+  .features-grid{grid-template-columns:1fr}
+  .stats-bar{gap:32px}
+  .footer-inner{flex-direction:column;text-align:center}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Navbar ── -->
+<nav class="navbar">
+  <a href="#" class="nav-brand">GlacierClub 冰游汇</a>
+  <div class="nav-links">
+    <a href="#features">功能介绍</a>
+    <a href="#stats">社区数据</a>
+    <a href="#download">下载</a>
+  </div>
+  <button class="nav-cta" onclick="window.open('https://down.q1.com/tjcs/冰游汇.apk','_blank')">下载 App</button>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero" id="hero">
+  <div class="hero-particles" id="particles"></div>
+  <div class="hero-inner">
+    <!-- Left: Text -->
+    <div class="hero-content">
+      <span class="hero-badge fade-in">Game Community Platform</span>
+      <h1 class="fade-in delay-1">专注打造<br>游戏体验社区</h1>
+      <p class="fade-in delay-2">
+        连接全球玩家，分享游戏心得，发现精彩内容。<br>
+        冰游汇社区，让每一次游戏体验都不孤单。
+      </p>
+      <div class="hero-actions fade-in delay-3">
+        <button class="btn-primary" onclick="window.open('https://down.q1.com/tjcs/冰游汇.apk','_blank')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载社区 App
+        </button>
+        <button class="btn-secondary" onclick="window.open('https://club.q1.com/','_blank')">
+          了解更多
+        </button>
+      </div>
+    </div>
+    <!-- Right: Mascot -->
+    <div class="hero-mascot fade-in delay-2">
+      <img class="hero-mascot-img" src="https://bcgpt-cn.oss-cn-beijing.aliyuncs.com/upload/image/2026/04/20260410/33cea268bb0b62f8e733c7f59e308d48.png" alt="AI 社区助手">
+    </div>
+  </div>
+</section>
+
+<!-- Wave Divider -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1440 100" preserveAspectRatio="none">
+    <path fill="#0d1117" d="M0,40 C360,100 1080,0 1440,60 L1440,100 L0,100 Z"/>
+  </svg>
+</div>
+
+<!-- ── Features ── -->
+<section class="section section-dark" id="features">
+  <h2 class="section-title fade-in">Engineered for <em style="font-style:italic;background:linear-gradient(135deg,#fff,#7289da);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Impact</em></h2>
+  <p class="section-subtitle fade-in">为玩家量身打造的一站式社区平台，满足你的一切社交需求</p>
+
+  <div class="features-grid">
+    <!-- Card 1 — Multi-functional Posting (large left) -->
+    <div class="feature-card fade-in">
+      <div class="feature-icon">&#9997;&#65039;</div>
+      <h3>多功能发帖</h3>
+      <p>支持图文混排、视频嵌入、投票互动等多种内容格式，让你的创作自由表达，轻松打造精彩帖文。</p>
+      <div class="feature-card-visual">
+        <img class="avatar" src="https://i.pravatar.cc/56?img=12" alt="">
+        <img class="avatar" style="margin-left:-10px" src="https://i.pravatar.cc/56?img=32" alt="">
+        <div class="dot" style="margin-left:-10px;background:rgba(255,255,255,0.08)"></div>
+      </div>
+    </div>
+    <!-- Card 2 — Intelligent Feed (right) -->
+    <div class="feature-card fade-in delay-1">
+      <div class="feature-icon">&#129302;</div>
+      <h3>智能推送帖文</h3>
+      <p>基于你的兴趣偏好和行为习惯，AI 算法精准推送最相关的内容，不错过每一条精彩讨论。</p>
+      <div class="feature-card-visual">
+        <img class="avatar" src="https://i.pravatar.cc/56?img=5" alt="">
+        <img class="avatar" style="margin-left:-10px" src="https://i.pravatar.cc/56?img=15" alt="">
+        <img class="avatar" style="margin-left:-10px" src="https://i.pravatar.cc/56?img=25" alt="">
+        <span class="dot-count">+24</span>
+      </div>
+    </div>
+    <!-- Card 3 — Multi-language Translation (left, smaller) -->
+    <div class="feature-card fade-in delay-2">
+      <div class="feature-icon">&#127760;</div>
+      <h3>多语言翻译</h3>
+      <p>打破语言壁垒，实时翻译社区内容。无论你来自哪个国家，都能畅快交流，连接全球玩家。</p>
+    </div>
+    <!-- Card 4 — Emotional Support Bot (right, large) -->
+    <div class="feature-card fade-in delay-3">
+      <div class="feature-icon">&#128150;</div>
+      <h3>情感机器人</h3>
+      <p>智能情感分析与互动，为社区营造友好氛围。自动识别情绪，提供暖心回应，守护每位玩家的心情。</p>
+      <div class="feature-card-link">LEARN ABOUT 'ZEN-BOT' &rarr;</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Stats ── -->
+<section class="section section-gradient" id="stats">
+  <h2 class="section-title fade-in">一起构建游戏社区</h2>
+  <p class="section-subtitle fade-in">加入不断壮大的玩家大家庭</p>
+  <div class="stats-bar">
+    <div class="stat-item fade-in">
+      <div class="stat-number" data-target="500000">0</div>
+      <div class="stat-label">活跃用户</div>
+    </div>
+    <div class="stat-item fade-in delay-1">
+      <div class="stat-number" data-target="1200000">0</div>
+      <div class="stat-label">社区帖文</div>
+    </div>
+    <div class="stat-item fade-in delay-2">
+      <div class="stat-number" data-target="30">0</div>
+      <div class="stat-label">支持语言</div>
+    </div>
+    <div class="stat-item fade-in delay-3">
+      <div class="stat-number" data-target="99">0</div>
+      <div class="stat-label">用户满意度 %</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA Download ── -->
+<section class="cta-section" id="download">
+  <h2 class="fade-in">立即加入冰游汇社区</h2>
+  <p class="fade-in delay-1">下载 App，开启你的游戏社交之旅</p>
+  <button class="download-btn fade-in delay-2" onclick="window.open('https://down.q1.com/tjcs/冰游汇.apk','_blank')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    下载社区 App
+  </button>
+</section>
+
+<!-- ── Footer ── -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">GlacierClub 冰游汇</div>
+    <div class="footer-links">
+      <a href="#">关于我们</a>
+      <a href="https://open-protocol.ymhn168.cn/privacy/UserProtocol_2600_cn003.html" target="_blank">用户协议</a>
+      <a href="https://open-protocol.ymhn168.cn/privacy/PrivacyPolicy_2600_cn001.html" target="_blank">隐私政策</a>
+    </div>
+    <div class="footer-copy">Copyright &copy; 2015 - 2026 海南幽冥网络科技有限公司 版权所有<br>ICP备案号：<a href="https://beian.miit.gov.cn/#/Integrated/index" target="_blank" style="color:inherit;text-decoration:underline">琼ICP备2023001748号</a></div>
+  </div>
+</footer>
+
+<script>
+/* ── Scroll Fade-in ── */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+}, { threshold: 0.15 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+/* ── Floating Particles ── */
+(function createParticles() {
+  const container = document.getElementById('particles');
+  if (!container) return;
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = Math.random() * 4 + 2;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (Math.random() * 8 + 6) + 's';
+    p.style.animationDelay = (Math.random() * 6) + 's';
+    container.appendChild(p);
+  }
+})();
+
+/* ── Stat Counter Animation ── */
+function animateCounters() {
+  document.querySelectorAll('.stat-number[data-target]').forEach(el => {
+    const target = +el.dataset.target;
+    const duration = 2000;
+    const start = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      let val = Math.floor(eased * target);
+      if (target >= 1000000) el.textContent = (val / 10000).toFixed(0) + '万+';
+      else if (target >= 10000) el.textContent = (val / 10000).toFixed(0) + '万+';
+      else el.textContent = val + (target < 100 ? '' : '+');
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+const statsObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { animateCounters(); statsObserver.unobserve(e.target); }
+  });
+}, { threshold: 0.3 });
+const statsSection = document.getElementById('stats');
+if (statsSection) statsObserver.observe(statsSection);
+
+/* ── Navbar scroll effect ── */
+window.addEventListener('scroll', () => {
+  document.querySelector('.navbar').style.background =
+    window.scrollY > 50 ? 'rgba(8,11,17,0.95)' : 'rgba(16,19,34,0.85)';
+});
+</script>
+</body>
+</html>
