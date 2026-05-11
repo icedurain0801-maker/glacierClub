@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>BigPlayer — Notifications (EN)</title>
+<link rel="stylesheet" href="../../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-surface-variant": "#8b949e",
+          "secondary-container": "#1f3a56",
+          "primary": "#4493f8",
+          "primary-dim": "#3882ef",
+          "surface-container-low": "#161b22",
+          "surface-variant": "#30363d",
+          "outline": "#6e7681",
+          "surface-container": "#1c2128",
+          "on-secondary-container": "#79c0ff",
+          "surface-container-lowest": "#0d1117",
+          "surface-container-highest": "#30363d",
+          "on-primary": "#0d1117",
+          "outline-variant": "#30363d",
+          "surface-container-high": "#21262d",
+          "on-surface": "#e6edf3",
+          "background": "#0d1117",
+          "inverse-primary": "#79c0ff",
+          "surface": "#0d1117",
+          "surface-tint": "#4493f8"
+        },
+        fontFamily: {
+          headline: ["Manrope"],
+          body: ["Inter"],
+          label: ["Inter"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ── Phone shell ── */
+  .phone-shell {
+    width: 375px;
+    height: 812px;
+    background: #0d1117;
+    border-radius: 44px;
+    box-shadow:
+      0 0 0 10px #1a1a1a,
+      0 0 0 12px #3a3a3a,
+      0 40px 80px rgba(0,0,0,0.35),
+      0 10px 20px rgba(0,0,0,0.18);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .dynamic-island {
+    position: absolute;
+    top: 12px; left: 50%; transform: translateX(-50%);
+    width: 124px; height: 36px;
+    background: #000; border-radius: 20px; z-index: 100;
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    height: 54px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  .sb-time { font-family: Manrope, sans-serif; font-size: 15px; font-weight: 700; color: #e6edf3; }
+  .sb-icons { display: flex; align-items: center; gap: 5px; }
+
+  /* ── Content scroll area ── */
+  .content-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
+  .content-area::-webkit-scrollbar { display: none; }
+
+  /* ── Screen switching ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── Header ── */
+  .page-header {
+    display: flex; align-items: center;
+    height: 50px; padding: 0 16px;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+    position: sticky; top: 0; z-index: 20;
+  }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: #21262d; margin: 0 16px; }
+
+  /* ── Quick entry circles ── */
+  .quick-entry-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer; flex: 1;
+  }
+  .quick-circle {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: #161b22; border: 1px solid #21262d;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; transition: background 0.12s;
+  }
+  .quick-circle:active { background: #21262d; }
+  .quick-circle svg { width: 26px; height: 26px; }
+  .quick-label { font-size: 11px; color: #8b949e; text-align: center; white-space: nowrap; }
+
+  /* ── Badge ── */
+  .notif-badge {
+    position: absolute; top: -2px; right: -2px;
+    min-width: 18px; height: 18px; background: #f44336;
+    border-radius: 99px; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff; padding: 0 4px;
+    border: 2px solid #0d1117;
+  }
+
+  /* ── New pulse dot ── */
+  @keyframes pulse-ring {
+    0%   { transform: scale(1); opacity: .7; }
+    70%  { transform: scale(2.2); opacity: 0; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+  .new-dot {
+    position: relative; width: 8px; height: 8px; flex-shrink: 0;
+  }
+  .new-dot::before {
+    content: ''; position: absolute; inset: 0;
+    border-radius: 50%; background: #4493f8;
+    animation: pulse-ring 1.8s ease-out infinite;
+  }
+  .new-dot::after {
+    content: ''; position: absolute; inset: 0;
+    border-radius: 50%; background: #4493f8;
+  }
+
+  /* ── DM / friend row ── */
+  .friend-row {
+    display: flex; align-items: center; padding: 12px 14px; gap: 12px;
+    cursor: pointer; transition: background 0.12s;
+  }
+  .friend-row:active { background: #1c2128; }
+
+  /* ── Generic message row ── */
+  .msg-row { padding: 13px 14px; cursor: pointer; transition: background .12s; }
+  .msg-row:active { background: #1c2128; }
+
+  /* ── Tab bar ── */
+  .tab-bar { display: flex; border-bottom: 1px solid #21262d; padding: 0 16px; }
+  .tab-btn {
+    padding: 11px 0; margin-right: 20px; font-size: 13px; font-weight: 500;
+    color: #8b949e; background: transparent; border: none;
+    border-bottom: 2.5px solid transparent; cursor: pointer;
+    font-family: Inter, sans-serif; transition: all .15s;
+  }
+  .tab-btn.active { font-weight: 700; color: #e6edf3; border-bottom-color: #4493f8; }
+
+  /* ── List end ── */
+  .list-end { text-align: center; padding: 28px 0 12px; color: #6e7681; font-size: 11px; }
+
+  /* ── Announcement detail body ── */
+  .detail-body { padding: 20px 16px; }
+</style>
+</head>
+<body class="bg-[#1a1f26] font-body text-on-surface flex justify-center items-start py-10 min-h-screen">
+
+<nav id="sidebar" class="sidebar hidden"></nav>
+
+<div class="phone-shell">
+  <div class="dynamic-island"></div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="sb-time">9:41</span>
+    <div class="sb-icons">
+      <!-- Signal -->
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none">
+        <rect x="0" y="7" width="3" height="5" rx="1" fill="#e6edf3"/>
+        <rect x="4.5" y="5" width="3" height="7" rx="1" fill="#e6edf3"/>
+        <rect x="9" y="2.5" width="3" height="9.5" rx="1" fill="#e6edf3"/>
+        <rect x="13.5" y="0" width="3" height="12" rx="1" fill="#e6edf3"/>
+      </svg>
+      <!-- Wifi -->
+      <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+        <path d="M8 9.5a1.25 1.25 0 110 2.5 1.25 1.25 0 010-2.5z" fill="#e6edf3"/>
+        <path d="M4.2 6.8a5.4 5.4 0 017.6 0" stroke="#e6edf3" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M1.3 3.9a9.5 9.5 0 0113.4 0" stroke="#e6edf3" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <!-- Battery -->
+      <div style="display:flex;align-items:center;gap:1px">
+        <div style="width:22px;height:12px;border:1.5px solid #e6edf3;border-radius:3px;padding:1.5px;position:relative">
+          <div style="width:85%;height:100%;background:#e6edf3;border-radius:1px"></div>
+        </div>
+        <div style="width:2px;height:5px;background:#e6edf3;border-radius:0 1px 1px 0;margin-left:1px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page header (sticky inside content-area via JS swap) -->
+  <div id="page-header" class="page-header">
+    <button id="btn-back" onclick="window.location.href='./profile-en-dark.html'"
+      class="w-8 h-8 flex items-center justify-center rounded-full mr-1 active:bg-surface-container">
+      <span class="material-symbols-outlined text-on-surface" style="font-size:20px">arrow_back_ios</span>
+    </button>
+    <span id="page-title" class="font-headline font-bold text-[17px] text-on-surface">Notifications</span>
+  </div>
+
+  <!-- Scrollable content -->
+  <div class="content-area">
+
+    <!-- ══ SCREEN: hub ══ -->
+    <div id="screen-hub" class="screen active">
+
+      <!-- Quick entry row -->
+      <div class="flex items-start justify-around px-4 pt-5 pb-4">
+
+        <div class="quick-entry-wrap" onclick="navTo('replies','Replies')">
+          <div class="quick-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#e6edf3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+            <div class="notif-badge">3</div>
+          </div>
+          <span class="quick-label">Replies</span>
+        </div>
+
+        <div class="quick-entry-wrap" onclick="navTo('mentions','Mentions')">
+          <div class="quick-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#e6edf3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M16 8v5a3 3 0 006 0v-1a10 10 0 10-3.92 7.94"/>
+            </svg>
+            <div class="notif-badge" style="min-width:8px;width:8px;height:8px;padding:0;border-width:1.5px"></div>
+          </div>
+          <span class="quick-label">Mentions</span>
+        </div>
+
+        <div class="quick-entry-wrap" onclick="navTo('likes','Likes & Saves')">
+          <div class="quick-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#e6edf3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+            </svg>
+          </div>
+          <span class="quick-label">Likes</span>
+        </div>
+
+        <div class="quick-entry-wrap" onclick="navTo('system','System')">
+          <div class="quick-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#e6edf3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 01-3.46 0"/>
+            </svg>
+          </div>
+          <span class="quick-label">System</span>
+        </div>
+
+        <div class="quick-entry-wrap" onclick="navTo('announce','Announcements')">
+          <div class="quick-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#e6edf3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11v2a1 1 0 001 1h1l2 4h1V8H5l-2 4z"/>
+              <path d="M9 8l9-4v16L9 16"/>
+              <path d="M15 9.5v5"/>
+            </svg>
+          </div>
+          <span class="quick-label">Announce</span>
+        </div>
+
+      </div>
+
+      <div class="divider" style="margin:0"></div>
+
+      <!-- DM list -->
+      <div class="mt-1">
+
+        <div class="friend-row" style="background:#161b22" onclick="window.location.href='./chat-en-dark.html'">
+          <div style="position:relative;flex-shrink:0">
+            <img src="https://i.pravatar.cc/80?img=7" class="w-[46px] h-[46px] rounded-full object-cover"/>
+            <div style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:#4caf50;border:2px solid #161b22"></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline justify-between gap-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline leading-none">NightRider</span>
+              <span class="text-[11px] text-outline-variant flex-shrink-0">just now</span>
+            </div>
+            <div class="text-[12px] mt-1 font-semibold text-on-surface truncate" style="opacity:.85">Anyone up for ranked tonight?</div>
+          </div>
+          <div style="width:18px;height:18px;border-radius:50%;background:#4493f8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="font-size:10px;font-weight:800;color:#fff;font-family:Inter,sans-serif">2</span>
+          </div>
+        </div>
+        <div class="divider"></div>
+
+        <div class="friend-row" style="background:#161b22" onclick="window.location.href='./chat-en-dark.html'">
+          <div style="position:relative;flex-shrink:0">
+            <img src="https://i.pravatar.cc/80?img=28" class="w-[46px] h-[46px] rounded-full object-cover"/>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline justify-between gap-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline leading-none">MoonBreeze</span>
+              <span class="text-[11px] text-outline-variant flex-shrink-0">3m</span>
+            </div>
+            <div class="text-[12px] mt-1 font-semibold text-on-surface truncate" style="opacity:.85">Is your guide done yet? Post it!</div>
+          </div>
+          <div style="width:18px;height:18px;border-radius:50%;background:#4493f8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="font-size:10px;font-weight:800;color:#fff;font-family:Inter,sans-serif">1</span>
+          </div>
+        </div>
+        <div class="divider"></div>
+
+        <div class="friend-row" onclick="window.location.href='./chat-en-dark.html'">
+          <div style="position:relative;flex-shrink:0">
+            <img src="https://i.pravatar.cc/80?img=14" class="w-[46px] h-[46px] rounded-full object-cover"/>
+            <div style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:#4caf50;border:2px solid #0d1117"></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline justify-between gap-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline leading-none">StarDust</span>
+              <span class="text-[11px] text-outline-variant flex-shrink-0">1h</span>
+            </div>
+            <div class="text-[12px] mt-1 text-on-surface-variant truncate">Sure, let's do it next time!</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+
+        <div class="friend-row" onclick="window.location.href='./chat-en-dark.html'">
+          <div style="position:relative;flex-shrink:0">
+            <img src="https://i.pravatar.cc/80?img=37" class="w-[46px] h-[46px] rounded-full object-cover"/>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline justify-between gap-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline leading-none">BlitzStrike</span>
+              <span class="text-[11px] text-outline-variant flex-shrink-0">4h</span>
+            </div>
+            <div class="flex items-center gap-1 mt-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span class="text-[12px] text-on-surface-variant">[Image]</span>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+
+        <div class="friend-row" onclick="window.location.href='./chat-en-dark.html'">
+          <div style="position:relative;flex-shrink:0">
+            <img src="https://i.pravatar.cc/80?img=11" class="w-[46px] h-[46px] rounded-full object-cover"/>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline justify-between gap-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline leading-none">Player#8821</span>
+              <span class="text-[11px] text-outline-variant flex-shrink-0">03/07</span>
+            </div>
+            <div class="flex items-center gap-1 mt-1">
+              <span class="text-[12px] text-on-surface-variant truncate">Me: sounds good, waiting!</span>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+
+        <div class="friend-row" onclick="window.location.href='./chat-en-dark.html'">
+          <div style="position:relative;flex-shrink:0">
+            <img src="https://i.pravatar.cc/80?img=22" class="w-[46px] h-[46px] rounded-full object-cover"/>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline justify-between gap-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline leading-none">VoidWalker</span>
+              <span class="text-[11px] text-outline-variant flex-shrink-0">10/10</span>
+            </div>
+            <div class="text-[12px] mt-1 text-on-surface-variant truncate">Got a minute? Wanna chat</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="list-end">~ You've reached the end (：3| ∠)</div>
+    </div>
+
+    <!-- ══ SCREEN: replies ══ -->
+    <div id="screen-replies" class="screen">
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=5" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline">StarDust</span>
+              <div class="flex items-center gap-1.5">
+                <div class="new-dot"></div>
+                <span class="text-[11px] text-outline-variant">just now</span>
+              </div>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">Totally agree with your analysis!</div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/gamebalance/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Thoughts on game balance</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Exploring hero tier lists in the current patch and the philosophy behind developer balance decisions...</div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button class="px-3 py-1 rounded-full border border-outline-variant/50 text-[12px] text-on-surface-variant bg-transparent">Reply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=14" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline">NightRider</span>
+              <span class="text-[11px] text-outline-variant">3m ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">Haha yeah, same thing happened to me</div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/servercrash/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Servers down again tonight…</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Peak-hour queue times exceeded 30 min with no official update from devs...</div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button class="px-3 py-1 rounded-full border border-outline-variant/50 text-[12px] text-on-surface-variant bg-transparent">Reply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=28" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline">MoonBreeze</span>
+              <span class="text-[11px] text-outline-variant">12m ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">Could you elaborate a bit more?</div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/rankguide/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Guide: Fast-track to Diamond</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Five tactics covering macro awareness, tempo, and champion pool selection with real match examples...</div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button class="px-3 py-1 rounded-full border border-outline-variant/50 text-[12px] text-on-surface-variant bg-transparent">Reply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <!-- Deleted post state -->
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=37" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline">BlitzStrike</span>
+              <span class="text-[11px] text-outline-variant">1h ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2" style="opacity:.5;text-decoration:line-through;text-decoration-color:rgba(42,52,57,.3)">Agreed, balance is really off this patch</div>
+            <div style="background:rgba(244,67,54,.05);border-left:3px solid rgba(244,67,54,.35);border-radius:10px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+              <div style="width:32px;height:32px;border-radius:8px;background:rgba(244,67,54,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(211,47,47,.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                </svg>
+              </div>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:rgba(211,47,47,.8);font-family:Inter,sans-serif;line-height:1.3">This post has been removed</div>
+                <div style="font-size:10px;color:#6e7681;margin-top:1px">Original content unavailable</div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button class="px-3 py-1 rounded-full text-[12px] bg-transparent" style="border:1px solid rgba(169,180,185,.3);color:#6e7681;cursor:not-allowed" disabled>Reply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=44" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[13px] font-bold text-on-surface font-headline">Player#4609</span>
+              <span class="text-[11px] text-outline-variant">2h ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">First! Thanks for sharing 🙌</div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/gamebalance/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Thoughts on game balance</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Exploring hero tier lists in the current patch and developer balance decisions...</div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button class="px-3 py-1 rounded-full border border-outline-variant/50 text-[12px] text-on-surface-variant bg-transparent">Reply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-end">~ You've reached the end (：3| ∠)</div>
+    </div>
+
+    <!-- ══ SCREEN: mentions ══ -->
+    <div id="screen-mentions" class="screen">
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=7" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+              <span class="text-[13px] font-bold text-on-surface font-headline">NightRider</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#4493f818;color:#4493f8">Post</span>
+              <span class="text-[11px] text-outline-variant ml-auto">5m ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">
+              <span class="text-primary font-bold">@me </span>What do you think about this?
+            </div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/balance2/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Discussion: New patch balance</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Major role strength shifts after the new patch — what do you think of the adjustments?</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=19" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+              <span class="text-[13px] font-bold text-on-surface font-headline">MoonBreeze</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#2e7d3218;color:#2e7d32">Comment</span>
+              <span class="text-[11px] text-outline-variant ml-auto">23m ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">
+              <span class="text-primary font-bold">@me </span>This makes so much sense!
+            </div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/gamebalance/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Thoughts on game balance</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Exploring hero tier lists and developer balance decisions in the current patch...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=31" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+              <span class="text-[13px] font-bold text-on-surface font-headline">BlitzStrike</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#4493f818;color:#4493f8">Post</span>
+              <span class="text-[11px] text-outline-variant ml-auto">1h ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">
+              <span class="text-primary font-bold">@me </span>Check out this guide, very detailed
+            </div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/newbie/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Beginner's complete starter guide</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Start-to-finish beginner guide covering basics, champion picks, and early resource tips...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-2.5">
+          <img src="https://i.pravatar.cc/80?img=42" class="w-[38px] h-[38px] rounded-full object-cover flex-shrink-0"/>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+              <span class="text-[13px] font-bold text-on-surface font-headline">StarDust</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#2e7d3218;color:#2e7d32">Comment</span>
+              <span class="text-[11px] text-outline-variant ml-auto">3h ago</span>
+            </div>
+            <div class="text-[13px] text-on-surface leading-relaxed mb-2">
+              <span class="text-primary font-bold">@me </span>Voice chat later?
+            </div>
+            <div class="bg-surface-container rounded-xl p-2 mb-2.5 border-l-[3px] border-[#b3d4f5] flex gap-2 overflow-hidden">
+              <img src="https://picsum.photos/seed/darknight/120/120" class="w-[52px] h-[52px] rounded-lg object-cover flex-shrink-0"/>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12px] font-bold text-on-surface leading-tight mb-0.5 overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">Anyone want to squad up tonight?</div>
+                <div class="text-[11px] text-on-surface-variant leading-snug overflow-hidden" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">Starting 8pm, ranked party, Diamond+ only — drop a comment if you're in!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-end">~ You've reached the end (：3| ∠)</div>
+    </div>
+
+    <!-- ══ SCREEN: likes ══ -->
+    <div id="screen-likes" class="screen">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab(this,'like')">Likes Received</button>
+        <button class="tab-btn" onclick="switchTab(this,'collect')">Saves Received</button>
+      </div>
+      <div id="likes-banner" class="mx-3.5 my-3 px-3.5 py-2.5 rounded-xl flex items-center gap-2.5" style="background:#1f3a56">
+        <span class="text-2xl" id="likes-banner-icon">👍</span>
+        <div>
+          <div class="text-sm font-bold font-headline" style="color:#4493f8" id="likes-banner-text">8 likes today</div>
+          <div class="text-[11px] mt-0.5" style="color:#79c0ff">Keep creating — more recognition is coming!</div>
+        </div>
+      </div>
+      <div id="likes-list"></div>
+      <div class="list-end">~ You've reached the end (：3| ∠)</div>
+    </div>
+
+    <!-- ══ SCREEN: system ══ -->
+    <div id="screen-system" class="screen">
+
+      <div class="msg-row" style="background:#161b22">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">⬆️</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="text-[13px] font-bold text-on-surface font-headline leading-snug flex-1">Congrats — Silver Player unlocked!</div>
+              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">just now</span>
+            </div>
+            <div class="text-xs text-on-surface-variant leading-relaxed">Your community contribution score hit the upgrade threshold!</div>
+          </div>
+          <div class="w-2 h-2 rounded-full bg-[#f44336] flex-shrink-0 mt-1"></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row" style="background:#161b22">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#fff3e0,#ffe0b2)">⚠️</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="text-[13px] font-bold text-on-surface font-headline leading-snug flex-1">Account security alert</div>
+              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">10m ago</span>
+            </div>
+            <div class="text-xs text-on-surface-variant leading-relaxed">New device login detected — was this you?</div>
+          </div>
+          <div class="w-2 h-2 rounded-full bg-[#f44336] flex-shrink-0 mt-1"></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">📋</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="text-[13px] font-medium text-on-surface font-headline leading-snug flex-1">Post approved</div>
+              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">1h ago</span>
+            </div>
+            <div class="text-xs text-on-surface-variant leading-relaxed">「New patch hero tier list」 passed review</div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">💰</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="text-[13px] font-medium text-on-surface font-headline leading-snug flex-1">Reward earned: +50 points</div>
+              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">yesterday</span>
+            </div>
+            <div class="text-xs text-on-surface-variant leading-relaxed">Completed「7-day login streak」achievement</div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">📣</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="text-[13px] font-medium text-on-surface font-headline leading-snug flex-1">Feature update</div>
+              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">3 days ago</span>
+            </div>
+            <div class="text-xs text-on-surface-variant leading-relaxed">Topic tags are now live — go explore!</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-end">~ You've reached the end (：3| ∠)</div>
+    </div>
+
+    <!-- ══ SCREEN: announce ══ -->
+    <div id="screen-announce" class="screen">
+
+      <div class="msg-row" onclick="navTo('announce-detail','Announcement',{id:1})">
+        <div class="flex items-start gap-2.5">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#e5393518;color:#e53935">Important</span>
+              <span class="text-[11px] text-outline-variant">2025/01/20</span>
+            </div>
+            <div class="text-sm font-bold text-on-surface font-headline mb-1">Lunar New Year Event 2025</div>
+            <div class="text-xs text-on-surface-variant truncate">Server maintenance schedule & festive event details</div>
+          </div>
+          <span class="material-symbols-outlined text-outline-variant mt-1 flex-shrink-0" style="font-size:18px">chevron_right</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row" onclick="navTo('announce-detail','Announcement',{id:2})">
+        <div class="flex items-start gap-2.5">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#4493f818;color:#4493f8">Patch</span>
+              <span class="text-[11px] text-outline-variant">2025/01/15</span>
+            </div>
+            <div class="text-sm font-bold text-on-surface font-headline mb-1">v2.8.0 Patch Notes</div>
+            <div class="text-xs text-on-surface-variant truncate">3 new heroes, balance changes & bug fixes</div>
+          </div>
+          <span class="material-symbols-outlined text-outline-variant mt-1 flex-shrink-0" style="font-size:18px">chevron_right</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row" onclick="navTo('announce-detail','Announcement',{id:3})">
+        <div class="flex items-start gap-2.5">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#388e3c18;color:#388e3c">Event</span>
+              <span class="text-[11px] text-outline-variant">2025/01/10</span>
+            </div>
+            <div class="text-sm font-bold text-on-surface font-headline mb-1">Community Creator Contest Results</div>
+            <div class="text-xs text-on-surface-variant truncate">Thank you to all participants for your amazing work!</div>
+          </div>
+          <span class="material-symbols-outlined text-outline-variant mt-1 flex-shrink-0" style="font-size:18px">chevron_right</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="msg-row" onclick="navTo('announce-detail','Announcement',{id:4})">
+        <div class="flex items-start gap-2.5">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#7b1fa218;color:#7b1fa2">Policy</span>
+              <span class="text-[11px] text-outline-variant">2025/01/05</span>
+            </div>
+            <div class="text-sm font-bold text-on-surface font-headline mb-1">Community Guidelines Update</div>
+            <div class="text-xs text-on-surface-variant truncate">Clarifications on conduct rules and enforcement</div>
+          </div>
+          <span class="material-symbols-outlined text-outline-variant mt-1 flex-shrink-0" style="font-size:18px">chevron_right</span>
+        </div>
+      </div>
+
+      <div class="list-end">~ You've reached the end (：3| ∠)</div>
+    </div>
+
+    <!-- ══ SCREEN: announce-detail ══ -->
+    <div id="screen-announce-detail" class="screen">
+      <div class="detail-body" id="announce-detail-content"></div>
+    </div>
+
+  </div><!-- /content-area -->
+</div><!-- /phone-shell -->
+
+<script>
+const ANNOUNCES = {
+  1: { tag:'Important', tagC:'#e53935', title:'Lunar New Year Event 2025', date:'2025/01/20',
+       body:'Dear players, the Lunar New Year is almost here! We\'ve prepared a range of festive events including limited-time skins, double XP cards, and exclusive seasonal quests. Servers will undergo scheduled maintenance on Jan 24 from 2:00–6:00 AM. Please plan accordingly.' },
+  2: { tag:'Patch', tagC:'#4493f8', title:'v2.8.0 Patch Notes', date:'2025/01/15',
+       body:'This update includes major balance adjustments, ability tuning for multiple heroes, and long-requested bug fixes from the community. Three brand-new hero characters are also being introduced — try them out!' },
+  3: { tag:'Event', tagC:'#388e3c', title:'Community Creator Contest Results', date:'2025/01/10',
+       body:'After careful deliberation by our judging panel, the Community Creator Contest has officially concluded. Thank you to every player who participated — your creativity was truly inspiring!' },
+  4: { tag:'Policy', tagC:'#7b1fa2', title:'Community Guidelines Update', date:'2025/01/05',
+       body:'To maintain a welcoming community environment, we have added further clarifications to our conduct policies. Please treat each other with respect and help us keep this a great space for everyone.' },
+};
+
+const LIKES_DATA = {
+  like: [
+    { av:'https://i.pravatar.cc/80?img=3',  name:'MoonBreeze', time:'just now',   post:'Thoughts on game balance' },
+    { av:'https://i.pravatar.cc/80?img=15', name:'NightRider', time:'2m ago',     post:'Guide: Fast-track to Diamond' },
+    { av:'https://i.pravatar.cc/80?img=35', name:'StarDust',   time:'1h ago',     post:'New patch hero tier list' },
+    { av:'https://i.pravatar.cc/80?img=52', name:'SunsetGlow', time:'5h ago',     post:'Beginner\'s complete starter guide' },
+  ],
+  collect: [
+    { av:'https://i.pravatar.cc/80?img=25', name:'BlitzStrike', time:'15m ago',   post:'Servers down again tonight…' },
+    { av:'https://i.pravatar.cc/80?img=48', name:'Player#4609', time:'3h ago',    post:'Guide: Fast-track to Diamond' },
+  ],
+};
+
+let navHistory = ['hub'];
+
+function navTo(screenId, title, params) {
+  navHistory.push(screenId);
+  _showScreen(screenId, title, params);
+}
+
+function goBack() {
+  if (navHistory.length <= 1) return;
+  navHistory.pop();
+  const prev = navHistory[navHistory.length - 1];
+  const titleMap = {
+    hub: 'Notifications', replies: 'Replies', mentions: 'Mentions',
+    likes: 'Likes & Saves', system: 'System', announce: 'Announcements',
+  };
+  _showScreen(prev, titleMap[prev] || '');
+}
+
+function _showScreen(screenId, title, params) {
+  if (screenId === 'announce-detail' && params) {
+    const ann = ANNOUNCES[params.id];
+    document.getElementById('announce-detail-content').innerHTML = `
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${ann.tagC}20;color:${ann.tagC}">${ann.tag}</span>
+      <h2 style="font-size:18px;font-weight:800;color:#e6edf3;font-family:Manrope,sans-serif;margin:10px 0 5px;line-height:1.35">${ann.title}</h2>
+      <div style="font-size:11px;color:#6e7681;margin-bottom:18px">Published ${ann.date}</div>
+      <div style="height:1px;background:rgba(169,180,185,.4);margin-bottom:18px"></div>
+      <p style="font-size:14px;color:#e6edf3;line-height:1.85">${ann.body}</p>
+    `;
+  }
+
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('screen-' + screenId);
+  if (el) el.classList.add('active');
+
+  document.querySelector('.content-area').scrollTop = 0;
+
+  document.getElementById('page-title').textContent = title || '';
+  const btnBack = document.getElementById('btn-back');
+  if (screenId === 'hub') {
+    btnBack.onclick = () => { window.location.href = './profile-en-dark.html'; };
+  } else {
+    btnBack.onclick = goBack;
+  }
+}
+
+function switchTab(btn, type) {
+  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLikesList(type);
+  const isLike = type === 'like';
+  document.getElementById('likes-banner-icon').textContent = isLike ? '👍' : '⭐';
+  document.getElementById('likes-banner-text').textContent = `${isLike ? 8 : 4} ${isLike ? 'likes' : 'saves'} today`;
+}
+
+function renderLikesList(type) {
+  const list = LIKES_DATA[type];
+  const icon = type === 'like' ? '❤️' : '⭐';
+  const verb = type === 'like' ? 'liked your post' : 'saved your post';
+  const html = list.map((r, i) => `
+    <div class="msg-row" style="display:flex;align-items:center;gap:10px">
+      <img src="${r.av}" style="width:38px;height:38px;border-radius:19px;object-fit:cover;flex-shrink:0"/>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:#e6edf3;font-family:Manrope,sans-serif;margin-bottom:2px">
+          ${r.name} <span style="font-size:12px;font-weight:400;color:#8b949e">${verb}</span>
+        </div>
+        <div style="font-size:11px;color:#6e7681;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">「${r.post}」</div>
+      </div>
+      <div style="flex-shrink:0;text-align:right">
+        <div style="font-size:11px;color:#6e7681">${r.time}</div>
+        <div style="font-size:18px;margin-top:2px">${icon}</div>
+      </div>
+    </div>
+    ${i < list.length - 1 ? '<div class="divider"></div>' : ''}
+  `).join('');
+  document.getElementById('likes-list').innerHTML = html;
+}
+
+renderLikesList('like');
+
+// Load sidebar
+fetch('../../shared/sidebar.js').then(r => r.text()).then(t => {
+  const s = document.createElement('script'); s.textContent = t; document.body.appendChild(s);
+}).catch(() => {});
+</script>
+</body>
+</html>

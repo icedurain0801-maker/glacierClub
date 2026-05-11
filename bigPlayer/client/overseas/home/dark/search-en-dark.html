@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>BigPlayer — Search (EN)</title>
+<link rel="stylesheet" href="../../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "on-surface-variant": "#8b949e",
+        "primary": "#4493f8",
+        "primary-dim": "#3882ef",
+        "surface-container-low": "#161b22",
+        "surface-variant": "#30363d",
+        "outline": "#6e7681",
+        "surface-container": "#1c2128",
+        "on-background": "#e6edf3",
+        "on-surface": "#e6edf3",
+        "background": "#0d1117",
+        "surface": "#0d1117",
+        "outline-variant": "#30363d",
+        "surface-container-high": "#21262d",
+      },
+      fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+    }
+  }
+}
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: 22px; line-height: 1; user-select: none;
+  }
+  body { min-height: 100dvh; }
+  .phone-shell { width: 375px; flex-shrink: 0; }
+  .phone-inner {
+    width: 375px; height: 812px;
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+  }
+  @media (max-width: 430px) {
+    body { background: #0d1117; align-items: flex-start; }
+    .phone-shell { width: 100vw; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; position: static !important; }
+    .phone-inner { width: 100vw; height: 100dvh; min-height: unset; }
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Dynamic Island */
+  .island { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 124px; height: 36px; background: #000; border-radius: 20px; z-index: 100; }
+
+  /* Status bar */
+  .status-bar {
+    height: 54px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 24px;
+    flex-shrink: 0; position: relative; z-index: 2;
+  }
+  .sb-time { font-family: Manrope, sans-serif; font-size: 15px; font-weight: 700; }
+  .sb-icons { display: flex; align-items: center; gap: 5px; }
+
+  /* Blue gradient top */
+  .search-top {
+    background: linear-gradient(175deg, #003d7a 0%, #4493f8 55%, #1a7fc4 100%);
+    padding: 0 16px 28px;
+    flex-shrink: 0;
+  }
+
+  /* Back row */
+  .back-row {
+    display: flex; align-items: center; gap: 6px;
+    color: rgba(255,255,255,0.75);
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 18px; cursor: pointer;
+  }
+  .back-row .material-symbols-outlined { font-size: 20px; color: rgba(255,255,255,0.75); }
+
+  /* Glass input */
+  .input-glass {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 14px;
+    padding: 10px 14px;
+  }
+  .input-glass .material-symbols-outlined { color: rgba(255,255,255,0.65); font-size: 20px; }
+  .input-glass input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-size: 14px; font-family: Inter, sans-serif;
+    color: #e6edf3; -webkit-appearance: none;
+  }
+  .input-glass input::placeholder { color: rgba(255,255,255,0.45); }
+  .input-glass input::-webkit-search-cancel-button { display: none; }
+
+  /* White body (floating card) */
+  .search-body {
+    background: #0d1117;
+    border-radius: 22px 22px 0 0;
+    margin-top: -16px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .search-body::-webkit-scrollbar { display: none; }
+
+  /* Section title */
+  .sect-title {
+    font-size: 13px; font-weight: 700; color: #e6edf3;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 16px 10px;
+  }
+  .sect-action { font-size: 12px; font-weight: 500; color: #4493f8; cursor: pointer; }
+
+  /* History chips */
+  .history-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 16px; }
+  .history-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px 5px 10px;
+    background: #0d1117; border: 1px solid #21262d; border-radius: 999px;
+    font-size: 12px; font-weight: 500; color: #e6edf3; cursor: pointer;
+    transition: background 0.12s;
+  }
+  .history-chip:active { background: #1c2128; }
+  .history-chip .material-symbols-outlined { font-size: 14px; color: #6e7681; }
+
+  /* Divider */
+  .divider { height: 6px; background: #161b22; }
+
+  /* Hot list */
+  .hot-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 16px; cursor: pointer;
+    transition: background 0.1s;
+  }
+  .hot-item:active { background: #161b22; }
+  .rank-num {
+    font-family: Manrope, sans-serif;
+    font-size: 15px; font-weight: 800;
+    width: 22px; flex-shrink: 0; text-align: center;
+  }
+  .rank-num.r1 { color: #dc2626; }
+  .rank-num.r2 { color: #ea580c; }
+  .rank-num.r3 { color: #ca8a04; }
+  .rank-num.rn { color: #c8d0d4; }
+  .hot-title {
+    flex: 1; font-size: 13px; font-weight: 500; color: #e6edf3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hot-views { font-size: 11px; color: #6e7681; white-space: nowrap; }
+  .hot-badge {
+    display: inline-block; margin-left: 6px;
+    padding: 1px 5px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; vertical-align: middle;
+  }
+  .hot-badge.hot { background: #ffedd5; color: #ea580c; }
+  .hot-badge.new { background: #fee2e2; color: #dc2626; }
+
+  /* Bottom nav */
+  .bnav {
+    height: 82px; background: rgba(13,17,23,.96);
+    backdrop-filter: blur(14px); border-top: 1px solid #21262d;
+    display: flex; align-items: flex-start; padding-top: 8px; flex-shrink: 0;
+  }
+  .bi { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding-top: 4px; }
+  .bi .material-symbols-outlined { font-size: 24px; color: #6e7681; }
+  .bi.on .material-symbols-outlined { color: #4493f8; font-variation-settings: 'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24; }
+  .bi-label { font-size: 10px; color: #6e7681; font-weight: 500; font-family: Inter, sans-serif; }
+  .bi.on .bi-label { color: #4493f8; }
+  .bpub { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; }
+  .bpub-btn { width: 46px; height: 46px; background: #4493f8; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,97,164,.35); margin-top: -10px; }
+  .bpub-btn .material-symbols-outlined { font-size: 22px; color: #fff; }
+</style>
+</head>
+<body class="bg-[#1a1f26] font-body text-on-surface flex justify-center items-start">
+<nav id="sidebar" class="sidebar hidden"></nav>
+
+<div class="phone-shell my-5 rounded-[44px] shadow-[0_0_0_10px_#1c2128,0_0_0_12px_#30363d,0_36px_72px_rgba(0,0,0,0.5)] overflow-hidden bg-surface sticky top-5 self-start">
+<div class="phone-inner">
+  <div class="island"></div>
+
+  <!-- Blue top area (includes status bar) -->
+  <div class="search-top">
+    <div class="status-bar">
+      <span class="sb-time" style="color:#fff;">9:41</span>
+      <div class="sb-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#fff" opacity=".9"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="#fff" opacity=".9"/><rect x="9" y="2" width="3" height="10" rx="1" fill="#fff" opacity=".9"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#fff" opacity=".9"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#fff"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="#fff" stroke-width="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="#fff"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="#fff"/></svg>
+      </div>
+    </div>
+
+    <!-- Back -->
+    <div class="back-row" onclick="history.length>1?history.back():location.href='home-en-dark.html'">
+      <span class="material-symbols-outlined">arrow_back</span>
+      <span>Back</span>
+    </div>
+
+    <!-- Search input -->
+    <div class="input-glass">
+      <span class="material-symbols-outlined">search</span>
+      <input type="search" id="main-search" placeholder="Search posts, topics..." autofocus
+             onkeydown="if(event.key==='Enter'&&this.value.trim())location.href='search-results-en.html?q='+encodeURIComponent(this.value.trim())"/>
+    </div>
+  </div>
+
+  <!-- White body -->
+  <div class="search-body">
+
+    <!-- Search history -->
+    <div class="sect-title">
+      <span>Recent Searches</span>
+      <span class="sect-action">
+        <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;">delete_outline</span>
+      </span>
+    </div>
+    <div class="history-row">
+      <span class="history-chip"><span class="material-symbols-outlined">history</span>Community update</span>
+      <span class="history-chip"><span class="material-symbols-outlined">history</span>Maintenance notice</span>
+      <span class="history-chip"><span class="material-symbols-outlined">history</span>Redeem code</span>
+      <span class="history-chip"><span class="material-symbols-outlined">history</span>Guild recruitment</span>
+      <span class="history-chip"><span class="material-symbols-outlined">history</span>S5 season</span>
+      <span class="history-chip"><span class="material-symbols-outlined">history</span>Beginner guide</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Trending topics -->
+    <div class="sect-title">
+      <span>🔥 Trending Topics</span>
+    </div>
+
+    <div>
+      <div class="hot-item">
+        <span class="rank-num r1">1</span>
+        <span class="hot-title">StarSpirit <span class="hot-badge hot">Hot</span></span>
+        <span class="hot-views">66,033 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num r2">2</span>
+        <span class="hot-title">Soul Hunter · Ancient Form</span>
+        <span class="hot-views">45,994 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num r3">3</span>
+        <span class="hot-title">Holiday Training Manual <span class="hot-badge new">New</span></span>
+        <span class="hot-views">18,809 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num rn">4</span>
+        <span class="hot-title">Season 5</span>
+        <span class="hot-views">3,229 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num rn">5</span>
+        <span class="hot-title">Beginner Guide Collection <span class="hot-badge new">New</span></span>
+        <span class="hot-views">2,876 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num rn">6</span>
+        <span class="hot-title">Guild Recruitment 2026</span>
+        <span class="hot-views">2,341 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num rn">7</span>
+        <span class="hot-title">Gear Enhancement Guide</span>
+        <span class="hot-views">1,988 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num rn">8</span>
+        <span class="hot-title">Legend Rank Challenge Log</span>
+        <span class="hot-views">1,654 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num rn">9</span>
+        <span class="hot-title">Super League Schedule Announcement</span>
+        <span class="hot-views">1,203 views</span>
+      </div>
+      <div class="hot-item">
+        <span class="rank-num rn">10</span>
+        <span class="hot-title">New Hero Skill Breakdown</span>
+        <span class="hot-views">987 views</span>
+      </div>
+    </div>
+
+    <div style="height:8px;"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bnav">
+    <div class="bi on" onclick="location.href='home-en-dark.html'"><span class="material-symbols-outlined">home</span><span class="bi-label">Home</span></div>
+    <div class="bi" onclick="location.href='../../news/dark/news-en-dark.html'"><span class="material-symbols-outlined">article</span><span class="bi-label">News</span></div>
+    <div class="bpub"><div class="bpub-btn"><span class="material-symbols-outlined">add</span></div><span class="bi-label">Post</span></div>
+    <div class="bi" onclick="location.href='../../feed/dark/feed-en-dark.html'"><span class="material-symbols-outlined">groups</span><span class="bi-label">Community</span></div>
+    <div class="bi" onclick="location.href='../../profile/dark/profile-en-dark.html'"><span class="material-symbols-outlined">person</span><span class="bi-label">Profile</span></div>
+  </nav>
+</div>
+</div>
+
+<script>
+document.querySelectorAll('.hot-item').forEach(el => {
+  el.addEventListener('click', () => {
+    const titleEl = el.querySelector('.hot-title');
+    if (!titleEl) return;
+    const title = titleEl.textContent.replace(/Hot|New/g, '').trim();
+    location.href = 'search-results-en.html?q=' + encodeURIComponent(title);
+  });
+});
+document.querySelectorAll('.history-chip').forEach(el => {
+  el.addEventListener('click', () => {
+    const text = el.textContent.trim();
+    location.href = 'search-results-en.html?q=' + encodeURIComponent(text);
+  });
+});
+</script>
+</body>
+</html>

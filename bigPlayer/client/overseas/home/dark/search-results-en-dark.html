@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>BigPlayer — Search Results (EN)</title>
+<link rel="stylesheet" href="../../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "on-surface-variant": "#8b949e",
+        "primary": "#4493f8",
+        "secondary-container": "#1f3a56",
+        "on-secondary-container": "#79c0ff",
+        "surface-container-low": "#161b22",
+        "surface-variant": "#30363d",
+        "surface-container": "#1c2128",
+        "on-background": "#e6edf3",
+        "on-surface": "#e6edf3",
+        "background": "#0d1117",
+        "surface": "#0d1117",
+        "outline-variant": "#30363d",
+        "surface-container-high": "#21262d",
+      },
+      fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+    }
+  }
+}
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: 22px; line-height: 1; user-select: none;
+  }
+  body { min-height: 100dvh; }
+  .phone-shell { width: 375px; flex-shrink: 0; }
+  .phone-inner {
+    width: 375px; height: 812px;
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+  }
+  @media (max-width: 430px) {
+    body { background: #0d1117; align-items: flex-start; }
+    .phone-shell { width: 100vw; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; position: static !important; }
+    .phone-inner { width: 100vw; height: 100dvh; min-height: unset; }
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Dynamic Island */
+  .island { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 124px; height: 36px; background: #000; border-radius: 20px; z-index: 100; }
+
+  /* Status bar */
+  .status-bar {
+    height: 54px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 24px;
+    flex-shrink: 0; position: relative; z-index: 2;
+  }
+  .sb-time { font-family: Manrope, sans-serif; font-size: 15px; font-weight: 700; }
+  .sb-icons { display: flex; align-items: center; gap: 5px; }
+
+  /* Blue gradient top */
+  .search-top {
+    background: linear-gradient(175deg, #003d7a 0%, #4493f8 55%, #1a7fc4 100%);
+    padding: 0 16px 28px;
+    flex-shrink: 0;
+  }
+  .back-row {
+    display: flex; align-items: center; gap: 6px;
+    color: rgba(255,255,255,0.75);
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 18px; cursor: pointer;
+  }
+  .back-row .material-symbols-outlined { font-size: 20px; color: rgba(255,255,255,0.75); }
+  .input-glass {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 14px; padding: 10px 14px;
+  }
+  .input-glass .material-symbols-outlined { color: rgba(255,255,255,0.65); font-size: 20px; }
+  .input-glass input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-size: 14px; font-family: Inter, sans-serif; color: #e6edf3;
+    -webkit-appearance: none;
+  }
+  .input-glass input::placeholder { color: rgba(255,255,255,0.45); }
+  .input-glass input::-webkit-search-cancel-button { display: none; }
+
+  /* Results area */
+  .results-body {
+    background: #0d1117;
+    border-radius: 22px 22px 0 0;
+    margin-top: -16px;
+    flex: 1;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid #21262d;
+    background: #161b22;
+    border-radius: 22px 22px 0 0;
+    flex-shrink: 0;
+  }
+  .tab-item {
+    flex: 1; text-align: center;
+    font-size: 13px; font-weight: 500; color: #8b949e;
+    padding: 13px 0;
+    border-bottom: 2px solid transparent;
+    cursor: pointer; transition: color 0.15s;
+  }
+  .tab-item.active { font-weight: 700; color: #e6edf3; border-bottom: 2px solid #4493f8; }
+  .tab-panel { display: none; flex: 1; overflow-y: auto; }
+  .tab-panel.active { display: flex; flex-direction: column; padding-top: 10px; }
+  .tab-panel::-webkit-scrollbar { display: none; }
+
+  /* Result card */
+  .result-card {
+    background: #161b22; border-radius: 10px;
+    padding: 14px; margin: 0 12px 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    flex-shrink: 0;
+  }
+  .card-user-row {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 12px;
+  }
+  .card-user-left { display: flex; align-items: center; gap: 10px; }
+  .card-avatar-wrap { position: relative; }
+  .card-avatar {
+    width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #93c5fd, #3b82f6);
+  }
+  .card-avatar.official { background: linear-gradient(135deg, #bae6fd, #0284c7); }
+  .card-online-dot {
+    position: absolute; bottom: -2px; right: -2px;
+    width: 14px; height: 14px;
+    background: #4493f8; border: 2px solid #0d1117; border-radius: 50%;
+  }
+  .card-user-info { display: flex; flex-direction: column; gap: 2px; }
+  .card-name-row { display: flex; align-items: center; gap: 6px; }
+  .card-username { font-size: 14px; font-weight: 700; color: #e6edf3; }
+  .card-lv {
+    font-size: 10px; font-weight: 700;
+    background: rgba(0,97,164,0.10); color: #4493f8;
+    padding: 2px 6px; border-radius: 999px;
+  }
+  .card-badge-row { display: flex; align-items: center; gap: 6px; }
+  .official-badge {
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 10px; font-weight: 500; color: #16a34a;
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    padding: 2px 5px; border-radius: 4px;
+  }
+  .official-badge .material-symbols-outlined { font-size: 10px; }
+  .card-time { font-size: 10px; color: #8b949e; }
+  .card-body { margin-bottom: 12px; }
+  .card-body p { font-size: 14px; line-height: 1.6; color: #e6edf3; }
+  .card-body .card-title { font-size: 15px; font-weight: 700; display: block; margin-bottom: 4px; }
+  .card-single-img {
+    width: 100%; border-radius: 8px; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: rgba(13,17,23,0.9);
+    height: 160px;
+  }
+  .card-stats {
+    display: flex; align-items: center; gap: 20px;
+    padding-top: 10px; border-top: 1px solid #161b22;
+    font-size: 12px; color: #8b949e; font-weight: 600;
+  }
+  .card-stats-item { display: flex; align-items: center; gap: 6px; }
+  .card-stats-item .material-symbols-outlined { font-size: 18px; }
+
+  /* Follow button */
+  .follow-btn {
+    padding: 6px 16px; border-radius: 999px;
+    background: #1f3a56; color: #79c0ff;
+    font-size: 12px; font-weight: 700;
+    border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    font-family: Inter, sans-serif;
+  }
+
+  /* User strip (All tab) */
+  .user-strip {
+    display: flex; gap: 12px;
+    overflow-x: auto; padding: 0 14px 12px;
+    flex-shrink: 0;
+  }
+  .user-strip::-webkit-scrollbar { display: none; }
+  .user-strip-item { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+  .strip-ring {
+    width: 56px; height: 56px; border-radius: 50%;
+    padding: 2.5px;
+    background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+    position: relative; flex-shrink: 0;
+  }
+  .strip-follow-btn {
+    position: absolute; bottom: -1px; right: -1px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #4493f8; border: 2px solid #0d1117;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 11px; font-weight: 700; color: #fff; line-height: 1;
+  }
+  .strip-name { font-size: 9px; color: #8b949e; text-align: center; width: 56px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  /* Section title */
+  .section-title {
+    font-size: 12px; font-weight: 700; color: #4493f8;
+    padding: 4px 14px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .section-count { font-size: 11px; font-weight: 400; color: #6e7681; }
+
+  /* User list row */
+  .user-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border-bottom: 1px solid #161b22;
+  }
+  .user-row:last-child { border-bottom: none; }
+  .user-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, #93c5fd, #3b82f6); flex-shrink: 0;
+  }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-size: 14px; font-weight: 600; color: #e6edf3; }
+  .user-sub { font-size: 11px; color: #6e7681; margin-top: 2px; }
+
+  /* Empty state */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 48px 24px 24px; text-align: center;
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: .45; }
+  .empty-title { font-size: 15px; font-weight: 600; color: #8b949e; margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; color: #6e7681; }
+  .hot-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+  .hot-chip { background: #1f3a56; color: #4493f8; font-size: 12px; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+
+  /* Bottom nav */
+  .bnav {
+    height: 82px; background: rgba(13,17,23,.96);
+    backdrop-filter: blur(14px); border-top: 1px solid #21262d;
+    display: flex; align-items: flex-start; padding-top: 8px; flex-shrink: 0;
+  }
+  .bi { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding-top: 4px; }
+  .bi .material-symbols-outlined { font-size: 24px; color: #6e7681; }
+  .bi.on .material-symbols-outlined { color: #4493f8; font-variation-settings: 'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24; }
+  .bi-label { font-size: 10px; color: #6e7681; font-weight: 500; font-family: Inter, sans-serif; }
+  .bi.on .bi-label { color: #4493f8; }
+  .bpub { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; }
+  .bpub-btn { width: 46px; height: 46px; background: #4493f8; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,97,164,.35); margin-top: -10px; }
+  .bpub-btn .material-symbols-outlined { font-size: 22px; color: #fff; }
+</style>
+</head>
+<body class="bg-[#1a1f26] font-body text-on-surface flex justify-center items-start">
+<nav id="sidebar" class="sidebar hidden"></nav>
+
+<div class="phone-shell my-5 rounded-[44px] shadow-[0_0_0_10px_#1c2128,0_0_0_12px_#30363d,0_36px_72px_rgba(0,0,0,0.5)] overflow-hidden bg-surface sticky top-5 self-start">
+<div class="phone-inner">
+  <div class="island"></div>
+
+  <!-- Blue top area -->
+  <div class="search-top">
+    <div class="status-bar">
+      <span class="sb-time" style="color:#fff;">9:41</span>
+      <div class="sb-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#fff" opacity=".9"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="#fff" opacity=".9"/><rect x="9" y="2" width="3" height="10" rx="1" fill="#fff" opacity=".9"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#fff" opacity=".9"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#fff"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="#fff" stroke-width="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="#fff"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="#fff"/></svg>
+      </div>
+    </div>
+
+    <div class="back-row" onclick="history.length>1?history.back():location.href='search-en-dark.html'">
+      <span class="material-symbols-outlined">arrow_back</span>
+      <span>Back</span>
+    </div>
+    <div class="input-glass">
+      <span class="material-symbols-outlined">search</span>
+      <input type="search" id="search-input" placeholder="Search posts, topics..."
+             onkeydown="if(event.key==='Enter'&&this.value.trim()){const u=new URL(location);u.searchParams.set('q',this.value.trim());location.href=u.toString();}"/>
+    </div>
+  </div>
+
+  <!-- Results area -->
+  <div class="results-body">
+    <div class="tab-bar">
+      <div class="tab-item active" data-tab="all" onclick="switchTab('all')">All</div>
+      <div class="tab-item" data-tab="posts" onclick="switchTab('posts')">Posts</div>
+      <div class="tab-item" data-tab="users" onclick="switchTab('users')">Users</div>
+    </div>
+    <div class="tab-panel active" id="panel-all"></div>
+    <div class="tab-panel" id="panel-posts"></div>
+    <div class="tab-panel" id="panel-users"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bnav">
+    <div class="bi on" onclick="location.href='home-en-dark.html'"><span class="material-symbols-outlined">home</span><span class="bi-label">Home</span></div>
+    <div class="bi" onclick="location.href='../../news/dark/news-en-dark.html'"><span class="material-symbols-outlined">article</span><span class="bi-label">News</span></div>
+    <div class="bpub"><div class="bpub-btn"><span class="material-symbols-outlined">add</span></div><span class="bi-label">Post</span></div>
+    <div class="bi" onclick="location.href='../../feed/dark/feed-en-dark.html'"><span class="material-symbols-outlined">groups</span><span class="bi-label">Community</span></div>
+    <div class="bi" onclick="location.href='../../profile/dark/profile-en-dark.html'"><span class="material-symbols-outlined">person</span><span class="bi-label">Profile</span></div>
+  </nav>
+</div>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.toggle('active', el.id === 'panel-' + tab));
+}
+
+const params = new URLSearchParams(location.search);
+const query = params.get('q') || '';
+document.getElementById('search-input').value = query;
+
+const MOCK_POSTS = [
+  {
+    id: 1, official: true,
+    username: 'BigPlayer Official', level: 'lv14', time: '1y ago',
+    avatar: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg',
+    text: '【Community Upgrade Plan 3.0】Dear Adventurers, have you completed today\'s upgrade tasks?',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#f97316,#dc2626)', imageLabel: 'Blazing Phoenix',
+    likes: 1703, comments: 218
+  },
+  {
+    id: 2, official: false,
+    username: 'StarVoyager', level: 'lv9', time: '1y ago',
+    avatar: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
+    text: 'The community got updated — looks so much better than before!',
+    hasImage: false, likes: 1, comments: 2
+  },
+  {
+    id: 3, official: false,
+    username: 'NightWalker', level: 'lv7', time: '2y ago',
+    avatar: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg',
+    text: 'Found a bunch of new features after the update — especially the search, way faster now. Loving it!',
+    hasImage: false, likes: 34, comments: 9
+  },
+  {
+    id: 4, official: true,
+    username: 'BigPlayer Official', level: 'lv14', time: '2y ago',
+    avatar: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg',
+    text: '【Community Upgrade Plan 2.0】Have you finished today\'s tasks?',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#4493f8,#0891b2)', imageLabel: 'Upgrade Notice',
+    likes: 4201, comments: 512
+  },
+  {
+    id: 5, official: false,
+    username: 'IronShadow', level: 'lv11', time: '1y ago',
+    avatar: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
+    text: 'The new layout looks really polished, bookmarked!',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#7c3aed,#db2777)', imageLabel: 'New UI Screenshot',
+    likes: 89, comments: 14
+  },
+  {
+    id: 6, official: false,
+    username: 'MoonChaser', level: 'lv5', time: '3y ago',
+    avatar: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg',
+    text: 'Interface is so much cleaner — keep it up!',
+    hasImage: false, likes: 12, comments: 3
+  }
+];
+
+const MOCK_USERS = [
+  { username: 'StarDrifter', level: 'Lv.8', followers: 56, avatar: 'https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg' },
+  { username: 'StarGazer', level: 'Lv.5', followers: 12, avatar: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg' },
+  { username: 'StarFlight', level: 'Lv.12', followers: 203, avatar: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png' },
+  { username: 'StarDream', level: 'Lv.7', followers: 44, avatar: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg' },
+  { username: 'StarWatcher', level: 'Lv.3', followers: 8, avatar: 'https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg' },
+  { username: 'StarRise', level: 'Lv.6', followers: 31, avatar: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg' },
+  { username: 'StarWarm', level: 'Lv.9', followers: 77, avatar: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png' }
+];
+
+const HOT_KEYWORDS = ['StarSpirit', 'Soul Hunter', 'Season 5', 'Guild Recruitment', 'Beginner Guide', 'Blazing Phoenix', 'Super League', 'Gear Enhancement'];
+
+function postCardHTML(post) {
+  const avatarClass = post.official ? 'card-avatar official' : 'card-avatar';
+  const lvNum = parseInt((post.level || 'lv1').replace('lv','')) || 1;
+  const badgeRow = post.official
+    ? `<div class="card-badge-row"><span class="official-badge"><span class="material-symbols-outlined">verified</span>Official</span><span class="card-time">${post.time}</span></div>`
+    : `<div class="card-badge-row"><span class="card-time">${post.time}</span></div>`;
+  const imageHTML = post.hasImage
+    ? `<div class="card-single-img" style="background:${post.imageBg};">${post.imageLabel}</div>`
+    : '';
+  return `
+    <div class="result-card">
+      <div class="card-user-row">
+        <div class="card-user-left">
+          <div class="card-avatar-wrap">
+            <img class="${avatarClass}" src="${post.avatar}" alt="${post.username}" style="object-fit:cover;cursor:pointer;" onclick="event.stopPropagation();location.href='../../profile/dark/profile-other-en-dark.html'"/>
+            <div class="card-online-dot"></div>
+          </div>
+          <div class="card-user-info">
+            <div class="card-name-row">
+              <span class="card-username">${post.username}</span>
+              <span class="card-lv">LV.${lvNum}</span>
+            </div>
+            ${badgeRow}
+          </div>
+        </div>
+        <button class="follow-btn">Follow</button>
+      </div>
+      <div class="card-body"><p>${post.text}</p>${imageHTML}</div>
+      <div class="card-stats">
+        <div class="card-stats-item"><span class="material-symbols-outlined">thumb_up</span><span>${post.likes}</span></div>
+        <div class="card-stats-item"><span class="material-symbols-outlined">chat_bubble</span><span>${post.comments}</span></div>
+        <div class="card-stats-item"><span class="material-symbols-outlined">share</span><span>Share</span></div>
+      </div>
+    </div>`;
+}
+
+function emptyStateHTML() {
+  const chips = HOT_KEYWORDS.map(k => `<span class="hot-chip" onclick="location.href='search-results-en.html?q='+encodeURIComponent('${k}')">${k}</span>`).join('');
+  return `
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">No results found</div>
+      <div class="empty-sub">Try a different keyword?</div>
+    </div>
+    <div class="section-title">Trending Searches</div>
+    <div class="hot-chips">${chips}</div>`;
+}
+
+function userStripHTML() {
+  const items = MOCK_USERS.slice(0, 6).map(u => `
+    <div class="user-strip-item">
+      <div class="strip-ring">
+        <img src="${u.avatar}" alt="${u.username}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;cursor:pointer;" onclick="location.href='../../profile/dark/profile-other-en-dark.html'"/>
+        <button class="strip-follow-btn" onclick="this.textContent=this.textContent==='+'?'✓':'+';this.style.background=this.textContent==='✓'?'#22c55e':'#4493f8'">+</button>
+      </div>
+      <span class="strip-name">${u.username}</span>
+    </div>`).join('');
+  return `<div class="section-title">Related Users</div><div class="user-strip">${items}</div>`;
+}
+
+function renderAll() {
+  if (query.toLowerCase().includes('empty')) {
+    ['all','posts','users'].forEach(id => document.getElementById('panel-'+id).innerHTML = emptyStateHTML());
+    return;
+  }
+  let html = userStripHTML();
+  if (MOCK_POSTS.length) {
+    html += `<div class="section-title">Related Posts</div>`;
+    html += MOCK_POSTS.map(postCardHTML).join('');
+  }
+  document.getElementById('panel-all').innerHTML = html || emptyStateHTML();
+}
+
+function renderPosts() {
+  if (query.toLowerCase().includes('empty')) return;
+  const official = MOCK_POSTS.filter(p => p.official);
+  const community = MOCK_POSTS.filter(p => !p.official);
+  let html = '';
+  if (official.length) html += `<div class="section-title">Official Posts <span class="section-count">${official.length} results</span></div>` + official.map(postCardHTML).join('');
+  if (community.length) html += `<div class="section-title">Community Posts <span class="section-count">${community.length} results</span></div>` + community.map(postCardHTML).join('');
+  document.getElementById('panel-posts').innerHTML = html || emptyStateHTML();
+}
+
+function renderUsers() {
+  if (query.toLowerCase().includes('empty')) return;
+  const rows = MOCK_USERS.map(u => `
+    <div class="user-row">
+      <img class="user-avatar" src="${u.avatar}" alt="${u.username}" style="object-fit:cover;cursor:pointer;" onclick="location.href='../../profile/dark/profile-other-en-dark.html'"/>
+      <div class="user-info">
+        <div class="user-name">${u.username}</div>
+        <div class="user-sub">${u.level} · ${u.followers} followers</div>
+      </div>
+      <button class="follow-btn">Follow</button>
+    </div>`).join('');
+  document.getElementById('panel-users').innerHTML = rows || emptyStateHTML();
+}
+
+renderAll();
+renderPosts();
+renderUsers();
+</script>
+</body>
+</html>
