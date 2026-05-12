@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SDK 管理后台 · 配置列表</title>
+<style>
+:root{
+  --ink:#0b1220;--ink-2:#1f2937;--ink-3:#475569;--ink-4:#94a3b8;
+  --border:#e5e9f0;--border-2:#eef1f6;--bg:#f5f7fa;--bg-2:#fafbfc;--white:#fff;
+  --brand:#2563eb;--brand-deep:#1e3a8a;--brand-soft:#dbeafe;
+  --green:#059669;--green-bg:#ecfdf5;
+  --amber:#d97706;--amber-bg:#fffbeb;
+  --red:#dc2626;--red-bg:#fef2f2;
+  --grey:#64748b;--grey-bg:#f1f5f9;
+  --sidebar:232px;--topnav-h:48px;--topbar-h:48px;--tabbar-h:38px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);
+  line-height:1.55;font-size:14px;
+  display:flex;flex-direction:column;min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.icon svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+
+/* ════ TOP NAV ════ */
+.plat-nav{background:#0a1828;color:#cbd5e1;height:var(--topnav-h);flex-shrink:0;display:flex;align-items:center;font-size:13px;}
+.plat-brand{display:flex;align-items:center;gap:10px;padding:0 24px;height:100%;font-weight:700;color:white;}
+.plat-brand-ico{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#3b82f6,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:white;}
+.plat-nav-list{display:flex;align-items:center;height:100%;}
+.plat-nav-item{padding:0 18px;height:100%;display:flex;align-items:center;color:#94a3b8;cursor:pointer;position:relative;transition:color .15s;}
+.plat-nav-item:hover{color:#e2e8f0;}
+.plat-nav-item.active{color:white;font-weight:600;}
+.plat-nav-item.active::after{content:'';position:absolute;left:18px;right:18px;bottom:0;height:2px;background:#3b82f6;}
+
+.app-shell{flex:1;display:flex;min-height:0;}
+
+/* ════ SIDEBAR (light) ════ */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:white;border-right:1px solid var(--border);
+  height:calc(100vh - var(--topnav-h));position:sticky;top:var(--topnav-h);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.sb-brand{
+  padding:14px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+  font-size:14px;font-weight:700;color:var(--ink);
+}
+.sb-brand-ico{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#3b82f6,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:white;letter-spacing:-.02em;}
+
+.sb-list{padding:8px 0;}
+.nav-group{}
+.nav-group > .nav-head{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 18px;cursor:pointer;
+  font-size:13.5px;color:var(--ink-2);font-weight:500;
+  transition:background .12s;
+}
+.nav-group > .nav-head:hover{background:var(--bg-2);}
+.nav-group > .nav-head .ico{width:16px;height:16px;color:var(--ink-3);}
+.nav-group > .nav-head .chev{margin-left:auto;width:14px;height:14px;color:var(--ink-4);transition:transform .15s;}
+.nav-group.open > .nav-head .chev{transform:rotate(90deg);}
+.nav-group.open > .nav-head{color:var(--ink);font-weight:600;}
+
+.nav-sub{display:none;padding:2px 0 4px;}
+.nav-group.open > .nav-sub{display:block;}
+.nav-leaf{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 18px 8px 44px;cursor:pointer;
+  font-size:13px;color:var(--ink-3);
+  transition:background .12s,color .12s;
+  position:relative;
+}
+.nav-leaf:hover{background:var(--bg-2);color:var(--ink-2);}
+.nav-leaf.active{
+  background:var(--brand-soft);color:var(--brand-deep);font-weight:600;
+}
+.nav-leaf.active::before{
+  content:'';position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;
+  background:var(--brand);
+}
+
+.nav-flat{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 18px;cursor:pointer;
+  font-size:13.5px;color:var(--ink-2);font-weight:500;
+  transition:background .12s;
+}
+.nav-flat:hover{background:var(--bg-2);}
+.nav-flat .ico{width:16px;height:16px;color:var(--ink-3);}
+
+/* ════ MAIN ════ */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;height:calc(100vh - var(--topnav-h));overflow-y:auto;}
+.topbar{
+  background:white;border-bottom:1px solid var(--border);
+  padding:0 20px;height:var(--topbar-h);flex-shrink:0;
+  display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:5;
+}
+.tb-toggle{width:24px;height:24px;color:var(--ink-3);cursor:pointer;}
+.tb-spacer{flex:1;}
+.tb-tools{display:flex;align-items:center;gap:8px;}
+.tb-search{
+  display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+  border:1px solid var(--border);border-radius:6px;
+  font-size:12.5px;color:var(--ink-4);background:white;cursor:pointer;min-width:240px;
+}
+.tb-search .placeholder{flex:1;}
+.tb-search .kbd{font-size:11px;color:var(--ink-4);background:var(--bg-2);padding:1px 6px;border-radius:4px;border:1px solid var(--border);}
+.tb-icon-btn{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;position:relative;}
+.tb-icon-btn:hover{background:var(--bg-2);}
+.tb-icon-btn .icon{width:16px;height:16px;}
+.tb-icon-btn .alert-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--red);}
+.tb-pill{
+  display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;
+  border:1px solid var(--amber);border-radius:6px;
+  background:var(--amber-bg);color:var(--amber);
+  font-size:12px;font-weight:600;cursor:pointer;
+}
+.tb-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);}
+.tb-select{
+  display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;
+  border:1px solid var(--border);border-radius:6px;
+  background:white;font-size:12.5px;color:var(--ink-2);cursor:pointer;
+}
+.tb-select .caret{color:var(--ink-4);font-size:9px;margin-left:2px;}
+.tb-select.user .avatar{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:white;}
+
+/* TAB BAR */
+.tabbar{
+  background:#fafbfc;border-bottom:1px solid var(--border);
+  height:var(--tabbar-h);flex-shrink:0;
+  display:flex;align-items:flex-end;padding:0 12px;gap:2px;
+}
+.tab{
+  display:flex;align-items:center;gap:6px;
+  height:30px;padding:0 12px;
+  border:1px solid var(--border);border-bottom:none;
+  border-radius:6px 6px 0 0;
+  background:#eef1f6;color:var(--ink-3);
+  font-size:12.5px;cursor:pointer;
+  margin-bottom:-1px;
+}
+.tab:hover{background:#e9edf3;color:var(--ink-2);}
+.tab.active{background:white;color:var(--brand);font-weight:600;}
+.tab .x{width:14px;height:14px;color:var(--ink-4);border-radius:3px;display:inline-flex;align-items:center;justify-content:center;}
+.tab .x:hover{background:var(--border-2);color:var(--ink-2);}
+
+/* CONTENT */
+.content{flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
+
+/* FILTER PANEL */
+.filter-panel{
+  background:white;border:1px solid var(--border);border-radius:8px;
+  padding:14px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  box-shadow:var(--shadow-sm);
+}
+.f-input,.f-sel{
+  height:32px;padding:0 12px;
+  border:1px solid var(--border);border-radius:6px;
+  background:white;font-size:13px;color:var(--ink-2);
+  min-width:180px;outline:none;transition:border-color .12s;
+}
+.f-input::placeholder{color:var(--ink-4);}
+.f-input:focus,.f-sel:focus{border-color:var(--brand);}
+.f-sel{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center;background-size:14px;padding-right:30px;cursor:pointer;}
+.f-btn{
+  height:32px;padding:0 18px;
+  background:var(--brand);color:white;border:none;border-radius:6px;
+  font-size:13px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+}
+.f-btn:hover{background:var(--brand-deep);}
+.f-btn .icon{width:14px;height:14px;}
+
+/* ACTIONS BAR */
+.actions-bar{display:flex;gap:8px;}
+.btn{
+  height:32px;padding:0 14px;
+  border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;border:1px solid transparent;
+  transition:all .12s;
+}
+.btn.primary{background:var(--brand);color:white;}
+.btn.primary:hover{background:var(--brand-deep);}
+.btn.ghost{background:white;color:var(--ink-2);border-color:var(--border);}
+.btn.ghost:hover{background:var(--bg-2);border-color:var(--ink-4);}
+.btn .icon{width:14px;height:14px;}
+
+/* TABLE */
+.tbl-wrap{
+  background:white;border:1px solid var(--border);border-radius:8px;
+  overflow:hidden;box-shadow:var(--shadow-sm);
+}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl th{
+  text-align:left;padding:11px 16px;
+  background:#f6f8fb;border-bottom:1px solid var(--border);
+  font-size:12px;font-weight:600;color:var(--ink-3);
+  white-space:nowrap;
+}
+.tbl td{
+  padding:14px 16px;border-bottom:1px solid var(--border-2);
+  vertical-align:top;color:var(--ink-2);
+}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:#f9fbff;}
+
+.cell-id{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:12px;color:var(--ink-2);
+  word-break:break-all;
+}
+.cell-channel{font-size:13px;color:var(--ink-2);line-height:1.55;min-width:170px;}
+.cell-channel .ch-name{font-weight:500;color:var(--ink);}
+.cell-channel .ch-id{font-size:12px;color:var(--ink-4);}
+
+.scheme-block{font-size:12.5px;line-height:1.7;}
+.scheme-block .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.scheme-block .row + .row{margin-top:2px;}
+.scheme-block .lbl{color:var(--ink-3);white-space:nowrap;}
+.scheme-block .lnk{color:var(--brand);cursor:pointer;font-weight:500;}
+.scheme-block .lnk:hover{text-decoration:underline;}
+.scheme-block .effect{color:var(--ink-4);font-size:12px;margin-top:6px;}
+.scheme-block .effect-row{display:flex;gap:8px;font-variant-numeric:tabular-nums;}
+
+.compl{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;line-height:1.4;}
+.c-ok{background:var(--green-bg);color:var(--green);}
+.c-risk{background:var(--red-bg);color:var(--red);}
+.c-ok::before,.c-risk::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+.status-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:999px;
+  font-size:12px;font-weight:600;white-space:nowrap;
+}
+.status-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+.s-active{background:var(--green-bg);color:var(--green);}
+.s-pending{background:var(--amber-bg);color:var(--amber);}
+.s-disabled{background:var(--grey-bg);color:var(--grey);}
+
+.cell-time{font-size:12.5px;color:var(--ink-2);line-height:1.55;font-variant-numeric:tabular-nums;min-width:130px;}
+.cell-time .time{color:var(--ink-2);}
+.cell-time .by{color:var(--ink-4);font-size:12px;}
+
+.ops{display:inline-flex;align-items:center;gap:2px;}
+.ops .op{
+  padding:4px 8px;border-radius:5px;
+  font-size:12.5px;font-weight:500;color:var(--brand);
+  cursor:pointer;transition:background .12s;
+}
+.ops .op:hover{background:var(--brand-soft);}
+.ops .op.danger{color:var(--red);}
+.ops .op.danger:hover{background:var(--red-bg);}
+.ops .op.muted{color:var(--ink-4);cursor:default;}
+.ops .op.muted:hover{background:transparent;}
+
+/* PAGER */
+.pager{
+  padding:12px 16px;display:flex;align-items:center;
+  border-top:1px solid var(--border-2);font-size:12.5px;color:var(--ink-3);
+  background:#fafbfc;
+}
+.pager .total{margin-right:auto;}
+.pg-btn{
+  width:30px;height:30px;border:1px solid var(--border);background:white;
+  border-radius:6px;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--ink-3);cursor:pointer;font-weight:500;margin:0 2px;
+}
+.pg-btn:hover{border-color:var(--brand);color:var(--brand);}
+.pg-btn.active{background:var(--brand);color:white;border-color:var(--brand);}
+.pg-btn.disabled{color:var(--ink-4);cursor:default;}
+.pg-sel{margin-left:14px;height:30px;padding:0 10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:12.5px;color:var(--ink-3);cursor:pointer;}
+</style>
+</head>
+<body>
+
+<!-- ════ TOP NAV ════ -->
+<div class="plat-nav">
+  <div class="plat-brand">
+    <span class="plat-brand-ico">冰</span>冰川业务平台
+  </div>
+  <div class="plat-nav-list">
+    <div class="plat-nav-item">游戏运营后台</div>
+    <div class="plat-nav-item">自动化运维</div>
+    <div class="plat-nav-item">自动化部署</div>
+    <div class="plat-nav-item active">SDK 管理后台</div>
+    <div class="plat-nav-item">会员管理后台</div>
+    <div class="plat-nav-item">数数分析</div>
+    <div class="plat-nav-item">客服后台</div>
+    <div class="plat-nav-item">活动管理系统</div>
+    <div class="plat-nav-item">聊天系统</div>
+    <div class="plat-nav-item">联合业务后台</div>
+    <div class="plat-nav-item">开放平台</div>
+    <div class="plat-nav-item">通用配置</div>
+  </div>
+</div>
+
+<!-- ════ APP SHELL ════ -->
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sb-brand">
+      <span class="sb-brand-ico">SDK</span>SDK 管理后台
+    </div>
+
+    <div class="sb-list">
+      <div class="nav-flat" onclick="location.href='sdkSchemeManagement.html'">
+        <span class="ico icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+        首页
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-head" onclick="this.parentElement.classList.toggle('open')">
+          <span class="ico icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+          方案管理
+          <span class="chev icon"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+        </div>
+        <div class="nav-sub">
+          <div class="nav-leaf" onclick="location.href='schemeList.html'">方案列表</div>
+        </div>
+      </div>
+
+      <div class="nav-group open">
+        <div class="nav-head" onclick="this.parentElement.classList.toggle('open')">
+          <span class="ico icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+          配置管理
+          <span class="chev icon"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+        </div>
+        <div class="nav-sub">
+          <div class="nav-leaf active">配置列表</div>
+          <div class="nav-leaf">渠道组管理</div>
+          <div class="nav-leaf">支付配置管理</div>
+        </div>
+      </div>
+
+      <div class="nav-flat">
+        <span class="ico icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        热更补丁管理
+      </div>
+
+      <div class="nav-flat">
+        <span class="ico icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        系统管理
+      </div>
+
+      <div class="nav-flat">
+        <span class="ico icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+        开发者工具
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <span class="tb-toggle icon"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
+      <div class="tb-spacer"></div>
+      <div class="tb-tools">
+        <span class="tb-icon-btn"><span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></span>
+        <div class="tb-search">
+          <span class="icon" style="width:14px;height:14px;color:var(--ink-4);"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <span class="placeholder">输入功能名称</span>
+          <span class="kbd">Ctrl+K</span>
+        </div>
+        <span class="tb-pill"><span class="dot"></span>2 项待处理</span>
+        <span class="tb-icon-btn"><span class="icon"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span class="alert-dot"></span></span>
+        <span class="tb-icon-btn"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></span>
+        <div class="tb-select"><span>境内</span><span class="caret">▼</span></div>
+        <div class="tb-select"><span>远征手游</span><span class="caret">▼</span></div>
+        <div class="tb-select user"><span class="avatar">福</span><span>福毅</span><span class="caret">▼</span></div>
+      </div>
+    </div>
+
+    <!-- TAB BAR -->
+    <div class="tabbar">
+      <div class="tab" onclick="location.href='sdkSchemeManagement.html'">首页 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+      <div class="tab active">配置列表 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- FILTER -->
+      <div class="filter-panel">
+        <select class="f-sel"><option>请选择渠道组</option><option>商务CPS包</option><option>买量包</option><option>国服版本</option></select>
+        <select class="f-sel"><option>请选择渠道名</option><option>冰川网络-商务CPS包</option><option>雷牛-游否-国服IOS包</option></select>
+        <select class="f-sel"><option>移动端方案</option><option>模拟器方案</option><option>专属客服方案</option></select>
+        <input class="f-input" placeholder="请输入方案名" />
+        <select class="f-sel" style="min-width:120px;"><option>状态</option><option>生效中</option><option>待生效</option><option>已失效</option></select>
+        <input class="f-input" placeholder="请输入最后操作人" />
+        <button class="f-btn"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>查询</button>
+      </div>
+
+      <!-- ACTIONS -->
+      <div class="actions-bar">
+        <button class="btn primary"><span class="icon"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>新增</button>
+        <button class="btn ghost">渠道组管理</button>
+      </div>
+
+      <!-- TABLE -->
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width:160px;">ID</th>
+              <th style="width:200px;">游戏 / 渠道组 / 渠道名(id)</th>
+              <th>原数据</th>
+              <th>修改后数据</th>
+              <th style="width:100px;">状态</th>
+              <th style="width:160px;">最后修改</th>
+              <th style="width:160px;">审批人</th>
+              <th style="width:140px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <tr>
+              <td><span class="cell-id">6086b520bc4c3f004661fe8a</span></td>
+              <td>
+                <div class="cell-channel">
+                  <div class="ch-name">冰川网络-商务CPS包-远征手游</div>
+                  <div class="ch-id">(2107621)</div>
+                </div>
+              </td>
+              <td>
+                <div class="scheme-block">
+                  <div class="row"><span class="lbl">移动端方案：</span><span class="lnk">买量包-实名开启(移动端SDK)</span><span class="compl c-ok">合规</span></div>
+                  <div class="row"><span class="lbl">模拟器方案：</span><span class="lnk">买量包-实名开启(移动端SDK)</span><span class="compl c-ok">合规</span></div>
+                  <div class="row"><span class="lbl">专属客服方案：</span><span class="lnk">买量包-实名开启(移动端SDK)-专属客服方案</span></div>
+                  <div class="effect">
+                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2021-04-26 20:42:00</span></div>
+                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-27 20:42:00</span></div>
+                  </div>
+                </div>
+              </td>
+              <td></td>
+              <td><span class="status-pill s-active">生效中</span></td>
+              <td><div class="cell-time"><div class="time">2026-04-15 10:00:34</div><div class="by">龙振华</div></div></td>
+              <td><div class="cell-time"><div class="time">2026-04-15 10:00:40</div><div class="by">龙振华</div></div></td>
+              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+            </tr>
+
+            <tr>
+              <td><span class="cell-id">69cde0389076dc005538ec90</span></td>
+              <td>
+                <div class="cell-channel">
+                  <div class="ch-name">雷牛-游否-国服IOS包-远征手游</div>
+                  <div class="ch-id">(2107634)</div>
+                </div>
+              </td>
+              <td>
+                <div class="scheme-block">
+                  <div class="row"><span class="lbl">移动端方案：</span><span class="lnk">渠道关闭隐私配置(移动端SDK)</span><span class="compl c-risk">风险</span></div>
+                  <div class="row"><span class="lbl">模拟器方案：</span><span class="lnk">渠道关闭隐私配置(移动端SDK)</span><span class="compl c-risk">风险</span></div>
+                  <div class="effect">
+                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2026-04-02 11:19:01</span></div>
+                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-31 23:59:59</span></div>
+                  </div>
+                </div>
+              </td>
+              <td></td>
+              <td><span class="status-pill s-active">生效中</span></td>
+              <td><div class="cell-time"><div class="time">2026-04-02 11:35:26</div><div class="by">龙振华</div></div></td>
+              <td><div class="cell-time"><div class="time">2026-04-02 11:35:33</div><div class="by">龙振华</div></div></td>
+              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+            </tr>
+
+            <tr>
+              <td><span class="cell-id">69cde0389076dc005538ec8f</span></td>
+              <td>
+                <div class="cell-channel">
+                  <div class="ch-name">雷牛-游否-国服安卓包-远征手游</div>
+                  <div class="ch-id">(2107633)</div>
+                </div>
+              </td>
+              <td>
+                <div class="scheme-block">
+                  <div class="row"><span class="lbl">移动端方案：</span><span class="lnk">渠道关闭隐私配置(移动端SDK)</span><span class="compl c-risk">风险</span></div>
+                  <div class="row"><span class="lbl">模拟器方案：</span><span class="lnk">渠道关闭隐私配置(移动端SDK)</span><span class="compl c-risk">风险</span></div>
+                  <div class="effect">
+                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2026-04-02 11:19:01</span></div>
+                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-31 23:59:59</span></div>
+                  </div>
+                </div>
+              </td>
+              <td></td>
+              <td><span class="status-pill s-active">生效中</span></td>
+              <td><div class="cell-time"><div class="time">2026-04-02 11:35:00</div><div class="by">龙振华</div></div></td>
+              <td><div class="cell-time"><div class="time">2026-04-02 11:35:09</div><div class="by">龙振华</div></div></td>
+              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+            </tr>
+
+            <tr>
+              <td><span class="cell-id">69c355eaf9cc1a0058888e7d</span></td>
+              <td>
+                <div class="cell-channel">
+                  <div class="ch-name">雷牛-国服版本-新安卓混服包-远征手游</div>
+                  <div class="ch-id">(2107631)</div>
+                </div>
+              </td>
+              <td>
+                <div class="scheme-block">
+                  <div class="row"><span class="lbl">移动端方案：</span><span class="lnk">官网防诈骗和隐私配置(移动端SDK)</span><span class="compl c-ok">合规</span></div>
+                  <div class="row"><span class="lbl">模拟器方案：</span><span class="lnk">官网防诈骗和隐私配置(移动端SDK)</span><span class="compl c-ok">合规</span></div>
+                  <div class="effect">
+                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2026-03-25 11:26:06</span></div>
+                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-31 23:59:59</span></div>
+                  </div>
+                </div>
+              </td>
+              <td></td>
+              <td><span class="status-pill s-active">生效中</span></td>
+              <td><div class="cell-time"><div class="time">2026-03-25 11:26:34</div><div class="by">龙振华</div></div></td>
+              <td><div class="cell-time"><div class="time">2026-03-25 11:26:47</div><div class="by">龙振华</div></div></td>
+              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+            </tr>
+
+            <tr>
+              <td><span class="cell-id">68fda4b1c9e2a30074bb4221</span></td>
+              <td>
+                <div class="cell-channel">
+                  <div class="ch-name">网易-OPPO快游戏-远征手游</div>
+                  <div class="ch-id">(2107625)</div>
+                </div>
+              </td>
+              <td>
+                <div class="scheme-block">
+                  <div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">OPPO快游戏-标准方案(OPPO快游戏SDK)</span><span class="compl c-ok">合规</span></div>
+                  <div class="effect">
+                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2026-03-18 09:00:00</span></div>
+                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-31 23:59:59</span></div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="scheme-block">
+                  <div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">OPPO快游戏-标准方案v2(OPPO快游戏SDK)</span><span class="compl c-ok">合规</span></div>
+                  <div class="effect">
+                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2026-04-20 00:00:00</span></div>
+                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-31 23:59:59</span></div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="status-pill s-pending">待审核</span></td>
+              <td><div class="cell-time"><div class="time">2026-04-15 14:22:11</div><div class="by">林薇</div></div></td>
+              <td><div class="cell-time"><div class="time">—</div><div class="by">未审批</div></div></td>
+              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op muted">删除</span></div></td>
+            </tr>
+
+          </tbody>
+        </table>
+
+        <div class="pager">
+          <span class="total">共 5 条</span>
+          <span class="pg-btn disabled">‹</span>
+          <span class="pg-btn active">1</span>
+          <span class="pg-btn disabled">›</span>
+          <select class="pg-sel"><option>10 条/页</option><option>20 条/页</option><option>50 条/页</option></select>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
