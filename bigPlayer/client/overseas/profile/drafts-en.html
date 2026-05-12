@@ -4,7 +4,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
 <title>BigPlayer — Drafts (EN)</title>
-<link rel="stylesheet" href="../../../shared/sidebar.css">
+<script src="../shared/theme-toggle.js"></script>
+<link rel="stylesheet" href="../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -13,25 +14,25 @@
     theme: {
       extend: {
         colors: {
-          "on-surface-variant": "#566166",
-          "secondary-container": "#cbe6ff",
-          "primary": "#0061a4",
-          "primary-dim": "#005590",
-          "surface-container-low": "#f0f4f7",
-          "surface-variant": "#d9e4ea",
-          "outline": "#717c82",
-          "surface-container": "#e8eff3",
-          "on-secondary-container": "#0a5780",
-          "surface-container-lowest": "#ffffff",
-          "surface-container-highest": "#d9e4ea",
-          "on-primary": "#f5f8ff",
-          "outline-variant": "#a9b4b9",
-          "surface-container-high": "#e1e9ee",
-          "on-surface": "#2a3439",
-          "background": "#f7f9fb",
-          "inverse-primary": "#2498f5",
-          "surface": "#f7f9fb",
-          "surface-tint": "#0061a4"
+          "on-surface-variant": "var(--c-on-surface-variant)",
+          "secondary-container": "var(--c-secondary-container)",
+          "primary": "var(--c-primary)",
+          "primary-dim": "var(--c-primary-dim)",
+          "surface-container-low": "var(--c-surface-container-low)",
+          "surface-variant": "var(--c-surface-variant)",
+          "outline": "var(--c-outline)",
+          "surface-container": "var(--c-surface-container)",
+          "on-secondary-container": "var(--c-on-secondary-container)",
+          "surface-container-lowest": "var(--c-surface-container-lowest)",
+          "surface-container-highest": "var(--c-surface-container-highest)",
+          "on-primary": "var(--c-on-primary)",
+          "outline-variant": "var(--c-outline-variant)",
+          "surface-container-high": "var(--c-surface-container-high)",
+          "on-surface": "var(--c-on-surface)",
+          "background": "var(--c-background)",
+          "inverse-primary": "var(--c-inverse-primary)",
+          "surface": "var(--c-surface)",
+          "surface-tint": "var(--c-surface-tint)"
         },
         fontFamily: {
           headline: ["Manrope"],
@@ -43,6 +44,82 @@
   }
 </script>
 <style>
+  /* ── Theme tokens ──────────────────────────────────────────── */
+  :root{
+    --bg-body:#d0d9de;
+    --bg-page:#f7f9fb;
+    --bg-card:#fff;
+    --bg-input:#f0f4f7;
+    --bg-divider:#e1e9ee;
+    --bg-divider-soft:#e8eff3;
+    --primary:#0061a4;
+    --text-strong:#2a3439;
+    --text-muted:#566166;
+    --text-faint:#a9b4b9;
+    --text-help:#717c82;
+    --draft-icon-bg:#e3eef8;
+    --row-active:#f0f4f7;
+    --del-active:#fce8e8;
+    /* tailwind-bound */
+    --c-on-surface-variant:#566166;
+    --c-secondary-container:#cbe6ff;
+    --c-primary:#0061a4;
+    --c-primary-dim:#005590;
+    --c-surface-container-low:#f0f4f7;
+    --c-surface-variant:#d9e4ea;
+    --c-outline:#717c82;
+    --c-surface-container:#e8eff3;
+    --c-on-secondary-container:#0a5780;
+    --c-surface-container-lowest:#ffffff;
+    --c-surface-container-highest:#d9e4ea;
+    --c-on-primary:#f5f8ff;
+    --c-outline-variant:#a9b4b9;
+    --c-surface-container-high:#e1e9ee;
+    --c-on-surface:#2a3439;
+    --c-background:#f7f9fb;
+    --c-inverse-primary:#2498f5;
+    --c-surface:#f7f9fb;
+    --c-surface-tint:#0061a4;
+  }
+  [data-theme="dark"]{
+    --bg-body:#1a1f26;
+    --bg-page:#0d1117;
+    --bg-card:#161b22;
+    --bg-input:#161b22;
+    --bg-divider:#21262d;
+    --bg-divider-soft:#1c2128;
+    --primary:#4493f8;
+    --text-strong:#e6edf3;
+    --text-muted:#8b949e;
+    --text-faint:#6e7681;
+    --text-help:#6e7681;
+    --draft-icon-bg:#1f3a56;
+    --row-active:#161b22;
+    --del-active:rgba(248,81,73,.12);
+    /* tailwind-bound */
+    --c-on-surface-variant:#8b949e;
+    --c-secondary-container:#1f3a56;
+    --c-primary:#4493f8;
+    --c-primary-dim:#3882ef;
+    --c-surface-container-low:#161b22;
+    --c-surface-variant:#30363d;
+    --c-outline:#6e7681;
+    --c-surface-container:#1c2128;
+    --c-on-secondary-container:#79c0ff;
+    --c-surface-container-lowest:#0d1117;
+    --c-surface-container-highest:#30363d;
+    --c-on-primary:#0d1117;
+    --c-outline-variant:#30363d;
+    --c-surface-container-high:#21262d;
+    --c-on-surface:#e6edf3;
+    --c-background:#0d1117;
+    --c-inverse-primary:#79c0ff;
+    --c-surface:#0d1117;
+    --c-surface-tint:#4493f8;
+  }
+
+  body{background:var(--bg-body);}
+
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
@@ -50,21 +127,21 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
   .draft-row {
-    background: #fff;
+    background: var(--bg-card);
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 14px 16px;
-    border-bottom: 1px solid #e8eff3;
+    border-bottom: 1px solid var(--bg-divider-soft);
     cursor: pointer;
     transition: background 0.12s;
   }
-  .draft-row:active { background: #f0f4f7; }
+  .draft-row:active { background: var(--row-active); }
 
   .draft-icon {
     width: 42px; height: 42px;
     border-radius: 12px;
-    background: #e3eef8;
+    background: var(--draft-icon-bg);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
@@ -83,7 +160,7 @@
     border-radius: 50%;
     transition: background 0.12s;
   }
-  .del-btn:active { background: #fce8e8; }
+  .del-btn:active { background: var(--del-active); }
 
   .confirm-overlay {
     position: fixed; inset: 0;
@@ -92,14 +169,33 @@
     display: flex; align-items: flex-end; justify-content: center;
   }
   .confirm-sheet {
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 24px 24px 0 0;
     padding: 28px 20px 40px;
     width: 100%; max-width: 428px;
   }
+
+  /* ── Theme toggle button (demo control) ── */
+  .theme-toggle{position:fixed;top:24px;right:24px;z-index:9999;
+    width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;
+    background:rgba(255,255,255,.92);color:#2a3439;
+    box-shadow:0 4px 14px rgba(0,0,0,.15);
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .15s,background .2s,color .2s;}
+  .theme-toggle:hover{transform:scale(1.08);}
+  .theme-toggle .material-symbols-outlined{font-size:22px;}
+  .theme-toggle .icon-dark{display:inline-block;}
+  .theme-toggle .icon-light{display:none;}
+  [data-theme="dark"] .theme-toggle{background:rgba(33,38,45,.92);color:#e6edf3;}
+  [data-theme="dark"] .theme-toggle .icon-dark{display:none;}
+  [data-theme="dark"] .theme-toggle .icon-light{display:inline-block;}
 </style>
 </head>
-<body class="bg-[#d0d9de] flex justify-center font-body text-on-surface selection:bg-blue-200">
+<body class="flex justify-center font-body text-on-surface selection:bg-blue-200">
+<button class="theme-toggle" onclick="toggleTheme()" title="切换主题">
+  <span class="material-symbols-outlined icon-dark">dark_mode</span>
+  <span class="material-symbols-outlined icon-light">light_mode</span>
+</button>
 
 <main class="w-full max-w-[428px] h-[100dvh] bg-background relative flex flex-col overflow-hidden">
 
@@ -196,11 +292,11 @@ function render() {
         <span class="material-symbols-outlined text-primary" style="font-size:20px">edit_note</span>
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:500;color:${d.title ? '#2a3439' : '#717c82'};font-style:${d.title ? 'normal' : 'italic'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:Inter;">
+        <div style="font-size:14px;font-weight:500;color:${d.title ? 'var(--text-strong)' : 'var(--text-help)'};font-style:${d.title ? 'normal' : 'italic'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:Inter;">
           ${d.title || 'Untitled Draft'}
         </div>
-        ${d.body ? `<div style="font-size:12px;color:#566166;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:Inter;">${d.body}</div>` : ''}
-        <div style="font-size:11px;color:#a9b4b9;margin-top:3px;font-family:Inter;">${d.date}</div>
+        ${d.body ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:Inter;">${d.body}</div>` : ''}
+        <div style="font-size:11px;color:var(--text-faint);margin-top:3px;font-family:Inter;">${d.date}</div>
       </div>
       ${d.img ? `<img src="${d.img}" class="draft-thumb" alt="" onclick="event.stopPropagation()"/>` : ''}
       <button class="del-btn" onclick="event.stopPropagation();confirmDelete(${d.id})" aria-label="Delete">
@@ -277,36 +373,36 @@ render();
 <div id="pnav-drawer">
   <div id="pnav-head">
     <h3>Overseas · 页面目录</h3>
-    <p>Light 模式 · 共 15 页</p>
+    <p>共 15 页 · 主题可切换</p>
     <button id="pnav-close" onclick="closePnav()">
       <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
     </button>
   </div>
   <nav id="pnav-list">
     <div class="pnav-section"><span class="pnav-section-label">Home · 首页模块</span></div>
-    <a class="pnav-item" href="../../home/light/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
-    <a class="pnav-item" href="../../home/light/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
-    <a class="pnav-item" href="../../home/light/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
-    <a class="pnav-item" href="../../home/light/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
-    <a class="pnav-item" href="../../home/light/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
+    <a class="pnav-item" href="../home/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
+    <a class="pnav-item" href="../home/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
+    <a class="pnav-item" href="../home/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
+    <a class="pnav-item" href="../home/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
+    <a class="pnav-item" href="../home/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
-    <a class="pnav-item" href="../../feed/light/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
+    <a class="pnav-item" href="../feed/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
 
     <div class="pnav-section"><span class="pnav-section-label">News · 资讯模块</span></div>
-    <a class="pnav-item" href="../../news/light/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
+    <a class="pnav-item" href="../news/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
-    <a class="pnav-item" href="../../profile/light/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
-    <a class="pnav-item" href="../../profile/light/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
-    <a class="pnav-item" href="../../profile/light/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
-    <a class="pnav-item" href="../../profile/light/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
-    <a class="pnav-item" href="../../profile/light/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
-    <a class="pnav-item" href="../../profile/light/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
+    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
+    <a class="pnav-item" href="../profile/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
+    <a class="pnav-item" href="../profile/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
+    <a class="pnav-item" href="../profile/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
+    <a class="pnav-item" href="../profile/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
+    <a class="pnav-item" href="../profile/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Publish · 发布模块</span></div>
-    <a class="pnav-item" href="../../publish/light/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
-    <a class="pnav-item" href="../../publish/light/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
+    <a class="pnav-item" href="../publish/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
+    <a class="pnav-item" href="../publish/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
   </nav>
 </div>
 <script>
@@ -378,7 +474,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </div>
 <script>
 (function(){
-  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面均有亮色（Light）和深色（Dark）两套模式，需同时实现。\n\n### 首页模块（Home）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 1 | 首页（社区主页） | home/light/home-en.html | home/dark/home-en-dark.html |\n| 2 | 帖子详情 | home/light/post-detail-en.html | home/dark/post-detail-en-dark.html |\n| 3 | 心情详情 | home/light/mood-detail-en.html | home/dark/mood-detail-en-dark.html |\n| 4 | 搜索页 | home/light/search-en.html | home/dark/search-en-dark.html |\n| 5 | 搜索结果页 | home/light/search-results-en.html | home/dark/search-results-en-dark.html |\n\n### Feed 模块\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 6 | Feed 流 | feed/light/feed-en.html | feed/dark/feed-en-dark.html |\n\n### 资讯模块（News）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 7 | 资讯列表 | news/light/news-en.html | news/dark/news-en-dark.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 8 | 我的主页 | profile/light/profile-en.html | profile/dark/profile-en-dark.html |\n| 9 | 他人主页 | profile/light/profile-other-en.html | profile/dark/profile-other-en-dark.html |\n| 10 | 设置页 | profile/light/settings-en.html | profile/dark/settings-en-dark.html |\n| 11 | 通知页 | profile/light/notifications-en.html | profile/dark/notifications-en-dark.html |\n| 12 | 聊天页 | profile/light/chat-en.html | profile/dark/chat-en-dark.html |\n| 13 | 草稿箱 | profile/light/drafts-en.html | profile/dark/drafts-en-dark.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 14 | 发帖页 | publish/light/post_publish-en.html | publish/dark/post_publish-en-dark.html |\n| 15 | 发心情页 | publish/light/mood_publish-en.html | publish/dark/mood_publish-en-dark.html |\n\n> **深色模式说明**：系统跟随设备 dark mode 设置自动切换，同一页面亮色/深色为同一功能页，不计为两个页面，但两套皮肤必须完整实现。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n| 级别 | 字号 | 字重 | 字体 | 场景 |\n|------|------|------|------|------|\n| Display | 26px | 900 | Manrope | 评分大数字 |\n| Headline L | 17px | 800 | Manrope | 推荐卡标题、页面主标题 |\n| Headline M | 14px | 700 | Inter | 帖子标题、列表主文字 |\n| Label L | 15px | 700 | Manrope | CTA 按钮、顶栏标题 |\n| Body M | 12-13px | 400 | Inter | 正文描述、评论 |\n| Label M | 11px | 500-700 | Inter | 标签、元信息 |\n| Caption | 10px | 500-700 | Inter | 底导标签、等级 Badge |\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 主色按压态 | #005590 |\n| 深色背景强调色 | #2498f5 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器/禁用背景 | #f0f4f7 |\n| 分隔填充 | #e8eff3 |\n| 导航栏边框 | #e1e9ee |\n| Story 未看环 | #d9e4ea |\n| 主文字/标题 | #2a3439 |\n| 次级文字/标签 | #566166 |\n| 辅助文字 | #717c82 |\n| 占位符/禁用文字 | #a9b4b9 |\n| 禁用浅色 | #c8d0d5 |\n| 蓝色强调块背景 | #cbe6ff |\n| 蓝色强调块内文字 | #0a5780 |\n| 公告条背景 | #eff6ff |\n| 话题标签背景 | #fef3c7 |\n| 话题标签边框 | #fbbf24 |\n| 话题标签文字 | #b45309 |\n| 深色推荐卡主体 | #0f1c27 |\n| 未读 Badge | #e53935 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 主色按压态 | #3882ef |\n| 高亮强调色（评分） | #79c0ff |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| Story 未看环 | #30363d |\n| 深色推荐卡主体 | #0a1520 |\n| 蓝色强调块背景 | #1f3a56 |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n| 话题标签背景 | #2d1f06 |\n| 话题标签边框 | #d97706 |\n| 话题标签文字 | #f59e0b |\n| 未读 Badge | #e53935 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片（帖子卡、新闻卡） | 12-16px |\n| 横滑 Featured Card | 14px |\n| 搜索框/输入框 | 8-10px |\n| 方形标签/Chip | 4-6px |\n| 胶囊标签/主要按钮 | 999px |\n| 快捷入口图标背景 | 10-12px |\n| 头像 | 50% |\n| 等级 Badge | 8px |\n\n### 4.5 背景底色 & 边框 — 亮色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #f7f9fb | — |\n| 顶部导航栏 | #ffffff | bottom: 1px solid #e1e9ee |\n| 底部导航栏 | rgba(255,255,255,0.96) + blur(14px) | top: 1px solid #e1e9ee |\n| 内容卡片 | #ffffff | 仅阴影 0 1px 6px rgba(42,52,57,0.07) |\n| 页面分隔块 | #f0f4f7 | — |\n| 输入框 | #f0f4f7 | 激活：1.5px solid #0061a4 |\n| 公告条 | #eff6ff | left: 3px solid #0061a4 |\n\n### 4.6 背景底色 & 边框 — 深色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #0d1117 | — |\n| 顶部导航栏 | #0d1117 | bottom: 1px solid #21262d |\n| 底部导航栏 | rgba(13,17,23,0.96) + blur(14px) | top: 1px solid #21262d |\n| 内容卡片 | #161b22 | 1px solid #21262d |\n| 页面分隔块 | #161b22 | — |\n| 输入框 | #1c2128 | 激活：1.5px solid #4493f8 |\n| 公告条 | #1a3a5c | left: 3px solid #4493f8 |\n\n### 4.7 图标规范\n\n图标库：Material Symbols Outlined\n\n底部导航图标：home / explore / add / article / person（24px）\n\n默认样式：FILL 0, wght 400，激活态：FILL 1, wght 500\n\n### 4.8 底部导航栏\n\n- 高度：82px，padding-top: 8px\n- 默认图标色：亮色 #a9b4b9 / 深色 #6e7681\n- 选中图标色：亮色 #0061a4 / 深色 #4493f8\n- 发布按钮：46x46px 圆形，上浮 margin-top: -10px\n\n### 4.9 动效规范\n\n| 类型 | CSS |\n|------|-----|\n| 卡片按压 | transform: scale(0.99)，transition 0.15s |\n| 大卡按压 | transform: scale(0.975)，transition 0.15s |\n| 按钮颜色过渡 | transition: background 0.15s |\n| 隐藏滚动条 | scrollbar-width: none |\n\n---\n\n## 五、开发注意事项\n\n1. 所有页面均需同时实现**亮色和深色模式**，通过系统 prefers-color-scheme 自动切换\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover，不得拉伸\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n5. 首页抽屉菜单从左侧滑出（宽 280px），背景蒙层 rgba(0,0,0,0.45)\n6. 发布页顶栏发布按钮初始为禁用态（灰色），有内容后激活为主色";
+  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面同时支持亮色（Light）和深色（Dark）两套模式，通过同一份 HTML + CSS 变量切换。\n\n### 首页模块（Home）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n\n### Feed 模块\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 6 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 7 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 8 | 我的主页 | profile/profile-en.html |\n| 9 | 他人主页 | profile/profile-other-en.html |\n| 10 | 设置页 | profile/settings-en.html |\n| 11 | 通知页 | profile/notifications-en.html |\n| 12 | 聊天页 | profile/chat-en.html |\n| 13 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 14 | 发帖页 | publish/post_publish-en.html |\n| 15 | 发心情页 | publish/mood_publish-en.html |\n\n> **主题切换说明**：每个页面通过 `<html data-theme=\"dark|light\">` 控制，CSS 变量驱动；首次访问跟随系统 prefers-color-scheme，用户手动切换后写入 localStorage 持久化。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器 | #f0f4f7 |\n| 分隔线 | #e1e9ee |\n| 主文字/标题 | #2a3439 |\n| 次级文字 | #566166 |\n| 占位符/禁用文字 | #a9b4b9 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片 | 12-16px |\n| 搜索框/输入框 | 8-10px |\n| 标签/Chip | 4-6px |\n| 胶囊按钮 | 999px |\n\n---\n\n## 五、开发注意事项\n\n1. 所有颜色使用 CSS 变量，避免硬编码；切换主题只通过 `<html data-theme>` 实现\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动";
   function md2html(t){
     var h = t
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')

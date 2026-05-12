@@ -4,7 +4,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>BigPlayer — Chat (EN)</title>
-<link rel="stylesheet" href="../../../shared/sidebar.css">
+<script src="../shared/theme-toggle.js"></script>
+<link rel="stylesheet" href="../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -13,29 +14,29 @@
     theme: {
       extend: {
         colors: {
-          "on-surface-variant": "#8b949e",
-          "secondary-container": "#1f3a56",
+          "on-surface-variant": "var(--tw-on-surface-variant)",
+          "secondary-container": "var(--tw-secondary-container)",
           "primary-fixed": "#d1e4ff",
-          "primary": "#4493f8",
-          "primary-dim": "#3882ef",
-          "surface-container-low": "#161b22",
-          "surface-variant": "#30363d",
-          "outline": "#6e7681",
-          "surface-container": "#1c2128",
+          "primary": "var(--tw-primary)",
+          "primary-dim": "var(--tw-primary-dim)",
+          "surface-container-low": "var(--tw-surface-container-low)",
+          "surface-variant": "var(--tw-surface-variant)",
+          "outline": "var(--tw-outline)",
+          "surface-container": "var(--tw-surface-container)",
           "tertiary-container": "#e1f0fb",
-          "inverse-primary": "#79c0ff",
-          "surface-container-highest": "#30363d",
-          "on-secondary-container": "#79c0ff",
-          "outline-variant": "#30363d",
-          "surface-container-high": "#21262d",
+          "inverse-primary": "var(--tw-inverse-primary)",
+          "surface-container-highest": "var(--tw-surface-container-highest)",
+          "on-secondary-container": "var(--tw-on-secondary-container)",
+          "outline-variant": "var(--tw-outline-variant)",
+          "surface-container-high": "var(--tw-surface-container-high)",
           "tertiary": "#53616a",
           "primary-container": "#d1e4ff",
           "surface-dim": "#cfdce3",
           "secondary": "#22648e",
-          "on-surface": "#e6edf3",
-          "background": "#0d1117",
-          "on-primary": "#0d1117",
-          "surface": "#0d1117",
+          "on-surface": "var(--tw-on-surface)",
+          "background": "var(--tw-background)",
+          "on-primary": "var(--tw-on-primary)",
+          "surface": "var(--tw-surface)",
         },
         borderRadius: {
           DEFAULT: "1rem",
@@ -53,6 +54,226 @@
   }
 </script>
 <style>
+  /* ── Theme tokens ────────────────────────────────────────────── */
+  :root{
+    --bg-body:#d0d9de;
+    --shell-sh-1:#e0e5e8;
+    --shell-sh-2:#c8d0d5;
+    --shell-sh-3:rgba(0,0,0,.18);
+    --bg-page:#f7f9fb;
+    --bg-card:#fff;
+    --bg-input:#f0f4f7;
+    --bg-divider:#e1e9ee;
+    --bg-divider-soft:#eef2f5;
+    --bg-track:#edf1f4;
+    --bg-bnav:rgba(255,255,255,.96);
+    --primary:#0061a4;
+    --text-strong:#2a3439;
+    --text-strong-2:#1a2a34;
+    --text-muted:#566166;
+    --text-faint:#a9b4b9;
+    --text-faint-2:#8a9ba3;
+
+    /* Tailwind palette tokens (light) */
+    --tw-on-surface-variant:#566166;
+    --tw-secondary-container:#cbe6ff;
+    --tw-primary:#0061a4;
+    --tw-primary-dim:#005590;
+    --tw-surface-container-low:#f0f4f7;
+    --tw-surface-variant:#d9e4ea;
+    --tw-outline:#717c82;
+    --tw-surface-container:#e8eff3;
+    --tw-inverse-primary:#2498f5;
+    --tw-surface-container-highest:#d9e4ea;
+    --tw-on-secondary-container:#0a5780;
+    --tw-outline-variant:#a9b4b9;
+    --tw-surface-container-high:#e1e9ee;
+    --tw-on-surface:#2a3439;
+    --tw-background:#f7f9fb;
+    --tw-on-primary:#f5f8ff;
+    --tw-surface:#f7f9fb;
+
+    /* Chat-specific tokens */
+    --chat-grad-1:#d1e4ffcc;
+    --chat-grad-2:#e1f0fbcc;
+    --chat-grad-3:#cbe6ff99;
+    --chat-grad-4-start:#eaf3ff;
+    --chat-grad-4-mid:#dceef8;
+    --chat-grad-4-end:#e4f0f8;
+    --chat-dot-color:rgba(255,255,255,0.28);
+
+    --glass-bg:rgba(255,255,255,0.62);
+    --glass-light-bg:rgba(255,255,255,0.72);
+    --glass-border:rgba(255,255,255,0.6);
+    --glass-border-strong:rgba(255,255,255,0.8);
+
+    --bubble-her-bg:rgba(255,255,255,0.72);
+    --bubble-her-shadow:0 1px 6px rgba(0,0,0,0.07), inset 0 0 0 1px rgba(255,255,255,0.55);
+    --bubble-her-fade:linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.82) 100%);
+
+    --inspire-panel-bg:rgba(255,255,255,0.78);
+    --inspire-panel-border:rgba(255,255,255,0.8);
+    --inspire-panel-shadow:0 -4px 20px rgba(0,97,164,0.08);
+    --inspire-card-bg:rgba(241,246,252,0.9);
+    --inspire-card-border:rgba(255,255,255,0.9);
+    --inspire-card-shadow:0 1px 4px rgba(0,0,0,0.05);
+    --inspire-icon-grad:linear-gradient(135deg, #d1e4ff 0%, #e1f0fb 100%);
+    --inspire-icon-shadow:0 1px 4px rgba(0,97,164,0.12);
+
+    --input-area-bg:rgba(255,255,255,0.65);
+    --input-area-border:rgba(255,255,255,0.72);
+    --input-field-bg:rgba(255,255,255,0.78);
+    --input-field-border:rgba(255,255,255,0.7);
+
+    --state-tabs-bg:rgba(255,255,255,0.68);
+    --state-tabs-border:rgba(209,228,255,0.55);
+    --state-tabs-shadow:0 1px 8px rgba(0,97,164,0.07);
+    --state-tab-color:#566166;
+
+    --restrict-bg:rgba(255,255,255,0.65);
+    --restrict-border:rgba(255,255,255,0.8);
+    --restrict-shadow:0 1px 6px rgba(0,0,0,0.05);
+
+    --avatar-ring-grad:linear-gradient(135deg, #0061a4 0%, #2498f5 100%);
+
+    --inner-tabs-bg:rgba(255,255,255,0.62);
+    --inner-tabs-border:rgba(255,255,255,0.65);
+    --inner-tab-color:#566166;
+
+    --sheet-c-bg:rgba(255,255,255,0.92);
+    --sheet-c-border:rgba(255,255,255,0.9);
+    --sheet-c-shadow:0 -4px 20px rgba(0,97,164,0.10);
+
+    --bubble-mine-bg:#0061a4;
+    --bubble-mine-shadow:0 2px 10px rgba(0,97,164,0.28);
+
+    --send-btn-bg:#0061a4;
+    --send-btn-shadow:0 2px 8px rgba(0,97,164,0.3);
+
+    --toggle-thumb:#fff;
+
+    --userinfo-bg:#f5f7fa;
+    --userinfo-card-bg:#fff;
+    --userinfo-card-border:#e5e9ed;
+    --userinfo-card-divider:#f0f2f4;
+    --userinfo-back-color:#0061a4;
+    --userinfo-name-color:#2a3439;
+    --userinfo-avatar-grad:linear-gradient(135deg,#0061a4,#2498f5);
+    --userinfo-avatar-border:#fff;
+    --userinfo-chevron:#a9b4b9;
+
+    --strangerinput-bg:rgba(207,220,227,0.45);
+    --strangerinput-border:rgba(255,255,255,0.5);
+  }
+  [data-theme="dark"]{
+    --bg-body:#1a1f26;
+    --shell-sh-1:#1c2128;
+    --shell-sh-2:#30363d;
+    --shell-sh-3:rgba(0,0,0,.5);
+    --bg-page:#0d1117;
+    --bg-card:#161b22;
+    --bg-input:#161b22;
+    --bg-divider:#21262d;
+    --bg-divider-soft:#161b22;
+    --bg-track:#21262d;
+    --bg-bnav:rgba(13,17,23,.96);
+    --primary:#4493f8;
+    --text-strong:#e6edf3;
+    --text-strong-2:#e6edf3;
+    --text-muted:#8b949e;
+    --text-faint:#6e7681;
+    --text-faint-2:#6e7681;
+
+    --tw-on-surface-variant:#8b949e;
+    --tw-secondary-container:#1f3a56;
+    --tw-primary:#4493f8;
+    --tw-primary-dim:#3882ef;
+    --tw-surface-container-low:#161b22;
+    --tw-surface-variant:#30363d;
+    --tw-outline:#6e7681;
+    --tw-surface-container:#1c2128;
+    --tw-inverse-primary:#79c0ff;
+    --tw-surface-container-highest:#30363d;
+    --tw-on-secondary-container:#79c0ff;
+    --tw-outline-variant:#30363d;
+    --tw-surface-container-high:#21262d;
+    --tw-on-surface:#e6edf3;
+    --tw-background:#0d1117;
+    --tw-on-primary:#0d1117;
+    --tw-surface:#0d1117;
+
+    --chat-grad-1:#1f3a5699;
+    --chat-grad-2:#0d253f88;
+    --chat-grad-3:#4493f822;
+    --chat-grad-4-start:#0d1117;
+    --chat-grad-4-mid:#0d1117;
+    --chat-grad-4-end:#0d1117;
+    --chat-dot-color:rgba(255,255,255,0.04);
+
+    --glass-bg:rgba(13,17,23,0.72);
+    --glass-light-bg:rgba(22,27,34,0.82);
+    --glass-border:#30363d;
+    --glass-border-strong:#30363d;
+
+    --bubble-her-bg:rgba(28,33,40,0.92);
+    --bubble-her-shadow:0 1px 6px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.08);
+    --bubble-her-fade:linear-gradient(to bottom, rgba(28,33,40,0) 0%, rgba(28,33,40,0.92) 100%);
+
+    --inspire-panel-bg:rgba(22,27,34,0.95);
+    --inspire-panel-border:#30363d;
+    --inspire-panel-shadow:0 -4px 20px rgba(0,0,0,0.3);
+    --inspire-card-bg:#1c2128;
+    --inspire-card-border:#30363d;
+    --inspire-card-shadow:0 1px 4px rgba(0,0,0,0.2);
+    --inspire-icon-grad:linear-gradient(135deg, #1f3a56 0%, #1c3249 100%);
+    --inspire-icon-shadow:0 1px 4px rgba(0,0,0,0.2);
+
+    --input-area-bg:rgba(13,17,23,0.88);
+    --input-area-border:#21262d;
+    --input-field-bg:#161b22;
+    --input-field-border:#30363d;
+
+    --state-tabs-bg:rgba(13,17,23,0.72);
+    --state-tabs-border:#30363d;
+    --state-tabs-shadow:0 1px 8px rgba(0,0,0,0.2);
+    --state-tab-color:#8b949e;
+
+    --restrict-bg:rgba(22,27,34,0.88);
+    --restrict-border:#30363d;
+    --restrict-shadow:0 1px 6px rgba(0,0,0,0.2);
+
+    --avatar-ring-grad:linear-gradient(135deg, #4493f8 0%, #79c0ff 100%);
+
+    --inner-tabs-bg:rgba(13,17,23,0.82);
+    --inner-tabs-border:#21262d;
+    --inner-tab-color:#8b949e;
+
+    --sheet-c-bg:rgba(22,27,34,0.96);
+    --sheet-c-border:#30363d;
+    --sheet-c-shadow:0 -4px 20px rgba(0,0,0,0.35);
+
+    --bubble-mine-bg:#4493f8;
+    --bubble-mine-shadow:0 2px 10px rgba(0,97,164,0.28);
+
+    --send-btn-bg:#4493f8;
+    --send-btn-shadow:0 2px 8px rgba(68,147,248,0.3);
+
+    --toggle-thumb:#161b22;
+
+    --userinfo-bg:#0d1117;
+    --userinfo-card-bg:#161b22;
+    --userinfo-card-border:#21262d;
+    --userinfo-card-divider:#21262d;
+    --userinfo-back-color:#4493f8;
+    --userinfo-name-color:#e6edf3;
+    --userinfo-avatar-grad:linear-gradient(135deg,#4493f8,#79c0ff);
+    --userinfo-avatar-border:#fff;
+    --userinfo-chevron:#6e7681;
+
+    --strangerinput-bg:#161b22;
+    --strangerinput-border:#30363d;
+  }
+
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
@@ -65,7 +286,7 @@
   .phone-shell {
     width: 375px;
     height: 812px;
-    background: #0d1117;
+    background: var(--bg-page);
     border-radius: 44px;
     box-shadow:
       0 0 0 10px #1a1a1a,
@@ -100,15 +321,15 @@
   /* ── Chat background ── */
   .chat-bg {
     background:
-      radial-gradient(ellipse 140% 70% at 15% 0%,   #1f3a5699 0%, transparent 55%),
-      radial-gradient(ellipse 120% 60% at 85% 100%,  #0d253f88 0%, transparent 55%),
-      radial-gradient(ellipse 90%  50% at 90% 5%,    #4493f822 0%, transparent 50%),
-      linear-gradient(175deg, #0d1117 0%, #0d1117 100%);
+      radial-gradient(ellipse 140% 70% at 15% 0%,   var(--chat-grad-1) 0%, transparent 55%),
+      radial-gradient(ellipse 120% 60% at 85% 100%,  var(--chat-grad-2) 0%, transparent 55%),
+      radial-gradient(ellipse 90%  50% at 90% 5%,    var(--chat-grad-3) 0%, transparent 50%),
+      linear-gradient(175deg, var(--chat-grad-4-start) 0%, var(--chat-grad-4-mid) 50%, var(--chat-grad-4-end) 100%);
   }
   .chat-bg::before {
     content: '';
     position: absolute; inset: 0; pointer-events: none; z-index: 0;
-    background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--chat-dot-color) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 
@@ -122,60 +343,60 @@
 
   /* ── Glass layers ── */
   .glass {
-    background: rgba(13,17,23,0.72);
+    background: var(--glass-bg);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
   }
   .glass-light {
-    background: rgba(22,27,34,0.82);
+    background: var(--glass-light-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
 
   /* ── Bubbles ── */
   .bubble-mine {
-    background: #4493f8; color: #fff;
+    background: var(--bubble-mine-bg); color: #fff;
     border-radius: 14px 14px 4px 14px;
-    box-shadow: 0 2px 10px rgba(0,97,164,0.28);
+    box-shadow: var(--bubble-mine-shadow);
   }
   .bubble-her {
-    background: rgba(28,33,40,0.92);
+    background: var(--bubble-her-bg);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    color: #e6edf3;
+    color: var(--text-strong);
     border-radius: 4px 14px 14px 14px;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.08);
+    box-shadow: var(--bubble-her-shadow);
   }
 
   /* ── Inspire panel ── */
   .inspire-panel {
-    background: rgba(22,27,34,0.95);
+    background: var(--inspire-panel-bg);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid #30363d;
+    border-top: 1px solid var(--inspire-panel-border);
     border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+    box-shadow: var(--inspire-panel-shadow);
   }
   .inspire-card {
-    background: #1c2128;
-    border: 1px solid #30363d;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    background: var(--inspire-card-bg);
+    border: 1px solid var(--inspire-card-border);
+    box-shadow: var(--inspire-card-shadow);
     transition: transform 0.1s ease, box-shadow 0.1s ease;
     cursor: pointer;
   }
-  .inspire-card:active { transform: scale(0.97); box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+  .inspire-card:active { transform: scale(0.97); box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
   .inspire-icon-bg {
-    background: linear-gradient(135deg, #1f3a56 0%, #1c3249 100%);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    background: var(--inspire-icon-grad);
+    box-shadow: var(--inspire-icon-shadow);
   }
 
   /* ── Input area ── */
   .input-area {
-    background: rgba(13,17,23,0.88);
+    background: var(--input-area-bg);
     backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-    border-top: 1px solid #21262d;
+    border-top: 1px solid var(--input-area-border);
   }
   .input-field {
-    background: #161b22;
-    border: 1.5px solid #30363d;
+    background: var(--input-field-bg);
+    border: 1.5px solid var(--input-field-border);
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .input-field input {
@@ -185,12 +406,12 @@
   .input-field input:focus {
     box-shadow: none !important; border: none !important; outline: none !important;
   }
-  .input-field:focus-within { border-color: #4493f8; box-shadow: none; }
+  .input-field:focus-within { border-color: var(--input-field-border); box-shadow: none; }
 
   /* ── Send button ── */
   .send-btn {
-    background: #4493f8;
-    box-shadow: 0 2px 8px rgba(68,147,248,0.3);
+    background: var(--send-btn-bg);
+    box-shadow: var(--send-btn-shadow);
     transition: background 0.15s, transform 0.1s;
   }
   .send-btn:active { transform: scale(0.92); }
@@ -198,34 +419,34 @@
   /* ── State tabs (outer, desktop) ── */
   .state-tabs {
     display: flex; gap: 4px;
-    background: rgba(13,17,23,0.72);
+    background: var(--state-tabs-bg);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border-radius: 999px; padding: 3px;
-    border: 1px solid #30363d;
-    box-shadow: 0 1px 8px rgba(0,0,0,0.2);
+    border: 1px solid var(--state-tabs-border);
+    box-shadow: var(--state-tabs-shadow);
   }
   .state-tab {
     padding: 5px 13px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
     cursor: pointer; border: none;
-    background: transparent; color: #8b949e;
+    background: transparent; color: var(--state-tab-color);
     transition: all 0.16s ease;
     font-family: Inter, sans-serif; line-height: 1;
   }
-  .state-tab.active { background: #4493f8; color: #fff; box-shadow: 0 1px 6px rgba(0,97,164,0.28); }
+  .state-tab.active { background: var(--primary); color: #fff; box-shadow: 0 1px 6px rgba(0,97,164,0.28); }
 
   /* ── Restriction banner ── */
   .restrict-banner {
-    background: rgba(22,27,34,0.88);
+    background: var(--restrict-bg);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border: 1px solid #30363d;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.2);
+    border: 1px solid var(--restrict-border);
+    box-shadow: var(--restrict-shadow);
   }
 
   /* ── Avatar gradient ring ── */
   .avatar-ring {
     padding: 2px;
-    background: linear-gradient(135deg, #4493f8 0%, #79c0ff 100%);
+    background: var(--avatar-ring-grad);
   }
 
   /* ── Animations ── */
@@ -246,10 +467,10 @@
   .ui-toggle::after {
     content: ''; position: absolute;
     left: 3px; top: 3px; width: 18px; height: 18px;
-    border-radius: 50%; background: #161b22;
+    border-radius: 50%; background: var(--toggle-thumb);
     box-shadow: 0 1px 4px rgba(0,0,0,0.18); transition: transform 0.2s;
   }
-  input:checked + .ui-toggle { background: #4493f8; }
+  input:checked + .ui-toggle { background: var(--primary); }
   input:checked + .ui-toggle::after { transform: translateX(18px); }
 
   @keyframes rippleExpand {
@@ -282,10 +503,10 @@
 
   .inspire-sheet-c {
     position: absolute; left: 0; right: 0; bottom: 0;
-    background: rgba(22,27,34,0.96); backdrop-filter: blur(20px);
-    border-top: 1px solid #30363d;
+    background: var(--sheet-c-bg); backdrop-filter: blur(20px);
+    border-top: 1px solid var(--sheet-c-border);
     border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
+    box-shadow: var(--sheet-c-shadow);
     z-index: 50; pointer-events: none; opacity: 0;
     transform-origin: bottom center;
   }
@@ -302,9 +523,9 @@
   /* ── Inner state tabs (phone preview) ── */
   .inner-tabs {
     display: flex; gap: 4px;
-    background: rgba(13,17,23,0.82);
+    background: var(--inner-tabs-bg);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid #21262d;
+    border-bottom: 1px solid var(--inner-tabs-border);
     padding: 7px 12px 7px; flex-shrink: 0;
     position: relative; z-index: 20;
   }
@@ -312,15 +533,15 @@
     flex: 1; padding: 5px 4px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
     cursor: pointer; border: none;
-    background: transparent; color: #8b949e;
+    background: transparent; color: var(--inner-tab-color);
     transition: all 0.16s ease;
     font-family: Inter, sans-serif; line-height: 1.2; text-align: center;
   }
-  .inner-tab.active { background: #4493f8; color: #fff; box-shadow: 0 1px 6px rgba(0,97,164,0.28); }
+  .inner-tab.active { background: var(--primary); color: #fff; box-shadow: 0 1px 6px rgba(0,97,164,0.28); }
 
   /* Mobile simulation */
   @media (max-width: 430px) {
-    body { background: #0d1117; align-items: flex-start; padding: 0; }
+    body { background: var(--bg-page); align-items: flex-start; padding: 0; }
     .phone-shell { width: 100vw; border-radius: 0 !important; box-shadow: none !important; height: 100dvh; }
     .dynamic-island { display: none; }
     .phone-inner { width: 100vw; flex: 1; padding-top: 0; }
@@ -384,7 +605,7 @@
     display: none; position: absolute; bottom: 28px; left: 0; right: 0;
     height: 36px; pointer-events: none;
   }
-  .bubble-her .bubble-fade { background: linear-gradient(to bottom, rgba(28,33,40,0) 0%, rgba(28,33,40,0.92) 100%); }
+  .bubble-her .bubble-fade { background: var(--bubble-her-fade); }
   .bubble-mine .bubble-fade { background: linear-gradient(to bottom, rgba(0,97,164,0) 0%, rgba(0,97,164,0.92) 100%); }
   .bubble-expand-btn {
     display: flex; align-items: center; gap: 3px;
@@ -392,7 +613,7 @@
     cursor: pointer; border: none; background: none; padding: 4px 0 0;
     line-height: 1; transition: opacity 0.15s;
   }
-  .bubble-her .bubble-expand-btn { color: #4493f8; }
+  .bubble-her .bubble-expand-btn { color: var(--primary); }
   .bubble-mine .bubble-expand-btn { color: rgba(255,255,255,0.85); }
   .bubble-expand-btn .expand-icon { font-size: 13px; transition: transform 0.2s; }
   .bubble-collapsible.expanded .expand-icon { transform: rotate(180deg); }
@@ -424,10 +645,29 @@
     animation: msgSettle 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
     transform-origin: right bottom;
   }
+
+  /* ── Theme toggle button (demo control, lives outside the shell) ── */
+  .theme-toggle{position:fixed;top:24px;right:24px;z-index:9999;
+    width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;
+    background:rgba(255,255,255,.92);color:#2a3439;
+    box-shadow:0 4px 14px rgba(0,0,0,.15);
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .15s,background .2s,color .2s;}
+  .theme-toggle:hover{transform:scale(1.08);}
+  .theme-toggle .material-symbols-outlined{font-size:22px;}
+  .theme-toggle .icon-dark{display:inline-block;}
+  .theme-toggle .icon-light{display:none;}
+  [data-theme="dark"] .theme-toggle{background:rgba(33,38,45,.92);color:#e6edf3;}
+  [data-theme="dark"] .theme-toggle .icon-dark{display:none;}
+  [data-theme="dark"] .theme-toggle .icon-light{display:inline-block;}
 </style>
 </head>
 
-<body class="bg-[#1a1f26] font-body text-on-surface flex justify-center items-start py-10 min-h-screen">
+<body class="bg-[var(--bg-body)] font-body text-on-surface flex justify-center items-start py-10 min-h-screen">
+<button class="theme-toggle" onclick="toggleTheme()" title="切换主题">
+  <span class="material-symbols-outlined icon-dark">dark_mode</span>
+  <span class="material-symbols-outlined icon-light">light_mode</span>
+</button>
 <nav id="sidebar" class="sidebar hidden"></nav>
 
 <div class="phone-shell">
@@ -446,19 +686,19 @@
   <div id="state-normal" class="flex flex-col">
 
     <!-- NavBar -->
-    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b border-outline-variant flex-shrink-0" style="position:relative;z-index:10;">
+    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b flex-shrink-0" style="position:relative;z-index:10;border-color:var(--glass-border);">
       <button class="material-symbols-outlined text-primary text-[22px] leading-none" onclick="history.back()">arrow_back_ios</button>
       <div class="relative flex-shrink-0">
         <div class="avatar-ring rounded-full" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;">
-          <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover block border-2 border-surface-container" alt=""/>
+          <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover block border-2" style="border-color:var(--bg-card);" alt=""/>
         </div>
-        <div class="absolute bottom-0 right-0 w-[9px] h-[9px] rounded-full bg-green-500 border-[1.5px] border-surface"></div>
+        <div class="absolute bottom-0 right-0 w-[9px] h-[9px] rounded-full bg-green-500" style="border:1.5px solid var(--bg-card);"></div>
       </div>
       <div class="flex-1 min-w-0">
         <div class="font-headline font-bold text-[13px] text-on-surface leading-tight">AveBell</div>
         <div class="text-[10px] text-secondary leading-tight">Game Expert · Online</div>
       </div>
-      <button id="sound-btn" onclick="toggleSound()" class="material-symbols-outlined text-[20px] leading-none transition-colors" style="color:#6e7681">volume_off</button>
+      <button id="sound-btn" onclick="toggleSound()" class="material-symbols-outlined text-[20px] leading-none transition-colors" style="color:var(--text-faint)">volume_off</button>
       <button onclick="showUserInfo()" class="material-symbols-outlined text-outline-variant text-[20px] leading-none">more_vert</button>
     </div>
 
@@ -468,7 +708,7 @@
 
       <!-- Her -->
       <div class="flex items-end gap-[7px]">
-        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-surface-container" alt=""/>
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 shadow-sm" style="border-color:var(--bg-card);" alt=""/>
         <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble" data-text="Hey! Feel free to ask me anything, I'll do my best to help!">
           Hey! Feel free to ask me anything, I'll do my best to help!
         </div>
@@ -485,7 +725,7 @@
 
       <!-- Her long -->
       <div class="flex items-end gap-[7px]">
-        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-surface-container" alt=""/>
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 shadow-sm" style="border-color:var(--bg-card);" alt=""/>
         <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble" data-text="That number looks mysterious~ Are you testing my number sense, or does it mean something special? Hit me up for any game questions!">
           That number looks mysterious~ Are you testing my number sense, or does it mean something special? Hit me up for any game questions!
         </div>
@@ -502,7 +742,7 @@
 
       <!-- Her -->
       <div class="flex items-end gap-[7px]">
-        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-surface-container" alt=""/>
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 shadow-sm" style="border-color:var(--bg-card);" alt=""/>
         <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px] bubble" data-text="11? Playing number games? Or does it have a meaning? I've got all the X-Hero guides! 🌟">
           11? Playing number games? Or does it have a meaning? I've got all the X-Hero guides! 🌟
         </div>
@@ -511,7 +751,7 @@
 
     <!-- AI Inspire shortcut button -->
     <div class="px-3 pb-[5px] flex-shrink-0" style="position:relative;z-index:10;">
-      <button id="inspire-trigger" onclick="triggerInspire(this)" class="glass flex items-center gap-[5px] px-[12px] py-[5px] rounded-full border border-white/60 text-[11px] font-semibold text-primary shadow-sm" style="box-shadow:0 1px 6px rgba(0,97,164,0.10);position:relative;">
+      <button id="inspire-trigger" onclick="triggerInspire(this)" class="glass flex items-center gap-[5px] px-[12px] py-[5px] rounded-full text-[11px] font-semibold text-primary shadow-sm" style="box-shadow:0 1px 6px rgba(0,97,164,0.10);position:relative;border:1px solid var(--glass-border);">
         <span id="inspire-star" style="display:inline-block;transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1)">✨</span> AI Inspire
       </button>
     </div>
@@ -589,19 +829,19 @@
   <div id="state-inspire" class="flex flex-col" style="display:none!important;">
 
     <!-- NavBar -->
-    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b border-outline-variant flex-shrink-0" style="position:relative;z-index:10;">
+    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b flex-shrink-0" style="position:relative;z-index:10;border-color:var(--glass-border);">
       <button class="material-symbols-outlined text-primary text-[22px] leading-none" onclick="history.back()">arrow_back_ios</button>
       <div class="relative flex-shrink-0">
         <div class="avatar-ring rounded-full" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;">
-          <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover block border-2 border-surface-container" alt=""/>
+          <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover block border-2" style="border-color:var(--bg-card);" alt=""/>
         </div>
-        <div class="absolute bottom-0 right-0 w-[9px] h-[9px] rounded-full bg-green-500 border-[1.5px] border-surface"></div>
+        <div class="absolute bottom-0 right-0 w-[9px] h-[9px] rounded-full bg-green-500" style="border:1.5px solid var(--bg-card);"></div>
       </div>
       <div class="flex-1 min-w-0">
         <div class="font-headline font-bold text-[13px] text-on-surface leading-tight">AveBell</div>
         <div class="text-[10px] text-secondary leading-tight">Game Expert · Online</div>
       </div>
-      <button id="sound-btn-inspire" onclick="toggleSound()" class="material-symbols-outlined text-[20px] leading-none transition-colors" style="color:#6e7681">volume_off</button>
+      <button id="sound-btn-inspire" onclick="toggleSound()" class="material-symbols-outlined text-[20px] leading-none transition-colors" style="color:var(--text-faint)">volume_off</button>
       <button onclick="showUserInfo()" class="material-symbols-outlined text-outline-variant text-[20px] leading-none">more_vert</button>
     </div>
 
@@ -609,7 +849,7 @@
     <div class="messages-area px-4 py-3 flex flex-col gap-[7px]" style="position:relative;z-index:1;">
       <div class="text-center text-[10px] text-on-surface-variant/70 my-1 tracking-wide">18:58</div>
       <div class="flex items-end gap-[7px]">
-        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-surface-container" alt=""/>
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 shadow-sm" style="border-color:var(--bg-card);" alt=""/>
         <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px]">Hey! Feel free to ask me anything, I'll do my best to help!</div>
       </div>
       <div class="flex items-end gap-[7px] justify-end">
@@ -617,7 +857,7 @@
         <img src="https://i.pravatar.cc/80?img=12" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0" alt=""/>
       </div>
       <div class="flex items-end gap-[7px]">
-        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 border-surface-container" alt=""/>
+        <img src="https://i.pravatar.cc/80?img=47" class="w-[28px] h-[28px] rounded-full object-cover flex-shrink-0 border-2 shadow-sm" style="border-color:var(--bg-card);" alt=""/>
         <div class="bubble-her text-[12px] leading-[1.55] px-[11px] py-[8px] max-w-[210px]">That number's mysterious~ game questions? I've got you covered! (👁️🔥⭐)</div>
       </div>
     </div>
@@ -678,7 +918,7 @@
   <div id="state-stranger" class="flex flex-col" style="display:none!important;">
 
     <!-- NavBar (stranger) -->
-    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b border-outline-variant flex-shrink-0" style="position:relative;z-index:10;">
+    <div class="glass flex items-center gap-2 px-4 h-[52px] border-b flex-shrink-0" style="position:relative;z-index:10;border-color:var(--glass-border);">
       <button class="material-symbols-outlined text-primary text-[22px] leading-none" onclick="history.back()">arrow_back_ios</button>
       <div class="relative flex-shrink-0">
         <img src="https://i.pravatar.cc/80?img=47" class="w-[30px] h-[30px] rounded-full object-cover block" alt=""/>
@@ -718,7 +958,7 @@
       </div>
       <!-- Empty state guide -->
       <div class="flex flex-col items-center justify-center gap-[10px] py-[32px]">
-        <div class="glass-light w-[48px] h-[48px] rounded-full flex items-center justify-center border border-white/70 shadow-sm text-[22px]">💬</div>
+        <div class="glass-light w-[48px] h-[48px] rounded-full flex items-center justify-center shadow-sm text-[22px]" style="border:1px solid var(--glass-border);">💬</div>
         <p class="text-[11px] text-on-surface-variant text-center leading-[1.7] max-w-[180px]">
           You can only send one message<br/>until they follow or reply.
         </p>
@@ -728,7 +968,7 @@
     <!-- Input (disabled) -->
     <div class="input-area px-3 pb-[8px] pt-[6px] flex items-center gap-[6px] flex-shrink-0 mt-auto" style="position:relative;z-index:10;">
       <div class="flex-1 rounded-full px-[12px] py-[5px] text-[13px] text-outline-variant"
-           style="background:#161b22;border:1.5px solid #30363d;line-height:1.4;">
+           style="background:var(--strangerinput-bg);border:1.5px solid var(--strangerinput-border);line-height:1.4;">
         Message...
       </div>
       <span class="material-symbols-outlined text-[22px] leading-none opacity-30 cursor-not-allowed">sentiment_satisfied</span>
@@ -741,49 +981,49 @@
 
 
 <!-- ─── User info overlay ───────────────────────────── -->
-<div id="user-info-overlay" style="display:none;position:absolute;inset:0;z-index:100;background:#0d1117;flex-direction:column;">
+<div id="user-info-overlay" style="display:none;position:absolute;inset:0;z-index:100;background:var(--userinfo-bg);flex-direction:column;">
 
   <!-- Header -->
-  <div style="display:flex;align-items:center;height:48px;padding:0 12px;border-bottom:1px solid #21262d;background:#161b22;flex-shrink:0;">
+  <div style="display:flex;align-items:center;height:48px;padding:0 12px;border-bottom:1px solid var(--userinfo-card-border);background:var(--userinfo-card-bg);flex-shrink:0;">
     <button onclick="hideUserInfo()" style="background:none;border:none;padding:4px;cursor:pointer;display:flex;align-items:center;">
-      <span class="material-symbols-outlined" style="font-size:22px;color:#4493f8;">arrow_back_ios</span>
+      <span class="material-symbols-outlined" style="font-size:22px;color:var(--userinfo-back-color);">arrow_back_ios</span>
     </button>
-    <div style="flex:1;text-align:center;font-weight:700;font-size:14px;color:#e6edf3;font-family:Manrope,sans-serif;">AveBell</div>
+    <div style="flex:1;text-align:center;font-weight:700;font-size:14px;color:var(--userinfo-name-color);font-family:Manrope,sans-serif;">AveBell</div>
     <div style="width:34px;"></div>
   </div>
 
   <!-- User card -->
-  <div style="background:#161b22;display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #21262d;">
+  <div style="background:var(--userinfo-card-bg);display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--userinfo-card-border);">
     <div style="position:relative;flex-shrink:0;">
-      <div style="padding:2px;background:linear-gradient(135deg,#4493f8,#79c0ff);border-radius:50%;">
-        <img src="https://i.pravatar.cc/80?img=47" style="width:48px;height:48px;border-radius:50%;object-fit:cover;display:block;border:2px solid #fff;" alt=""/>
+      <div style="padding:2px;background:var(--userinfo-avatar-grad);border-radius:50%;">
+        <img src="https://i.pravatar.cc/80?img=47" style="width:48px;height:48px;border-radius:50%;object-fit:cover;display:block;border:2px solid var(--userinfo-avatar-border);" alt=""/>
       </div>
       <div style="position:absolute;bottom:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#4caf50;border:2px solid #fff;"></div>
     </div>
     <div>
-      <div style="font-weight:700;font-size:14px;color:#e6edf3;font-family:Manrope,sans-serif;">AveBell</div>
+      <div style="font-weight:700;font-size:14px;color:var(--userinfo-name-color);font-family:Manrope,sans-serif;">AveBell</div>
       <div style="font-size:11px;color:#22648e;margin-top:2px;">Game Expert · Online</div>
     </div>
   </div>
 
   <!-- Settings -->
-  <div style="margin-top:12px;background:#161b22;border-top:1px solid #21262d;border-bottom:1px solid #21262d;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #21262d;">
-      <span style="font-size:14px;color:#e6edf3;">Mute Notifications</span>
+  <div style="margin-top:12px;background:var(--userinfo-card-bg);border-top:1px solid var(--userinfo-card-border);border-bottom:1px solid var(--userinfo-card-border);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--userinfo-card-divider);">
+      <span style="font-size:14px;color:var(--userinfo-name-color);">Mute Notifications</span>
       <label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">
         <input type="checkbox" id="toggle-mute" style="opacity:0;width:0;height:0;position:absolute;"/>
         <span class="ui-toggle"></span>
       </label>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #21262d;">
-      <span style="font-size:14px;color:#e6edf3;">Pin Conversation</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--userinfo-card-divider);">
+      <span style="font-size:14px;color:var(--userinfo-name-color);">Pin Conversation</span>
       <label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">
         <input type="checkbox" id="toggle-pin" style="opacity:0;width:0;height:0;position:absolute;"/>
         <span class="ui-toggle"></span>
       </label>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;">
-      <span style="font-size:14px;color:#e6edf3;">Block User</span>
+      <span style="font-size:14px;color:var(--userinfo-name-color);">Block User</span>
       <label style="position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;">
         <input type="checkbox" id="toggle-block" style="opacity:0;width:0;height:0;position:absolute;"/>
         <span class="ui-toggle"></span>
@@ -792,24 +1032,24 @@
   </div>
 
   <!-- Report -->
-  <div style="margin-top:12px;background:#161b22;border-top:1px solid #21262d;border-bottom:1px solid #21262d;">
+  <div style="margin-top:12px;background:var(--userinfo-card-bg);border-top:1px solid var(--userinfo-card-border);border-bottom:1px solid var(--userinfo-card-border);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;">
-      <span style="font-size:14px;color:#e6edf3;">Report User</span>
-      <span class="material-symbols-outlined" style="font-size:18px;color:#6e7681;">chevron_right</span>
+      <span style="font-size:14px;color:var(--userinfo-name-color);">Report User</span>
+      <span class="material-symbols-outlined" style="font-size:18px;color:var(--userinfo-chevron);">chevron_right</span>
     </div>
   </div>
 
 </div>
 
-<script src="../../shared/sidebar-data.js"></script>
-<script src="../../shared/bottom-nav.js"></script>
+<script src="../shared/sidebar-data.js"></script>
+<script src="../shared/bottom-nav.js"></script>
 <script>
 let soundOn = false;
 function toggleSound() {
   soundOn = !soundOn;
   document.querySelectorAll('#sound-btn, #sound-btn-inspire').forEach(btn => {
     btn.textContent = soundOn ? 'volume_up' : 'volume_off';
-    btn.style.color = soundOn ? '#4493f8' : '#6e7681';
+    btn.style.color = soundOn ? 'var(--primary)' : 'var(--text-faint)';
   });
 }
 
@@ -869,7 +1109,7 @@ function triggerInspire(btn) {
       } else {
         const size = 3 + Math.random() * 3;
         el.className = 'inspire-spark';
-        el.style.cssText = `width:${size}px;height:${size}px;left:${cx+dx-size/2}px;top:${cy+dy-size/2}px;background:${['#4493f8','#79c0ff','#80c8ff','#ffd700'][Math.floor(Math.random()*4)]};transform:translate(${dx*0.7}px,${dy*0.7}px);animation:sparkFly 0.55s ease-out forwards;`;
+        el.style.cssText = `width:${size}px;height:${size}px;left:${cx+dx-size/2}px;top:${cy+dy-size/2}px;background:${['#0061a4','#2498f5','#80c8ff','#ffd700'][Math.floor(Math.random()*4)]};transform:translate(${dx*0.7}px,${dy*0.7}px);animation:sparkFly 0.55s ease-out forwards;`;
       }
       inner.appendChild(el);
       setTimeout(() => el.remove(), 800);
@@ -1122,36 +1362,36 @@ requestAnimationFrame(initAllCollapsibles);
 <div id="pnav-drawer">
   <div id="pnav-head">
     <h3>Overseas · 页面目录</h3>
-    <p>Light 模式 · 共 15 页</p>
+    <p>共 15 页 · 主题可切换</p>
     <button id="pnav-close" onclick="closePnav()">
       <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
     </button>
   </div>
   <nav id="pnav-list">
     <div class="pnav-section"><span class="pnav-section-label">Home · 首页模块</span></div>
-    <a class="pnav-item" href="../../home/light/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
-    <a class="pnav-item" href="../../home/light/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
-    <a class="pnav-item" href="../../home/light/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
-    <a class="pnav-item" href="../../home/light/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
-    <a class="pnav-item" href="../../home/light/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
+    <a class="pnav-item" href="../home/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
+    <a class="pnav-item" href="../home/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
+    <a class="pnav-item" href="../home/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
+    <a class="pnav-item" href="../home/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
+    <a class="pnav-item" href="../home/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
-    <a class="pnav-item" href="../../feed/light/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
+    <a class="pnav-item" href="../feed/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
 
     <div class="pnav-section"><span class="pnav-section-label">News · 资讯模块</span></div>
-    <a class="pnav-item" href="../../news/light/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
+    <a class="pnav-item" href="../news/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
-    <a class="pnav-item" href="../../profile/light/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
-    <a class="pnav-item" href="../../profile/light/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
-    <a class="pnav-item" href="../../profile/light/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
-    <a class="pnav-item" href="../../profile/light/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
-    <a class="pnav-item" href="../../profile/light/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
-    <a class="pnav-item" href="../../profile/light/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
+    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
+    <a class="pnav-item" href="../profile/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
+    <a class="pnav-item" href="../profile/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
+    <a class="pnav-item" href="../profile/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
+    <a class="pnav-item" href="../profile/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
+    <a class="pnav-item" href="../profile/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Publish · 发布模块</span></div>
-    <a class="pnav-item" href="../../publish/light/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
-    <a class="pnav-item" href="../../publish/light/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
+    <a class="pnav-item" href="../publish/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
+    <a class="pnav-item" href="../publish/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
   </nav>
 </div>
 <script>
@@ -1223,7 +1463,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </div>
 <script>
 (function(){
-  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面均有亮色（Light）和深色（Dark）两套模式，需同时实现。\n\n### 首页模块（Home）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 1 | 首页（社区主页） | home/light/home-en.html | home/dark/home-en-dark.html |\n| 2 | 帖子详情 | home/light/post-detail-en.html | home/dark/post-detail-en-dark.html |\n| 3 | 心情详情 | home/light/mood-detail-en.html | home/dark/mood-detail-en-dark.html |\n| 4 | 搜索页 | home/light/search-en.html | home/dark/search-en-dark.html |\n| 5 | 搜索结果页 | home/light/search-results-en.html | home/dark/search-results-en-dark.html |\n\n### Feed 模块\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 6 | Feed 流 | feed/light/feed-en.html | feed/dark/feed-en-dark.html |\n\n### 资讯模块（News）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 7 | 资讯列表 | news/light/news-en.html | news/dark/news-en-dark.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 8 | 我的主页 | profile/light/profile-en.html | profile/dark/profile-en-dark.html |\n| 9 | 他人主页 | profile/light/profile-other-en.html | profile/dark/profile-other-en-dark.html |\n| 10 | 设置页 | profile/light/settings-en.html | profile/dark/settings-en-dark.html |\n| 11 | 通知页 | profile/light/notifications-en.html | profile/dark/notifications-en-dark.html |\n| 12 | 聊天页 | profile/light/chat-en.html | profile/dark/chat-en-dark.html |\n| 13 | 草稿箱 | profile/light/drafts-en.html | profile/dark/drafts-en-dark.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 14 | 发帖页 | publish/light/post_publish-en.html | publish/dark/post_publish-en-dark.html |\n| 15 | 发心情页 | publish/light/mood_publish-en.html | publish/dark/mood_publish-en-dark.html |\n\n> **深色模式说明**：系统跟随设备 dark mode 设置自动切换，同一页面亮色/深色为同一功能页，不计为两个页面，但两套皮肤必须完整实现。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n| 级别 | 字号 | 字重 | 字体 | 场景 |\n|------|------|------|------|------|\n| Display | 26px | 900 | Manrope | 评分大数字 |\n| Headline L | 17px | 800 | Manrope | 推荐卡标题、页面主标题 |\n| Headline M | 14px | 700 | Inter | 帖子标题、列表主文字 |\n| Label L | 15px | 700 | Manrope | CTA 按钮、顶栏标题 |\n| Body M | 12-13px | 400 | Inter | 正文描述、评论 |\n| Label M | 11px | 500-700 | Inter | 标签、元信息 |\n| Caption | 10px | 500-700 | Inter | 底导标签、等级 Badge |\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 主色按压态 | #005590 |\n| 深色背景强调色 | #2498f5 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器/禁用背景 | #f0f4f7 |\n| 分隔填充 | #e8eff3 |\n| 导航栏边框 | #e1e9ee |\n| Story 未看环 | #d9e4ea |\n| 主文字/标题 | #2a3439 |\n| 次级文字/标签 | #566166 |\n| 辅助文字 | #717c82 |\n| 占位符/禁用文字 | #a9b4b9 |\n| 禁用浅色 | #c8d0d5 |\n| 蓝色强调块背景 | #cbe6ff |\n| 蓝色强调块内文字 | #0a5780 |\n| 公告条背景 | #eff6ff |\n| 话题标签背景 | #fef3c7 |\n| 话题标签边框 | #fbbf24 |\n| 话题标签文字 | #b45309 |\n| 深色推荐卡主体 | #0f1c27 |\n| 未读 Badge | #e53935 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 主色按压态 | #3882ef |\n| 高亮强调色（评分） | #79c0ff |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| Story 未看环 | #30363d |\n| 深色推荐卡主体 | #0a1520 |\n| 蓝色强调块背景 | #1f3a56 |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n| 话题标签背景 | #2d1f06 |\n| 话题标签边框 | #d97706 |\n| 话题标签文字 | #f59e0b |\n| 未读 Badge | #e53935 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片（帖子卡、新闻卡） | 12-16px |\n| 横滑 Featured Card | 14px |\n| 搜索框/输入框 | 8-10px |\n| 方形标签/Chip | 4-6px |\n| 胶囊标签/主要按钮 | 999px |\n| 快捷入口图标背景 | 10-12px |\n| 头像 | 50% |\n| 等级 Badge | 8px |\n\n### 4.5 背景底色 & 边框 — 亮色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #f7f9fb | — |\n| 顶部导航栏 | #ffffff | bottom: 1px solid #e1e9ee |\n| 底部导航栏 | rgba(255,255,255,0.96) + blur(14px) | top: 1px solid #e1e9ee |\n| 内容卡片 | #ffffff | 仅阴影 0 1px 6px rgba(42,52,57,0.07) |\n| 页面分隔块 | #f0f4f7 | — |\n| 输入框 | #f0f4f7 | 激活：1.5px solid #0061a4 |\n| 公告条 | #eff6ff | left: 3px solid #0061a4 |\n\n### 4.6 背景底色 & 边框 — 深色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #0d1117 | — |\n| 顶部导航栏 | #0d1117 | bottom: 1px solid #21262d |\n| 底部导航栏 | rgba(13,17,23,0.96) + blur(14px) | top: 1px solid #21262d |\n| 内容卡片 | #161b22 | 1px solid #21262d |\n| 页面分隔块 | #161b22 | — |\n| 输入框 | #1c2128 | 激活：1.5px solid #4493f8 |\n| 公告条 | #1a3a5c | left: 3px solid #4493f8 |\n\n### 4.7 图标规范\n\n图标库：Material Symbols Outlined\n\n底部导航图标：home / explore / add / article / person（24px）\n\n默认样式：FILL 0, wght 400，激活态：FILL 1, wght 500\n\n### 4.8 底部导航栏\n\n- 高度：82px，padding-top: 8px\n- 默认图标色：亮色 #a9b4b9 / 深色 #6e7681\n- 选中图标色：亮色 #0061a4 / 深色 #4493f8\n- 发布按钮：46x46px 圆形，上浮 margin-top: -10px\n\n### 4.9 动效规范\n\n| 类型 | CSS |\n|------|-----|\n| 卡片按压 | transform: scale(0.99)，transition 0.15s |\n| 大卡按压 | transform: scale(0.975)，transition 0.15s |\n| 按钮颜色过渡 | transition: background 0.15s |\n| 隐藏滚动条 | scrollbar-width: none |\n\n---\n\n## 五、开发注意事项\n\n1. 所有页面均需同时实现**亮色和深色模式**，通过系统 prefers-color-scheme 自动切换\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover，不得拉伸\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n5. 首页抽屉菜单从左侧滑出（宽 280px），背景蒙层 rgba(0,0,0,0.45)\n6. 发布页顶栏发布按钮初始为禁用态（灰色），有内容后激活为主色";
+  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面同时支持亮色（Light）和深色（Dark）两套模式，通过同一份 HTML + CSS 变量切换。\n\n### 首页模块（Home）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n\n### Feed 模块\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 6 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 7 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 8 | 我的主页 | profile/profile-en.html |\n| 9 | 他人主页 | profile/profile-other-en.html |\n| 10 | 设置页 | profile/settings-en.html |\n| 11 | 通知页 | profile/notifications-en.html |\n| 12 | 聊天页 | profile/chat-en.html |\n| 13 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 14 | 发帖页 | publish/post_publish-en.html |\n| 15 | 发心情页 | publish/mood_publish-en.html |\n\n> **主题切换说明**：每个页面通过 `<html data-theme=\"dark|light\">` 控制，CSS 变量驱动；首次访问跟随系统 prefers-color-scheme，用户手动切换后写入 localStorage 持久化。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器 | #f0f4f7 |\n| 分隔线 | #e1e9ee |\n| 主文字/标题 | #2a3439 |\n| 次级文字 | #566166 |\n| 占位符/禁用文字 | #a9b4b9 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片 | 12-16px |\n| 搜索框/输入框 | 8-10px |\n| 标签/Chip | 4-6px |\n| 胶囊按钮 | 999px |\n\n---\n\n## 五、开发注意事项\n\n1. 所有颜色使用 CSS 变量，避免硬编码；切换主题只通过 `<html data-theme>` 实现\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动";
   function md2html(t){
     var h = t
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')

@@ -4,7 +4,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
 <title>BigPlayer — Home (EN)</title>
-<link rel="stylesheet" href="../../../shared/sidebar.css">
+<script src="../shared/theme-toggle.js"></script>
+<link rel="stylesheet" href="../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -13,25 +14,25 @@
     theme: {
       extend: {
         colors: {
-          "on-surface-variant": "#8b949e",
-          "secondary-container": "#1f3a56",
-          "primary": "#4493f8",
-          "primary-dim": "#3882ef",
-          "surface-container-low": "#161b22",
-          "surface-variant": "#30363d",
-          "outline": "#6e7681",
-          "surface-container": "#1c2128",
-          "on-secondary-container": "#79c0ff",
-          "surface-container-lowest": "#0d1117",
-          "surface-container-highest": "#30363d",
-          "on-primary": "#0d1117",
-          "outline-variant": "#30363d",
-          "surface-container-high": "#21262d",
-          "on-surface": "#e6edf3",
-          "background": "#0d1117",
-          "inverse-primary": "#79c0ff",
-          "surface": "#0d1117",
-          "surface-tint": "#4493f8"
+          "on-surface-variant": "var(--on-surface-variant)",
+          "secondary-container": "var(--secondary-container)",
+          "primary": "var(--primary)",
+          "primary-dim": "var(--primary-dim)",
+          "surface-container-low": "var(--surface-container-low)",
+          "surface-variant": "var(--surface-variant)",
+          "outline": "var(--outline)",
+          "surface-container": "var(--surface-container)",
+          "on-secondary-container": "var(--on-secondary-container)",
+          "surface-container-lowest": "var(--surface-container-lowest)",
+          "surface-container-highest": "var(--surface-container-highest)",
+          "on-primary": "var(--on-primary)",
+          "outline-variant": "var(--outline-variant)",
+          "surface-container-high": "var(--surface-container-high)",
+          "on-surface": "var(--on-surface)",
+          "background": "var(--background)",
+          "inverse-primary": "var(--inverse-primary)",
+          "surface": "var(--surface)",
+          "surface-tint": "var(--surface-tint)"
         },
         borderRadius: {
           DEFAULT: "1rem",
@@ -49,6 +50,69 @@
   }
 </script>
 <style>
+
+  :root{
+    --bg-body:#e8e8e8;
+    --on-surface-variant:#566166;
+    --secondary-container:#cbe6ff;
+    --primary:#0061a4;
+    --primary-dim:#005590;
+    --surface-container-low:#f0f4f7;
+    --surface-variant:#d9e4ea;
+    --outline:#717c82;
+    --surface-container:#e8eff3;
+    --on-secondary-container:#0a5780;
+    --surface-container-lowest:#ffffff;
+    --surface-container-highest:#d9e4ea;
+    --on-primary:#f5f8ff;
+    --outline-variant:#a9b4b9;
+    --surface-container-high:#e1e9ee;
+    --on-surface:#2a3439;
+    --background:#f7f9fb;
+    --inverse-primary:#2498f5;
+    --surface:#f7f9fb;
+    --surface-tint:#0061a4;
+    --rec-card-bg:#0f1c27;
+    --notice-bg:#eff6ff;
+    --topic-bg:#fef3c7;
+    --topic-border:#fbbf24;
+    --topic-text:#b45309;
+    --disabled:#c8d0d5;
+    --shadow-card:0 1px 6px rgba(42,52,57,0.07);
+    --shadow-featured:0 8px 24px rgba(42,52,57,0.16);
+    --bottom-nav-bg:rgba(255,255,255,0.96);
+  }
+  [data-theme="dark"]{
+    --bg-body:#1a1f26;
+    --on-surface-variant:#8b949e;
+    --secondary-container:#1f3a56;
+    --primary:#4493f8;
+    --primary-dim:#3882ef;
+    --surface-container-low:#161b22;
+    --surface-variant:#30363d;
+    --outline:#6e7681;
+    --surface-container:#1c2128;
+    --on-secondary-container:#79c0ff;
+    --surface-container-lowest:#0d1117;
+    --surface-container-highest:#30363d;
+    --on-primary:#0d1117;
+    --outline-variant:#30363d;
+    --surface-container-high:#21262d;
+    --on-surface:#e6edf3;
+    --background:#0d1117;
+    --inverse-primary:#79c0ff;
+    --surface:#0d1117;
+    --surface-tint:#4493f8;
+    --rec-card-bg:#0a1520;
+    --notice-bg:#1a3a5c;
+    --topic-bg:#2d1f06;
+    --topic-border:#d97706;
+    --topic-text:#f59e0b;
+    --disabled:#30363d;
+    --shadow-card:0 1px 6px rgba(0,0,0,0.3);
+    --shadow-featured:0 8px 24px rgba(0,0,0,0.55);
+    --bottom-nav-bg:rgba(13,17,23,0.96);
+  }
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
@@ -58,12 +122,12 @@
   /* ── Tab active state ── */
   .tab-active {
     font-weight: 700 !important;
-    color: #e6edf3 !important;
-    border-bottom: 2.5px solid #4493f8 !important;
+    color: var(--on-surface) !important;
+    border-bottom: 2.5px solid var(--primary) !important;
   }
   .tab-inactive {
     font-weight: 500;
-    color: #8b949e;
+    color: var(--on-surface-variant);
     border-bottom: 2.5px solid transparent !important;
   }
 
@@ -80,7 +144,7 @@
   }
   .featured-card {
     flex-shrink: 0;
-    background: #161b22;
+    background: var(--surface-container-lowest);
     border-radius: 14px;
     overflow: hidden;
     cursor: pointer;
@@ -94,14 +158,14 @@
     width: 270px;
     transform: scale(1);
     opacity: 1;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    box-shadow: 0 8px 24px rgba(42,52,57,0.16);
     z-index: 2; position: relative;
   }
   .featured-card.fc-side {
     width: 140px;
     transform: scale(0.88);
     opacity: 0.55;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+    box-shadow: 0 2px 10px rgba(42,52,57,0.08);
     z-index: 1; position: relative;
   }
   .featured-card.fc-far {
@@ -117,9 +181,9 @@
   .featured-card .fc-caption {
     padding: 8px 10px 10px;
   }
-  .featured-card.fc-active .fc-caption p { font-size: 13px; font-weight: 700; color: #e6edf3; }
-  .featured-card.fc-side   .fc-caption p { font-size: 11px; font-weight: 600; color: #6e7681; }
-  .featured-card.fc-far    .fc-caption p { font-size: 11px; font-weight: 600; color: #6e7681; }
+  .featured-card.fc-active .fc-caption p { font-size: 13px; font-weight: 700; color: var(--on-surface); }
+  .featured-card.fc-side   .fc-caption p { font-size: 11px; font-weight: 600; color: var(--outline); }
+  .featured-card.fc-far    .fc-caption p { font-size: 11px; font-weight: 600; color: var(--outline); }
   .fc-caption p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
   .featured-carousel__dots {
     display: flex;
@@ -130,10 +194,10 @@
   }
   .featured-carousel__dot {
     height: 4px; border-radius: 3px;
-    background: rgba(68,147,248,0.2);
+    background: rgba(0,97,164,0.2);
     transition: all 0.3s;
   }
-  .featured-carousel__dot.active { width: 16px; background: #4493f8; }
+  .featured-carousel__dot.active { width: 16px; background: var(--primary); }
   .featured-carousel__dot:not(.active) { width: 4px; border-radius: 50%; }
 
   /* ── Top Recommendation dark card ── */
@@ -146,10 +210,10 @@
   }
   .rec-card:active { transform: scale(0.99); }
   .rec-card__img { width: 100%; height: 196px; object-fit: cover; display: block; }
-  .rec-card__body { padding: 14px 14px 16px; background: #0a1520; }
+  .rec-card__body { padding: 14px 14px 16px; background: var(--rec-card-bg); }
   .rec-card__name { font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; color: #fff; line-height: 1.3; }
-  .rec-card__rating-label { font-size: 10px; font-weight: 700; color: #79c0ff; }
-  .rec-card__rating-value { font-size: 26px; font-weight: 900; color: #79c0ff; line-height: 1; }
+  .rec-card__rating-label { font-size: 10px; font-weight: 700; color: var(--inverse-primary); }
+  .rec-card__rating-value { font-size: 26px; font-weight: 900; color: var(--inverse-primary); line-height: 1; }
   .rec-card__tag {
     font-size: 11px; color: rgba(255,255,255,0.65);
     border: 1px solid rgba(255,255,255,0.2);
@@ -162,35 +226,35 @@
   .rec-card__meta-item svg { flex-shrink: 0; opacity: 0.7; }
   .rec-card__cta {
     display: block; width: 100%; padding: 13px;
-    background: #4493f8; color: #fff;
+    background: var(--primary); color: #fff;
     font-family: Manrope, sans-serif; font-size: 15px; font-weight: 700;
     border: none; border-radius: 999px; cursor: pointer; text-align: center;
     transition: background 0.15s;
   }
-  .rec-card__cta:active { background: #3882ef; }
+  .rec-card__cta:active { background: var(--primary-dim); }
 
   /* ── Community post card ── */
   .post-card {
     margin: 0 12px 10px;
     padding: 14px;
-    background: #161b22;
+    background: var(--surface-container-lowest);
     border-radius: 12px;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 1px 6px var(--shadow-card-color, rgba(42,52,57,0.07));
     cursor: pointer;
     transition: transform 0.15s;
   }
   .post-card:active { transform: scale(0.99); }
   .post-card__cover { width: 100%; height: 148px; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 10px; }
-  .post-card__title { font-size: 14px; font-weight: 700; color: #e6edf3; line-height: 1.4; margin-bottom: 10px; }
+  .post-card__title { font-size: 14px; font-weight: 700; color: var(--on-surface); line-height: 1.4; margin-bottom: 10px; }
   .post-card__avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
   .post-card__lv {
     display: inline-block; font-size: 10px; font-weight: 700;
-    color: #4493f8; border: 1px solid #4493f8;
+    color: var(--primary); border: 1px solid var(--primary);
     border-radius: 4px; padding: 0 4px; margin-left: 4px;
   }
   .post-card__cat {
     font-size: 11px; color: #fff;
-    background: #4493f8; padding: 3px 9px;
+    background: var(--primary); padding: 3px 9px;
     border-radius: 6px; font-weight: 600; flex-shrink: 0;
   }
 
@@ -201,15 +265,15 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 18px;
   }
-  .quick-item__label { font-size: 10px; color: #8b949e; font-weight: 500; text-align: center; }
+  .quick-item__label { font-size: 10px; color: var(--on-surface-variant); font-weight: 500; text-align: center; }
 
   /* ── Announcement strip ── */
   .announce-strip {
     margin: 8px 12px 2px;
     padding: 10px 13px;
-    background: #1a3a5c;
+    background: var(--notice-bg);
     border-radius: 10px;
-    border-left: 3px solid #4493f8;
+    border-left: 3px solid var(--primary);
     display: flex; align-items: center; gap: 8px;
   }
 
@@ -217,7 +281,7 @@
   .phone-shell {
     width: 375px;
     height: 812px;
-    background: #0d1117;
+    background: var(--background);
     border-radius: 44px;
     box-shadow:
       0 0 0 10px #1a1a1a,
@@ -239,30 +303,30 @@
   /* ── Bottom nav ── */
   .bottom-nav {
     height: 82px;
-    background: rgba(13,17,23,0.96);
+    background: var(--bottom-nav-bg);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    border-top: 1px solid #21262d;
+    border-top: 1px solid var(--surface-container-high);
     display: flex; align-items: flex-start; padding-top: 8px;
     flex-shrink: 0;
   }
   .bottom-nav__item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding-top: 4px; }
-  .bottom-nav__item .material-symbols-outlined { font-size: 24px; color: #6e7681; }
-  .bottom-nav__item.active .material-symbols-outlined { color: #4493f8; font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
-  .bottom-nav__label { font-size: 10px; color: #6e7681; font-weight: 500; }
-  .bottom-nav__item.active .bottom-nav__label { color: #4493f8; }
+  .bottom-nav__item .material-symbols-outlined { font-size: 24px; color: var(--outline-variant); }
+  .bottom-nav__item.active .material-symbols-outlined { color: var(--primary); font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
+  .bottom-nav__label { font-size: 10px; color: var(--outline-variant); font-weight: 500; }
+  .bottom-nav__item.active .bottom-nav__label { color: var(--primary); }
   .bottom-nav__publish {
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer;
   }
   .bottom-nav__publish-btn {
     width: 46px; height: 46px;
-    background: #4493f8; border-radius: 50%;
+    background: var(--primary); border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 14px rgba(68,147,248,0.38);
+    box-shadow: 0 4px 14px rgba(0,97,164,0.38);
     margin-top: -10px;
     transition: background 0.15s;
   }
-  .bottom-nav__publish-btn:active { background: #3882ef; }
+  .bottom-nav__publish-btn:active { background: var(--primary-dim); }
   .bottom-nav__publish-btn .material-symbols-outlined { font-size: 22px; color: #fff; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
 
   /* ── Stories ── */
@@ -270,22 +334,22 @@
     width: 58px; height: 58px;
     border-radius: 50%;
     padding: 2.5px;
-    background: linear-gradient(135deg, #4493f8, #79c0ff);
+    background: linear-gradient(135deg, var(--primary), var(--inverse-primary));
     position: relative;
     flex-shrink: 0;
   }
-  .story-ring--unseen { background: #30363d; }
+  .story-ring--unseen { background: var(--surface-variant); }
   .story-avatar {
     width: 100%; height: 100%;
     border-radius: 50%;
     object-fit: cover;
-    border: 2.5px solid #0d1117;
+    border: 2.5px solid #fff;
     display: block;
   }
   .story-plus {
     position: absolute; bottom: -1px; right: -1px;
     width: 18px; height: 18px;
-    background: #4493f8; border: 2px solid #0d1117;
+    background: var(--primary); border: 2px solid #fff;
     border-radius: 50%;
     font-size: 12px; font-weight: 700; color: #fff;
     display: flex; align-items: center; justify-content: center;
@@ -297,16 +361,16 @@
     display: inline-flex; align-items: center; gap: 2px;
     font-size: 10px; font-weight: 700;
     color: #fff;
-    background: linear-gradient(135deg, #4493f8, #79c0ff);
+    background: linear-gradient(135deg, var(--primary), var(--inverse-primary));
     border-radius: 4px; padding: 1px 5px;
     flex-shrink: 0;
   }
   .badge-topic {
     display: inline-flex; align-items: center; gap: 2px;
     font-size: 10px; font-weight: 700;
-    color: #f59e0b;
-    background: #2d1f06;
-    border: 1px solid #d97706;
+    color: var(--topic-text);
+    background: var(--topic-bg);
+    border: 1px solid var(--topic-border);
     border-radius: 4px; padding: 1px 5px;
     flex-shrink: 0;
   }
@@ -315,29 +379,29 @@
   /* ── Follow buttons ── */
   .follow-btn {
     font-size: 11px; font-weight: 700;
-    color: #8b949e;
-    background: #161b22;
+    color: var(--on-surface-variant);
+    background: var(--surface-container-low);
     border: none; border-radius: 6px;
     padding: 4px 10px; cursor: pointer; flex-shrink: 0;
   }
   .follow-btn-outline {
     font-size: 12px; font-weight: 700;
-    color: #4493f8;
+    color: var(--primary);
     background: transparent;
-    border: 1.5px solid #4493f8;
+    border: 1.5px solid var(--primary);
     border-radius: 999px;
     padding: 5px 14px; cursor: pointer; flex-shrink: 0;
     transition: background 0.15s, color 0.15s;
   }
-  .follow-btn-outline:active { background: #4493f8; color: #fff; }
+  .follow-btn-outline:active { background: var(--primary); color: #fff; }
 
   /* ── User recommend card ── */
   .user-rec-card {
-    background: #161b22;
+    background: var(--surface-container-lowest);
     border-radius: 12px;
     padding: 12px 14px;
     display: flex; align-items: center; gap: 12px;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 1px 6px var(--shadow-card-color, rgba(42,52,57,0.07));
   }
   .user-rec-card__avatar {
     width: 44px; height: 44px;
@@ -346,18 +410,18 @@
 
   /* ── Guide element chips ── */
   .chip-inactive {
-    background: #161b22;
-    color: #8b949e;
-    border-color: #30363d;
+    background: var(--surface-container-lowest);
+    color: var(--on-surface-variant);
+    border-color: var(--surface-variant);
   }
   .chip-active {
-    background: #4493f8;
+    background: var(--primary);
     color: #fff;
-    border-color: #4493f8;
+    border-color: var(--primary);
   }
 
   /* ── Section divider ── */
-  .section-divider { height: 8px; background: #161b22; margin: 0; }
+  .section-divider { height: 8px; background: var(--surface-container-low); margin: 0; }
 
   /* ── Side drawer ── */
   .drawer-overlay {
@@ -368,7 +432,7 @@
   .drawer-overlay.open { opacity: 1; pointer-events: auto; }
   .drawer {
     position: absolute; top: 0; left: 0; bottom: 0;
-    width: 280px; background: #161b22; z-index: 201;
+    width: 280px; background: var(--surface-container-lowest); z-index: 201;
     transform: translateX(-100%);
     transition: transform 0.25s cubic-bezier(.4,0,.2,1);
     display: flex; flex-direction: column;
@@ -414,7 +478,7 @@
   /* ── Community switcher dropdown ── */
   .community-dropdown {
     position: absolute; top: 160px; left: 0; right: 0;
-    background: #161b22;
+    background: var(--surface-container-lowest);
     z-index: 202;
     max-height: 0; overflow: hidden;
     transition: max-height 0.28s cubic-bezier(.4,0,.2,1), box-shadow 0.2s;
@@ -430,32 +494,32 @@
     padding: 10px 20px; cursor: pointer;
     transition: background 0.12s;
   }
-  .community-item:active { background: #161b22; }
-  .community-item.active { background: #1a3a5c; }
+  .community-item:active { background: var(--surface-container-low); }
+  .community-item.active { background: var(--notice-bg); }
   .community-item__thumb {
     width: 40px; height: 40px; border-radius: 8px;
     object-fit: cover; flex-shrink: 0;
-    background: #21262d;
+    background: var(--surface-container-high);
   }
   .community-item__info { flex: 1; min-width: 0; }
-  .community-item__name { font-size: 14px; font-weight: 700; color: #e6edf3; }
-  .community-item__sub { font-size: 11px; color: #6e7681; margin-top: 1px; }
-  .community-item__check { font-size: 18px; color: #4493f8; flex-shrink: 0; }
+  .community-item__name { font-size: 14px; font-weight: 700; color: var(--on-surface); }
+  .community-item__sub { font-size: 11px; color: var(--outline-variant); margin-top: 1px; }
+  .community-item__check { font-size: 18px; color: var(--primary); flex-shrink: 0; }
 
   .drawer-section { padding: 16px 16px 0; }
-  .drawer-section-title { font-size: 11px; font-weight: 700; color: #6e7681; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
+  .drawer-section-title { font-size: 11px; font-weight: 700; color: var(--outline-variant); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
   .drawer-menu-item {
     display: flex; align-items: center; gap: 12px;
     padding: 11px 12px; border-radius: 10px;
     cursor: pointer; transition: background 0.12s;
   }
-  .drawer-menu-item:active { background: #161b22; }
-  .drawer-menu-item .material-symbols-outlined { font-size: 20px; color: #4493f8; }
-  .drawer-menu-label { font-size: 14px; font-weight: 600; color: #e6edf3; }
+  .drawer-menu-item:active { background: var(--surface-container-low); }
+  .drawer-menu-item .material-symbols-outlined { font-size: 20px; color: var(--primary); }
+  .drawer-menu-label { font-size: 14px; font-weight: 600; color: var(--on-surface); }
   .drawer-mission-btn {
     display: flex; align-items: center; justify-content: space-between;
     margin: 10px 16px; padding: 10px 14px;
-    background: linear-gradient(90deg, #4493f8 0%, #79c0ff 100%);
+    background: linear-gradient(90deg, var(--primary) 0%, var(--inverse-primary) 100%);
     border-radius: 10px; cursor: pointer;
     transition: opacity 0.15s;
   }
@@ -489,7 +553,7 @@
   }
   .tutorial-tooltip {
     position: absolute;
-    background: #161b22;
+    background: var(--surface-container-lowest);
     border-radius: 14px;
     padding: 14px 16px 12px;
     width: 220px;
@@ -515,16 +579,16 @@
   }
   .tutorial-tooltip-step {
     font-size: 10px; font-weight: 700;
-    color: #4493f8; margin-bottom: 4px;
+    color: var(--primary); margin-bottom: 4px;
     letter-spacing: 0.04em; text-transform: uppercase;
   }
   .tutorial-tooltip-title {
     font-family: Manrope, sans-serif;
     font-size: 15px; font-weight: 800;
-    color: #e6edf3; margin-bottom: 4px; line-height: 1.3;
+    color: var(--on-surface); margin-bottom: 4px; line-height: 1.3;
   }
   .tutorial-tooltip-body {
-    font-size: 12px; color: #8b949e; line-height: 1.5; margin-bottom: 12px;
+    font-size: 12px; color: var(--on-surface-variant); line-height: 1.5; margin-bottom: 12px;
   }
   .tutorial-tooltip-footer {
     display: flex; align-items: center; justify-content: space-between;
@@ -534,20 +598,20 @@
   }
   .tutorial-dot {
     width: 6px; height: 6px; border-radius: 50%;
-    background: #30363d; transition: background 0.2s;
+    background: var(--surface-variant); transition: background 0.2s;
   }
-  .tutorial-dot.active { background: #4493f8; }
+  .tutorial-dot.active { background: var(--primary); }
   .tutorial-btn-skip {
-    font-size: 12px; color: #6e7681; cursor: pointer;
+    font-size: 12px; color: var(--outline-variant); cursor: pointer;
     background: none; border: none; padding: 0;
   }
   .tutorial-btn-next {
-    background: #4493f8; color: #fff;
+    background: var(--primary); color: #fff;
     border: none; border-radius: 20px;
     padding: 7px 18px; font-size: 13px; font-weight: 700;
     cursor: pointer; transition: background 0.15s;
   }
-  .tutorial-btn-next:active { background: #3882ef; }
+  .tutorial-btn-next:active { background: var(--primary-dim); }
   /* animated pulse ring around spotlight */
   @keyframes tut-pulse {
     0%   { box-shadow: 0 0 0 9999px rgba(0,0,0,0.25), 0 0 0 0 rgba(255,255,255,0.35); }
@@ -555,9 +619,17 @@
     100% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.25), 0 0 0 0 rgba(255,255,255,0); }
   }
   .tutorial-spotlight.pulse { animation: tut-pulse 1.8s infinite; }
+  .theme-toggle{position:fixed;top:24px;right:24px;z-index:9999;width:44px;height:44px;border:0;border-radius:50%;background:var(--surface-container-lowest);color:var(--primary);box-shadow:0 4px 16px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s,background .15s,color .15s;}
+  .theme-toggle:hover{transform:scale(1.08);}
+  .theme-toggle .material-symbols-outlined{font-size:22px;}
+  .theme-toggle .icon-dark{display:inline-block;}
+  .theme-toggle .icon-light{display:none;}
+  [data-theme="dark"] .theme-toggle .icon-dark{display:none;}
+  [data-theme="dark"] .theme-toggle .icon-light{display:inline-block;}
 </style>
 </head>
-<body class="bg-[#010409] flex justify-center items-start py-10 min-h-screen">
+<body class="flex justify-center items-start py-10 min-h-screen" style="background:var(--bg-body);">
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><span class="material-symbols-outlined icon-dark">dark_mode</span><span class="material-symbols-outlined icon-light">light_mode</span></button>
 
 <div class="phone-shell">
 
@@ -599,7 +671,7 @@
     <div class="drawer-section">
       <div class="drawer-section-title">
         Features & Benefits
-        <span class="material-symbols-outlined" style="font-size:16px; color:#6e7681; vertical-align:middle; margin-left:4px;">redeem</span>
+        <span class="material-symbols-outlined" style="font-size:16px; color:var(--outline-variant); vertical-align:middle; margin-left:4px;">redeem</span>
       </div>
       <div class="drawer-menu-item" onclick="closeDrawer()">
         <span class="material-symbols-outlined">calendar_today</span>
@@ -629,11 +701,11 @@
     <span class="text-[15px] font-semibold tracking-tight text-on-surface">9:41</span>
     <div class="flex items-center gap-1.5">
       <!-- Signal bars -->
-      <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#e6edf3"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="#e6edf3"/><rect x="9" y="2" width="3" height="10" rx="1" fill="#e6edf3"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#e6edf3"/></svg>
+      <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="var(--on-surface)"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="var(--on-surface)"/><rect x="9" y="2" width="3" height="10" rx="1" fill="var(--on-surface)"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="var(--on-surface)"/></svg>
       <!-- WiFi -->
-      <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#e6edf3"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="#e6edf3" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="#e6edf3" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+      <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="var(--on-surface)"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="var(--on-surface)" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="var(--on-surface)" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
       <!-- Battery -->
-      <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="#e6edf3" stroke-width="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="#e6edf3"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="#e6edf3"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="var(--on-surface)" stroke-width="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="var(--on-surface)"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="var(--on-surface)"/></svg>
     </div>
   </div>
 
@@ -641,16 +713,16 @@
   <div class="no-scrollbar overflow-y-auto overflow-x-hidden" style="flex:1; min-height:0;">
 
     <!-- ── Top bar + Tab nav (unified sticky, no gap) ── -->
-    <div class="sticky top-0 z-20 bg-[#0d1117]">
+    <div class="sticky top-0 z-20 bg-background">
       <div class="flex items-center justify-between px-4 pt-2 pb-1">
         <div class="flex items-center gap-2">
           <button onclick="openDrawer()" class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container">
             <span class="material-symbols-outlined text-on-surface" style="font-size:22px;">menu</span>
           </button>
-          <span class="font-headline text-[24px] font-extrabold italic tracking-tight" style="color:#4493f8;">X-<span style="color:#3882ef;">Hero</span></span>
+          <span class="font-headline text-[24px] font-extrabold italic tracking-tight" style="color:var(--primary);">X-<span style="color:var(--primary-dim);">Hero</span></span>
         </div>
         <div class="flex items-center gap-3">
-          <button class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container" onclick="location.href='search-en-dark.html'">
+          <button class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container" onclick="location.href='search-en.html'">
             <span class="material-symbols-outlined text-on-surface" style="font-size:22px;">search</span>
           </button>
           <button class="w-8 h-8 rounded-full overflow-hidden border-0 bg-surface-container flex-shrink-0">
@@ -721,7 +793,7 @@
     <div class="section-divider"></div>
     <div class="flex items-center justify-between px-4 pt-4 pb-3">
       <h2 class="font-headline text-[20px] font-extrabold text-on-surface tracking-tight">Top Recommendations</h2>
-      <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#4493f8;">
+      <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:var(--primary);">
         More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
       </button>
     </div>
@@ -795,7 +867,7 @@
       <div class="flex items-center gap-2.5 mb-2.5">
         <img class="post-card__avatar"
           src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
-          alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+          alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-1.5">
             <span class="text-[13px] font-semibold text-on-surface truncate">F2P Server 38</span>
@@ -817,13 +889,13 @@
         alt="cover" loading="lazy">
       <div class="flex gap-4">
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-          <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">thumb_up</span>229
+          <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">thumb_up</span>229
         </div>
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-          <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">chat_bubble</span>47
+          <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">chat_bubble</span>47
         </div>
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-          <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">visibility</span>1.2k
+          <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">visibility</span>1.2k
         </div>
       </div>
     </div>
@@ -833,7 +905,7 @@
       <div class="flex items-center gap-2.5 mb-2.5">
         <img class="post-card__avatar"
           src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
-          alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+          alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-1.5">
             <span class="text-[13px] font-semibold text-on-surface truncate">Melody</span>
@@ -855,13 +927,13 @@
         alt="cover" loading="lazy">
       <div class="flex gap-4">
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-          <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">thumb_up</span>273
+          <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">thumb_up</span>273
         </div>
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-          <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">chat_bubble</span>29
+          <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">chat_bubble</span>29
         </div>
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-          <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">visibility</span>1.6k
+          <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">visibility</span>1.6k
         </div>
       </div>
     </div>
@@ -877,7 +949,7 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
-            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
               <span class="text-[13px] font-semibold text-on-surface truncate">StarSeeker</span>
@@ -899,13 +971,13 @@
           alt="cover" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">thumb_up</span>512
+            <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">thumb_up</span>512
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">chat_bubble</span>88
+            <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">chat_bubble</span>88
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">visibility</span>3.4k
+            <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">visibility</span>3.4k
           </div>
         </div>
       </div>
@@ -914,7 +986,7 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
-            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
               <span class="text-[13px] font-semibold text-on-surface truncate">IronWolf</span>
@@ -936,13 +1008,13 @@
           alt="cover" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">thumb_up</span>384
+            <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">thumb_up</span>384
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">chat_bubble</span>61
+            <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">chat_bubble</span>61
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px; color:#6e7681;">visibility</span>2.1k
+            <span class="material-symbols-outlined" style="font-size:15px; color:var(--outline-variant);">visibility</span>2.1k
           </div>
         </div>
       </div>
@@ -961,7 +1033,7 @@
       <div class="flex gap-2 px-4 pb-3 no-scrollbar overflow-x-auto">
         <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">All</button>
         <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Wood</button>
-        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all" style="background:#4493f8;color:#fff;border-color:#4493f8;">Water</button>
+        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all" style="background:var(--primary);color:#fff;border-color:var(--primary);">Water</button>
         <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Fire</button>
         <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Earth</button>
         <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Thunder</button>
@@ -1162,7 +1234,7 @@
       <!-- Guide list section -->
       <div class="flex items-center justify-between px-4 pb-2">
         <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Popular Guides</h2>
-        <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#4493f8;">
+        <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:var(--primary);">
           More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
         </button>
       </div>
@@ -1171,7 +1243,7 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
-            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
               <span class="text-[13px] font-semibold text-on-surface truncate">F2P Server 38</span>
@@ -1193,13 +1265,13 @@
           alt="cover" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">thumb_up</span>186
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">thumb_up</span>186
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">chat_bubble</span>32
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">chat_bubble</span>32
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">visibility</span>2.1k
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">visibility</span>2.1k
           </div>
         </div>
       </div>
@@ -1237,13 +1309,13 @@
           alt="cover" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">thumb_up</span>512
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">thumb_up</span>512
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">chat_bubble</span>88
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">chat_bubble</span>88
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">visibility</span>3.4k
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">visibility</span>3.4k
           </div>
         </div>
       </div>
@@ -1274,13 +1346,13 @@
           alt="cover" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">thumb_up</span>384
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">thumb_up</span>384
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">chat_bubble</span>61
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">chat_bubble</span>61
           </div>
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
-            <span class="material-symbols-outlined" style="font-size:15px;color:#6e7681;">visibility</span>2.1k
+            <span class="material-symbols-outlined" style="font-size:15px;color:var(--outline-variant);">visibility</span>2.1k
           </div>
         </div>
       </div>
@@ -1289,7 +1361,7 @@
       <div class="section-divider my-2"></div>
       <div class="flex items-center justify-between px-4 py-3">
         <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">People You May Know</h2>
-        <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#4493f8;">
+        <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:var(--primary);">
           More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
         </button>
       </div>
@@ -1299,7 +1371,7 @@
         <div class="user-rec-card">
           <img class="user-rec-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2022/11/22/1669113940067_feee8425-a91b-47e4-bacc-ab67cd262679.png"
-            alt="" loading="lazy" onclick="location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+            alt="" loading="lazy" onclick="location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <p class="text-[13px] font-semibold text-on-surface">Niéli <span class="post-card__lv">Lv.150</span></p>
             <p class="text-[11px] text-on-surface-variant mt-0.5">Guide · 2.3k followers</p>
@@ -1310,7 +1382,7 @@
         <div class="user-rec-card">
           <img class="user-rec-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2023/04/21/1682036744718_6703b726-d02a-4ea7-8ec6-bc6559a80cd9.jpeg"
-            alt="" loading="lazy" onclick="location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+            alt="" loading="lazy" onclick="location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <p class="text-[13px] font-semibold text-on-surface">Berkurin <span class="post-card__lv">Lv.131</span></p>
             <p class="text-[11px] text-on-surface-variant mt-0.5">Strategy · 1.8k followers</p>
@@ -1321,7 +1393,7 @@
         <div class="user-rec-card">
           <img class="user-rec-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2023/01/06/1672984017367_069a1712-8db1-486b-9639-52e5a2bf3d59.jpg"
-            alt="" loading="lazy" onclick="location.href='../../profile/dark/profile-other-en-dark.html'" style="cursor:pointer;">
+            alt="" loading="lazy" onclick="location.href='../profile/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <p class="text-[13px] font-semibold text-on-surface">dbpei008 <span class="post-card__lv">Lv.150</span></p>
             <p class="text-[11px] text-on-surface-variant mt-0.5">Fan Art · 4.1k followers</p>
@@ -1343,7 +1415,7 @@
       <span class="bottom-nav__label">Home</span>
     </div>
 
-    <div class="bottom-nav__item" onclick="location.href='../../news/dark/news-en-dark.html'" style="cursor:pointer;">
+    <div class="bottom-nav__item" onclick="location.href='../news/news-en.html'" style="cursor:pointer;">
       <span class="material-symbols-outlined">newspaper</span>
       <span class="bottom-nav__label">News</span>
     </div>
@@ -1354,12 +1426,12 @@
       </div>
     </div>
 
-    <div class="bottom-nav__item" onclick="location.href='../../feed/dark/feed-en-dark.html'" style="cursor:pointer;">
+    <div class="bottom-nav__item" onclick="location.href='../feed/feed-en.html'" style="cursor:pointer;">
       <span class="material-symbols-outlined">group</span>
       <span class="bottom-nav__label">Community</span>
     </div>
 
-    <div class="bottom-nav__item" onclick="location.href='../../profile/dark/profile-en-dark.html'" style="cursor:pointer;">
+    <div class="bottom-nav__item" onclick="location.href='../profile/profile-en.html'" style="cursor:pointer;">
       <span class="material-symbols-outlined">person</span>
       <span class="bottom-nav__label">Profile</span>
     </div>
@@ -1371,30 +1443,30 @@
   <div id="post-sheet" style="position:absolute;bottom:0;left:0;right:0;z-index:201;padding:0 16px 90px;pointer-events:none;">
     <div style="display:flex;flex-direction:column;gap:10px;">
       <!-- Guide / Long-form post -->
-      <button id="post-card-guide" onclick="event.stopPropagation();location.href='../../publish/dark/post_publish-en-dark.html'" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:#161b22;border:none;border-radius:16px;box-shadow:0 4px 20px rgba(68,147,248,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
+      <button id="post-card-guide" onclick="event.stopPropagation();location.href='../publish/post_publish-en.html'" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:var(--surface-container-lowest);border:none;border-radius:16px;box-shadow:0 4px 20px rgba(0,97,164,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
         <div style="position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(91,159,255,0.22) 0%,transparent 70%);pointer-events:none;"></div>
-        <div style="position:absolute;top:12px;left:12px;width:5px;height:5px;border-radius:50%;background:rgba(68,147,248,0.4);"></div>
-        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#5b9fff,#4493f8);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(68,147,248,0.30);">
+        <div style="position:absolute;top:12px;left:12px;width:5px;height:5px;border-radius:50%;background:rgba(0,97,164,0.4);"></div>
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#5b9fff,var(--primary));display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(0,97,164,0.30);">
           <span class="material-symbols-outlined" style="font-size:21px;color:#fff;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">edit_document</span>
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:700;color:#e6edf3;font-family:Manrope;margin-bottom:2px;">Guide / Post</div>
-          <div style="font-size:11px;color:#6e7681;font-family:Inter;line-height:1.4;">Strategies, fan art, long-form write-ups</div>
+          <div style="font-size:15px;font-weight:700;color:#1a2530;font-family:Manrope;margin-bottom:2px;">Guide / Post</div>
+          <div style="font-size:11px;color:var(--outline);font-family:Inter;line-height:1.4;">Strategies, fan art, long-form write-ups</div>
         </div>
-        <span class="material-symbols-outlined" style="font-size:18px;color:#6e7681;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
+        <span class="material-symbols-outlined" style="font-size:18px;color:#b0bec5;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
       </button>
       <!-- Quick post / mood -->
-      <button id="post-card-mood" onclick="event.stopPropagation();location.href='../../publish/dark/mood_publish-en-dark.html'" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:#161b22;border:none;border-radius:16px;box-shadow:0 4px 20px rgba(14,165,233,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
+      <button id="post-card-mood" onclick="event.stopPropagation();location.href='../publish/mood_publish-en.html'" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:var(--surface-container-lowest);border:none;border-radius:16px;box-shadow:0 4px 20px rgba(14,165,233,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
         <div style="position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,0.20) 0%,transparent 70%);pointer-events:none;"></div>
         <div style="position:absolute;top:12px;left:12px;width:5px;height:5px;border-radius:50%;background:rgba(14,165,233,0.4);"></div>
         <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(14,165,233,0.30);">
           <span class="material-symbols-outlined" style="font-size:21px;color:#fff;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">chat_bubble</span>
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:700;color:#e6edf3;font-family:Manrope;margin-bottom:2px;">Quick Post</div>
-          <div style="font-size:11px;color:#6e7681;font-family:Inter;line-height:1.4;">Share a thought, question, or moment</div>
+          <div style="font-size:15px;font-weight:700;color:#1a2530;font-family:Manrope;margin-bottom:2px;">Quick Post</div>
+          <div style="font-size:11px;color:var(--outline);font-family:Inter;line-height:1.4;">Share a thought, question, or moment</div>
         </div>
-        <span class="material-symbols-outlined" style="font-size:18px;color:#6e7681;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
+        <span class="material-symbols-outlined" style="font-size:18px;color:#b0bec5;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
       </button>
     </div>
   </div>
@@ -1432,7 +1504,7 @@
       lv: 'Lv.85 · 6,200 XP',
       bg: 'https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2025/12/30/1767084148075c709f857-caef-4537-8e60-d59cf8948d49.png',
       thumb: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg',
-      topbarTitle: 'X-<span style="color:#3882ef;">Hero</span>',
+      topbarTitle: 'X-<span style="color:var(--primary-dim);">Hero</span>',
     },
     {
       id: 'dragonrealm',
@@ -1441,7 +1513,7 @@
       lv: 'Lv.72 · 4,800 XP',
       bg: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg',
       thumb: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg',
-      topbarTitle: 'Dragon<span style="color:#3882ef;"> Realm</span>',
+      topbarTitle: 'Dragon<span style="color:var(--primary-dim);"> Realm</span>',
     },
     {
       id: 'celestial',
@@ -1450,7 +1522,7 @@
       lv: 'Lv.91 · 7,550 XP',
       bg: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
       thumb: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
-      topbarTitle: 'Celestial<span style="color:#3882ef;"> Order</span>',
+      topbarTitle: 'Celestial<span style="color:var(--primary-dim);"> Order</span>',
     },
     {
       id: 'whiteTiger',
@@ -1459,7 +1531,7 @@
       lv: 'Lv.60 · 3,100 XP',
       bg: 'https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png',
       thumb: 'https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png',
-      topbarTitle: 'White<span style="color:#3882ef;"> Tiger</span>',
+      topbarTitle: 'White<span style="color:var(--primary-dim);"> Tiger</span>',
     },
   ];
 
@@ -1555,9 +1627,9 @@
       b.style.borderColor = '';
       b.className = 'chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all';
     });
-    btn.style.background = '#4493f8';
+    btn.style.background = 'var(--primary)';
     btn.style.color = '#fff';
-    btn.style.borderColor = '#4493f8';
+    btn.style.borderColor = 'var(--primary)';
     btn.className = 'chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all';
   }
   function openDrawer() {
@@ -1673,9 +1745,20 @@
     }, 300);
   }
 
-  // Init on load
-  window.addEventListener('load', () => {
+  function openTutorial() {
+    tutorialStep = 0;
+    const overlay = document.getElementById('tutorialOverlay');
+    overlay.style.display = 'block';
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.3s';
+    overlay.classList.add('active');
     positionTutorial(0);
+    requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+  }
+
+  // Init on load — show tutorial automatically
+  window.addEventListener('load', () => {
+    openTutorial();
   });
 
   function refreshHotCommunity(btn) {
@@ -1810,23 +1893,23 @@ function togglePostMenu() {
 #pnav-fab svg{width:18px;height:18px;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;}
 #pnav-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:9997;opacity:0;pointer-events:none;transition:opacity .2s;}
 #pnav-overlay.open{opacity:1;pointer-events:auto;}
-#pnav-drawer{position:fixed;top:0;left:-300px;width:280px;height:100vh;background:#fff;z-index:9998;box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:left .24s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+#pnav-drawer{position:fixed;top:0;left:-300px;width:280px;height:100vh;background:var(--surface-container-lowest);z-index:9998;box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:left .24s cubic-bezier(.4,0,.2,1);overflow:hidden;}
 #pnav-drawer.open{left:0;}
-#pnav-head{padding:20px 16px 12px;border-bottom:1px solid #e1e9ee;flex-shrink:0;}
-#pnav-head h3{font-family:Manrope,system-ui,sans-serif;font-size:14px;font-weight:800;color:#0061a4;margin:0 0 2px;}
-#pnav-head p{font-family:Inter,system-ui,sans-serif;font-size:11px;color:#a9b4b9;margin:0;}
-#pnav-close{position:absolute;top:14px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:#f0f4f7;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-#pnav-close svg{width:14px;height:14px;stroke:#566166;stroke-width:2.5;stroke-linecap:round;fill:none;}
+#pnav-head{padding:20px 16px 12px;border-bottom:1px solid var(--surface-container-high);flex-shrink:0;}
+#pnav-head h3{font-family:Manrope,system-ui,sans-serif;font-size:14px;font-weight:800;color:var(--primary);margin:0 0 2px;}
+#pnav-head p{font-family:Inter,system-ui,sans-serif;font-size:11px;color:var(--outline-variant);margin:0;}
+#pnav-close{position:absolute;top:14px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-container-low);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#pnav-close svg{width:14px;height:14px;stroke:var(--on-surface-variant);stroke-width:2.5;stroke-linecap:round;fill:none;}
 #pnav-list{flex:1;overflow-y:auto;padding:8px 0 24px;}
 .pnav-section{padding:12px 16px 4px;}
-.pnav-section-label{font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:700;color:#a9b4b9;letter-spacing:.08em;text-transform:uppercase;}
-.pnav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:500;color:#2a3439;transition:background .12s;}
-.pnav-item:hover{background:#f0f4f7;}
-.pnav-item.current{background:#eff6ff;color:#0061a4;font-weight:700;}
-.pnav-item .pnav-dot{width:6px;height:6px;border-radius:50%;background:#d9e4ea;flex-shrink:0;}
-.pnav-item.current .pnav-dot{background:#0061a4;}
-.pnav-item .pnav-num{font-size:10px;font-weight:700;color:#a9b4b9;width:16px;flex-shrink:0;text-align:right;}
-.pnav-item.current .pnav-num{color:#0061a4;}
+.pnav-section-label{font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:700;color:var(--outline-variant);letter-spacing:.08em;text-transform:uppercase;}
+.pnav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:500;color:var(--on-surface);transition:background .12s;}
+.pnav-item:hover{background:var(--surface-container-low);}
+.pnav-item.current{background:var(--notice-bg);color:var(--primary);font-weight:700;}
+.pnav-item .pnav-dot{width:6px;height:6px;border-radius:50%;background:var(--surface-variant);flex-shrink:0;}
+.pnav-item.current .pnav-dot{background:var(--primary);}
+.pnav-item .pnav-num{font-size:10px;font-weight:700;color:var(--outline-variant);width:16px;flex-shrink:0;text-align:right;}
+.pnav-item.current .pnav-num{color:var(--primary);}
 </style>
 
 <button id="pnav-fab" onclick="openPnav()" title="页面目录">
@@ -1843,29 +1926,29 @@ function togglePostMenu() {
   </div>
   <nav id="pnav-list">
     <div class="pnav-section"><span class="pnav-section-label">Home · 首页模块</span></div>
-    <a class="pnav-item" href="../../home/light/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
-    <a class="pnav-item" href="../../home/light/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
-    <a class="pnav-item" href="../../home/light/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
-    <a class="pnav-item" href="../../home/light/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
-    <a class="pnav-item" href="../../home/light/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
+    <a class="pnav-item" href="../home/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
+    <a class="pnav-item" href="../home/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
+    <a class="pnav-item" href="../home/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
+    <a class="pnav-item" href="../home/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
+    <a class="pnav-item" href="../home/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
-    <a class="pnav-item" href="../../feed/light/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
+    <a class="pnav-item" href="../feed/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
 
     <div class="pnav-section"><span class="pnav-section-label">News · 资讯模块</span></div>
-    <a class="pnav-item" href="../../news/light/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
+    <a class="pnav-item" href="../news/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
-    <a class="pnav-item" href="../../profile/light/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
-    <a class="pnav-item" href="../../profile/light/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
-    <a class="pnav-item" href="../../profile/light/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
-    <a class="pnav-item" href="../../profile/light/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
-    <a class="pnav-item" href="../../profile/light/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
-    <a class="pnav-item" href="../../profile/light/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
+    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
+    <a class="pnav-item" href="../profile/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
+    <a class="pnav-item" href="../profile/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
+    <a class="pnav-item" href="../profile/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
+    <a class="pnav-item" href="../profile/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
+    <a class="pnav-item" href="../profile/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Publish · 发布模块</span></div>
-    <a class="pnav-item" href="../../publish/light/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
-    <a class="pnav-item" href="../../publish/light/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
+    <a class="pnav-item" href="../publish/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
+    <a class="pnav-item" href="../publish/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
   </nav>
 </div>
 <script>
@@ -1889,35 +1972,35 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 
 <!-- ══ Spec Panel v3.1.1 ══ -->
 <style>
-#spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:#0061a4;box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
+#spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:var(--primary);box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
 #spec-fab:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(0,97,164,.50);}
 #spec-fab svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 #spec-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;opacity:0;pointer-events:none;transition:opacity .22s;}
 #spec-overlay.open{opacity:1;pointer-events:auto;}
-#spec-panel{position:fixed;top:0;right:-560px;width:540px;max-width:90vw;height:100vh;background:#fff;z-index:9999;box-shadow:-4px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1);}
+#spec-panel{position:fixed;top:0;right:-560px;width:540px;max-width:90vw;height:100vh;background:var(--surface-container-lowest);z-index:9999;box-shadow:-4px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1);}
 #spec-panel.open{right:0;}
-#spec-panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 16px;border-bottom:1px solid #e1e9ee;flex-shrink:0;}
-#spec-panel-title{font-family:Manrope,system-ui,sans-serif;font-size:16px;font-weight:800;color:#0061a4;margin:0;}
-#spec-panel-ver{font-size:11px;font-weight:600;color:#a9b4b9;margin-left:8px;}
-#spec-panel-close{width:32px;height:32px;border-radius:50%;border:none;background:#f0f4f7;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-#spec-panel-close svg{width:16px;height:16px;stroke:#566166;stroke-width:2.5;stroke-linecap:round;fill:none;}
-#spec-body{flex:1;overflow-y:auto;padding:20px 24px 32px;font-family:Inter,system-ui,sans-serif;font-size:13px;color:#2a3439;line-height:1.7;}
-#spec-body h2{font-family:Manrope,sans-serif;font-size:15px;font-weight:800;color:#0061a4;margin:24px 0 8px;border-bottom:2px solid #e8eff3;padding-bottom:6px;}
-#spec-body h3{font-family:Manrope,sans-serif;font-size:13px;font-weight:700;color:#2a3439;margin:16px 0 6px;}
-#spec-body h4{font-size:12px;font-weight:700;color:#566166;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em;}
+#spec-panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 16px;border-bottom:1px solid var(--surface-container-high);flex-shrink:0;}
+#spec-panel-title{font-family:Manrope,system-ui,sans-serif;font-size:16px;font-weight:800;color:var(--primary);margin:0;}
+#spec-panel-ver{font-size:11px;font-weight:600;color:var(--outline-variant);margin-left:8px;}
+#spec-panel-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-container-low);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#spec-panel-close svg{width:16px;height:16px;stroke:var(--on-surface-variant);stroke-width:2.5;stroke-linecap:round;fill:none;}
+#spec-body{flex:1;overflow-y:auto;padding:20px 24px 32px;font-family:Inter,system-ui,sans-serif;font-size:13px;color:var(--on-surface);line-height:1.7;}
+#spec-body h2{font-family:Manrope,sans-serif;font-size:15px;font-weight:800;color:var(--primary);margin:24px 0 8px;border-bottom:2px solid var(--surface-container);padding-bottom:6px;}
+#spec-body h3{font-family:Manrope,sans-serif;font-size:13px;font-weight:700;color:var(--on-surface);margin:16px 0 6px;}
+#spec-body h4{font-size:12px;font-weight:700;color:var(--on-surface-variant);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em;}
 #spec-body p{margin:4px 0 8px;}
 #spec-body ul,#spec-body ol{padding-left:18px;margin:4px 0 8px;}
 #spec-body li{margin-bottom:3px;}
 #spec-body table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:12px;}
-#spec-body th{background:#f0f4f7;color:#566166;font-weight:700;padding:6px 10px;text-align:left;border:1px solid #e1e9ee;}
-#spec-body td{padding:5px 10px;border:1px solid #e8eff3;color:#2a3439;vertical-align:top;}
-#spec-body tr:nth-child(even) td{background:#f7f9fb;}
-#spec-body code{background:#f0f4f7;padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:Consolas,monospace;color:#0061a4;}
-#spec-body pre{background:#f0f4f7;border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0 12px;}
-#spec-body pre code{background:none;padding:0;color:#2a3439;font-size:12px;}
+#spec-body th{background:var(--surface-container-low);color:var(--on-surface-variant);font-weight:700;padding:6px 10px;text-align:left;border:1px solid var(--surface-container-high);}
+#spec-body td{padding:5px 10px;border:1px solid var(--surface-container);color:var(--on-surface);vertical-align:top;}
+#spec-body tr:nth-child(even) td{background:var(--background);}
+#spec-body code{background:var(--surface-container-low);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:Consolas,monospace;color:var(--primary);}
+#spec-body pre{background:var(--surface-container-low);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0 12px;}
+#spec-body pre code{background:none;padding:0;color:var(--on-surface);font-size:12px;}
 #spec-body strong{color:#1a2a34;}
-#spec-body blockquote{border-left:3px solid #0061a4;margin:8px 0;padding:6px 12px;background:#eff6ff;border-radius:0 6px 6px 0;color:#566166;font-size:12px;}
-#spec-body hr{border:none;border-top:1px solid #e8eff3;margin:16px 0;}
+#spec-body blockquote{border-left:3px solid var(--primary);margin:8px 0;padding:6px 12px;background:var(--notice-bg);border-radius:0 6px 6px 0;color:var(--on-surface-variant);font-size:12px;}
+#spec-body hr{border:none;border-top:1px solid var(--surface-container);margin:16px 0;}
 </style>
 <button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.1">
   <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -1937,7 +2020,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </div>
 <script>
 (function(){
-  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面均有亮色（Light）和深色（Dark）两套模式，需同时实现。\n\n### 首页模块（Home）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 1 | 首页（社区主页） | home/light/home-en.html | home/dark/home-en-dark.html |\n| 2 | 帖子详情 | home/light/post-detail-en.html | home/dark/post-detail-en-dark.html |\n| 3 | 心情详情 | home/light/mood-detail-en.html | home/dark/mood-detail-en-dark.html |\n| 4 | 搜索页 | home/light/search-en.html | home/dark/search-en-dark.html |\n| 5 | 搜索结果页 | home/light/search-results-en.html | home/dark/search-results-en-dark.html |\n\n### Feed 模块\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 6 | Feed 流 | feed/light/feed-en.html | feed/dark/feed-en-dark.html |\n\n### 资讯模块（News）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 7 | 资讯列表 | news/light/news-en.html | news/dark/news-en-dark.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 8 | 我的主页 | profile/light/profile-en.html | profile/dark/profile-en-dark.html |\n| 9 | 他人主页 | profile/light/profile-other-en.html | profile/dark/profile-other-en-dark.html |\n| 10 | 设置页 | profile/light/settings-en.html | profile/dark/settings-en-dark.html |\n| 11 | 通知页 | profile/light/notifications-en.html | profile/dark/notifications-en-dark.html |\n| 12 | 聊天页 | profile/light/chat-en.html | profile/dark/chat-en-dark.html |\n| 13 | 草稿箱 | profile/light/drafts-en.html | profile/dark/drafts-en-dark.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 14 | 发帖页 | publish/light/post_publish-en.html | publish/dark/post_publish-en-dark.html |\n| 15 | 发心情页 | publish/light/mood_publish-en.html | publish/dark/mood_publish-en-dark.html |\n\n> **深色模式说明**：系统跟随设备 dark mode 设置自动切换，同一页面亮色/深色为同一功能页，不计为两个页面，但两套皮肤必须完整实现。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n| 级别 | 字号 | 字重 | 字体 | 场景 |\n|------|------|------|------|------|\n| Display | 26px | 900 | Manrope | 评分大数字 |\n| Headline L | 17px | 800 | Manrope | 推荐卡标题、页面主标题 |\n| Headline M | 14px | 700 | Inter | 帖子标题、列表主文字 |\n| Label L | 15px | 700 | Manrope | CTA 按钮、顶栏标题 |\n| Body M | 12-13px | 400 | Inter | 正文描述、评论 |\n| Label M | 11px | 500-700 | Inter | 标签、元信息 |\n| Caption | 10px | 500-700 | Inter | 底导标签、等级 Badge |\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 主色按压态 | #005590 |\n| 深色背景强调色 | #2498f5 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器/禁用背景 | #f0f4f7 |\n| 分隔填充 | #e8eff3 |\n| 导航栏边框 | #e1e9ee |\n| Story 未看环 | #d9e4ea |\n| 主文字/标题 | #2a3439 |\n| 次级文字/标签 | #566166 |\n| 辅助文字 | #717c82 |\n| 占位符/禁用文字 | #a9b4b9 |\n| 禁用浅色 | #c8d0d5 |\n| 蓝色强调块背景 | #cbe6ff |\n| 蓝色强调块内文字 | #0a5780 |\n| 公告条背景 | #eff6ff |\n| 话题标签背景 | #fef3c7 |\n| 话题标签边框 | #fbbf24 |\n| 话题标签文字 | #b45309 |\n| 深色推荐卡主体 | #0f1c27 |\n| 未读 Badge | #e53935 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 主色按压态 | #3882ef |\n| 高亮强调色（评分） | #79c0ff |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| Story 未看环 | #30363d |\n| 深色推荐卡主体 | #0a1520 |\n| 蓝色强调块背景 | #1f3a56 |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n| 话题标签背景 | #2d1f06 |\n| 话题标签边框 | #d97706 |\n| 话题标签文字 | #f59e0b |\n| 未读 Badge | #e53935 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片（帖子卡、新闻卡） | 12-16px |\n| 横滑 Featured Card | 14px |\n| 搜索框/输入框 | 8-10px |\n| 方形标签/Chip | 4-6px |\n| 胶囊标签/主要按钮 | 999px |\n| 快捷入口图标背景 | 10-12px |\n| 头像 | 50% |\n| 等级 Badge | 8px |\n\n### 4.5 背景底色 & 边框 — 亮色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #f7f9fb | — |\n| 顶部导航栏 | #ffffff | bottom: 1px solid #e1e9ee |\n| 底部导航栏 | rgba(255,255,255,0.96) + blur(14px) | top: 1px solid #e1e9ee |\n| 内容卡片 | #ffffff | 仅阴影 0 1px 6px rgba(42,52,57,0.07) |\n| 页面分隔块 | #f0f4f7 | — |\n| 输入框 | #f0f4f7 | 激活：1.5px solid #0061a4 |\n| 公告条 | #eff6ff | left: 3px solid #0061a4 |\n\n### 4.6 背景底色 & 边框 — 深色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #0d1117 | — |\n| 顶部导航栏 | #0d1117 | bottom: 1px solid #21262d |\n| 底部导航栏 | rgba(13,17,23,0.96) + blur(14px) | top: 1px solid #21262d |\n| 内容卡片 | #161b22 | 1px solid #21262d |\n| 页面分隔块 | #161b22 | — |\n| 输入框 | #1c2128 | 激活：1.5px solid #4493f8 |\n| 公告条 | #1a3a5c | left: 3px solid #4493f8 |\n\n### 4.7 图标规范\n\n图标库：Material Symbols Outlined\n\n底部导航图标：home / explore / add / article / person（24px）\n\n默认样式：FILL 0, wght 400，激活态：FILL 1, wght 500\n\n### 4.8 底部导航栏\n\n- 高度：82px，padding-top: 8px\n- 默认图标色：亮色 #a9b4b9 / 深色 #6e7681\n- 选中图标色：亮色 #0061a4 / 深色 #4493f8\n- 发布按钮：46x46px 圆形，上浮 margin-top: -10px\n\n### 4.9 动效规范\n\n| 类型 | CSS |\n|------|-----|\n| 卡片按压 | transform: scale(0.99)，transition 0.15s |\n| 大卡按压 | transform: scale(0.975)，transition 0.15s |\n| 按钮颜色过渡 | transition: background 0.15s |\n| 隐藏滚动条 | scrollbar-width: none |\n\n---\n\n## 五、开发注意事项\n\n1. 所有页面均需同时实现**亮色和深色模式**，通过系统 prefers-color-scheme 自动切换\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover，不得拉伸\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n5. 首页抽屉菜单从左侧滑出（宽 280px），背景蒙层 rgba(0,0,0,0.45)\n6. 发布页顶栏发布按钮初始为禁用态（灰色），有内容后激活为主色";
+  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面均有亮色（Light）和深色（Dark）两套模式，需同时实现。\n\n### 首页模块（Home）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n\n### Feed 模块\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|------|\n| 6 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|------|\n| 7 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|------|\n| 8 | 我的主页 | profile/profile-en.html |\n| 9 | 他人主页 | profile/profile-other-en.html |\n| 10 | 设置页 | profile/settings-en.html |\n| 11 | 通知页 | profile/notifications-en.html |\n| 12 | 聊天页 | profile/chat-en.html |\n| 13 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|------|\n| 14 | 发帖页 | publish/post_publish-en.html |\n| 15 | 发心情页 | publish/mood_publish-en.html |\n\n> **深色模式说明**：系统跟随设备 dark mode 设置自动切换，同一页面亮色/深色为同一功能页，不计为两个页面，但两套皮肤必须完整实现。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n| 级别 | 字号 | 字重 | 字体 | 场景 |\n|------|------|------|------|------|\n| Display | 26px | 900 | Manrope | 评分大数字 |\n| Headline L | 17px | 800 | Manrope | 推荐卡标题、页面主标题 |\n| Headline M | 14px | 700 | Inter | 帖子标题、列表主文字 |\n| Label L | 15px | 700 | Manrope | CTA 按钮、顶栏标题 |\n| Body M | 12-13px | 400 | Inter | 正文描述、评论 |\n| Label M | 11px | 500-700 | Inter | 标签、元信息 |\n| Caption | 10px | 500-700 | Inter | 底导标签、等级 Badge |\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 主色按压态 | #005590 |\n| 深色背景强调色 | #2498f5 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器/禁用背景 | #f0f4f7 |\n| 分隔填充 | #e8eff3 |\n| 导航栏边框 | #e1e9ee |\n| Story 未看环 | #d9e4ea |\n| 主文字/标题 | #2a3439 |\n| 次级文字/标签 | #566166 |\n| 辅助文字 | #717c82 |\n| 占位符/禁用文字 | #a9b4b9 |\n| 禁用浅色 | #c8d0d5 |\n| 蓝色强调块背景 | #cbe6ff |\n| 蓝色强调块内文字 | #0a5780 |\n| 公告条背景 | #eff6ff |\n| 话题标签背景 | #fef3c7 |\n| 话题标签边框 | #fbbf24 |\n| 话题标签文字 | #b45309 |\n| 深色推荐卡主体 | #0f1c27 |\n| 未读 Badge | #e53935 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 主色按压态 | #3882ef |\n| 高亮强调色（评分） | #79c0ff |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| Story 未看环 | #30363d |\n| 深色推荐卡主体 | #0a1520 |\n| 蓝色强调块背景 | #1f3a56 |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n| 话题标签背景 | #2d1f06 |\n| 话题标签边框 | #d97706 |\n| 话题标签文字 | #f59e0b |\n| 未读 Badge | #e53935 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片（帖子卡、新闻卡） | 12-16px |\n| 横滑 Featured Card | 14px |\n| 搜索框/输入框 | 8-10px |\n| 方形标签/Chip | 4-6px |\n| 胶囊标签/主要按钮 | 999px |\n| 快捷入口图标背景 | 10-12px |\n| 头像 | 50% |\n| 等级 Badge | 8px |\n\n### 4.5 背景底色 & 边框 — 亮色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #f7f9fb | — |\n| 顶部导航栏 | #ffffff | bottom: 1px solid #e1e9ee |\n| 底部导航栏 | rgba(255,255,255,0.96) + blur(14px) | top: 1px solid #e1e9ee |\n| 内容卡片 | #ffffff | 仅阴影 0 1px 6px rgba(42,52,57,0.07) |\n| 页面分隔块 | #f0f4f7 | — |\n| 输入框 | #f0f4f7 | 激活：1.5px solid #0061a4 |\n| 公告条 | #eff6ff | left: 3px solid #0061a4 |\n\n### 4.6 背景底色 & 边框 — 深色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #0d1117 | — |\n| 顶部导航栏 | #0d1117 | bottom: 1px solid #21262d |\n| 底部导航栏 | rgba(13,17,23,0.96) + blur(14px) | top: 1px solid #21262d |\n| 内容卡片 | #161b22 | 1px solid #21262d |\n| 页面分隔块 | #161b22 | — |\n| 输入框 | #1c2128 | 激活：1.5px solid #4493f8 |\n| 公告条 | #1a3a5c | left: 3px solid #4493f8 |\n\n### 4.7 图标规范\n\n图标库：Material Symbols Outlined\n\n底部导航图标：home / explore / add / article / person（24px）\n\n默认样式：FILL 0, wght 400，激活态：FILL 1, wght 500\n\n### 4.8 底部导航栏\n\n- 高度：82px，padding-top: 8px\n- 默认图标色：亮色 #a9b4b9 / 深色 #6e7681\n- 选中图标色：亮色 #0061a4 / 深色 #4493f8\n- 发布按钮：46x46px 圆形，上浮 margin-top: -10px\n\n### 4.9 动效规范\n\n| 类型 | CSS |\n|------|-----|\n| 卡片按压 | transform: scale(0.99)，transition 0.15s |\n| 大卡按压 | transform: scale(0.975)，transition 0.15s |\n| 按钮颜色过渡 | transition: background 0.15s |\n| 隐藏滚动条 | scrollbar-width: none |\n\n---\n\n## 五、开发注意事项\n\n1. 所有页面均需同时实现**亮色和深色模式**，通过系统 prefers-color-scheme 自动切换\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover，不得拉伸\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n5. 首页抽屉菜单从左侧滑出（宽 280px），背景蒙层 rgba(0,0,0,0.45)\n6. 发布页顶栏发布按钮初始为禁用态（灰色），有内容后激活为主色";
   function md2html(t){
     var h = t
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
