@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SDK 方案管理 · 方案列表</title>
+<style>
+:root {
+  --ink:#0b1220; --ink-2:#1f2937; --ink-3:#475569; --ink-4:#94a3b8;
+  --border:#e5e9f0; --border-2:#eef1f6;
+  --bg:#f5f7fa; --bg-2:#fafbfc; --white:#fff;
+  --brand:#2563eb; --brand-deep:#1e3a8a; --brand-soft:#dbeafe;
+  --green:#059669; --green-bg:#ecfdf5;
+  --amber:#d97706; --amber-bg:#fffbeb;
+  --red:#dc2626; --red-bg:#fef2f2;
+  --grey:#64748b; --grey-bg:#f1f5f9;
+  --sidebar:232px; --topnav-h:48px; --topbar-h:60px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+  --shadow:0 4px 16px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);
+  line-height:1.55;font-size:14px;
+  display:flex;flex-direction:column;min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.icon svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+
+/* TOP NAV */
+.plat-nav{background:#0a1828;color:#cbd5e1;height:var(--topnav-h);flex-shrink:0;display:flex;align-items:center;font-size:13px;}
+.plat-brand{display:flex;align-items:center;gap:10px;padding:0 24px;height:100%;font-weight:700;color:white;}
+.plat-brand-ico{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#3b82f6,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:white;}
+.plat-nav-list{display:flex;align-items:center;height:100%;}
+.plat-nav-item{padding:0 18px;height:100%;display:flex;align-items:center;color:#94a3b8;cursor:pointer;position:relative;}
+.plat-nav-item:hover{color:#e2e8f0;}
+.plat-nav-item.active{color:white;font-weight:600;}
+.plat-nav-item.active::after{content:'';position:absolute;left:18px;right:18px;bottom:0;height:2px;background:#3b82f6;}
+
+.app-shell{flex:1;display:flex;min-height:0;}
+
+/* ══ SIDEBAR ══ */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:#2c3e50;border-right:1px solid #1a2734;
+  height:calc(100vh - var(--topnav-h));position:sticky;top:var(--topnav-h);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:6px;}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
+.sb-section{padding:0;}
+.sb-section + .sb-section{border-top:1px solid rgba(255,255,255,.06);}
+.sb-section-label{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;letter-spacing:.02em;
+  color:#cbd5e1;text-transform:none;
+  padding:14px 18px 12px;margin:0;
+  background:rgba(0,0,0,.15);
+}
+.sb-section-label::before{
+  content:'';width:14px;height:14px;flex-shrink:0;
+  background:currentColor;opacity:.7;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M4 12h16M4 17h10'/></svg>") no-repeat center / contain;
+          mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M4 12h16M4 17h10'/></svg>") no-repeat center / contain;
+}
+.sb-section-label::after{
+  content:'';margin-left:auto;width:12px;height:12px;
+  background:currentColor;opacity:.6;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='18 15 12 9 6 15'/></svg>") no-repeat center / contain;
+          mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='18 15 12 9 6 15'/></svg>") no-repeat center / contain;
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 18px 11px 38px;border-radius:0;
+  font-size:13.5px;color:#cbd5e1;cursor:pointer;
+  margin-bottom:0;transition:background .15s,color .15s;font-weight:400;
+}
+.nav-item:hover{background:rgba(255,255,255,.05);color:#fff;}
+.nav-item.active{background:#2563eb;color:#fff;font-weight:500;}
+.nav-item .icon{width:16px;height:16px;color:inherit;opacity:.85;}
+.nav-item.active .icon{color:#fff;opacity:1;}
+.nav-badge{
+  margin-left:auto;font-size:10px;font-weight:700;
+  padding:2px 7px;border-radius:10px;
+  background:var(--red);color:white;line-height:1;
+}
+.sb-divider{display:none;}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;height:calc(100vh - var(--topnav-h));overflow-y:auto;}
+.topbar{background:white;border-bottom:1px solid var(--border);padding:0 36px;height:var(--topbar-h);flex-shrink:0;display:flex;align-items:center;position:sticky;top:0;z-index:5;}
+.tb-page-title{font-size:16px;font-weight:700;}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.tb-select{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:white;font-size:13px;color:var(--ink-2);cursor:pointer;font-weight:500;}
+.tb-select:hover{border-color:#bfdbfe;background:#fafbff;}
+.tb-select .caret{color:var(--ink-4);font-size:10px;margin-left:2px;}
+.tb-select .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;}
+
+.crumb{font-size:12px;color:var(--ink-4);}
+.crumb a{color:var(--ink-4);text-decoration:none;}
+.crumb .sep{margin:0 6px;}
+
+.content{flex:1;padding:24px 36px 36px;display:flex;flex-direction:column;gap:18px;}
+
+/* STATS BAR */
+.stats-bar{
+  background:white;border:1px solid var(--border);border-radius:12px;
+  padding:18px 24px;display:flex;align-items:center;gap:36px;
+  box-shadow:var(--shadow-sm);
+}
+.stats-title{flex:1;}
+.stats-title h2{font-size:18px;font-weight:800;letter-spacing:-.01em;margin-bottom:4px;}
+.stats-title p{font-size:13px;color:var(--ink-3);line-height:1.55;}
+.stat{text-align:left;padding-left:28px;border-left:1px solid var(--border-2);}
+.stat-num{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1;}
+.stat-num.warn{color:var(--amber);}
+.stat-lbl{font-size:12px;color:var(--ink-4);margin-top:6px;font-weight:500;}
+
+/* TABS */
+.cat-tabs{
+  background:white;border:1px solid var(--border);border-radius:12px;
+  padding:6px;display:flex;gap:4px;align-self:flex-start;
+  box-shadow:var(--shadow-sm);
+}
+.cat-tab{
+  padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;
+  color:var(--ink-3);cursor:pointer;display:flex;align-items:center;gap:8px;
+  transition:all .15s;
+}
+.cat-tab:hover{background:var(--border-2);color:var(--ink);}
+.cat-tab.active{background:var(--brand);color:white;}
+.cat-tab .n{
+  font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;
+  background:var(--border-2);color:var(--ink-3);line-height:1.4;
+}
+.cat-tab.active .n{background:rgba(255,255,255,.22);color:white;}
+
+/* FILTERS */
+.filters{
+  background:white;border:1px solid var(--border);border-radius:12px;
+  padding:18px 24px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  box-shadow:var(--shadow-sm);
+}
+.f-group{display:flex;align-items:center;gap:8px;}
+.f-lbl{font-size:13px;color:var(--ink-3);font-weight:500;}
+.f-input,.f-sel{
+  height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;
+  background:white;font-size:13px;color:var(--ink-2);min-width:160px;
+}
+.f-input:focus,.f-sel:focus{outline:none;border-color:var(--brand);}
+.f-btn{
+  height:34px;padding:0 18px;background:var(--brand);color:white;border:none;
+  border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+}
+.f-btn:hover{background:var(--brand-deep);}
+.f-btn.ghost{background:white;color:var(--ink-2);border:1px solid var(--border);}
+.f-btn.ghost:hover{background:var(--bg);}
+
+/* SECTIONS */
+.section{
+  background:white;border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;box-shadow:var(--shadow-sm);
+}
+.sec-head{
+  padding:16px 24px;display:flex;align-items:center;
+  border-bottom:1px solid var(--border-2);
+}
+.sec-title{font-size:15px;font-weight:700;letter-spacing:-.01em;}
+.sec-title .badge{
+  display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;
+  border-radius:10px;background:var(--brand-soft);color:var(--brand-deep);
+  margin-left:8px;
+}
+.sec-sub{font-size:12px;color:var(--ink-4);margin-left:8px;font-weight:400;}
+.sec-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.sec-action-btn{
+  height:32px;padding:0 14px;background:var(--brand);color:white;border:none;
+  border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;
+}
+.sec-action-btn:hover{background:var(--brand-deep);}
+
+/* COLLAPSIBLE BAR */
+.collapse-bar{
+  padding:14px 24px;display:flex;align-items:center;gap:12px;
+  cursor:pointer;background:#fafbfc;border:1px solid var(--border);
+  border-radius:12px;transition:all .15s;box-shadow:var(--shadow-sm);
+}
+.collapse-bar:hover{background:#f5f7fa;border-color:#cbd5e1;}
+.collapse-bar.open{background:white;border-radius:12px 12px 0 0;border-bottom-color:var(--border-2);}
+.collapse-bar .chev{width:18px;height:18px;color:var(--ink-3);transition:transform .15s;}
+.collapse-bar.open .chev{transform:rotate(90deg);}
+.collapse-icon{
+  width:36px;height:36px;border-radius:9px;background:var(--grey-bg);color:var(--grey);
+  display:flex;align-items:center;justify-content:center;
+}
+.collapse-icon .icon{width:18px;height:18px;}
+.collapse-info{flex:1;}
+.collapse-title{font-size:14px;font-weight:700;color:var(--ink);}
+.collapse-desc{font-size:12px;color:var(--ink-4);margin-top:2px;}
+.collapse-body{
+  background:white;border:1px solid var(--border);border-top:none;
+  border-radius:0 0 12px 12px;overflow:hidden;
+}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl th{text-align:left;padding:12px 20px;background:var(--bg-2);border-bottom:1px solid var(--border-2);font-size:12px;font-weight:600;color:var(--ink-3);letter-spacing:.02em;white-space:nowrap;}
+.tbl td{padding:16px 20px;border-bottom:1px solid var(--border-2);vertical-align:middle;color:var(--ink-2);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:#f8fafd;}
+.tbl tr.warn-row td{background:#fffaf0;}
+.tbl tr.warn-row:hover td{background:#fff5e1;}
+.tbl tr.default-row td{background:#fcfdff;}
+.tbl tr.default-row:hover td{background:#f5f8ff;}
+
+.s-name{font-weight:600;color:var(--ink);display:inline-flex;align-items:center;gap:6px;}
+.s-name .pin{font-size:10px;font-weight:700;background:var(--grey-bg);color:var(--grey);padding:2px 7px;border-radius:5px;letter-spacing:.02em;}
+.s-id{font-feature-settings:"tnum";color:var(--ink-4);font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:-.01em;}
+.s-type{display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:6px;white-space:nowrap;letter-spacing:.01em;}
+.t-mobile{background:#eff6ff;color:#1d4ed8;}
+.t-pc{background:#f5f3ff;color:#6d28d9;}
+.t-mini{background:#ecfdf5;color:#047857;}
+.t-pay{background:#fffbeb;color:#b45309;}
+.compl{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;}
+.c-ok{background:var(--green-bg);color:var(--green);}
+.c-risk{background:var(--red-bg);color:var(--red);}
+.c-ok::before,.c-risk::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+.tbl-op{font-size:13px;color:var(--brand);cursor:pointer;font-weight:500;padding:4px 8px;border-radius:5px;transition:background .12s;}
+.tbl-op + .tbl-op{margin-left:2px;}
+.tbl-op:hover{background:var(--brand-soft);text-decoration:none;}
+.tbl-op.urgent{color:var(--amber);font-weight:700;}
+.tbl-op.urgent:hover{background:var(--amber-bg);}
+.tbl-op.muted{color:var(--ink-4);font-weight:500;cursor:default;}
+.tbl-op.muted:hover{background:transparent;}
+.t-time{font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;}
+.s-bind{font-size:13px;color:var(--ink-2);font-weight:500;}
+.s-bind.no{color:var(--ink-4);font-weight:400;}
+
+/* PAGER */
+.pager{padding:14px 24px;display:flex;align-items:center;gap:10px;background:var(--bg-2);font-size:12.5px;color:var(--ink-3);}
+.pager .total{margin-right:auto;}
+.pg-btn{padding:5px 10px;border:1px solid var(--border);background:white;border-radius:6px;cursor:pointer;font-size:12px;color:var(--ink-2);}
+.pg-btn.cur{background:var(--brand);color:white;border-color:var(--brand);}
+
+/* SEC NOTE */
+.sec-note{
+  padding:14px 24px;border-bottom:1px solid var(--border-2);background:#f8fafc;
+  font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px;
+}
+.sec-note .icon{width:14px;height:14px;color:var(--brand);}
+
+/* ── view switcher ── */
+.view{display:none;}
+.view.active{display:flex;flex-direction:column;gap:18px;}
+
+/* ── MODAL ── */
+.modal-mask{
+  position:fixed;inset:0;background:rgba(15,23,42,.4);
+  display:none;align-items:center;justify-content:center;z-index:50;
+  backdrop-filter:blur(2px);
+}
+.modal-mask.show{display:flex;}
+.modal{
+  background:white;border-radius:14px;width:560px;max-width:92vw;
+  box-shadow:0 24px 72px rgba(15,23,42,.18);
+  overflow:hidden;display:flex;flex-direction:column;max-height:88vh;
+}
+.modal.sm{width:440px;}
+.modal-head{
+  padding:20px 24px;border-bottom:1px solid var(--border-2);
+  display:flex;align-items:center;
+}
+.modal-title{font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.modal-sub{font-size:12px;color:var(--ink-4);margin-top:2px;}
+.modal-close{
+  margin-left:auto;width:30px;height:30px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--ink-4);
+}
+.modal-close:hover{background:var(--bg);color:var(--ink);}
+.modal-close .icon{width:16px;height:16px;}
+.modal-body{padding:22px 24px;overflow-y:auto;flex:1;}
+.modal-foot{
+  padding:14px 24px;border-top:1px solid var(--border-2);
+  display:flex;align-items:center;gap:10px;background:var(--bg-2);
+}
+.btn{
+  height:36px;padding:0 18px;border-radius:8px;font-size:13px;font-weight:600;
+  cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid transparent;
+}
+.btn.primary{background:var(--brand);color:white;}
+.btn.primary:hover{background:var(--brand-deep);}
+.btn.primary:disabled{background:#cbd5e1;color:white;cursor:not-allowed;}
+.btn.ghost{background:white;color:var(--ink-2);border-color:var(--border);}
+.btn.ghost:hover{background:var(--bg);}
+.btn.danger{background:var(--red);color:white;}
+.btn.danger:hover{background:#b91c1c;}
+.btn.text{background:transparent;color:var(--ink-3);}
+.btn.text:hover{color:var(--ink);}
+
+/* ── stepper ── */
+.stepper{
+  display:flex;align-items:center;gap:0;
+  padding:8px 0 22px;
+  border-bottom:1px solid var(--border-2);margin-bottom:22px;
+}
+.step{display:flex;align-items:center;gap:9px;color:var(--ink-4);font-size:13px;font-weight:600;}
+.step.active{color:var(--brand);}
+.step.done{color:var(--green);}
+.step .num{
+  width:26px;height:26px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;
+  background:var(--border-2);color:var(--ink-4);
+}
+.step.active .num{background:var(--brand);color:white;}
+.step.done .num{background:var(--green);color:white;}
+.step-line{flex:1;height:1px;background:var(--border-2);margin:0 14px;}
+.step.done + .step-line{background:var(--green);}
+
+/* ── form ── */
+.form-row{margin-bottom:18px;}
+.form-row:last-child{margin-bottom:0;}
+.form-lbl{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:8px;}
+.form-lbl .req{color:var(--red);margin-left:2px;}
+.form-help{font-size:11.5px;color:var(--ink-4);margin-top:6px;line-height:1.5;}
+.form-input,.form-select,.form-textarea{
+  width:100%;height:38px;padding:0 12px;
+  border:1px solid var(--border);border-radius:8px;
+  background:white;font-size:13.5px;color:var(--ink);
+  transition:border-color .15s;font-family:inherit;
+}
+.form-textarea{height:auto;padding:10px 12px;resize:vertical;min-height:80px;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.08);}
+
+/* SDK type radio grid */
+.cat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.cat-opt{
+  border:1.5px solid var(--border);border-radius:10px;
+  padding:18px 16px;cursor:pointer;text-align:left;
+  display:flex;flex-direction:column;gap:6px;
+  transition:all .15s;background:white;
+}
+.cat-opt:hover{border-color:#bfdbfe;background:#fafbff;}
+.cat-opt.sel{border-color:var(--brand);background:#f5f8ff;box-shadow:0 0 0 3px rgba(37,99,235,.08);}
+.cat-opt-emoji{font-size:24px;}
+.cat-opt-name{font-size:14px;font-weight:700;color:var(--ink);}
+.cat-opt-desc{font-size:11.5px;color:var(--ink-4);line-height:1.5;}
+.cat-opt-count{font-size:11px;color:var(--ink-4);margin-top:2px;}
+
+/* SDK type select grid (step 2) */
+.sdk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:280px;overflow-y:auto;}
+.sdk-opt{
+  border:1.5px solid var(--border);border-radius:9px;
+  padding:11px 14px;cursor:pointer;
+  display:flex;align-items:center;gap:10px;
+  transition:all .15s;background:white;
+}
+.sdk-opt:hover{border-color:#bfdbfe;background:#fafbff;}
+.sdk-opt.sel{border-color:var(--brand);background:#f5f8ff;}
+.sdk-opt-name{font-size:13px;font-weight:600;color:var(--ink);flex:1;}
+.sdk-opt-tag{font-size:10px;font-weight:700;color:var(--ink-4);background:var(--bg);padding:2px 6px;border-radius:4px;}
+.sdk-opt .radio{
+  width:16px;height:16px;border-radius:50%;border:2px solid var(--border);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+}
+.sdk-opt.sel .radio{border-color:var(--brand);}
+.sdk-opt.sel .radio::after{content:'';width:7px;height:7px;border-radius:50%;background:var(--brand);}
+
+/* ── EDIT/VIEW DETAIL ══ */
+.detail-head-bar{
+  background:white;border:1px solid var(--border);border-radius:12px;
+  padding:18px 24px;display:flex;align-items:center;gap:18px;
+  box-shadow:var(--shadow-sm);
+}
+.dh-back{
+  width:36px;height:36px;border-radius:9px;
+  border:1px solid var(--border);background:white;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--ink-3);flex-shrink:0;
+}
+.dh-back:hover{background:var(--bg);color:var(--ink);}
+.dh-back .icon{width:18px;height:18px;}
+.dh-title-area{flex:1;}
+.dh-title-line{display:flex;align-items:center;gap:10px;}
+.dh-title-name{font-size:18px;font-weight:800;letter-spacing:-.01em;}
+.dh-title-meta{font-size:12px;color:var(--ink-4);margin-top:4px;display:flex;align-items:center;gap:10px;}
+.dh-title-meta .dot{width:3px;height:3px;border-radius:50%;background:var(--ink-4);}
+.dh-actions{display:flex;align-items:center;gap:8px;}
+
+/* tabs in detail */
+.detail-tabs{
+  background:white;border:1px solid var(--border);border-radius:12px;
+  padding:4px;display:flex;gap:2px;align-self:flex-start;
+  box-shadow:var(--shadow-sm);
+}
+.dt-tab{
+  padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;
+  color:var(--ink-3);cursor:pointer;display:flex;align-items:center;gap:6px;
+  transition:all .15s;
+}
+.dt-tab:hover{background:var(--border-2);color:var(--ink);}
+.dt-tab.active{background:var(--brand-soft);color:var(--brand-deep);}
+.dt-tab .icon{width:14px;height:14px;}
+.dt-tab .dot-warn{width:6px;height:6px;border-radius:50%;background:var(--amber);}
+
+/* config card */
+.cfg-card{
+  background:white;border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;box-shadow:var(--shadow-sm);
+}
+.cfg-card-head{
+  padding:18px 24px;border-bottom:1px solid var(--border-2);
+  display:flex;align-items:center;
+}
+.cfg-card-title{font-size:15px;font-weight:700;}
+.cfg-card-sub{font-size:12px;color:var(--ink-4);margin-top:3px;}
+.cfg-card-actions{margin-left:auto;display:flex;gap:8px;}
+.cfg-card-body{padding:24px;}
+
+/* form grid 2col */
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;}
+.cfg-grid .full{grid-column:1 / -1;}
+
+/* switch row */
+.switch-row{
+  display:flex;align-items:center;gap:14px;padding:12px 16px;
+  border:1px solid var(--border);border-radius:9px;background:#fafbfc;
+}
+.switch-row + .switch-row{margin-top:10px;}
+.sw-info{flex:1;}
+.sw-name{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:3px;}
+.sw-desc{font-size:11.5px;color:var(--ink-4);}
+.switch{
+  position:relative;width:38px;height:22px;border-radius:11px;
+  background:#cbd5e1;cursor:pointer;flex-shrink:0;transition:background .15s;
+}
+.switch.on{background:var(--brand);}
+.switch::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:18px;height:18px;border-radius:50%;background:white;
+  transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+.switch.on::after{left:18px;}
+
+/* read-only mark */
+.ro-banner{
+  background:#f5f8ff;border:1px solid #bfdbfe;border-radius:10px;
+  padding:13px 18px;display:flex;align-items:center;gap:10px;
+  font-size:13px;color:#1e3a8a;
+}
+.ro-banner .icon{width:16px;height:16px;color:var(--brand);}
+
+/* sticky footer */
+.detail-foot{
+  position:sticky;bottom:0;background:white;
+  padding:14px 26px;display:flex;align-items:center;gap:10px;
+  border-top:1px solid var(--border);
+  margin:0 -36px -36px;
+}
+.detail-foot .save-hint{font-size:12px;color:var(--ink-4);margin-right:auto;}
+
+/* dropdown menu */
+.dropdown{position:relative;}
+.dropdown-menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:8;
+  background:white;border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 10px 32px rgba(15,23,42,.12);
+  min-width:160px;padding:6px;display:none;
+}
+.dropdown.open .dropdown-menu{display:block;}
+.dd-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-radius:7px;font-size:13px;color:var(--ink-2);
+  cursor:pointer;
+}
+.dd-item:hover{background:var(--bg);}
+.dd-item.danger{color:var(--red);}
+.dd-item.danger:hover{background:var(--red-bg);}
+.dd-item .icon{width:14px;height:14px;}
+.dd-sep{height:1px;background:var(--border-2);margin:4px 0;}
+
+/* warn box (delete confirm) */
+.danger-box{
+  background:var(--red-bg);border:1px solid #fecaca;border-radius:10px;
+  padding:14px 18px;display:flex;align-items:flex-start;gap:12px;
+}
+.danger-box .icon-wrap{
+  width:32px;height:32px;border-radius:8px;background:white;
+  display:flex;align-items:center;justify-content:center;color:var(--red);flex-shrink:0;
+}
+.danger-box .icon{width:18px;height:18px;}
+.danger-box .b-title{font-size:13.5px;font-weight:700;color:#991b1b;margin-bottom:4px;}
+.danger-box .b-desc{font-size:12.5px;color:#7f1d1d;line-height:1.55;}
+
+/* clickable name */
+.s-name.link{cursor:pointer;}
+.s-name.link:hover{color:var(--brand);}
+
+/* ── create modal (style 2): underline tabs + list ── */
+.cm-tabs{
+  display:flex;gap:0;border-bottom:1px solid var(--border-2);
+  margin:-22px -24px 18px;padding:0 24px;
+}
+.cm-tab{
+  padding:12px 16px;font-size:13.5px;font-weight:600;color:var(--ink-3);
+  cursor:pointer;display:flex;align-items:center;gap:8px;
+  border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;
+}
+.cm-tab:hover{color:var(--ink);}
+.cm-tab.active{color:var(--brand);border-bottom-color:var(--brand);}
+.cm-tab .emoji{font-size:14px;}
+.cm-tab .n{
+  font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;
+  background:var(--border-2);color:var(--ink-4);line-height:1.4;
+}
+.cm-tab.active .n{background:var(--brand-soft);color:var(--brand-deep);}
+.cm-list{border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.cm-row{
+  display:flex;align-items:center;gap:12px;padding:11px 14px;
+  border-bottom:1px solid var(--border-2);cursor:pointer;
+  transition:background .12s;
+}
+.cm-row:last-child{border-bottom:none;}
+.cm-row:hover{background:var(--bg-2);}
+.cm-row.sel{background:#f5f8ff;}
+.cm-row .radio{
+  width:16px;height:16px;border-radius:50%;border:2px solid var(--border);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+}
+.cm-row.sel .radio{border-color:var(--brand);}
+.cm-row.sel .radio::after{content:'';width:7px;height:7px;border-radius:50%;background:var(--brand);}
+.cm-row-name{font-size:13px;font-weight:600;color:var(--ink);flex:1;}
+.cm-row-tag{
+  display:inline-block;font-size:10px;font-weight:700;
+  background:var(--bg);color:var(--ink-3);padding:2px 7px;border-radius:4px;
+  letter-spacing:.02em;
+}
+</style>
+</head>
+<body>
+
+<div class="plat-nav">
+  <div class="plat-brand"><div class="plat-brand-ico">冰</div><span>冰川业务平台</span></div>
+  <div class="plat-nav-list">
+    <div class="plat-nav-item">游戏运营后台</div>
+    <div class="plat-nav-item">自动化运维</div>
+    <div class="plat-nav-item">自动化部署</div>
+    <div class="plat-nav-item active">SDK 管理后台</div>
+    <div class="plat-nav-item">会员管理后台</div>
+    <div class="plat-nav-item">客服后台</div>
+    <div class="plat-nav-item">活动管理系统</div>
+    <div class="plat-nav-item">聊天系统</div>
+    <div class="plat-nav-item">联合业务后台</div>
+    <div class="plat-nav-item">开放平台</div>
+    <div class="plat-nav-item">通用配置</div>
+  </div>
+</div>
+
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sb-section">
+      <div class="sb-section-label">SDK 管理</div>
+      <div class="nav-item" onclick="location.href='sdkSchemeManagement.html'">
+        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></span>
+        工作台
+      </div>
+      <div class="nav-item active">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        方案管理
+      </div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+        配置中心
+      </div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+        特殊方案
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">记录</div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        审核记录
+        <span class="nav-badge">1</span>
+      </div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        操作日志
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">系统</div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        权限设置
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <div class="topbar">
+      <div>
+        <div class="tb-page-title">方案管理</div>
+        <div class="crumb">SDK 管理后台 / 方案管理 / 方案列表</div>
+      </div>
+      <div class="tb-right">
+        <div class="tb-select"><span>境内</span><span class="caret">▼</span></div>
+        <div class="tb-select"><span>远征手游</span><span class="caret">▼</span></div>
+        <div class="tb-select user"><span class="avatar">福</span><span>福毅</span><span class="caret">▼</span></div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ════ VIEW: LIST ════ -->
+      <div class="view active" id="view-list">
+
+      <!-- CATEGORY TABS -->
+      <div class="cat-tabs">
+        <div class="cat-tab active">全部 <span class="n">34</span></div>
+        <div class="cat-tab">移动端 SDK <span class="n">8</span></div>
+        <div class="cat-tab">PC 端 SDK <span class="n">2</span></div>
+        <div class="cat-tab">小游戏 SDK <span class="n">24</span></div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="filters">
+        <div class="f-group">
+          <span class="f-lbl">方案名</span>
+          <input class="f-input" placeholder="请输入方案名" />
+        </div>
+        <div class="f-group">
+          <span class="f-lbl">SDK 类型</span>
+          <select class="f-sel"><option>全部</option><option>移动端SDK</option><option>支付宝SDK</option><option>windowsSDK</option><option>微信小游戏</option><option>抖音小游戏</option></select>
+        </div>
+        <div class="f-group">
+          <span class="f-lbl">已关联渠道</span>
+          <select class="f-sel"><option>全部</option><option>是</option><option>否</option></select>
+        </div>
+        <div class="f-group">
+          <span class="f-lbl">合规状态</span>
+          <select class="f-sel"><option>全部</option><option>合规</option><option>风险</option></select>
+        </div>
+        <button class="f-btn">查询</button>
+        <button class="f-btn ghost">重置</button>
+      </div>
+
+      <!-- 我的方案 -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">我的方案 <span class="badge">24</span><span class="sec-sub">用户新增的自定义方案，按更新时间排序</span></div>
+          <div class="sec-actions">
+            <button class="sec-action-btn" onclick="openCreate()"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>新增方案</button>
+          </div>
+        </div>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>方案 ID</th><th>方案名</th><th>SDK 类型</th><th>合规状态</th><th>已关联渠道</th><th>最后操作时间</th><th>操作人</th><th style="text-align:right;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="s-id">63b3979ff46240009a691a2c</span></td>
+              <td><span class="s-name link" onclick="openView('移动端主方案-2026春节','移动端 SDK','t-mobile')">移动端主方案-2026春节</span></td>
+              <td><span class="s-type t-mobile">移动端 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-25 18:33</span></td>
+              <td>柴智</td>
+              <td style="text-align:right;"><span class="tbl-op" onclick="openView('移动端主方案-2026春节','移动端 SDK','t-mobile')">查看</span><span class="tbl-op" onclick="openEdit('移动端主方案-2026春节','移动端 SDK','t-mobile')">编辑</span><span class="tbl-op" style="color:var(--ink-3);" onclick="openMore(this,'移动端主方案-2026春节')">⋯</span></td>
+            </tr>
+            <tr>
+              <td><span class="s-id">63b3979ff46240009a691a31</span></td>
+              <td><span class="s-name link" onclick="openView('移动端备用方案','移动端 SDK','t-mobile')">移动端备用方案</span></td>
+              <td><span class="s-type t-mobile">移动端 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-22 10:14</span></td>
+              <td>福毅</td>
+              <td style="text-align:right;"><span class="tbl-op" onclick="openView('移动端备用方案','移动端 SDK','t-mobile')">查看</span><span class="tbl-op" onclick="openEdit('移动端备用方案','移动端 SDK','t-mobile')">编辑</span></td>
+            </tr>
+            <tr>
+              <td><span class="s-id">63b3979ff46240009a691a44</span></td>
+              <td><span class="s-name link" onclick="openView('移动端渠道版方案','移动端 SDK','t-mobile')">移动端渠道版方案</span></td>
+              <td><span class="s-type t-mobile">移动端 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-20 09:42</span></td>
+              <td>福毅</td>
+              <td style="text-align:right;"><span class="tbl-op" onclick="openView('移动端渠道版方案','移动端 SDK','t-mobile')">查看</span><span class="tbl-op" onclick="openEdit('移动端渠道版方案','移动端 SDK','t-mobile')">编辑</span></td>
+            </tr>
+            <tr class="warn-row">
+              <td><span class="s-id">63a128c1f46240009a691b73</span></td>
+              <td><span class="s-name link" onclick="openView('微信小游戏主方案','微信小游戏 SDK','t-mini')">微信小游戏主方案</span></td>
+              <td><span class="s-type t-mini">微信小游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-15 17:20</span></td>
+              <td>林薇</td>
+              <td style="text-align:right;"><span class="tbl-op urgent" onclick="openEdit('微信小游戏主方案','微信小游戏 SDK','t-mini',true)">立即处理</span><span class="tbl-op" onclick="openEdit('微信小游戏主方案','微信小游戏 SDK','t-mini')">编辑</span></td>
+            </tr>
+            <tr class="warn-row">
+              <td><span class="s-id">63a128c1f46240009a691b74</span></td>
+              <td><span class="s-name link" onclick="openView('微信小游戏备用方案','微信小游戏 SDK','t-mini')">微信小游戏备用方案</span></td>
+              <td><span class="s-type t-mini">微信小游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-15 17:21</span></td>
+              <td>林薇</td>
+              <td style="text-align:right;"><span class="tbl-op urgent" onclick="openEdit('微信小游戏备用方案','微信小游戏 SDK','t-mini',true)">立即处理</span><span class="tbl-op" onclick="openEdit('微信小游戏备用方案','微信小游戏 SDK','t-mini')">编辑</span></td>
+            </tr>
+            <tr>
+              <td><span class="s-id">639dbe10f46240009a691c8e</span></td>
+              <td><span class="s-name">抖音小游戏新春活动</span></td>
+              <td><span class="s-type t-mini">抖音小游戏 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2026-03-14 14:55</span></td>
+              <td>林薇</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op">编辑</span></td>
+            </tr>
+            <tr>
+              <td><span class="s-id">6389a47bf46240009a691d12</span></td>
+              <td><span class="s-name">华为快游戏定制方案</span></td>
+              <td><span class="s-type t-mini">华为快游戏 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-12 16:03</span></td>
+              <td>陈昊</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op">编辑</span></td>
+            </tr>
+            <tr>
+              <td><span class="s-id">6389a47bf46240009a691d13</span></td>
+              <td><span class="s-name">windows 桌面方案</span></td>
+              <td><span class="s-type t-pc">windows SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-10 11:44</span></td>
+              <td>陈昊</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op">编辑</span></td>
+            </tr>
+            <tr>
+              <td><span class="s-id">6371c2d8f46240009a691e44</span></td>
+              <td><span class="s-name">支付宝活动专用</span></td>
+              <td><span class="s-type t-pay">支付宝 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2026-03-08 09:10</span></td>
+              <td>福毅</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op">编辑</span></td>
+            </tr>
+            <tr>
+              <td><span class="s-id">635aab8ef46240009a691f02</span></td>
+              <td><span class="s-name">B 站小游戏方案</span></td>
+              <td><span class="s-type t-mini">B 站小游戏 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-04 17:59</span></td>
+              <td>林薇</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op">编辑</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pager">
+          <span class="total">共 24 条</span>
+          <button class="pg-btn">‹</button>
+          <button class="pg-btn cur">1</button>
+          <button class="pg-btn">2</button>
+          <button class="pg-btn">3</button>
+          <button class="pg-btn">›</button>
+          <span style="margin-left:6px;">10 条/页 ▼</span>
+        </div>
+      </div>
+
+      <!-- 默认兜底方案 折叠条 -->
+      <div class="collapse-bar" id="defBar" onclick="toggleDef()">
+        <span class="icon chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+        <div class="collapse-icon"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span></div>
+        <div class="collapse-info">
+          <div class="collapse-title">官方默认兜底方案 <span style="font-size:11px;font-weight:600;background:var(--grey-bg);color:var(--grey);padding:2px 7px;border-radius:5px;margin-left:6px;">10</span></div>
+          <div class="collapse-desc">每个 SDK 类型自带的官方默认配置，新游戏未配置自定义方案时使用。一般无需修改。</div>
+        </div>
+        <span style="font-size:12.5px;color:var(--ink-4);">展开管理</span>
+      </div>
+      <div class="collapse-body" id="defBody" style="display:none;">
+        <div class="sec-note">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+          这些是冰川 SDK 平台为每种 SDK 类型预置的兜底方案。如需修改请联系 SDK 平台管理员，普通运营人员只能查看。
+        </div>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>方案 ID</th><th>方案名</th><th>SDK 类型</th><th>合规状态</th><th>已关联渠道</th><th>最后操作时间</th><th>操作人</th><th style="text-align:right;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="default-row">
+              <td><span class="s-id">63b3979ff46240009a688f5f</span></td>
+              <td><span class="s-name">移动端 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mobile">移动端 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-25 18:33</span></td>
+              <td>柴智</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">63b3979ff46240009a688f61</span></td>
+              <td><span class="s-name">windowsSDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-pc">windows SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2023-01-03 10:49</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">63b3979ff46240009a688f63</span></td>
+              <td><span class="s-name">微信小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">微信小游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2023-01-03 10:49</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op urgent">立即处理</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">6413bf0790323400628a67bb</span></td>
+              <td><span class="s-name">抖音小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">抖音小游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2023-03-17 09:14</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">659cc554560cad0078f8a0a7</span></td>
+              <td><span class="s-name">支付宝 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-pay">支付宝 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2024-01-09 12:02</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">673d53ad718acb0039da56e8</span></td>
+              <td><span class="s-name">华为快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">华为快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2024-11-20 11:12</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">67d39a2a661c4b00935a1512</span></td>
+              <td><span class="s-name">小米快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">小米快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2025-03-14 10:53</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">67d39a2a661c4b00935a1513</span></td>
+              <td><span class="s-name">VIVO 快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">VIVO 快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2025-03-14 10:53</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">67d39a2a661c4b00935a1514</span></td>
+              <td><span class="s-name">OPPO 快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">OPPO 快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2025-03-14 10:53</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">695a3a2c5759b0009561fa8e</span></td>
+              <td><span class="s-name">B 站小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">B 站小游戏 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2026-01-04 17:59</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      </div><!-- /view-list -->
+
+      <!-- ════ VIEW: EDIT ════ -->
+      <div class="view" id="view-edit">
+
+        <div class="detail-head-bar">
+          <div class="dh-back" onclick="goList()" title="返回列表"><span class="icon"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="dh-title-area">
+            <div class="dh-title-line">
+              <span class="dh-title-name" id="ed-name">移动端主方案-2026春节</span>
+              <span class="s-type t-mobile" id="ed-type-tag">移动端 SDK</span>
+              <span class="compl c-ok" id="ed-compl">合规</span>
+            </div>
+            <div class="dh-title-meta">
+              <span>ID: 63b3979ff46240009a691a2c</span><span class="dot"></span>
+              <span>最后更新 2026-03-25 18:33 · 柴智</span><span class="dot"></span>
+              <span>已绑定 3 个渠道包</span>
+            </div>
+          </div>
+          <div class="dh-actions">
+            <button class="btn ghost" onclick="goList()">取消</button>
+            <button class="btn primary"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>保存</button>
+            <div class="dropdown" id="dd-edit">
+              <button class="btn ghost" onclick="toggleDD('dd-edit')" style="padding:0 10px;">⋯</button>
+              <div class="dropdown-menu">
+                <div class="dd-item" onclick="openDup()"><span class="icon"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>复制方案</div>
+                <div class="dd-item"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>变更历史</div>
+                <div class="dd-sep"></div>
+                <div class="dd-item danger" onclick="openDel()"><span class="icon"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg></span>删除方案</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-tabs">
+          <div class="dt-tab active"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4"/></svg></span>基础信息</div>
+          <div class="dt-tab"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>登录配置</div>
+          <div class="dt-tab"><span class="icon"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>支付配置</div>
+          <div class="dt-tab"><span class="icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>实名 / 防沉迷 <span class="dot-warn" id="ed-tab-warn" style="display:none;"></span></div>
+          <div class="dt-tab"><span class="icon"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>客服 / 上报</div>
+          <div class="dt-tab"><span class="icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>关联渠道 (3)</div>
+        </div>
+
+        <!-- 基础信息卡 -->
+        <div class="cfg-card">
+          <div class="cfg-card-head">
+            <div>
+              <div class="cfg-card-title">基础信息</div>
+              <div class="cfg-card-sub">方案的基础属性、所属 SDK 类型与适用范围</div>
+            </div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="cfg-grid">
+              <div class="form-row">
+                <label class="form-lbl">方案名称<span class="req">*</span></label>
+                <input class="form-input" value="移动端主方案-2026春节" />
+              </div>
+              <div class="form-row">
+                <label class="form-lbl">SDK 类型</label>
+                <input class="form-input" value="移动端 SDK" disabled style="background:var(--bg-2);color:var(--ink-3);" />
+                <div class="form-help">SDK 类型创建后不可修改，如需更换请新建方案</div>
+              </div>
+              <div class="form-row">
+                <label class="form-lbl">适用区域</label>
+                <select class="form-select"><option>境内</option><option>海外</option><option>境内 + 海外</option></select>
+              </div>
+              <div class="form-row">
+                <label class="form-lbl">合规版本</label>
+                <select class="form-select"><option>v3.2 (2026春节版)</option><option>v3.1</option><option>v3.0</option></select>
+              </div>
+              <div class="form-row full">
+                <label class="form-lbl">备注</label>
+                <textarea class="form-textarea" placeholder="可填写方案用途、变更说明等">2026 春节活动主推方案，含全量包体的登录/支付配置。</textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 功能开关卡 -->
+        <div class="cfg-card">
+          <div class="cfg-card-head">
+            <div>
+              <div class="cfg-card-title">功能开关</div>
+              <div class="cfg-card-sub">控制方案中各模块的启用状态</div>
+            </div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">登录模块</div><div class="sw-desc">启用后会加载登录相关配置（账号、第三方登录、一键登录等）</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">支付模块</div><div class="sw-desc">启用后加载支付通道、商品配置、回调地址等</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">实名认证 / 防沉迷</div><div class="sw-desc">未成年保护合规模块，建议保持开启</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">客服入口</div><div class="sw-desc">嵌入聊天系统的客服会话入口</div></div>
+              <div class="switch" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">数据上报</div><div class="sw-desc">把行为日志推送到数数分析后台</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 关键参数卡 -->
+        <div class="cfg-card">
+          <div class="cfg-card-head">
+            <div>
+              <div class="cfg-card-title">关键参数</div>
+              <div class="cfg-card-sub">SDK 接入用到的核心 ID 与回调地址</div>
+            </div>
+            <div class="cfg-card-actions">
+              <button class="btn ghost" style="height:32px;padding:0 14px;font-size:12.5px;">从其他方案复制</button>
+            </div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="cfg-grid">
+              <div class="form-row"><label class="form-lbl">App ID</label><input class="form-input" value="wx8a1b2c3d4e5f6789" /></div>
+              <div class="form-row"><label class="form-lbl">App Secret</label><input class="form-input" type="password" value="••••••••••••••••" /></div>
+              <div class="form-row full"><label class="form-lbl">登录回调地址</label><input class="form-input" value="https://sdk.q1.com/callback/login" /></div>
+              <div class="form-row full"><label class="form-lbl">支付回调地址</label><input class="form-input" value="https://sdk.q1.com/callback/pay" /></div>
+              <div class="form-row"><label class="form-lbl">登录超时 (秒)</label><input class="form-input" value="30" /></div>
+              <div class="form-row"><label class="form-lbl">支付超时 (秒)</label><input class="form-input" value="120" /></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-foot">
+          <span class="save-hint">最后保存于 5 分钟前 · 已自动备份</span>
+          <button class="btn ghost" onclick="goList()">取消</button>
+          <button class="btn primary"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>保存方案</button>
+        </div>
+
+      </div><!-- /view-edit -->
+
+      <!-- ════ VIEW: VIEW (READ-ONLY) ════ -->
+      <div class="view" id="view-view">
+
+        <div class="detail-head-bar">
+          <div class="dh-back" onclick="goList()" title="返回列表"><span class="icon"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="dh-title-area">
+            <div class="dh-title-line">
+              <span class="dh-title-name" id="vw-name">移动端主方案-2026春节</span>
+              <span class="s-type t-mobile" id="vw-type-tag">移动端 SDK</span>
+              <span class="compl c-ok">合规</span>
+            </div>
+            <div class="dh-title-meta">
+              <span>ID: 63b3979ff46240009a691a2c</span><span class="dot"></span>
+              <span>最后更新 2026-03-25 18:33 · 柴智</span><span class="dot"></span>
+              <span>已绑定 3 个渠道包</span>
+            </div>
+          </div>
+          <div class="dh-actions">
+            <button class="btn ghost" onclick="goList()">返回</button>
+            <button class="btn primary" onclick="openEditFromView()"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>编辑方案</button>
+          </div>
+        </div>
+
+        <div class="ro-banner">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+          您正在以只读模式查看本方案。如需修改，请点击右上角"编辑方案"。
+        </div>
+
+        <div class="detail-tabs">
+          <div class="dt-tab active">基础信息</div>
+          <div class="dt-tab">登录配置</div>
+          <div class="dt-tab">支付配置</div>
+          <div class="dt-tab">实名 / 防沉迷</div>
+          <div class="dt-tab">客服 / 上报</div>
+          <div class="dt-tab">关联渠道 (3)</div>
+        </div>
+
+        <div class="cfg-card">
+          <div class="cfg-card-head">
+            <div><div class="cfg-card-title">基础信息</div></div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="cfg-grid">
+              <div class="form-row"><label class="form-lbl">方案名称</label><div style="font-size:14px;color:var(--ink);font-weight:500;">移动端主方案-2026春节</div></div>
+              <div class="form-row"><label class="form-lbl">SDK 类型</label><div><span class="s-type t-mobile">移动端 SDK</span></div></div>
+              <div class="form-row"><label class="form-lbl">适用区域</label><div style="font-size:14px;">境内</div></div>
+              <div class="form-row"><label class="form-lbl">合规版本</label><div style="font-size:14px;">v3.2 (2026春节版)</div></div>
+              <div class="form-row full"><label class="form-lbl">备注</label><div style="font-size:13.5px;color:var(--ink-2);line-height:1.65;">2026 春节活动主推方案，含全量包体的登录/支付配置。</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cfg-card">
+          <div class="cfg-card-head">
+            <div><div class="cfg-card-title">功能开关状态</div></div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="cfg-grid">
+              <div class="form-row"><label class="form-lbl">登录模块</label><div><span class="compl c-ok">已开启</span></div></div>
+              <div class="form-row"><label class="form-lbl">支付模块</label><div><span class="compl c-ok">已开启</span></div></div>
+              <div class="form-row"><label class="form-lbl">实名 / 防沉迷</label><div><span class="compl c-ok">已开启</span></div></div>
+              <div class="form-row"><label class="form-lbl">客服入口</label><div><span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:5px;background:var(--bg);color:var(--ink-4);">未开启</span></div></div>
+              <div class="form-row"><label class="form-lbl">数据上报</label><div><span class="compl c-ok">已开启</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cfg-card">
+          <div class="cfg-card-head">
+            <div><div class="cfg-card-title">关键参数</div></div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="cfg-grid">
+              <div class="form-row"><label class="form-lbl">App ID</label><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;">wx8a1b2c3d4e5f6789</div></div>
+              <div class="form-row"><label class="form-lbl">App Secret</label><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;">••••••••••••••••</div></div>
+              <div class="form-row full"><label class="form-lbl">登录回调地址</label><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;color:var(--brand);">https://sdk.q1.com/callback/login</div></div>
+              <div class="form-row full"><label class="form-lbl">支付回调地址</label><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;color:var(--brand);">https://sdk.q1.com/callback/pay</div></div>
+              <div class="form-row"><label class="form-lbl">登录超时</label><div style="font-size:14px;">30 秒</div></div>
+              <div class="form-row"><label class="form-lbl">支付超时</label><div style="font-size:14px;">120 秒</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /view-view -->
+
+    </div>
+  </div>
+
+</div>
+
+<!-- ════ MODAL: CREATE (ONE-STEP) ════ -->
+<div class="modal-mask" id="m-create">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">新增 SDK 方案</div>
+        <div class="modal-sub">选择 SDK 类型并填写方案名称</div>
+      </div>
+      <div class="modal-close" onclick="closeModal('m-create')"><span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+    </div>
+    <div class="modal-body">
+
+      <div class="cm-tabs">
+        <div class="cm-tab active" onclick="cwTab(this,'mobile')"><span class="emoji">📱</span>移动端<span class="n">2</span></div>
+        <div class="cm-tab" onclick="cwTab(this,'pc')"><span class="emoji">💻</span>PC 端<span class="n">2</span></div>
+        <div class="cm-tab" onclick="cwTab(this,'mini')"><span class="emoji">🎮</span>小游戏<span class="n">9</span></div>
+      </div>
+
+      <label class="form-lbl">SDK 类型<span class="req">*</span></label>
+      <div class="cm-list" id="cm-list"></div>
+      <div class="form-help">默认选中"移动端 → 移动端 SDK"，类型创建后不可修改</div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn text" style="margin-left:auto;" onclick="closeModal('m-create')">取消</button>
+      <button class="btn primary" onclick="cwCreate()"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>创建并进入编辑</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: DELETE CONFIRM ════ -->
+<div class="modal-mask" id="m-del">
+  <div class="modal sm">
+    <div class="modal-head">
+      <div class="modal-title">删除方案</div>
+      <div class="modal-close" onclick="closeModal('m-del')"><span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+    </div>
+    <div class="modal-body">
+      <div class="danger-box">
+        <div class="icon-wrap"><span class="icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+        <div>
+          <div class="b-title">删除后无法恢复</div>
+          <div class="b-desc">该方案当前已绑定 <strong>3 个渠道包</strong>，删除后这些包体将自动回退到所属 SDK 类型的官方默认方案。请谨慎操作。</div>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:18px;">
+        <label class="form-lbl">请输入方案名以确认删除</label>
+        <input class="form-input" id="del-confirm" placeholder="输入：移动端主方案-2026春节" oninput="checkDel(this)" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn text" style="margin-left:auto;" onclick="closeModal('m-del')">取消</button>
+      <button class="btn danger" id="del-btn" disabled>确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: DUPLICATE ════ -->
+<div class="modal-mask" id="m-dup">
+  <div class="modal sm">
+    <div class="modal-head">
+      <div class="modal-title">复制方案</div>
+      <div class="modal-close" onclick="closeModal('m-dup')"><span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-lbl">复制源</label>
+        <input class="form-input" value="移动端主方案-2026春节" disabled style="background:var(--bg-2);color:var(--ink-3);" />
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">新方案名称<span class="req">*</span></label>
+        <input class="form-input" value="移动端主方案-2026春节 (副本)" />
+        <div class="form-help">所有参数会被复制到新方案，渠道绑定不会被复制</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn text" style="margin-left:auto;" onclick="closeModal('m-dup')">取消</button>
+      <button class="btn primary" onclick="closeModal('m-dup');openEdit('移动端主方案-2026春节 (副本)','移动端 SDK','t-mobile')">创建并编辑</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleNG(id){
+  document.getElementById(id).classList.toggle('collapsed');
+}
+function toggleDef(){
+  var bar=document.getElementById('defBar');
+  var body=document.getElementById('defBody');
+  var open=bar.classList.toggle('open');
+  body.style.display=open?'block':'none';
+}
+
+/* view router */
+function setView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+  document.querySelector('.main').scrollTo(0,0);
+}
+function goList(){
+  setView('view-list');
+  document.querySelector('.tb-page-title').textContent='方案管理';
+}
+function openEdit(name,sdkType,tagCls,jumpToCompliance){
+  document.getElementById('ed-name').textContent=name;
+  var t=document.getElementById('ed-type-tag');
+  t.textContent=sdkType;t.className='s-type '+tagCls;
+  document.querySelector('.tb-page-title').textContent='编辑方案 · '+name;
+  setView('view-edit');
+  if(jumpToCompliance){
+    document.querySelectorAll('#view-edit .dt-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('#view-edit .dt-tab')[3].classList.add('active');
+    document.getElementById('ed-tab-warn').style.display='inline-block';
+  }
+}
+function openView(name,sdkType,tagCls){
+  document.getElementById('vw-name').textContent=name;
+  var t=document.getElementById('vw-type-tag');
+  t.textContent=sdkType;t.className='s-type '+tagCls;
+  document.querySelector('.tb-page-title').textContent='查看方案 · '+name;
+  setView('view-view');
+}
+function openEditFromView(){
+  var n=document.getElementById('vw-name').textContent;
+  var t=document.getElementById('vw-type-tag');
+  openEdit(n,t.textContent,t.className.replace('s-type ',''));
+}
+
+/* tabs in detail */
+document.addEventListener('click',function(e){
+  if(e.target.closest('.dt-tab')){
+    var t=e.target.closest('.dt-tab');
+    var sib=t.parentElement.children;
+    Array.prototype.forEach.call(sib,s=>s.classList.remove('active'));
+    t.classList.add('active');
+  }
+  if(!e.target.closest('.dropdown')){
+    document.querySelectorAll('.dropdown.open').forEach(d=>d.classList.remove('open'));
+  }
+});
+
+/* dropdown */
+function toggleDD(id){
+  var d=document.getElementById(id);
+  var on=d.classList.contains('open');
+  document.querySelectorAll('.dropdown.open').forEach(x=>x.classList.remove('open'));
+  if(!on)d.classList.add('open');
+}
+
+/* modal */
+function openModal(id){document.getElementById(id).classList.add('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+
+/* create modal: underline-tabs + list */
+var CW_DATA={
+  mobile:[
+    {id:'mobile',name:'移动端 SDK',cls:'t-mobile',tag:'MOBILE'},
+    {id:'ios-vest',name:'iOS 马甲包 SDK',cls:'t-mobile',tag:'IOS-VEST'}
+  ],
+  pc:[
+    {id:'win',name:'Windows SDK',cls:'t-pc',tag:'WIN'},
+    {id:'h5',name:'H5 SDK',cls:'t-pc',tag:'H5'}
+  ],
+  mini:[
+    {id:'wx',name:'微信小游戏 SDK',cls:'t-mini',tag:'WX'},
+    {id:'dy',name:'抖音小游戏 SDK',cls:'t-mini',tag:'DY'},
+    {id:'bili',name:'B 站小游戏 SDK',cls:'t-mini',tag:'BILI'},
+    {id:'alipay',name:'支付宝 SDK',cls:'t-pay',tag:'ALIPAY'},
+    {id:'wxmp',name:'微信小程序 SDK',cls:'t-mini',tag:'WXMP'},
+    {id:'hw',name:'华为快游戏 SDK',cls:'t-mini',tag:'HW'},
+    {id:'mi',name:'小米快游戏 SDK',cls:'t-mini',tag:'MI'},
+    {id:'vivo',name:'VIVO 快游戏 SDK',cls:'t-mini',tag:'VIVO'},
+    {id:'oppo',name:'OPPO 快游戏 SDK',cls:'t-mini',tag:'OPPO'}
+  ]
+};
+var CW={cat:'mobile',picked:null};
+function openCreate(){
+  CW={cat:'mobile',picked:CW_DATA.mobile[0]};
+  document.querySelectorAll('.cm-tab').forEach((t,i)=>{
+    t.classList.toggle('active',i===0);
+  });
+  cwRender();
+  openModal('m-create');
+}
+function cwTab(el,cat){
+  document.querySelectorAll('.cm-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  CW.cat=cat;
+  CW.picked=CW_DATA[cat][0];
+  cwRender();
+}
+function cwRender(){
+  var html=CW_DATA[CW.cat].map(function(s){
+    var sel=(CW.picked&&CW.picked.id===s.id)?'sel':'';
+    return '<div class="cm-row '+sel+'" onclick="cwPick(\''+s.id+'\')">'
+      +'<span class="radio"></span>'
+      +'<span class="cm-row-name">'+s.name+'</span>'
+      +'<span class="cm-row-tag">'+s.tag+'</span>'
+      +'</div>';
+  }).join('');
+  document.getElementById('cm-list').innerHTML=html;
+}
+function cwPick(sdkId){
+  CW.picked=CW_DATA[CW.cat].find(function(s){return s.id===sdkId;});
+  cwRender();
+}
+function cwCreate(){
+  if(!CW.picked)return;
+  closeModal('m-create');
+  openEdit(CW.picked.name+' 新方案',CW.picked.name,CW.picked.cls);
+}
+
+/* delete confirm */
+function openDel(){
+  var n=document.getElementById('ed-name').textContent;
+  document.getElementById('del-confirm').value='';
+  document.getElementById('del-confirm').placeholder='输入：'+n;
+  document.getElementById('del-btn').disabled=true;
+  openModal('m-del');
+}
+function checkDel(inp){
+  var target=document.getElementById('ed-name').textContent;
+  document.getElementById('del-btn').disabled=(inp.value.trim()!==target);
+}
+
+/* duplicate */
+function openDup(){openModal('m-dup');}
+
+/* "..." action menu on list rows — simple noop alert for prototype */
+function openMore(el,name){alert('更多操作（演示）：'+name+'\n包含 复制 / 历史 / 删除');}
+</script>
+</body>
+</html>
