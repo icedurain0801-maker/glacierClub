@@ -7,7 +7,7 @@
 <script src="../shared/theme-toggle.js"></script>
 <link rel="stylesheet" href="../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="../assets/fonts/local-fonts.css" rel="stylesheet"/>
 <script id="tailwind-config">
   tailwind.config = {
     darkMode: "class",
@@ -104,7 +104,28 @@
     --likes-list-meta:#a9b4b9;
 
     --sb-icon-color:#2a3439;
-  }
+    --error:#e53935;
+    --state-success:#2e7d32;
+    --state-online:#4caf50;
+    --state-badge-red:#f44336;
+    --ps-published:#0a8a5a;
+    --ps-failed:#e53935;
+    --ps-deleted:#ff6b35;
+    --rank-1-fg:#dc2626;
+    --rank-2-fg:#ea580c;
+    --rank-3-fg:#ca8a04;
+    --rank-hot-bg:#fee2e2;
+    --rank-warm-bg:#ffedd5;
+    --tag-important:#e53935;
+    --tag-event:#388e3c;
+    --tag-policy:#7b1fa2;
+    --tag-amber-fg:#b88000;
+    --island-bg:#000;
+    --overlay-cover-strong:rgba(10,15,20,0.88);
+    --overlay-cover-weak:rgba(10,15,20,0.30);
+    --divider-soft:#e8edf0;
+    --device-bezel-dark:#1a1a1a;
+}
   [data-theme="dark"]{
     --bg-body:#1a1f26;
     --bg-page:#0d1117;
@@ -161,7 +182,28 @@
     --likes-list-meta:#6e7681;
 
     --sb-icon-color:#e6edf3;
-  }
+    --error:#f87171;
+    --state-success:#4caf50;
+    --state-online:#4caf50;
+    --state-badge-red:#f44336;
+    --ps-published:#22c55e;
+    --ps-failed:#f87171;
+    --ps-deleted:#ff8a5b;
+    --rank-1-fg:#f87171;
+    --rank-2-fg:#fb923c;
+    --rank-3-fg:#fbbf24;
+    --rank-hot-bg:rgba(248,113,113,0.18);
+    --rank-warm-bg:rgba(251,146,60,0.18);
+    --tag-important:#f87171;
+    --tag-event:#4caf50;
+    --tag-policy:#c084fc;
+    --tag-amber-fg:#fbbf24;
+    --island-bg:#000;
+    --overlay-cover-strong:rgba(0,0,0,0.90);
+    --overlay-cover-weak:rgba(0,0,0,0.40);
+    --divider-soft:#21262d;
+    --device-bezel-dark:#000;
+}
 
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -249,7 +291,7 @@
   /* ── Badge ── */
   .notif-badge {
     position: absolute; top: -2px; right: -2px;
-    min-width: 18px; height: 18px; background: #f44336;
+    min-width: 18px; height: 18px; background: var(--state-badge-red);
     border-radius: 99px; display: flex; align-items: center; justify-content: center;
     font-size: 10px; font-weight: 700; color: #fff; padding: 0 4px;
     border: 2px solid var(--notif-badge-border);
@@ -434,7 +476,7 @@
         <div class="friend-row" style="background:var(--row-unread-bg)" onclick="window.location.href='./chat-en.html'">
           <div style="position:relative;flex-shrink:0">
             <img src="https://i.pravatar.cc/80?img=7" class="w-[46px] h-[46px] rounded-full object-cover"/>
-            <div style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:#4caf50;border:2px solid var(--online-dot-border-unread)"></div>
+            <div style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:var(--state-online);border:2px solid var(--online-dot-border-unread)"></div>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline justify-between gap-1">
@@ -469,7 +511,7 @@
         <div class="friend-row" onclick="window.location.href='./chat-en.html'">
           <div style="position:relative;flex-shrink:0">
             <img src="https://i.pravatar.cc/80?img=14" class="w-[46px] h-[46px] rounded-full object-cover"/>
-            <div style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:#4caf50;border:2px solid var(--online-dot-border-normal)"></div>
+            <div style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:var(--state-online);border:2px solid var(--online-dot-border-normal)"></div>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline justify-between gap-1">
@@ -698,7 +740,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5 mb-1 flex-wrap">
               <span class="text-[13px] font-bold text-on-surface font-headline">MoonBreeze</span>
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#2e7d3218;color:#2e7d32">Comment</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(46,125,50,0.09);color:var(--state-success)">Comment</span>
               <span class="text-[11px] text-outline-variant ml-auto">23m ago</span>
             </div>
             <div class="text-[13px] text-on-surface leading-relaxed mb-2">
@@ -746,7 +788,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5 mb-1 flex-wrap">
               <span class="text-[13px] font-bold text-on-surface font-headline">StarDust</span>
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#2e7d3218;color:#2e7d32">Comment</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(46,125,50,0.09);color:var(--state-success)">Comment</span>
               <span class="text-[11px] text-outline-variant ml-auto">3h ago</span>
             </div>
             <div class="text-[13px] text-on-surface leading-relaxed mb-2">
@@ -796,7 +838,7 @@
             </div>
             <div class="text-xs text-on-surface-variant leading-relaxed">Your community contribution score hit the upgrade threshold!</div>
           </div>
-          <div class="w-2 h-2 rounded-full bg-[#f44336] flex-shrink-0 mt-1"></div>
+          <div class="w-2 h-2 rounded-full bg-[var(--state-badge-red)] flex-shrink-0 mt-1"></div>
         </div>
       </div>
       <div class="divider"></div>
@@ -811,7 +853,7 @@
             </div>
             <div class="text-xs text-on-surface-variant leading-relaxed">New device login detected — was this you?</div>
           </div>
-          <div class="w-2 h-2 rounded-full bg-[#f44336] flex-shrink-0 mt-1"></div>
+          <div class="w-2 h-2 rounded-full bg-[var(--state-badge-red)] flex-shrink-0 mt-1"></div>
         </div>
       </div>
       <div class="divider"></div>
@@ -867,7 +909,7 @@
         <div class="flex items-start gap-2.5">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5 mb-1.5">
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#e5393518;color:#e53935">Important</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(229,57,53,0.09);color:var(--tag-important)">Important</span>
               <span class="text-[11px] text-outline-variant">2025/01/20</span>
             </div>
             <div class="text-sm font-bold text-on-surface font-headline mb-1">Lunar New Year Event 2025</div>
@@ -897,7 +939,7 @@
         <div class="flex items-start gap-2.5">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5 mb-1.5">
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#388e3c18;color:#388e3c">Event</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(56,142,60,0.09);color:var(--tag-event)">Event</span>
               <span class="text-[11px] text-outline-variant">2025/01/10</span>
             </div>
             <div class="text-sm font-bold text-on-surface font-headline mb-1">Community Creator Contest Results</div>
@@ -912,7 +954,7 @@
         <div class="flex items-start gap-2.5">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5 mb-1.5">
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:#7b1fa218;color:#7b1fa2">Policy</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:rgba(123,31,162,0.09);color:var(--tag-policy)">Policy</span>
               <span class="text-[11px] text-outline-variant">2025/01/05</span>
             </div>
             <div class="text-sm font-bold text-on-surface font-headline mb-1">Community Guidelines Update</div>
@@ -939,9 +981,9 @@ const ANNOUNCES = {
        body:'Dear players, the Lunar New Year is almost here! We\'ve prepared a range of festive events including limited-time skins, double XP cards, and exclusive seasonal quests. Servers will undergo scheduled maintenance on Jan 24 from 2:00–6:00 AM. Please plan accordingly.' },
   2: { tag:'Patch', tagC:'var(--primary)', title:'v2.8.0 Patch Notes', date:'2025/01/15',
        body:'This update includes major balance adjustments, ability tuning for multiple heroes, and long-requested bug fixes from the community. Three brand-new hero characters are also being introduced — try them out!' },
-  3: { tag:'Event', tagC:'#388e3c', title:'Community Creator Contest Results', date:'2025/01/10',
+  3: { tag:'Event', tagC:'var(--tag-event)', title:'Community Creator Contest Results', date:'2025/01/10',
        body:'After careful deliberation by our judging panel, the Community Creator Contest has officially concluded. Thank you to every player who participated — your creativity was truly inspiring!' },
-  4: { tag:'Policy', tagC:'#7b1fa2', title:'Community Guidelines Update', date:'2025/01/05',
+  4: { tag:'Policy', tagC:'var(--tag-policy)', title:'Community Guidelines Update', date:'2025/01/05',
        body:'To maintain a welcoming community environment, we have added further clarifications to our conduct policies. Please treat each other with respect and help us keep this a great space for everyone.' },
 };
 
@@ -1056,27 +1098,27 @@ fetch('../../shared/sidebar.js').then(r => r.text()).then(t => {
 
 <!-- ══ Page Nav v3.1.1 ══ -->
 <style>
-#pnav-fab{position:fixed;left:16px;top:80px;z-index:9998;width:36px;height:36px;border-radius:10px;background:rgba(0,97,164,.92);box-shadow:0 3px 12px rgba(0,97,164,.35);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
+#pnav-fab{position:fixed;left:16px;top:80px;z-index:9998;width:36px;height:36px;border-radius:10px;background:var(--primary);box-shadow:0 3px 12px rgba(0,97,164,.35);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
 #pnav-fab:hover{transform:scale(1.08);}
-#pnav-fab svg{width:18px;height:18px;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;}
+#pnav-fab svg{width:18px;height:18px;stroke:var(--on-primary);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;}
 #pnav-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:9997;opacity:0;pointer-events:none;transition:opacity .2s;}
 #pnav-overlay.open{opacity:1;pointer-events:auto;}
-#pnav-drawer{position:fixed;top:0;left:-300px;width:280px;height:100vh;background:#fff;z-index:9998;box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:left .24s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+#pnav-drawer{position:fixed;top:0;left:-300px;width:280px;height:100vh;background:var(--surface-container-lowest);z-index:9998;box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:left .24s cubic-bezier(.4,0,.2,1);overflow:hidden;}
 #pnav-drawer.open{left:0;}
-#pnav-head{padding:20px 16px 12px;border-bottom:1px solid #e1e9ee;flex-shrink:0;}
-#pnav-head h3{font-family:Manrope,system-ui,sans-serif;font-size:14px;font-weight:800;color:#0061a4;margin:0 0 2px;}
-#pnav-head p{font-family:Inter,system-ui,sans-serif;font-size:11px;color:#a9b4b9;margin:0;}
-#pnav-close{position:absolute;top:14px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:#f0f4f7;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-#pnav-close svg{width:14px;height:14px;stroke:#566166;stroke-width:2.5;stroke-linecap:round;fill:none;}
+#pnav-head{padding:20px 16px 12px;border-bottom:1px solid var(--surface-container-high);flex-shrink:0;}
+#pnav-head h3{font-family:Manrope,system-ui,sans-serif;font-size:14px;font-weight:800;color:var(--primary);margin:0 0 2px;}
+#pnav-head p{font-family:Inter,system-ui,sans-serif;font-size:11px;color:var(--outline-variant);margin:0;}
+#pnav-close{position:absolute;top:14px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-container-low);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#pnav-close svg{width:14px;height:14px;stroke:var(--on-surface-variant);stroke-width:2.5;stroke-linecap:round;fill:none;}
 #pnav-list{flex:1;overflow-y:auto;padding:8px 0 24px;}
 .pnav-section{padding:12px 16px 4px;}
-.pnav-section-label{font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:700;color:#a9b4b9;letter-spacing:.08em;text-transform:uppercase;}
-.pnav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:500;color:#2a3439;transition:background .12s;}
+.pnav-section-label{font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:700;color:var(--outline-variant);letter-spacing:.08em;text-transform:uppercase;}
+.pnav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:500;color:var(--on-surface);transition:background .12s;}
 .pnav-item:hover{background:#f0f4f7;}
-.pnav-item.current{background:#eff6ff;color:#0061a4;font-weight:700;}
-.pnav-item .pnav-dot{width:6px;height:6px;border-radius:50%;background:#d9e4ea;flex-shrink:0;}
+.pnav-item.current{background:var(--secondary-container);color:var(--primary);font-weight:700;}
+.pnav-item .pnav-dot{width:6px;height:6px;border-radius:50%;background:var(--surface-variant);flex-shrink:0;}
 .pnav-item.current .pnav-dot{background:#0061a4;}
-.pnav-item .pnav-num{font-size:10px;font-weight:700;color:#a9b4b9;width:16px;flex-shrink:0;text-align:right;}
+.pnav-item .pnav-num{font-size:10px;font-weight:700;color:var(--outline-variant);width:16px;flex-shrink:0;text-align:right;}
 .pnav-item.current .pnav-num{color:#0061a4;}
 </style>
 
@@ -1140,16 +1182,16 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 
 <!-- ══ Spec Panel v3.1.1 ══ -->
 <style>
-#spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:#0061a4;box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
+#spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:var(--primary);box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
 #spec-fab:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(0,97,164,.50);}
-#spec-fab svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+#spec-fab svg{width:20px;height:20px;fill:none;stroke:var(--on-primary);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 #spec-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;opacity:0;pointer-events:none;transition:opacity .22s;}
 #spec-overlay.open{opacity:1;pointer-events:auto;}
-#spec-panel{position:fixed;top:0;right:-560px;width:540px;max-width:90vw;height:100vh;background:#fff;z-index:9999;box-shadow:-4px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1);}
+#spec-panel{position:fixed;top:0;right:-560px;width:540px;max-width:90vw;height:100vh;background:var(--surface-container-lowest);z-index:9999;box-shadow:-4px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1);}
 #spec-panel.open{right:0;}
-#spec-panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 16px;border-bottom:1px solid #e1e9ee;flex-shrink:0;}
-#spec-panel-title{font-family:Manrope,system-ui,sans-serif;font-size:16px;font-weight:800;color:#0061a4;margin:0;}
-#spec-panel-ver{font-size:11px;font-weight:600;color:#a9b4b9;margin-left:8px;}
+#spec-panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 16px;border-bottom:1px solid var(--surface-container-high);flex-shrink:0;}
+#spec-panel-title{font-family:Manrope,system-ui,sans-serif;font-size:16px;font-weight:800;color:var(--primary);margin:0;}
+#spec-panel-ver{font-size:11px;font-weight:600;color:var(--outline-variant);margin-left:8px;}
 #spec-panel-close{width:32px;height:32px;border-radius:50%;border:none;background:#f0f4f7;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 #spec-panel-close svg{width:16px;height:16px;stroke:#566166;stroke-width:2.5;stroke-linecap:round;fill:none;}
 #spec-body{flex:1;overflow-y:auto;padding:20px 24px 32px;font-family:Inter,system-ui,sans-serif;font-size:13px;color:#2a3439;line-height:1.7;}

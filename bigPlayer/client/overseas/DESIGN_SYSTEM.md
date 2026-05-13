@@ -1,7 +1,8 @@
 # BigPlayer Overseas Design System
 
-> 海外版设计规范，以 `home-en.html` 为基准制定。  
-> 所有 `overseas/` 目录下的页面必须遵循本规范。
+> 海外版设计规范，以 `home-en.html` 为基准制定。
+> **适用范围：`bigPlayer/client/overseas/` 下所有页面（home / feed / news / profile / publish 等全部 -en.html 页面）。**
+> 任何新增的统一规范都只更新本文件，不再维护其它位置的设计规范片段。
 
 ---
 
@@ -47,6 +48,37 @@
 | Topic Badge Border | `#fbbf24` | 话题标签边框 |
 | Topic Badge Text | `#b45309` | 话题标签文字 |
 | Dark Card BG | `#0f1c27` | 推荐卡片深色主体 |
+
+### Semantic State
+
+| Token | Hex | Usage |
+|---|---|---|
+| `--error` | `#e53935` | 错误文字、退出登录、删除提示 |
+| `--state-success` | `#2e7d32` | 成功态绿底（群标签、已发送） |
+| `--state-online` | `#4caf50` | 在线状态点 |
+| `--state-badge-red` | `#f44336` | 未读数红点底色 |
+| `--ps-published` | `#0a8a5a` | Post 已发布 |
+| `--ps-failed` | `#e53935` | Post 失败（同 `--error`） |
+| `--ps-deleted` | `#ff6b35` | Post 已删 |
+| `--rank-1-fg` | `#dc2626` | 热搜榜 #1 |
+| `--rank-2-fg` | `#ea580c` | 热搜榜 #2 |
+| `--rank-3-fg` | `#ca8a04` | 热搜榜 #3 |
+| `--rank-hot-bg` | `#fee2e2` | 高热度徽章底 |
+| `--rank-warm-bg` | `#ffedd5` | 中热度徽章底 |
+| `--tag-important` | `#e53935` | 通知「重要」标签 |
+| `--tag-event` | `#388e3c` | 通知「活动」标签 |
+| `--tag-policy` | `#7b1fa2` | 通知「政策」标签 |
+| `--tag-amber-fg` | `#b88000` | 琥珀色 tag 文字 |
+
+### Overlay / Effect
+
+| Token | Value | Usage |
+|---|---|---|
+| `--island-bg` | `#000`（暗色固定） | feed/news 顶部黑色胶囊状态条 |
+| `--overlay-cover-strong` | `rgba(10,15,20,0.88)` | 封面顶部强遮罩 |
+| `--overlay-cover-weak` | `rgba(10,15,20,0.30)` | 封面底部弱遮罩 |
+| `--divider-soft` | `#e8edf0` | 卡片细分隔线、评论卡边框 |
+| `--device-bezel-dark` | `#1a1a1a` | 手机壳外圈（chat 等） |
 
 ---
 
@@ -220,18 +252,88 @@ font-size: 12px; font-weight: 700;
 
 - 激活：`font-weight: 700; color: #1f2937; border-bottom: 2.5px solid #0061a4`
 - 默认：`font-weight: 500; color: #566166; border-bottom: 2.5px solid transparent`
+- 水平 padding `16px`，tab 之间 gap `24px`
+
+---
+
+## 5b. Page-specific Components（页面专属组件）
+
+> 以下组件仅在部分页面出现，但样式约定全平台一致；新增同类组件时参照这里的命名与尺寸。
+
+### 详情页（home/post-detail、home/mood-detail）
+
+**Image Carousel**：单帧宽 `calc(100% - 42px)`，圆角 `14px`；overlay 顶 `--overlay-cover-strong`、底 `--overlay-cover-weak`。
+**Carousel Dot**：默认 `5×5px`、激活 `14×5px`，圆角 `3px`。
+**Image Swiper Counter**：右上角胶囊 `1/9`，背景 `rgba(0,0,0,0.45)`、文字白 11px；滑动阈值 `40px`。
+**Like Button**：胶囊形，默认边框 `--like-border (#ffb89a)`、按下渐变 `--like-grad-from #fff5f0` → `--like-grad-to #ffe4d6`；触发 confetti 粒子动画（粒子色板由组件内部维护，不在全局 token）。
+
+### 搜索页（home/search、home/search-results）
+
+**Hot Trending List**：rank 1/2/3 文字色对应 `--rank-1-fg/2-fg/3-fg`；高/中热度徽章底用 `--rank-hot-bg/--rank-warm-bg`。
+**History Chip**：胶囊 + 关闭 icon，按压 `scale(0.96)`。
+**Search Input (focus state)**：背景 `rgba(255,255,255,0.16)` + backdrop blur。
+
+### Feed / News
+
+**Top Island**：顶部黑色胶囊状态条；背景 `--island-bg`、文字 `--on-primary`。
+**Hero Carousel**：复用详情页 carousel 体系。
+**Pinned Card**：横向布局，缩略图 `90×72px`、主体右侧文字、整卡圆角 `12px`。
+
+### Profile
+
+**Quick Pill (`.qpill`)**：高 `36px`，水平 padding `14px`，圆角 `18px`；内置 16px 圆形 badge。
+**Avatar Level Badge**：字号 `9px`，圆角 `8px`，padding `1px 6px`。
+**Post Status Badge (`.ps-*`)**：`ps-pub`=`--ps-published`，`ps-fail`=`--ps-failed`，`ps-del`=`--ps-deleted`；底色用对应色 12% 透明度。
+**Comment Card with Thumb**：缩略图 `68×56`，圆角 `8`，边框 `1px var(--divider-soft)`。
+**Activity Timeline**：左侧 `1px` 竖线连接器，节点 `7px` 圆点 + `1.5px` 白边。
+**Navigation Drawer (`.pnav-*`)**：宽度 `280px`；浅色背景 `var(--surface-container-lowest)`、暗色需提供 `[data-theme="dark"]` 覆盖。
+
+### 设置（profile/settings）
+
+**Menu Row**：高 `54px`，左右 padding `16px`，右侧 chevron。
+**Toggle Switch**：track 关 `--outline-variant`、开 `--primary`；knob 白色；尺寸 `44×24`。
+**Account Info Pill (`.acct-pill`)**：背景 `--surface-container-low`，padding `6px 12px`。
+
+### 聊天（profile/chat）
+
+**Chat Bubble**：圆角 `14px`；对方背景 `--surface-container-lowest`；自己背景 `--primary`、文字 `--on-primary`；尖角通过非对称 border-radius。
+**Glass Morphism Panel**：浅色 `rgba(255,255,255,0.6)` + `backdrop-filter: blur(20px)`；暗色 `rgba(13,17,23,0.6)`。
+**Inspire Card Grid 2×2**：圆角 `10px`，gap `8px`，内容 emoji + 标题 + 描述。
+
+### 通知（profile/notifications）
+
+**Notification Badge**：最小宽 `18px`，圆角 999，背景 `--state-badge-red`，文字白 10px。
+**Quick Entry Circle**：`60×60px` 圆形 icon + 下方 caption 11px。
+**Friend / DM Row**：高 `64px`，左头像 `44px`；未读底色 `--row-unread-bg`（页面私有，需基于 `--secondary-container` 派生）。
+
+### 发布（publish/post_publish、publish/mood_publish）
+
+**Title Counter Badge**：输入框右上角 `12/30`，圆角 `10`，padding `2×8`。
+**Tag Chip Toggle**：`.tag-chip.on` 主色填充、`.off` 边框态。
+**Section Selector Button**：高 `32px`，胶囊。
+**Formatting Toolbar**：icon 按钮网格，最小触控 `44×44`。
+**Upload Zone (dashed)**：高 `160px`，虚线边 `--outline-variant`，hover 主色。
+**Media Preview Grid**：每格圆角 `8`，删除按钮 `22×22`。
+**Add-More Slot**：`100×100` 虚线占位。
 
 ---
 
 ## 6. CSS Framework
 
-**使用 Tailwind CSS（CDN）+ 自定义 CSS 类。**
+**用 Tailwind 的页面统一使用 Tailwind CSS（CDN）+ 自定义 CSS 类。**
 
 ```html
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 ```
 
 Tailwind 配置的颜色 Token 均已在 Section 1 中列出，直接在 `tailwind.config` 中 extend。
+
+**纯自写 CSS 的页面（如 settings、publish 表单页）可不引入 Tailwind**，但仍须遵循本规范所有 token、字体、组件命名约定。
+
+**页面私有 CSS 变量约束**：
+- 复杂页面（chat、notifications 等）可自定义页面专属变量（`--bubble-*`、`--glass-*`、`--row-unread-bg` 等）
+- **所有页面私有变量必须基于基础 token 派生**（如 `var(--primary)`、`color-mix(in srgb, var(--primary) 10%, transparent)`），不得引入新的原色 hex
+- 暗色模式覆盖必须同步定义
 
 ---
 
