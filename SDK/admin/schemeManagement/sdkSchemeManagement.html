@@ -420,6 +420,151 @@ body{
 }
 .rp-body{flex:1;overflow-y:auto;}
 
+/* ══ TUTORIAL OVERLAY ══ */
+.tut-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(11,18,32,.65);backdrop-filter:blur(2px);
+  z-index:9998;opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;
+}
+.tut-overlay.active{opacity:1;visibility:visible;}
+
+.tut-spotlight{
+  position:fixed;border:2px solid transparent;
+  box-shadow:0 0 0 9999px rgba(11,18,32,.65);
+  border-radius:12px;z-index:9999;
+  transition:all .3s cubic-bezier(.25,.46,.45,.94);
+  pointer-events:none;
+}
+
+.tut-tooltip{
+  position:fixed;z-index:10000;max-width:320px;
+  background:white;border-radius:12px;padding:20px;
+  box-shadow:0 16px 48px rgba(11,18,32,.18);
+  pointer-events:auto;display:none;
+}
+.tut-tooltip.active{display:block;animation:tut-fadeIn .3s ease-out;}
+.tut-tooltip::after{
+  content:'';position:absolute;width:12px;height:12px;
+  background:white;transform:rotate(45deg);
+}
+
+@keyframes tut-fadeIn{
+  from{opacity:0;transform:translateY(-8px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+.tut-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;font-weight:700;color:#0ea5e9;
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
+}
+
+.tut-title{
+  font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;
+}
+
+.tut-desc{
+  font-size:13px;color:var(--ink-3);line-height:1.6;margin-bottom:14px;
+}
+
+.tut-actions{
+  display:flex;gap:8px;align-items:center;justify-content:space-between;
+}
+
+.tut-cta{
+  padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;
+  border:none;cursor:pointer;transition:all .15s;
+}
+
+.tut-cta-primary{
+  background:var(--brand);color:white;
+}
+.tut-cta-primary:hover{background:var(--brand-deep);transform:translateY(-1px);}
+
+.tut-cta-secondary{
+  background:transparent;color:var(--ink-3);
+  border:1px solid var(--border);
+}
+.tut-cta-secondary:hover{background:var(--bg);border-color:var(--brand);}
+
+.tut-progress{
+  display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-4);margin-top:12px;
+}
+
+.tut-dots{
+  display:flex;gap:4px;margin-right:8px;
+}
+
+.tut-dot{
+  width:6px;height:6px;border-radius:50%;background:var(--border);
+  transition:background .2s;
+}
+.tut-dot.active{background:var(--brand);}
+
+.tut-modal-backdrop{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(11,18,32,.75);z-index:9997;
+  display:none;
+}
+.tut-modal-backdrop.active{display:block;}
+
+.tut-modal{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:white;border-radius:16px;padding:32px;
+  max-width:420px;z-index:10001;
+  box-shadow:0 20px 64px rgba(11,18,32,.2);
+  text-align:center;display:none;
+}
+.tut-modal.active{display:block;animation:tut-modalSlide .3s cubic-bezier(.34,.69,.67,1.05);}
+
+@keyframes tut-modalSlide{
+  from{opacity:0;transform:translate(-50%,-48%);}
+  to{opacity:1;transform:translate(-50%,-50%);}
+}
+
+.tut-modal-title{
+  font-size:18px;font-weight:800;color:var(--ink);margin-bottom:12px;
+}
+
+.tut-modal-desc{
+  font-size:14px;color:var(--ink-3);line-height:1.7;margin-bottom:28px;
+}
+
+.tut-modal-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;
+}
+
+.tut-sdk-option{
+  padding:16px;border-radius:10px;border:2px solid var(--border);
+  cursor:pointer;transition:all .2s;font-weight:600;font-size:13px;
+  color:var(--ink-2);
+}
+.tut-sdk-option:hover{border-color:var(--brand);background:var(--brand-soft);}
+.tut-sdk-option.selected{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);}
+
+.tut-modal-actions{
+  display:flex;gap:10px;justify-content:center;
+}
+
+.tut-close-icon{
+  position:absolute;top:16px;right:16px;
+  width:24px;height:24px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--ink-4);
+  transition:all .15s;
+}
+.tut-close-icon:hover{background:var(--bg);color:var(--ink);}
+
+.tut-arrow{
+  position:absolute;width:2px;height:32px;background:var(--brand);
+  animation:tut-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tut-pulse{
+  0%,100%{opacity:.4;transform:scaleY(1);}
+  50%{opacity:1;transform:scaleY(1.1);}
+}
+
 .alert-item{
   display:flex;gap:12px;padding:14px 20px;
   border-bottom:1px solid var(--border-2);cursor:pointer;
@@ -456,6 +601,314 @@ body{
 .feed-text strong{color:var(--ink);font-weight:600;}
 .feed-time{font-size:11px;color:var(--ink-4);margin-top:3px;}
 </style>
+<script>
+// 新手教程系统
+const TutorialSystem = {
+  // 从 localStorage 判断是否首次访问
+  isFirstVisit() {
+    return !localStorage.getItem('sdkSchemeManagement_tutorial_completed');
+  },
+  markAsCompleted() {
+    localStorage.setItem('sdkSchemeManagement_tutorial_completed', 'true');
+  },
+  resetTutorial() {
+    localStorage.removeItem('sdkSchemeManagement_tutorial_completed');
+  },
+  // 创建蒙层和高亮元素
+  initOverlay() {
+    const overlay = document.createElement('div');
+    overlay.className = 'tut-overlay';
+    overlay.id = 'tutorialOverlay';
+    document.body.appendChild(overlay);
+
+    const spotlight = document.createElement('div');
+    spotlight.className = 'tut-spotlight';
+    spotlight.id = 'tutorialSpotlight';
+    document.body.appendChild(spotlight);
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tut-tooltip';
+    tooltip.id = 'tutorialTooltip';
+    document.body.appendChild(tooltip);
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'tut-modal-backdrop';
+    backdrop.id = 'tutorialBackdrop';
+    document.body.appendChild(backdrop);
+
+    const modal = document.createElement('div');
+    modal.className = 'tut-modal';
+    modal.id = 'tutorialModal';
+    document.body.appendChild(modal);
+  },
+
+  show() {
+    if (!this.isFirstVisit()) return;
+
+    this.initOverlay();
+    setTimeout(() => this.step1_welcome(), 100);
+  },
+
+  // Step 1: 欢迎界面 + SDK 类型选择
+  step1_welcome() {
+    const modal = document.getElementById('tutorialModal');
+    const backdrop = document.getElementById('tutorialBackdrop');
+
+    modal.innerHTML = `
+      <div style="position:relative;">
+        <div class="tut-close-icon" onclick="TutorialSystem.close()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </div>
+        <div style="background:linear-gradient(135deg,#dbeafe 0%,#e0f2fe 100%);border-radius:12px;padding:24px;margin-bottom:20px;">
+          <div style="font-size:36px;margin-bottom:12px;">👋</div>
+          <div class="tut-modal-title">欢迎来到 SDK 管理工作台</div>
+          <div class="tut-modal-desc">我来帮你快速上手创建 SDK 方案。分 3 步即可完成！</div>
+        </div>
+        <div class="tut-modal-desc" style="margin-bottom:20px;font-weight:600;color:var(--ink);">请选择要创建的方案类型：</div>
+        <div class="tut-modal-grid">
+          <div class="tut-sdk-option" onclick="TutorialSystem.selectSDK('mobile')">📱 移动端</div>
+          <div class="tut-sdk-option" onclick="TutorialSystem.selectSDK('h5')">🌐 H5</div>
+          <div class="tut-sdk-option" onclick="TutorialSystem.selectSDK('windows')">🖥️ Windows</div>
+          <div class="tut-sdk-option" onclick="TutorialSystem.selectSDK('mini')">⚙️ 小游戏</div>
+        </div>
+        <div class="tut-modal-actions">
+          <button class="tut-cta tut-cta-secondary" onclick="TutorialSystem.close()">跳过教程</button>
+          <button class="tut-cta tut-cta-primary" onclick="TutorialSystem.confirmSDKSelection()">下一步 →</button>
+        </div>
+      </div>
+    `;
+    modal.classList.add('active');
+    backdrop.classList.add('active');
+  },
+
+  selectSDK(type) {
+    const options = document.querySelectorAll('.tut-sdk-option');
+    options.forEach(o => o.classList.remove('selected'));
+    event.target.closest('.tut-sdk-option').classList.add('selected');
+    this.selectedSDK = type;
+  },
+
+  confirmSDKSelection() {
+    if (!this.selectedSDK) {
+      alert('请先选择 SDK 类型');
+      return;
+    }
+    this.step2_highlightNewScheme();
+  },
+
+  // Step 2: 高亮"新建通用方案"按钮
+  step2_highlightNewScheme() {
+    const modal = document.getElementById('tutorialModal');
+    const backdrop = document.getElementById('tutorialBackdrop');
+    modal.classList.remove('active');
+    backdrop.classList.remove('active');
+
+    // 找到"新建通用方案"按钮
+    const newSchemeBtn = Array.from(document.querySelectorAll('.act-sec')).find(el =>
+      el.textContent.includes('新建通用方案')
+    );
+
+    if (!newSchemeBtn) return;
+
+    setTimeout(() => {
+      this.highlightElement(newSchemeBtn);
+      this.showTooltip(newSchemeBtn, {
+        badge: '第 1 步',
+        title: '点击【新建通用方案】',
+        desc: `现在为你的 ${this.getSDKTypeLabel(this.selectedSDK)} 创建一个新方案。所有绑定到这个方案的包体都会同步生效。`,
+        primaryText: '模拟创建 →',
+        primaryAction: () => {
+          this.step3_selectType();
+        },
+        secondaryText: '跳过',
+        secondaryAction: () => this.close()
+      });
+    }, 200);
+  },
+
+  // Step 3: SDK 类型选择确认
+  step3_selectType() {
+    const spotlight = document.getElementById('tutorialSpotlight');
+    const tooltip = document.getElementById('tutorialTooltip');
+    const overlay = document.getElementById('tutorialOverlay');
+
+    spotlight.style.display = 'none';
+    tooltip.classList.remove('active');
+    overlay.classList.remove('active');
+
+    // 模拟显示类型选择对话框
+    const modal = document.getElementById('tutorialModal');
+    const backdrop = document.getElementById('tutorialBackdrop');
+
+    modal.innerHTML = `
+      <div style="position:relative;">
+        <div class="tut-close-icon" onclick="TutorialSystem.close()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </div>
+        <div style="background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);border-radius:12px;padding:24px;margin-bottom:20px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">✅</div>
+          <div class="tut-modal-title">方案已创建</div>
+          <div class="tut-modal-desc">很好！现在方案已创建成功。</div>
+        </div>
+        <div class="tut-modal-desc" style="margin-bottom:16px;color:var(--ink);font-size:13px;line-height:1.7;">
+          <strong>接下来，选择进行以下操作之一：</strong>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+          <div style="padding:14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-2);cursor:pointer;text-align:left;transition:all .15s;"
+               onclick="TutorialSystem.step4_packageMapping()">
+            <div style="font-weight:600;color:var(--brand);font-size:13px;margin-bottom:4px;">📦 包体映射配置</div>
+            <div style="font-size:12px;color:var(--ink-3);">将方案绑定到渠道包体，指定哪个包用这个配置</div>
+          </div>
+          <div style="padding:14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-2);cursor:pointer;text-align:left;transition:all .15s;"
+               onclick="TutorialSystem.step4_configCenter()">
+            <div style="font-weight:600;color:var(--brand);font-size:13px;margin-bottom:4px;">⚙️ 配置中心 - 新建</div>
+            <div style="font-size:12px;color:var(--ink-3);">进入侧边栏配置中心，为方案填写具体参数配置</div>
+          </div>
+        </div>
+        <div style="text-align:center;padding-top:12px;border-top:1px solid var(--border);">
+          <button class="tut-cta tut-cta-primary" onclick="TutorialSystem.close()" style="width:100%;">完成教程</button>
+        </div>
+      </div>
+    `;
+    modal.classList.add('active');
+    backdrop.classList.add('active');
+  },
+
+  // Step 4A: 包体映射配置
+  step4_packageMapping() {
+    alert('已引导至【包体映射配置】...');
+    // 实际可以跳转到配置页面或打开配置面板
+    this.markAsCompleted();
+    this.close();
+  },
+
+  // Step 4B: 配置中心
+  step4_configCenter() {
+    alert('已引导至【配置中心】新建配置...');
+    // 实际可以点击侧边栏的"配置中心"导航
+    this.markAsCompleted();
+    this.close();
+  },
+
+  // 高亮元素
+  highlightElement(el) {
+    const spotlight = document.getElementById('tutorialSpotlight');
+    const overlay = document.getElementById('tutorialOverlay');
+    const rect = el.getBoundingClientRect();
+
+    spotlight.style.left = (rect.left - 8) + 'px';
+    spotlight.style.top = (rect.top - 8) + 'px';
+    spotlight.style.width = (rect.width + 16) + 'px';
+    spotlight.style.height = (rect.height + 16) + 'px';
+
+    overlay.classList.add('active');
+  },
+
+  // 显示提示气泡
+  showTooltip(el, config) {
+    const tooltip = document.getElementById('tutorialTooltip');
+    const rect = el.getBoundingClientRect();
+
+    let arrowPos = '';
+    let top, left;
+
+    // 决定气泡位置
+    if (rect.bottom + 320 < window.innerHeight) {
+      top = rect.bottom + 20;
+      arrowPos = 'top';
+    } else if (rect.top - 320 > 0) {
+      top = rect.top - 320 - 20;
+      arrowPos = 'bottom';
+    } else {
+      top = window.innerHeight / 2 - 160;
+      arrowPos = 'middle';
+    }
+
+    left = Math.max(16, Math.min(window.innerWidth - 336, rect.left - 160 + rect.width / 2));
+
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+
+    if (arrowPos === 'top') {
+      tooltip.style.marginTop = '0';
+      tooltip.innerHTML = `
+        <div style="position:absolute;top:-8px;left:20px;width:16px;height:16px;background:white;border-radius:2px;transform:rotate(45deg);"></div>
+      `;
+    } else if (arrowPos === 'bottom') {
+      tooltip.style.marginTop = '0';
+      tooltip.innerHTML = `
+        <div style="position:absolute;bottom:-8px;left:20px;width:16px;height:16px;background:white;border-radius:2px;transform:rotate(45deg);"></div>
+      `;
+    }
+
+    tooltip.innerHTML += `
+      <div class="tut-badge">${config.badge || '提示'}</div>
+      <div class="tut-title">${config.title}</div>
+      <div class="tut-desc">${config.desc}</div>
+      <div class="tut-actions">
+        <button class="tut-cta tut-cta-secondary" onclick="TutorialSystem.close()">${config.secondaryText || '跳过'}</button>
+        <button class="tut-cta tut-cta-primary" id="tooltipNextBtn">${config.primaryText || '下一步'}</button>
+      </div>
+      <div class="tut-progress">
+        <div class="tut-dots">
+          <div class="tut-dot active"></div>
+          <div class="tut-dot"></div>
+          <div class="tut-dot"></div>
+        </div>
+        第 1/3 步
+      </div>
+    `;
+
+    // 动态绑定主按钮的点击事件
+    setTimeout(() => {
+      const nextBtn = document.getElementById('tooltipNextBtn');
+      if (nextBtn && config.primaryAction) {
+        nextBtn.onclick = config.primaryAction;
+      }
+    }, 10);
+
+    tooltip.classList.add('active');
+  },
+
+  getSDKTypeLabel(type) {
+    const labels = {
+      mobile: '移动端',
+      h5: 'H5',
+      windows: 'Windows',
+      mini: '小游戏'
+    };
+    return labels[type] || type;
+  },
+
+  close() {
+    const overlay = document.getElementById('tutorialOverlay');
+    const modal = document.getElementById('tutorialModal');
+    const backdrop = document.getElementById('tutorialBackdrop');
+    const tooltip = document.getElementById('tutorialTooltip');
+    const spotlight = document.getElementById('tutorialSpotlight');
+
+    overlay && overlay.classList.remove('active');
+    modal && modal.classList.remove('active');
+    backdrop && backdrop.classList.remove('active');
+    tooltip && tooltip.classList.remove('active');
+    spotlight && (spotlight.style.display = 'none');
+
+    this.markAsCompleted();
+  }
+};
+
+// 页面加载完成后启动教程
+document.addEventListener('DOMContentLoaded', () => {
+  // 可选：取消注释下面这行来重置教程状态（用于测试）
+  // TutorialSystem.resetTutorial();
+
+  TutorialSystem.show();
+});
+</script>
 </head>
 <body>
 
@@ -594,7 +1047,7 @@ body{
 
             <!-- 副入口 -->
             <div class="acts-row">
-              <div class="act-sec">
+              <div class="act-sec" onclick="location.href='schemeList.html'">
                 <div class="acts-ico green">
                   <span class="icon"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
                 </div>
