@@ -57,6 +57,7 @@
 | `--state-success` | `#2e7d32` | 成功态绿底（群标签、已发送） |
 | `--state-online` | `#4caf50` | 在线状态点 |
 | `--state-badge-red` | `#f44336` | 未读数红点底色 |
+| `--like-color` | `#ff4757` | 点赞激活态（icon、计数文字、+1 弹字） |
 | `--ps-published` | `#0a8a5a` | Post 已发布 |
 | `--ps-failed` | `#e53935` | Post 失败（同 `--error`） |
 | `--ps-deleted` | `#ff6b35` | Post 已删 |

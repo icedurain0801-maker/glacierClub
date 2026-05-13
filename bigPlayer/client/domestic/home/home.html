@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
-<title>BigPlayer — Home (EN)</title>
+<title>大玩家 — 首页</title>
 <link rel="stylesheet" href="../../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -136,38 +136,107 @@
   .featured-carousel__dot.active { width: 16px; background: #0061a4; }
   .featured-carousel__dot:not(.active) { width: 4px; border-radius: 50%; }
 
-  /* ── Top Recommendation dark card ── */
+  /* ── Like button (toggle highlight + bounce + +1 popup) ── */
+  .like-btn {
+    cursor: pointer; position: relative;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: color 0.2s;
+  }
+  .like-btn .like-icon {
+    transition: color 0.2s, transform 0.25s cubic-bezier(.34,1.56,.64,1);
+    display: inline-block;
+  }
+  .like-btn.liked { color: #ff4757 !important; }
+  .like-btn.liked .like-icon { color: #ff4757 !important; }
+  .like-btn.liked svg.like-icon path { stroke: #ff4757 !important; fill: #ff4757 !important; }
+  .like-btn.liked .like-icon.ms-icon {
+    font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+  }
+  .like-btn.bump .like-icon { animation: like-bump 0.45s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes like-bump {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.4); }
+    65%  { transform: scale(0.92); }
+    100% { transform: scale(1); }
+  }
+  .like-pop {
+    position: absolute;
+    left: 50%; top: -2px;
+    transform: translateX(-50%);
+    font-size: 13px; font-weight: 800; color: #ff4757;
+    pointer-events: none;
+    opacity: 0;
+    animation: like-pop-up 0.9s ease-out forwards;
+    text-shadow: 0 1px 3px rgba(255,71,87,0.25);
+    white-space: nowrap;
+  }
+  @keyframes like-pop-up {
+    0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+    25%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -28px) scale(1); }
+  }
+
+  /* ── Top Recommendation card (image left + text right, fire side stripe) ── */
   .rec-card {
-    margin: 0 12px 14px;
-    border-radius: 16px;
+    margin: 0 12px 8px;
+    background: #fff;
+    border-radius: 12px;
+    display: flex; align-items: stretch;
     overflow: hidden;
+    box-shadow: 0 1px 6px rgba(42,52,57,.07);
     cursor: pointer;
+    position: relative;
     transition: transform 0.15s;
   }
   .rec-card:active { transform: scale(0.99); }
-  .rec-card__img { width: 100%; height: 196px; object-fit: cover; display: block; }
-  .rec-card__body { padding: 14px 14px 16px; background: #0f1c27; }
-  .rec-card__name { font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; color: #fff; line-height: 1.3; }
-  .rec-card__rating-label { font-size: 10px; font-weight: 700; color: #2498f5; }
-  .rec-card__rating-value { font-size: 26px; font-weight: 900; color: #2498f5; line-height: 1; }
-  .rec-card__tag {
-    font-size: 11px; color: rgba(255,255,255,0.65);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 5px;
-    padding: 2px 8px;
+  .rec-card::before {
+    content: ''; position: absolute;
+    top: 0; bottom: 0; left: 0; width: 3px;
+    background: linear-gradient(180deg, #ffb627 0%, #ff4757 100%);
   }
-  .rec-card__desc { font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.55; }
-  .rec-card__meta { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
-  .rec-card__meta-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: rgba(255,255,255,0.45); }
-  .rec-card__meta-item svg { flex-shrink: 0; opacity: 0.7; }
-  .rec-card__cta {
-    display: block; width: 100%; padding: 13px;
-    background: #0061a4; color: #fff;
-    font-family: Manrope, sans-serif; font-size: 15px; font-weight: 700;
-    border: none; border-radius: 999px; cursor: pointer; text-align: center;
-    transition: background 0.15s;
+  .rec-card__inner {
+    display: flex; gap: 10px;
+    padding: 10px 10px 10px 12px;
+    flex: 1; align-items: center;
   }
-  .rec-card__cta:active { background: #005590; }
+  .rec-card__img {
+    width: 72px; height: 72px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    display: block;
+  }
+  .rec-card__body {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    gap: 4px;
+  }
+  .rec-card__chip {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px 4px 7px;
+    background: rgba(207, 240, 232, 0.95);
+    color: #00897b;
+    font-size: 11px; font-weight: 700;
+    border-radius: 999px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  }
+  .rec-card__chip svg { flex-shrink: 0; }
+  .rec-card__name {
+    font-size: 14px; font-weight: 700; color: #1a2329;
+    line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .rec-card__meta {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .rec-card__meta-item {
+    display: flex; align-items: center; gap: 3px;
+    font-size: 11px; color: #a9b4b9;
+  }
+  .rec-card__meta-item svg { flex-shrink: 0; }
+  .rec-card__meta-item--date { margin-left: auto; }
 
   /* ── Community post card ── */
   .post-card {
@@ -181,7 +250,17 @@
   }
   .post-card:active { transform: scale(0.99); }
   .post-card__cover { width: 100%; height: 148px; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 10px; }
-  .post-card__title { font-size: 14px; font-weight: 700; color: #2a3439; line-height: 1.4; margin-bottom: 10px; }
+  .post-card__title {
+    font-size: 14px; font-weight: 700; color: #2a3439; line-height: 1.4;
+    margin-bottom: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .post-card__excerpt {
+    font-size: 12px; font-weight: 400; color: #8a9aa0; line-height: 1.5;
+    margin-bottom: 10px;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
   .post-card__avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
   .post-card__lv {
     display: inline-block; font-size: 10px; font-weight: 700;
@@ -573,11 +652,11 @@
       <div class="drawer-header__mask"></div>
       <div class="drawer-header__content">
         <div class="drawer-community" onclick="toggleCommunityDropdown(event)">
-          <span id="drawer-community-name">X-HERO</span>
+          <span id="drawer-community-name">玄域英雄</span>
           <span class="material-symbols-outlined drawer-community-chevron" id="community-chevron">expand_more</span>
         </div>
-        <div class="drawer-username" id="drawer-username">F2P Server 38</div>
-        <div class="drawer-lv" id="drawer-lv">Lv.85 · 6,200 XP</div>
+        <div class="drawer-username" id="drawer-username">零氪服38区</div>
+        <div class="drawer-lv" id="drawer-lv">Lv.85 · 6,200 经验</div>
       </div>
     </div>
 
@@ -590,7 +669,7 @@
     <div class="drawer-mission-btn" onclick="closeDrawer()">
       <div class="drawer-mission-left">
         <span class="material-symbols-outlined">redeem</span>
-        <div class="drawer-mission-title">Daily Missions</div>
+        <div class="drawer-mission-title">每日任务</div>
       </div>
       <span class="material-symbols-outlined" style="font-size:18px;color:rgba(255,255,255,0.8);">chevron_right</span>
     </div>
@@ -598,28 +677,28 @@
     <!-- Menu -->
     <div class="drawer-section">
       <div class="drawer-section-title">
-        Features & Benefits
+        功能与福利
         <span class="material-symbols-outlined" style="font-size:16px; color:#a9b4b9; vertical-align:middle; margin-left:4px;">redeem</span>
       </div>
       <div class="drawer-menu-item" onclick="closeDrawer()">
         <span class="material-symbols-outlined">calendar_today</span>
-        <span class="drawer-menu-label">Check-in</span>
+        <span class="drawer-menu-label">每日签到</span>
       </div>
       <div class="drawer-menu-item" onclick="closeDrawer()">
         <span class="material-symbols-outlined">card_giftcard</span>
-        <span class="drawer-menu-label">Gift Packs</span>
+        <span class="drawer-menu-label">礼包中心</span>
       </div>
       <div class="drawer-menu-item" onclick="closeDrawer()">
         <span class="material-symbols-outlined">storefront</span>
-        <span class="drawer-menu-label">Store</span>
+        <span class="drawer-menu-label">官方商城</span>
       </div>
       <div class="drawer-menu-item" onclick="closeDrawer()">
         <span class="material-symbols-outlined">payments</span>
-        <span class="drawer-menu-label">Top Up</span>
+        <span class="drawer-menu-label">充值中心</span>
       </div>
       <div class="drawer-menu-item" onclick="closeDrawer()">
         <span class="material-symbols-outlined">support_agent</span>
-        <span class="drawer-menu-label">Customer Support</span>
+        <span class="drawer-menu-label">客服中心</span>
       </div>
     </div>
   </div>
@@ -647,22 +726,22 @@
           <button onclick="openDrawer()" class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container">
             <span class="material-symbols-outlined text-on-surface" style="font-size:22px;">menu</span>
           </button>
-          <span class="font-headline text-[24px] font-extrabold italic tracking-tight" style="color:#0061a4;">X-<span style="color:#005590;">Hero</span></span>
+          <span class="font-headline text-[24px] font-extrabold italic tracking-tight" style="color:#0061a4;">玄域<span style="color:#005590;">英雄</span></span>
         </div>
         <div class="flex items-center gap-3">
           <button class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container" onclick="location.href='search-en.html'">
             <span class="material-symbols-outlined text-on-surface" style="font-size:22px;">search</span>
           </button>
           <button class="w-8 h-8 rounded-full overflow-hidden border-0 bg-surface-container flex-shrink-0">
-            <img src="https://opsoss.q1.com/club/avatar/2023/01/06/1672984017367_069a1712-8db1-486b-9639-52e5a2bf3d59.jpg" class="w-full h-full object-cover" alt="avatar">
+            <img src="https://opsoss.q1.com/club/avatar/2023/01/06/1672984017367_069a1712-8db1-486b-9639-52e5a2bf3d59.jpg" class="w-full h-full object-cover" alt="头像">
           </button>
         </div>
       </div>
       <div id="tab-nav" class="flex items-center gap-6 px-4 border-b border-outline-variant">
-        <button class="tab-active text-[15px] py-2.5" onclick="switchTab(this)">Recommend</button>
-        <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">Discover</button>
-        <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">Guides</button>
-        <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">Following</button>
+        <button class="tab-active text-[15px] py-2.5" onclick="switchTab(this)">推荐</button>
+        <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">发现</button>
+        <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">攻略</button>
+        <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">关注</button>
       </div>
     </div>
 
@@ -677,36 +756,36 @@
           <div class="featured-card fc-far" id="fc-clone-prev">
             <img class="featured-card__img"
               src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
-              alt="National Day" loading="lazy">
-            <div class="fc-caption"><p>National Day Festival</p></div>
+              alt="国庆庆典" loading="lazy">
+            <div class="fc-caption"><p>国庆庆典活动</p></div>
           </div>
           <!-- Card 1 -->
           <div class="featured-card fc-active" id="fc-0">
             <img class="featured-card__img"
               src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
-              alt="Rosalind Guide" loading="lazy">
-            <div class="fc-caption"><p>Rosalind Trial Guide</p></div>
+              alt="罗莎琳攻略" loading="lazy">
+            <div class="fc-caption"><p>罗莎琳试炼攻略</p></div>
           </div>
           <!-- Card 2 -->
           <div class="featured-card fc-side" id="fc-1">
             <img class="featured-card__img"
               src="https://opsoss.q1.com/club/images/2026/03/26/1774853212372_da6d63c4-9966-4363-a64c-63d3c64065fc_428565.jpg"
-              alt="Maintenance Notice" loading="lazy">
-            <div class="fc-caption"><p>Maintenance Notice</p></div>
+              alt="停服维护公告" loading="lazy">
+            <div class="fc-caption"><p>停服维护公告</p></div>
           </div>
           <!-- Card 3 -->
           <div class="featured-card fc-side" id="fc-2">
             <img class="featured-card__img"
               src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
-              alt="National Day" loading="lazy">
-            <div class="fc-caption"><p>National Day Festival</p></div>
+              alt="国庆庆典" loading="lazy">
+            <div class="fc-caption"><p>国庆庆典活动</p></div>
           </div>
           <!-- 后置克隆（Card 1） -->
           <div class="featured-card fc-far" id="fc-clone-next">
             <img class="featured-card__img"
               src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
-              alt="Rosalind Guide" loading="lazy">
-            <div class="fc-caption"><p>Rosalind Trial Guide</p></div>
+              alt="罗莎琳攻略" loading="lazy">
+            <div class="fc-caption"><p>罗莎琳试炼攻略</p></div>
           </div>
         </div>
       </div>
@@ -720,58 +799,86 @@
     <!-- ── Top Recommendations ── -->
     <div class="section-divider"></div>
     <div class="flex items-center justify-between px-4 pt-4 pb-3">
-      <h2 class="font-headline text-[20px] font-extrabold text-on-surface tracking-tight">Top Recommendations</h2>
+      <h2 class="font-headline text-[20px] font-extrabold text-on-surface tracking-tight">热门推荐</h2>
       <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#0061a4;">
-        More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+        更多<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
       </button>
     </div>
 
     <!-- Rec card 1 -->
     <div class="rec-card">
-      <img class="rec-card__img"
-        src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
-        alt="Hidden Facts" loading="lazy">
-      <div class="rec-card__body">
-        <p class="rec-card__name">Hidden Facts About Yaoshen Ji</p>
-        <p class="rec-card__desc">Based on this week's most-read player guides — things your in-game tutorial never told you.</p>
-        <div class="rec-card__meta">
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-            2.4k
+      <div class="rec-card__inner">
+        <img class="rec-card__img"
+          src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
+          alt="攻略导航" loading="lazy">
+        <div class="rec-card__body">
+          <span class="rec-card__chip">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>编辑精选
           </span>
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            318
-          </span>
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            04/22
-          </span>
+          <p class="rec-card__name">攻略导航--成为老祖第一步！</p>
+          <div class="rec-card__meta">
+            <span class="rec-card__meta-item like-btn" onclick="toggleLike(event,this)" data-count="3">
+              <svg class="like-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+              <span class="like-count">3</span>
+            </span>
+            <span class="rec-card__meta-item">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              0
+            </span>
+            <span class="rec-card__meta-item rec-card__meta-item--date">04/28</span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Rec card 2 -->
     <div class="rec-card">
-      <img class="rec-card__img"
-        src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
-        alt="Fan Art" loading="lazy">
-      <div class="rec-card__body">
-        <p class="rec-card__name">Water Spirit Goddess — Fan Art Edition</p>
-        <p class="rec-card__desc">Hand-drawn by Melody — special edition for the college exam season.</p>
-        <div class="rec-card__meta">
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-            1.8k
+      <div class="rec-card__inner">
+        <img class="rec-card__img"
+          src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
+          alt="先遣服公告" loading="lazy">
+        <div class="rec-card__body">
+          <span class="rec-card__chip">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>编辑精选
           </span>
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            204
+          <p class="rec-card__name">先遣服公告 | 增设福利与新服开启</p>
+          <div class="rec-card__meta">
+            <span class="rec-card__meta-item like-btn" onclick="toggleLike(event,this)" data-count="3">
+              <svg class="like-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+              <span class="like-count">3</span>
+            </span>
+            <span class="rec-card__meta-item">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              0
+            </span>
+            <span class="rec-card__meta-item rec-card__meta-item--date">04/22</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rec card 3 -->
+    <div class="rec-card">
+      <div class="rec-card__inner">
+        <img class="rec-card__img"
+          src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
+          alt="仙域快讯" loading="lazy">
+        <div class="rec-card__body">
+          <span class="rec-card__chip">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>编辑精选
           </span>
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            04/18
-          </span>
+          <p class="rec-card__name">仙域快讯 | 本命魂石系统即将降世！</p>
+          <div class="rec-card__meta">
+            <span class="rec-card__meta-item like-btn" onclick="toggleLike(event,this)" data-count="8">
+              <svg class="like-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+              <span class="like-count">8</span>
+            </span>
+            <span class="rec-card__meta-item">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              1
+            </span>
+            <span class="rec-card__meta-item rec-card__meta-item--date">04/15</span>
+          </div>
         </div>
       </div>
     </div>
@@ -779,8 +886,8 @@
     <!-- ── Hot in Community ── -->
     <div class="section-divider"></div>
     <div class="flex items-center justify-between px-4 pt-4 pb-3">
-      <h2 class="font-headline text-[20px] font-extrabold text-on-surface tracking-tight">Hot in Community</h2>
-      <button onclick="refreshHotCommunity(this)" class="flex items-center justify-center w-8 h-8 rounded-full text-on-surface-variant hover:bg-surface-variant active:scale-90 transition-transform" aria-label="Refresh">
+      <h2 class="font-headline text-[20px] font-extrabold text-on-surface tracking-tight">社区热门</h2>
+      <button onclick="refreshHotCommunity(this)" class="flex items-center justify-center w-8 h-8 rounded-full text-on-surface-variant hover:bg-surface-variant active:scale-90 transition-transform" aria-label="刷新">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
           <path d="M21 3v5h-5"/>
@@ -795,26 +902,27 @@
       <div class="flex items-center gap-2.5 mb-2.5">
         <img class="post-card__avatar"
           src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
-          alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
+          alt="作者头像" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-1.5">
-            <span class="text-[13px] font-semibold text-on-surface truncate">F2P Server 38</span>
+            <span class="text-[13px] font-semibold text-on-surface truncate">零氪服38区</span>
             <span class="badge-topic">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-              Top Creator
+              话题达人
             </span>
           </div>
           <div class="flex items-center gap-1.5 mt-0.5">
             <span class="post-card__lv">Lv.85</span>
-            <span class="text-[11px] text-on-surface-variant">3 days ago</span>
+            <span class="text-[11px] text-on-surface-variant">3 天前</span>
           </div>
         </div>
-        <span class="post-card__cat">Guide</span>
+        <button class="follow-btn-outline">+ 关注</button>
       </div>
-      <p class="post-card__title">Hidden Facts About Yaoshen Ji That Nobody Tells You</p>
+      <p class="post-card__title">妖神记不为人知的隐藏设定，老玩家都未必知道</p>
+      <p class="post-card__excerpt">从开服到现在挖出来的冷知识合集，包含隐藏剧情、彩蛋彩绘、被低估的英雄技能联动等等，看完才发现自己玩了个寂寞。</p>
       <img class="post-card__cover"
         src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
-        alt="cover" loading="lazy">
+        alt="封面" loading="lazy">
       <div class="flex gap-4">
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
           <span class="material-symbols-outlined" style="font-size:15px; color:#a9b4b9;">thumb_up</span>229
@@ -833,26 +941,27 @@
       <div class="flex items-center gap-2.5 mb-2.5">
         <img class="post-card__avatar"
           src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
-          alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
+          alt="作者头像" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-1.5">
-            <span class="text-[13px] font-semibold text-on-surface truncate">Melody</span>
+            <span class="text-[13px] font-semibold text-on-surface truncate">墨璃</span>
             <span class="badge-official">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622C17.176 19.29 21 14.591 21 9c0-1.052-.168-2.067-.456-3.024-.02-.07-.04-.14-.062-.21z"/></svg>
-              Official
+              官方认证
             </span>
           </div>
           <div class="flex items-center gap-1.5 mt-0.5">
             <span class="post-card__lv">Lv.120</span>
-            <span class="text-[11px] text-on-surface-variant">3 years ago</span>
+            <span class="text-[11px] text-on-surface-variant">3 年前</span>
           </div>
         </div>
-        <span class="post-card__cat">Fan Art</span>
+        <button class="follow-btn-outline">+ 关注</button>
       </div>
-      <p class="post-card__title">Water Spirit Goddess — Hand-drawn (Exam Season Special)</p>
+      <p class="post-card__title">水灵女神手绘——高考季限定版</p>
+      <p class="post-card__excerpt">送给所有奋战在高考一线的少侠们，愿你们金榜题名一举夺魁。手绘原画放出，欢迎转发收藏。</p>
       <img class="post-card__cover"
         src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
-        alt="cover" loading="lazy">
+        alt="封面" loading="lazy">
       <div class="flex gap-4">
         <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
           <span class="material-symbols-outlined" style="font-size:15px; color:#a9b4b9;">thumb_up</span>273
@@ -877,26 +986,27 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
-            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
+            alt="作者头像" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="text-[13px] font-semibold text-on-surface truncate">StarSeeker</span>
+              <span class="text-[13px] font-semibold text-on-surface truncate">寻星客</span>
               <span class="badge-topic">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                Top Creator
+                话题达人
               </span>
             </div>
             <div class="flex items-center gap-1.5 mt-0.5">
               <span class="post-card__lv">Lv.67</span>
-              <span class="text-[11px] text-on-surface-variant">1 day ago</span>
+              <span class="text-[11px] text-on-surface-variant">1 天前</span>
             </div>
           </div>
-          <span class="post-card__cat">Follow</span>
+          <button class="follow-btn-outline">+ 关注</button>
         </div>
-        <p class="post-card__title">The Ultimate Beginner's Roadmap — Everything You Need to Know</p>
+        <p class="post-card__title">新手入门终极指南——你需要知道的一切</p>
+        <p class="post-card__excerpt">从开局选择到中后期培养路线，覆盖资源分配、阵容搭配、副本打法的完整教程，老司机也能学到点新东西。</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
-          alt="cover" loading="lazy">
+          alt="封面" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
             <span class="material-symbols-outlined" style="font-size:15px; color:#a9b4b9;">thumb_up</span>512
@@ -914,26 +1024,27 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
-            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
+            alt="作者头像" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="text-[13px] font-semibold text-on-surface truncate">IronWolf</span>
+              <span class="text-[13px] font-semibold text-on-surface truncate">铁狼</span>
               <span class="badge-official">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622C17.176 19.29 21 14.591 21 9c0-1.052-.168-2.067-.456-3.024-.02-.07-.04-.14-.062-.21z"/></svg>
-                Official
+                官方认证
               </span>
             </div>
             <div class="flex items-center gap-1.5 mt-0.5">
               <span class="post-card__lv">Lv.99</span>
-              <span class="text-[11px] text-on-surface-variant">2 days ago</span>
+              <span class="text-[11px] text-on-surface-variant">2 天前</span>
             </div>
           </div>
-          <span class="post-card__cat">Follow</span>
+          <button class="follow-btn-outline">+ 关注</button>
         </div>
-        <p class="post-card__title">S-Tier Heroes Ranked for April — Who's Worth Building?</p>
+        <p class="post-card__title">四月S级英雄强度榜——哪些值得培养？</p>
+        <p class="post-card__excerpt">本月版本更新后实测排名，结合 PVE/PVP 综合表现给出培养优先级。建议萌新避雷，老玩家放心冲。</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
-          alt="cover" loading="lazy">
+          alt="封面" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
             <span class="material-symbols-outlined" style="font-size:15px; color:#a9b4b9;">thumb_up</span>384
@@ -954,19 +1065,19 @@
     <div id="tab-guides" class="pt-3" style="display:none;">
 
       <div class="px-4 pt-4 pb-2">
-        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Ancient Secrets</h2>
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">远古秘闻</h2>
       </div>
 
       <!-- Element filter chips -->
       <div class="flex gap-2 px-4 pb-3 no-scrollbar overflow-x-auto">
-        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">All</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Wood</button>
-        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all" style="background:#0061a4;color:#fff;border-color:#0061a4;">Water</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Fire</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Earth</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Thunder</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Body</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Spirit</button>
+        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">全部</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">木</button>
+        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all" style="background:#0061a4;color:#fff;border-color:#0061a4;">水</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">火</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">土</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">雷</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">体</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">灵</button>
       </div>
 
       <!-- Guide cards horizontal scroll: 3 visible + peek of 4th -->
@@ -978,7 +1089,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Yang Yan</p>
+              <p class="text-[13px] font-bold text-white leading-tight">杨炎</p>
             </div>
           </div>
         </div>
@@ -989,7 +1100,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">White Tiger</p>
+              <p class="text-[13px] font-bold text-white leading-tight">白虎</p>
             </div>
           </div>
         </div>
@@ -1000,7 +1111,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Rosalind</p>
+              <p class="text-[13px] font-bold text-white leading-tight">罗莎琳</p>
             </div>
           </div>
         </div>
@@ -1011,7 +1122,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Hua Mulan</p>
+              <p class="text-[13px] font-bold text-white leading-tight">花木兰</p>
             </div>
           </div>
         </div>
@@ -1020,18 +1131,18 @@
 
       <!-- Dragon Realm: 2 cards -->
       <div class="px-4 pt-4 pb-2">
-        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Dragon Realm</h2>
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">龙域</h2>
       </div>
 
       <div class="flex gap-2 px-4 pb-3 no-scrollbar overflow-x-auto">
-        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">All</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Wood</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Water</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Fire</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Earth</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Thunder</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Body</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Spirit</button>
+        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">全部</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">木</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">水</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">火</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">土</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">雷</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">体</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">灵</button>
       </div>
 
       <!-- 2 cards visible + peek of 3rd: card = (50% - 22px), leaving ~28px peek -->
@@ -1043,7 +1154,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">White Tiger</p>
+              <p class="text-[13px] font-bold text-white leading-tight">白虎</p>
             </div>
           </div>
         </div>
@@ -1054,7 +1165,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Hua Mulan</p>
+              <p class="text-[13px] font-bold text-white leading-tight">花木兰</p>
             </div>
           </div>
         </div>
@@ -1065,7 +1176,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Yang Yan</p>
+              <p class="text-[13px] font-bold text-white leading-tight">杨炎</p>
             </div>
           </div>
         </div>
@@ -1074,18 +1185,18 @@
 
       <!-- Celestial Order: 5 cards -->
       <div class="px-4 pt-4 pb-2">
-        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Celestial Order</h2>
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">天宫秩序</h2>
       </div>
 
       <div class="flex gap-2 px-4 pb-3 no-scrollbar overflow-x-auto">
-        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">All</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Wood</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Water</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Fire</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Earth</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Thunder</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Body</button>
-        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">Spirit</button>
+        <button onclick="selectChip(this)" class="chip-active flex-shrink-0 text-[13px] font-semibold px-3.5 py-1 rounded-full border transition-all">全部</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">木</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">水</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">火</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">土</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">雷</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">体</button>
+        <button onclick="selectChip(this)" class="chip-inactive flex-shrink-0 text-[13px] font-medium px-3.5 py-1 rounded-full border transition-all">灵</button>
       </div>
 
       <!-- 5 cards visible + peek of 6th: card = (20% - 10px), leaving ~24px peek -->
@@ -1097,7 +1208,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Yang Yan</p>
+              <p class="text-[13px] font-bold text-white leading-tight">杨炎</p>
             </div>
           </div>
         </div>
@@ -1108,7 +1219,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">White Tiger</p>
+              <p class="text-[13px] font-bold text-white leading-tight">白虎</p>
             </div>
           </div>
         </div>
@@ -1119,7 +1230,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Rosalind</p>
+              <p class="text-[13px] font-bold text-white leading-tight">罗莎琳</p>
             </div>
           </div>
         </div>
@@ -1130,7 +1241,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Hua Mulan</p>
+              <p class="text-[13px] font-bold text-white leading-tight">花木兰</p>
             </div>
           </div>
         </div>
@@ -1141,7 +1252,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Bai Qi</p>
+              <p class="text-[13px] font-bold text-white leading-tight">白起</p>
             </div>
           </div>
         </div>
@@ -1152,7 +1263,7 @@
               class="w-full h-full object-cover" loading="lazy">
             <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,0.62) 0%,transparent 55%);"></div>
             <div class="absolute bottom-0 left-0 right-0 px-3 pb-3">
-              <p class="text-[13px] font-bold text-white leading-tight">Rosalind</p>
+              <p class="text-[13px] font-bold text-white leading-tight">罗莎琳</p>
             </div>
           </div>
         </div>
@@ -1161,9 +1272,9 @@
 
       <!-- Guide list section -->
       <div class="flex items-center justify-between px-4 pb-2">
-        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Popular Guides</h2>
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">热门攻略</h2>
         <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#0061a4;">
-          More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+          更多<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
         </button>
       </div>
 
@@ -1171,26 +1282,27 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
-            alt="author" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
+            alt="作者头像" loading="lazy" onclick="event.stopPropagation();location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="text-[13px] font-semibold text-on-surface truncate">F2P Server 38</span>
+              <span class="text-[13px] font-semibold text-on-surface truncate">零氪服38区</span>
               <span class="badge-topic">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                Top Creator
+                话题达人
               </span>
             </div>
             <div class="flex items-center gap-1.5 mt-0.5">
               <span class="post-card__lv">Lv.85</span>
-              <span class="text-[11px] text-on-surface-variant">3 days ago</span>
+              <span class="text-[11px] text-on-surface-variant">3 天前</span>
             </div>
           </div>
-          <span class="post-card__cat">Guide</span>
+          <button class="follow-btn-outline">+ 关注</button>
         </div>
-        <p class="post-card__title">Rosalind Trial — Best Lineup for World Boss Clear</p>
+        <p class="post-card__title">罗莎琳试炼——世界Boss通关最佳阵容</p>
+        <p class="post-card__excerpt">三套已实测可稳过阵容，附带技能释放顺序和站位讲解，零氪/微氪/月卡党都能打。</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
-          alt="cover" loading="lazy">
+          alt="封面" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
             <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">thumb_up</span>186
@@ -1215,26 +1327,27 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
-            alt="author" loading="lazy">
+            alt="作者头像" loading="lazy">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="text-[13px] font-semibold text-on-surface truncate">StarSeeker</span>
+              <span class="text-[13px] font-semibold text-on-surface truncate">寻星客</span>
               <span class="badge-topic">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                Top Creator
+                话题达人
               </span>
             </div>
             <div class="flex items-center gap-1.5 mt-0.5">
               <span class="post-card__lv">Lv.67</span>
-              <span class="text-[11px] text-on-surface-variant">1 day ago</span>
+              <span class="text-[11px] text-on-surface-variant">1 天前</span>
             </div>
           </div>
-          <button class="follow-btn">Following</button>
+          <button class="follow-btn">已关注</button>
         </div>
-        <p class="post-card__title">The Ultimate Beginner's Roadmap — Everything You Need to Know</p>
+        <p class="post-card__title">新手入门终极指南——你需要知道的一切</p>
+        <p class="post-card__excerpt">从开局选择到中后期培养路线，覆盖资源分配、阵容搭配、副本打法的完整教程，老司机也能学到点新东西。</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
-          alt="cover" loading="lazy">
+          alt="封面" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
             <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">thumb_up</span>512
@@ -1252,26 +1365,27 @@
         <div class="flex items-center gap-2.5 mb-2.5">
           <img class="post-card__avatar"
             src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
-            alt="author" loading="lazy">
+            alt="作者头像" loading="lazy">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="text-[13px] font-semibold text-on-surface truncate">IronWolf</span>
+              <span class="text-[13px] font-semibold text-on-surface truncate">铁狼</span>
               <span class="badge-official">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622C17.176 19.29 21 14.591 21 9c0-1.052-.168-2.067-.456-3.024-.02-.07-.04-.14-.062-.21z"/></svg>
-                Official
+                官方认证
               </span>
             </div>
             <div class="flex items-center gap-1.5 mt-0.5">
               <span class="post-card__lv">Lv.99</span>
-              <span class="text-[11px] text-on-surface-variant">2 days ago</span>
+              <span class="text-[11px] text-on-surface-variant">2 天前</span>
             </div>
           </div>
-          <button class="follow-btn">Following</button>
+          <button class="follow-btn">已关注</button>
         </div>
-        <p class="post-card__title">S-Tier Heroes Ranked for April — Who's Worth Building?</p>
+        <p class="post-card__title">四月S级英雄强度榜——哪些值得培养？</p>
+        <p class="post-card__excerpt">本月版本更新后实测排名，结合 PVE/PVP 综合表现给出培养优先级。建议萌新避雷，老玩家放心冲。</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
-          alt="cover" loading="lazy">
+          alt="封面" loading="lazy">
         <div class="flex gap-4">
           <div class="flex items-center gap-1 text-[12px] text-on-surface-variant">
             <span class="material-symbols-outlined" style="font-size:15px;color:#a9b4b9;">thumb_up</span>384
@@ -1288,9 +1402,9 @@
       <!-- People you may know -->
       <div class="section-divider my-2"></div>
       <div class="flex items-center justify-between px-4 py-3">
-        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">People You May Know</h2>
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">你可能认识的人</h2>
         <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:#0061a4;">
-          More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+          更多<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
         </button>
       </div>
 
@@ -1301,10 +1415,10 @@
             src="https://opsoss.q1.com/club/avatar/2022/11/22/1669113940067_feee8425-a91b-47e4-bacc-ab67cd262679.png"
             alt="" loading="lazy" onclick="location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
-            <p class="text-[13px] font-semibold text-on-surface">Niéli <span class="post-card__lv">Lv.150</span></p>
-            <p class="text-[11px] text-on-surface-variant mt-0.5">Guide · 2.3k followers</p>
+            <p class="text-[13px] font-semibold text-on-surface">念璃 <span class="post-card__lv">Lv.150</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">攻略 · 2.3k 粉丝</p>
           </div>
-          <button class="follow-btn-outline">+ Follow</button>
+          <button class="follow-btn-outline">+ 关注</button>
         </div>
 
         <div class="user-rec-card">
@@ -1312,10 +1426,10 @@
             src="https://opsoss.q1.com/club/avatar/2023/04/21/1682036744718_6703b726-d02a-4ea7-8ec6-bc6559a80cd9.jpeg"
             alt="" loading="lazy" onclick="location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
-            <p class="text-[13px] font-semibold text-on-surface">Berkurin <span class="post-card__lv">Lv.131</span></p>
-            <p class="text-[11px] text-on-surface-variant mt-0.5">Strategy · 1.8k followers</p>
+            <p class="text-[13px] font-semibold text-on-surface">伯库林 <span class="post-card__lv">Lv.131</span></p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">战术 · 1.8k 粉丝</p>
           </div>
-          <button class="follow-btn-outline">+ Follow</button>
+          <button class="follow-btn-outline">+ 关注</button>
         </div>
 
         <div class="user-rec-card">
@@ -1324,9 +1438,9 @@
             alt="" loading="lazy" onclick="location.href='../../profile/light/profile-other-en.html'" style="cursor:pointer;">
           <div class="flex-1 min-w-0">
             <p class="text-[13px] font-semibold text-on-surface">dbpei008 <span class="post-card__lv">Lv.150</span></p>
-            <p class="text-[11px] text-on-surface-variant mt-0.5">Fan Art · 4.1k followers</p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">同人 · 4.1k 粉丝</p>
           </div>
-          <button class="follow-btn-outline">+ Follow</button>
+          <button class="follow-btn-outline">+ 关注</button>
         </div>
 
       </div>
@@ -1340,12 +1454,12 @@
 
     <div class="bottom-nav__item active">
       <span class="material-symbols-outlined">home</span>
-      <span class="bottom-nav__label">Home</span>
+      <span class="bottom-nav__label">首页</span>
     </div>
 
     <div class="bottom-nav__item" onclick="location.href='../../news/light/news-en.html'" style="cursor:pointer;">
       <span class="material-symbols-outlined">newspaper</span>
-      <span class="bottom-nav__label">News</span>
+      <span class="bottom-nav__label">资讯</span>
     </div>
 
     <div class="bottom-nav__publish" onclick="togglePostMenu()">
@@ -1356,12 +1470,12 @@
 
     <div class="bottom-nav__item" onclick="location.href='../../feed/light/feed-en.html'" style="cursor:pointer;">
       <span class="material-symbols-outlined">group</span>
-      <span class="bottom-nav__label">Community</span>
+      <span class="bottom-nav__label">社区</span>
     </div>
 
     <div class="bottom-nav__item" onclick="location.href='../../profile/light/profile-en.html'" style="cursor:pointer;">
       <span class="material-symbols-outlined">person</span>
-      <span class="bottom-nav__label">Profile</span>
+      <span class="bottom-nav__label">我的</span>
     </div>
 
   </div>
@@ -1378,8 +1492,8 @@
           <span class="material-symbols-outlined" style="font-size:21px;color:#fff;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">edit_document</span>
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:700;color:#1a2530;font-family:Manrope;margin-bottom:2px;">Guide / Post</div>
-          <div style="font-size:11px;color:#8a97a0;font-family:Inter;line-height:1.4;">Strategies, fan art, long-form write-ups</div>
+          <div style="font-size:15px;font-weight:700;color:#1a2530;font-family:Manrope;margin-bottom:2px;">攻略 / 帖子</div>
+          <div style="font-size:11px;color:#8a97a0;font-family:Inter;line-height:1.4;">攻略心得、同人作品、长文分享</div>
         </div>
         <span class="material-symbols-outlined" style="font-size:18px;color:#b0bec5;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
       </button>
@@ -1391,8 +1505,8 @@
           <span class="material-symbols-outlined" style="font-size:21px;color:#fff;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">chat_bubble</span>
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:700;color:#1a2530;font-family:Manrope;margin-bottom:2px;">Quick Post</div>
-          <div style="font-size:11px;color:#8a97a0;font-family:Inter;line-height:1.4;">Share a thought, question, or moment</div>
+          <div style="font-size:15px;font-weight:700;color:#1a2530;font-family:Manrope;margin-bottom:2px;">发心情</div>
+          <div style="font-size:11px;color:#8a97a0;font-family:Inter;line-height:1.4;">随手记录想法、提问或日常</div>
         </div>
         <span class="material-symbols-outlined" style="font-size:18px;color:#b0bec5;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
       </button>
@@ -1404,17 +1518,17 @@
     <div class="tutorial-mask" id="tutorialMask"></div>
     <div class="tutorial-spotlight pulse" id="tutorialSpotlight"></div>
     <div class="tutorial-tooltip arrow-top" id="tutorialTooltip">
-      <div class="tutorial-tooltip-step" id="tutorialStep">Step 1 of 2</div>
-      <div class="tutorial-tooltip-title" id="tutorialTitle">Tap the menu button</div>
-      <div class="tutorial-tooltip-body" id="tutorialBody">Open the ☰ menu in the top-left corner to access exclusive player benefits.</div>
+      <div class="tutorial-tooltip-step" id="tutorialStep">第 1 步 / 共 2 步</div>
+      <div class="tutorial-tooltip-title" id="tutorialTitle">点击菜单按钮</div>
+      <div class="tutorial-tooltip-body" id="tutorialBody">点击左上角的 ☰ 菜单，进入专属玩家福利中心。</div>
       <div class="tutorial-tooltip-footer">
         <div class="tutorial-tooltip-dots">
           <div class="tutorial-dot active" id="tutDot0"></div>
           <div class="tutorial-dot" id="tutDot1"></div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
-          <button class="tutorial-btn-skip" onclick="closeTutorial()">Skip</button>
-          <button class="tutorial-btn-next" id="tutorialNextBtn" onclick="tutorialNext()">Next →</button>
+          <button class="tutorial-btn-skip" onclick="closeTutorial()">跳过</button>
+          <button class="tutorial-btn-next" id="tutorialNextBtn" onclick="tutorialNext()">下一步 →</button>
         </div>
       </div>
     </div>
@@ -1427,39 +1541,39 @@
   const COMMUNITIES = [
     {
       id: 'xhero',
-      name: 'X-HERO',
-      server: 'F2P Server 38',
-      lv: 'Lv.85 · 6,200 XP',
+      name: '玄域英雄',
+      server: '零氪服38区',
+      lv: 'Lv.85 · 6,200 经验',
       bg: 'https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2025/12/30/1767084148075c709f857-caef-4537-8e60-d59cf8948d49.png',
       thumb: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg',
-      topbarTitle: 'X-<span style="color:#005590;">Hero</span>',
+      topbarTitle: '玄域<span style="color:#005590;">英雄</span>',
     },
     {
       id: 'dragonrealm',
-      name: 'Dragon Realm',
-      server: 'Alliance Server 12',
-      lv: 'Lv.72 · 4,800 XP',
+      name: '龙域',
+      server: '联盟服12区',
+      lv: 'Lv.72 · 4,800 经验',
       bg: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg',
       thumb: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg',
-      topbarTitle: 'Dragon<span style="color:#005590;"> Realm</span>',
+      topbarTitle: '龙<span style="color:#005590;">域</span>',
     },
     {
       id: 'celestial',
-      name: 'Celestial Order',
-      server: 'Elite Server 5',
-      lv: 'Lv.91 · 7,550 XP',
+      name: '天宫秩序',
+      server: '精英服5区',
+      lv: 'Lv.91 · 7,550 经验',
       bg: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
       thumb: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
-      topbarTitle: 'Celestial<span style="color:#005590;"> Order</span>',
+      topbarTitle: '天宫<span style="color:#005590;">秩序</span>',
     },
     {
       id: 'whiteTiger',
-      name: 'White Tiger',
-      server: 'PvP Server 7',
-      lv: 'Lv.60 · 3,100 XP',
+      name: '白虎',
+      server: '竞技服7区',
+      lv: 'Lv.60 · 3,100 经验',
       bg: 'https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png',
       thumb: 'https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png',
-      topbarTitle: 'White<span style="color:#005590;"> Tiger</span>',
+      topbarTitle: '白<span style="color:#005590;">虎</span>',
     },
   ];
 
@@ -1543,10 +1657,10 @@
     btn.className = 'tab-active text-[15px] py-2.5';
 
     const label = btn.textContent.trim();
-    document.getElementById('tab-recommend').style.display  = label === 'Recommend'  ? '' : 'none';
-    document.getElementById('tab-discover').style.display   = label === 'Discover'   ? '' : 'none';
-    document.getElementById('tab-guides').style.display     = label === 'Guides'     ? '' : 'none';
-    document.getElementById('tab-following').style.display  = label === 'Following'  ? '' : 'none';
+    document.getElementById('tab-recommend').style.display  = label === '推荐'  ? '' : 'none';
+    document.getElementById('tab-discover').style.display   = label === '发现'   ? '' : 'none';
+    document.getElementById('tab-guides').style.display     = label === '攻略'     ? '' : 'none';
+    document.getElementById('tab-following').style.display  = label === '关注'  ? '' : 'none';
   }
   function selectChip(btn) {
     btn.closest('.flex').querySelectorAll('button').forEach(b => {
@@ -1581,10 +1695,10 @@
       radius: '50%',
       arrowDir: 'top',
       tooltipOffset: { top: 14, left: 0 },
-      step: 'Step 1 of 2',
-      title: 'Tap the menu button',
-      body: 'Open the ☰ menu in the top-left corner to access exclusive player benefits.',
-      nextLabel: 'Next →',
+      step: '第 1 步 / 共 2 步',
+      title: '点击菜单按钮',
+      body: '点击左上角的 ☰ 菜单，进入专属玩家福利中心。',
+      nextLabel: '下一步 →',
     },
     {
       // Step 2: spotlight the "Features & Benefits" section in the drawer
@@ -1593,10 +1707,10 @@
       radius: '12px',
       arrowDir: 'top',
       tooltipOffset: { top: 14, left: 0 },
-      step: 'Step 2 of 2',
-      title: '🎁 Claim your rewards here!',
-      body: 'Under "Features & Benefits", tap Check-in, Gift Packs, or Store to collect your free player rewards every day.',
-      nextLabel: 'Got it!',
+      step: '第 2 步 / 共 2 步',
+      title: '🎁 在这里领取你的奖励！',
+      body: '在"功能与福利"中，点击每日签到、礼包中心或官方商城，每天领取专属玩家奖励。',
+      nextLabel: '我知道了',
     },
   ];
 
@@ -1846,27 +1960,27 @@ function togglePostMenu() {
 <div id="pnav-overlay" onclick="closePnav()"></div>
 <div id="pnav-drawer">
   <div id="pnav-head">
-    <h3>Overseas · 页面目录</h3>
-    <p>Light 模式 · 共 15 页</p>
+    <h3>国内版 · 页面目录</h3>
+    <p>亮色模式 · 共 15 页</p>
     <button id="pnav-close" onclick="closePnav()">
       <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
     </button>
   </div>
   <nav id="pnav-list">
-    <div class="pnav-section"><span class="pnav-section-label">Home · 首页模块</span></div>
+    <div class="pnav-section"><span class="pnav-section-label">首页模块</span></div>
     <a class="pnav-item" href="../../home/light/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
     <a class="pnav-item" href="../../home/light/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
     <a class="pnav-item" href="../../home/light/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
     <a class="pnav-item" href="../../home/light/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
     <a class="pnav-item" href="../../home/light/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
 
-    <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
-    <a class="pnav-item" href="../../feed/light/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
+    <div class="pnav-section"><span class="pnav-section-label">动态模块</span></div>
+    <a class="pnav-item" href="../../feed/light/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>动态流</a>
 
-    <div class="pnav-section"><span class="pnav-section-label">News · 资讯模块</span></div>
+    <div class="pnav-section"><span class="pnav-section-label">资讯模块</span></div>
     <a class="pnav-item" href="../../news/light/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
 
-    <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
+    <div class="pnav-section"><span class="pnav-section-label">个人中心</span></div>
     <a class="pnav-item" href="../../profile/light/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
     <a class="pnav-item" href="../../profile/light/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
     <a class="pnav-item" href="../../profile/light/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
@@ -1874,7 +1988,7 @@ function togglePostMenu() {
     <a class="pnav-item" href="../../profile/light/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
     <a class="pnav-item" href="../../profile/light/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
 
-    <div class="pnav-section"><span class="pnav-section-label">Publish · 发布模块</span></div>
+    <div class="pnav-section"><span class="pnav-section-label">发布模块</span></div>
     <a class="pnav-item" href="../../publish/light/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
     <a class="pnav-item" href="../../publish/light/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
   </nav>
@@ -1937,7 +2051,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 <div id="spec-panel">
   <div id="spec-panel-head">
     <div style="display:flex;align-items:baseline;gap:0">
-      <span id="spec-panel-title">海外版 UI 变更需求说明</span>
+      <span id="spec-panel-title">国内版 UI 变更需求说明</span>
       <span id="spec-panel-ver">v3.1.1</span>
     </div>
     <button id="spec-panel-close" onclick="closeSpecPanel()">
@@ -1948,7 +2062,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </div>
 <script>
 (function(){
-  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面均有亮色（Light）和深色（Dark）两套模式，需同时实现。\n\n### 首页模块（Home）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 1 | 首页（社区主页） | home/light/home-en.html | home/dark/home-en-dark.html |\n| 2 | 帖子详情 | home/light/post-detail-en.html | home/dark/post-detail-en-dark.html |\n| 3 | 心情详情 | home/light/mood-detail-en.html | home/dark/mood-detail-en-dark.html |\n| 4 | 搜索页 | home/light/search-en.html | home/dark/search-en-dark.html |\n| 5 | 搜索结果页 | home/light/search-results-en.html | home/dark/search-results-en-dark.html |\n\n### Feed 模块\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 6 | Feed 流 | feed/light/feed-en.html | feed/dark/feed-en-dark.html |\n\n### 资讯模块（News）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 7 | 资讯列表 | news/light/news-en.html | news/dark/news-en-dark.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 8 | 我的主页 | profile/light/profile-en.html | profile/dark/profile-en-dark.html |\n| 9 | 他人主页 | profile/light/profile-other-en.html | profile/dark/profile-other-en-dark.html |\n| 10 | 设置页 | profile/light/settings-en.html | profile/dark/settings-en-dark.html |\n| 11 | 通知页 | profile/light/notifications-en.html | profile/dark/notifications-en-dark.html |\n| 12 | 聊天页 | profile/light/chat-en.html | profile/dark/chat-en-dark.html |\n| 13 | 草稿箱 | profile/light/drafts-en.html | profile/dark/drafts-en-dark.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 14 | 发帖页 | publish/light/post_publish-en.html | publish/dark/post_publish-en-dark.html |\n| 15 | 发心情页 | publish/light/mood_publish-en.html | publish/dark/mood_publish-en-dark.html |\n\n> **深色模式说明**：系统跟随设备 dark mode 设置自动切换，同一页面亮色/深色为同一功能页，不计为两个页面，但两套皮肤必须完整实现。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n| 级别 | 字号 | 字重 | 字体 | 场景 |\n|------|------|------|------|------|\n| Display | 26px | 900 | Manrope | 评分大数字 |\n| Headline L | 17px | 800 | Manrope | 推荐卡标题、页面主标题 |\n| Headline M | 14px | 700 | Inter | 帖子标题、列表主文字 |\n| Label L | 15px | 700 | Manrope | CTA 按钮、顶栏标题 |\n| Body M | 12-13px | 400 | Inter | 正文描述、评论 |\n| Label M | 11px | 500-700 | Inter | 标签、元信息 |\n| Caption | 10px | 500-700 | Inter | 底导标签、等级 Badge |\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 主色按压态 | #005590 |\n| 深色背景强调色 | #2498f5 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器/禁用背景 | #f0f4f7 |\n| 分隔填充 | #e8eff3 |\n| 导航栏边框 | #e1e9ee |\n| Story 未看环 | #d9e4ea |\n| 主文字/标题 | #2a3439 |\n| 次级文字/标签 | #566166 |\n| 辅助文字 | #717c82 |\n| 占位符/禁用文字 | #a9b4b9 |\n| 禁用浅色 | #c8d0d5 |\n| 蓝色强调块背景 | #cbe6ff |\n| 蓝色强调块内文字 | #0a5780 |\n| 公告条背景 | #eff6ff |\n| 话题标签背景 | #fef3c7 |\n| 话题标签边框 | #fbbf24 |\n| 话题标签文字 | #b45309 |\n| 深色推荐卡主体 | #0f1c27 |\n| 未读 Badge | #e53935 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 主色按压态 | #3882ef |\n| 高亮强调色（评分） | #79c0ff |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| Story 未看环 | #30363d |\n| 深色推荐卡主体 | #0a1520 |\n| 蓝色强调块背景 | #1f3a56 |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n| 话题标签背景 | #2d1f06 |\n| 话题标签边框 | #d97706 |\n| 话题标签文字 | #f59e0b |\n| 未读 Badge | #e53935 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片（帖子卡、新闻卡） | 12-16px |\n| 横滑 Featured Card | 14px |\n| 搜索框/输入框 | 8-10px |\n| 方形标签/Chip | 4-6px |\n| 胶囊标签/主要按钮 | 999px |\n| 快捷入口图标背景 | 10-12px |\n| 头像 | 50% |\n| 等级 Badge | 8px |\n\n### 4.5 背景底色 & 边框 — 亮色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #f7f9fb | — |\n| 顶部导航栏 | #ffffff | bottom: 1px solid #e1e9ee |\n| 底部导航栏 | rgba(255,255,255,0.96) + blur(14px) | top: 1px solid #e1e9ee |\n| 内容卡片 | #ffffff | 仅阴影 0 1px 6px rgba(42,52,57,0.07) |\n| 页面分隔块 | #f0f4f7 | — |\n| 输入框 | #f0f4f7 | 激活：1.5px solid #0061a4 |\n| 公告条 | #eff6ff | left: 3px solid #0061a4 |\n\n### 4.6 背景底色 & 边框 — 深色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #0d1117 | — |\n| 顶部导航栏 | #0d1117 | bottom: 1px solid #21262d |\n| 底部导航栏 | rgba(13,17,23,0.96) + blur(14px) | top: 1px solid #21262d |\n| 内容卡片 | #161b22 | 1px solid #21262d |\n| 页面分隔块 | #161b22 | — |\n| 输入框 | #1c2128 | 激活：1.5px solid #4493f8 |\n| 公告条 | #1a3a5c | left: 3px solid #4493f8 |\n\n### 4.7 图标规范\n\n图标库：Material Symbols Outlined\n\n底部导航图标：home / explore / add / article / person（24px）\n\n默认样式：FILL 0, wght 400，激活态：FILL 1, wght 500\n\n### 4.8 底部导航栏\n\n- 高度：82px，padding-top: 8px\n- 默认图标色：亮色 #a9b4b9 / 深色 #6e7681\n- 选中图标色：亮色 #0061a4 / 深色 #4493f8\n- 发布按钮：46x46px 圆形，上浮 margin-top: -10px\n\n### 4.9 动效规范\n\n| 类型 | CSS |\n|------|-----|\n| 卡片按压 | transform: scale(0.99)，transition 0.15s |\n| 大卡按压 | transform: scale(0.975)，transition 0.15s |\n| 按钮颜色过渡 | transition: background 0.15s |\n| 隐藏滚动条 | scrollbar-width: none |\n\n---\n\n## 五、开发注意事项\n\n1. 所有页面均需同时实现**亮色和深色模式**，通过系统 prefers-color-scheme 自动切换\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover，不得拉伸\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n5. 首页抽屉菜单从左侧滑出（宽 280px），背景蒙层 rgba(0,0,0,0.45)\n6. 发布页顶栏发布按钮初始为禁用态（灰色），有内容后激活为主色";
+  var raw = "## 一、本次变更概览\n\n本次对国内版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面均有亮色（Light）和深色（Dark）两套模式，需同时实现。\n\n### 首页模块（Home）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 1 | 首页（社区主页） | home/light/home-en.html | home/dark/home-en-dark.html |\n| 2 | 帖子详情 | home/light/post-detail-en.html | home/dark/post-detail-en-dark.html |\n| 3 | 心情详情 | home/light/mood-detail-en.html | home/dark/mood-detail-en-dark.html |\n| 4 | 搜索页 | home/light/search-en.html | home/dark/search-en-dark.html |\n| 5 | 搜索结果页 | home/light/search-results-en.html | home/dark/search-results-en-dark.html |\n\n### Feed 模块\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 6 | Feed 流 | feed/light/feed-en.html | feed/dark/feed-en-dark.html |\n\n### 资讯模块（News）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 7 | 资讯列表 | news/light/news-en.html | news/dark/news-en-dark.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 8 | 我的主页 | profile/light/profile-en.html | profile/dark/profile-en-dark.html |\n| 9 | 他人主页 | profile/light/profile-other-en.html | profile/dark/profile-other-en-dark.html |\n| 10 | 设置页 | profile/light/settings-en.html | profile/dark/settings-en-dark.html |\n| 11 | 通知页 | profile/light/notifications-en.html | profile/dark/notifications-en-dark.html |\n| 12 | 聊天页 | profile/light/chat-en.html | profile/dark/chat-en-dark.html |\n| 13 | 草稿箱 | profile/light/drafts-en.html | profile/dark/drafts-en-dark.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | Light 文件 | Dark 文件 |\n|---|------|-----------|----------|\n| 14 | 发帖页 | publish/light/post_publish-en.html | publish/dark/post_publish-en-dark.html |\n| 15 | 发心情页 | publish/light/mood_publish-en.html | publish/dark/mood_publish-en-dark.html |\n\n> **深色模式说明**：系统跟随设备 dark mode 设置自动切换，同一页面亮色/深色为同一功能页，不计为两个页面，但两套皮肤必须完整实现。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n| 级别 | 字号 | 字重 | 字体 | 场景 |\n|------|------|------|------|------|\n| Display | 26px | 900 | Manrope | 评分大数字 |\n| Headline L | 17px | 800 | Manrope | 推荐卡标题、页面主标题 |\n| Headline M | 14px | 700 | Inter | 帖子标题、列表主文字 |\n| Label L | 15px | 700 | Manrope | CTA 按钮、顶栏标题 |\n| Body M | 12-13px | 400 | Inter | 正文描述、评论 |\n| Label M | 11px | 500-700 | Inter | 标签、元信息 |\n| Caption | 10px | 500-700 | Inter | 底导标签、等级 Badge |\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 主色按压态 | #005590 |\n| 深色背景强调色 | #2498f5 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器/禁用背景 | #f0f4f7 |\n| 分隔填充 | #e8eff3 |\n| 导航栏边框 | #e1e9ee |\n| Story 未看环 | #d9e4ea |\n| 主文字/标题 | #2a3439 |\n| 次级文字/标签 | #566166 |\n| 辅助文字 | #717c82 |\n| 占位符/禁用文字 | #a9b4b9 |\n| 禁用浅色 | #c8d0d5 |\n| 蓝色强调块背景 | #cbe6ff |\n| 蓝色强调块内文字 | #0a5780 |\n| 公告条背景 | #eff6ff |\n| 话题标签背景 | #fef3c7 |\n| 话题标签边框 | #fbbf24 |\n| 话题标签文字 | #b45309 |\n| 深色推荐卡主体 | #0f1c27 |\n| 未读 Badge | #e53935 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 主色按压态 | #3882ef |\n| 高亮强调色（评分） | #79c0ff |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| Story 未看环 | #30363d |\n| 深色推荐卡主体 | #0a1520 |\n| 蓝色强调块背景 | #1f3a56 |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n| 话题标签背景 | #2d1f06 |\n| 话题标签边框 | #d97706 |\n| 话题标签文字 | #f59e0b |\n| 未读 Badge | #e53935 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片（帖子卡、新闻卡） | 12-16px |\n| 横滑 Featured Card | 14px |\n| 搜索框/输入框 | 8-10px |\n| 方形标签/Chip | 4-6px |\n| 胶囊标签/主要按钮 | 999px |\n| 快捷入口图标背景 | 10-12px |\n| 头像 | 50% |\n| 等级 Badge | 8px |\n\n### 4.5 背景底色 & 边框 — 亮色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #f7f9fb | — |\n| 顶部导航栏 | #ffffff | bottom: 1px solid #e1e9ee |\n| 底部导航栏 | rgba(255,255,255,0.96) + blur(14px) | top: 1px solid #e1e9ee |\n| 内容卡片 | #ffffff | 仅阴影 0 1px 6px rgba(42,52,57,0.07) |\n| 页面分隔块 | #f0f4f7 | — |\n| 输入框 | #f0f4f7 | 激活：1.5px solid #0061a4 |\n| 公告条 | #eff6ff | left: 3px solid #0061a4 |\n\n### 4.6 背景底色 & 边框 — 深色模式\n\n| 区域 | 背景色 | 边框色 |\n|------|--------|--------|\n| 页面整体 | #0d1117 | — |\n| 顶部导航栏 | #0d1117 | bottom: 1px solid #21262d |\n| 底部导航栏 | rgba(13,17,23,0.96) + blur(14px) | top: 1px solid #21262d |\n| 内容卡片 | #161b22 | 1px solid #21262d |\n| 页面分隔块 | #161b22 | — |\n| 输入框 | #1c2128 | 激活：1.5px solid #4493f8 |\n| 公告条 | #1a3a5c | left: 3px solid #4493f8 |\n\n### 4.7 图标规范\n\n图标库：Material Symbols Outlined\n\n底部导航图标：home / explore / add / article / person（24px）\n\n默认样式：FILL 0, wght 400，激活态：FILL 1, wght 500\n\n### 4.8 底部导航栏\n\n- 高度：82px，padding-top: 8px\n- 默认图标色：亮色 #a9b4b9 / 深色 #6e7681\n- 选中图标色：亮色 #0061a4 / 深色 #4493f8\n- 发布按钮：46x46px 圆形，上浮 margin-top: -10px\n\n### 4.9 动效规范\n\n| 类型 | CSS |\n|------|-----|\n| 卡片按压 | transform: scale(0.99)，transition 0.15s |\n| 大卡按压 | transform: scale(0.975)，transition 0.15s |\n| 按钮颜色过渡 | transition: background 0.15s |\n| 隐藏滚动条 | scrollbar-width: none |\n\n---\n\n## 五、开发注意事项\n\n1. 所有页面均需同时实现**亮色和深色模式**，通过系统 prefers-color-scheme 自动切换\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover，不得拉伸\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n5. 首页抽屉菜单从左侧滑出（宽 280px），背景蒙层 rgba(0,0,0,0.45)\n6. 发布页顶栏发布按钮初始为禁用态（灰色），有内容后激活为主色";
   function md2html(t){
     var h = t
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -2004,6 +2118,63 @@ function closeSpecPanel(){
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSpecPanel();});
 </script>
 <!-- ══ /Spec Panel ══ -->
+
+<!-- ══ Like button toggle ══ -->
+<script>
+function toggleLike(ev, el) {
+  ev.stopPropagation();
+  var liked = el.classList.toggle('liked');
+  var countEl = el.querySelector('.like-count');
+  var n = parseInt(el.getAttribute('data-count') || (countEl ? countEl.textContent : '0'), 10) || 0;
+  if (liked) {
+    n += 1;
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+    var pop = document.createElement('span');
+    pop.className = 'like-pop';
+    pop.textContent = '+1';
+    el.appendChild(pop);
+    setTimeout(function(){ if (pop.parentNode) pop.parentNode.removeChild(pop); }, 950);
+  } else {
+    n = Math.max(0, n - 1);
+  }
+  el.setAttribute('data-count', n);
+  if (countEl) countEl.textContent = n;
+}
+// Auto-wrap thumb_up icons in post-cards as like buttons
+(function(){
+  document.querySelectorAll('.post-card').forEach(function(card){
+    var rows = card.querySelectorAll('.flex.gap-4 > .flex.items-center');
+    rows.forEach(function(row){
+      var icon = row.querySelector('.material-symbols-outlined');
+      if (!icon || icon.textContent.trim() !== 'thumb_up') return;
+      if (row.classList.contains('like-btn')) return;
+      var txt = row.textContent.replace('thumb_up','').trim();
+      var n = parseInt(txt.replace(/[^\d.]/g,''), 10) || 0;
+      // preserve k/万 suffix display
+      var displayText = txt;
+      row.classList.add('like-btn');
+      row.setAttribute('data-count', n);
+      row.setAttribute('onclick', 'toggleLike(event,this)');
+      icon.classList.add('like-icon','ms-icon');
+      // wrap text node in .like-count
+      var nodes = row.childNodes, found = false;
+      for (var i=0;i<nodes.length;i++){
+        var nd = nodes[i];
+        if (nd.nodeType===3 && nd.textContent.trim()){
+          var span = document.createElement('span');
+          span.className = 'like-count';
+          span.textContent = nd.textContent.trim();
+          row.replaceChild(span, nd);
+          found = true; break;
+        }
+      }
+    });
+  });
+})();
+</script>
+<!-- ══ /Like button ══ -->
 
 </body>
 </html>
