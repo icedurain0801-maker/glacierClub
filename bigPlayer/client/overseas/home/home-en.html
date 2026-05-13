@@ -102,6 +102,7 @@
     --overlay-cover-weak:rgba(10,15,20,0.30);
     --divider-soft:#e8edf0;
     --device-bezel-dark:#1a1a1a;
+    --like-color:#ff4757;
 }
   [data-theme="dark"]{
     --bg-body:#1a1f26;
@@ -154,6 +155,7 @@
     --overlay-cover-weak:rgba(0,0,0,0.40);
     --divider-soft:#21262d;
     --device-bezel-dark:#000;
+    --like-color:#ff6b7d;
 }
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -251,7 +253,20 @@
     transition: transform 0.15s;
   }
   .rec-card:active { transform: scale(0.99); }
+  .rec-card__media { position: relative; }
   .rec-card__img { width: 100%; height: 196px; object-fit: cover; display: block; }
+  .rec-card__pick {
+    position: absolute; top: 10px; left: 10px;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px 4px 7px;
+    background: rgba(207, 240, 232, 0.95);
+    color: #00897b;
+    font-size: 11px; font-weight: 700;
+    border-radius: 999px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  }
+  .rec-card__pick svg { flex-shrink: 0; }
   .rec-card__body { padding: 14px 14px 16px; background: var(--rec-card-bg); }
   .rec-card__name { font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; color: #fff; line-height: 1.3; }
   .rec-card__rating-label { font-size: 10px; font-weight: 700; color: var(--inverse-primary); }
@@ -287,7 +302,56 @@
   }
   .post-card:active { transform: scale(0.99); }
   .post-card__cover { width: 100%; height: 148px; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 10px; }
-  .post-card__title { font-size: 14px; font-weight: 700; color: var(--on-surface); line-height: 1.4; margin-bottom: 10px; }
+  .post-card__title {
+    font-size: 14px; font-weight: 700; color: var(--on-surface); line-height: 1.4;
+    margin-bottom: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .post-card__excerpt {
+    font-size: 12px; font-weight: 400; color: var(--on-surface-variant); line-height: 1.5;
+    margin-bottom: 10px;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* ── Like button (toggle highlight + bounce + +1 popup) ── */
+  .like-btn {
+    cursor: pointer; position: relative;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: color 0.2s;
+  }
+  .like-btn .like-icon {
+    transition: color 0.2s, transform 0.25s cubic-bezier(.34,1.56,.64,1);
+    display: inline-block;
+  }
+  .like-btn.liked { color: var(--like-color) !important; }
+  .like-btn.liked .like-icon { color: var(--like-color) !important; }
+  .like-btn.liked svg.like-icon path { stroke: var(--like-color) !important; fill: var(--like-color) !important; }
+  .like-btn.liked .like-icon.ms-icon {
+    font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+  }
+  .like-btn.bump .like-icon { animation: like-bump 0.45s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes like-bump {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.4); }
+    65%  { transform: scale(0.92); }
+    100% { transform: scale(1); }
+  }
+  .like-pop {
+    position: absolute;
+    left: 50%; top: -2px;
+    transform: translateX(-50%);
+    font-size: 13px; font-weight: 800; color: var(--like-color);
+    pointer-events: none;
+    opacity: 0;
+    animation: like-pop-up 0.9s ease-out forwards;
+    text-shadow: 0 1px 3px rgba(255,71,87,0.25);
+    white-space: nowrap;
+  }
+  @keyframes like-pop-up {
+    0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+    25%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -28px) scale(1); }
+  }
   .post-card__avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
   .post-card__lv {
     display: inline-block; font-size: 10px; font-weight: 700;
@@ -298,6 +362,72 @@
     font-size: 11px; color: #fff;
     background: var(--primary); padding: 3px 9px;
     border-radius: 6px; font-weight: 600; flex-shrink: 0;
+  }
+
+  /* ── Hot in Community: layout toggle (Card / Masonry) ── */
+  .hic-toggle {
+    display: inline-flex; background: var(--surface-container-low);
+    border-radius: 8px; padding: 3px;
+  }
+  .hic-toggle button {
+    width: 30px; height: 26px; border: 0; background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--on-surface-variant); border-radius: 6px; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .hic-toggle button.on {
+    background: #fff; color: var(--primary);
+    box-shadow: 0 1px 3px rgba(42,52,57,0.10);
+  }
+  .hic-toggle .material-symbols-outlined { font-size: 18px; }
+
+  /* ── Masonry grid ── */
+  .masonry-grid {
+    column-count: 2; column-gap: 8px;
+    padding: 0 12px;
+  }
+  .m-card {
+    break-inside: avoid; -webkit-column-break-inside: avoid;
+    background: var(--surface-container-lowest);
+    border-radius: 12px;
+    box-shadow: 0 1px 6px var(--shadow-card-color, rgba(42,52,57,0.07));
+    margin-bottom: 10px; overflow: hidden; cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .m-card:active { transform: scale(0.99); }
+  .m-card__cover-wrap { position: relative; }
+  .m-card__cover {
+    width: 100%; display: block; object-fit: cover;
+    background: var(--surface-container-high);
+  }
+  .m-card__likes {
+    position: absolute; right: 8px; bottom: 8px;
+    background: rgba(0,0,0,0.55); color: #fff;
+    border-radius: 999px; padding: 3px 9px;
+    font-size: 11px; font-weight: 600; line-height: 1.3;
+    display: inline-flex; align-items: center; gap: 3px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .m-card__likes .material-symbols-outlined { font-size: 13px; color: #fff; }
+  .m-card__title {
+    font-family: Inter, sans-serif;
+    font-weight: 700; font-size: 13px; line-height: 1.35;
+    color: var(--on-surface); padding: 8px 10px 0;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .m-card__author {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px 10px;
+  }
+  .m-card__avatar {
+    width: 18px; height: 18px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+  }
+  .m-card__nick {
+    font-size: 11px; color: var(--on-surface-variant);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1; min-width: 0;
   }
 
   /* ── Quick grid item ── */
@@ -661,6 +791,104 @@
     100% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.25), 0 0 0 0 rgba(255,255,255,0); }
   }
   .tutorial-spotlight.pulse { animation: tut-pulse 1.8s infinite; }
+
+  /* ── Character Bind Strip (Tab 上方独立 Banner 条) ── */
+  /* 仅在 APP 版本下显示，网页版/简洁版隐藏 */
+  body:not([data-variant="app"]) #char-bind-strip-bound,
+  body:not([data-variant="app"]) #char-bind-strip-unbound {
+    display: none !important;
+  }
+  .char-bind-strip {
+    margin: 4px 12px 8px;
+    background: var(--secondary-container);
+    border-radius: 10px;
+    display: flex; align-items: center;
+    padding: 8px 12px; gap: 10px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: opacity 0.15s;
+  }
+  .char-bind-strip:active { opacity: 0.88; }
+  .char-bind-strip__glow {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 80px;
+    background: linear-gradient(90deg, transparent, rgba(0,97,164,0.10));
+    pointer-events: none;
+  }
+  .char-bind-strip__avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 2px solid rgba(0,97,164,0.28);
+    object-fit: cover; flex-shrink: 0;
+    background: var(--surface-container-low);
+  }
+  .char-bind-strip__info { flex: 1; min-width: 0; position: relative; z-index: 1; }
+  .char-bind-strip__name {
+    font-size: 13px; font-weight: 700;
+    color: var(--on-secondary-container);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .char-bind-strip__sub {
+    font-size: 11px; color: var(--on-secondary-container);
+    opacity: 0.72; margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .char-bind-strip__actions {
+    display: flex; gap: 6px; align-items: center;
+    position: relative; z-index: 1; flex-shrink: 0;
+  }
+  .char-bind-strip__switch {
+    font-size: 11px; font-weight: 700;
+    color: var(--on-secondary-container);
+    border: 1px solid rgba(0,97,164,0.32);
+    border-radius: 6px;
+    background: transparent;
+    padding: 4px 10px; cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .char-bind-strip__switch:active { background: rgba(0,97,164,0.08); }
+  .char-bind-strip__launch {
+    font-size: 12px; font-weight: 700;
+    color: #fff;
+    background: var(--primary);
+    border: none; border-radius: 6px;
+    padding: 5px 14px; cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 3px;
+    transition: background 0.15s;
+  }
+  .char-bind-strip__launch:active { background: var(--primary-dim); }
+  .char-bind-strip__launch .material-symbols-outlined {
+    font-size: 14px; font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* ── Unbound state ── */
+  .char-bind-strip--unbound {
+    background: var(--surface-container-low);
+    border: 1.5px dashed var(--outline-variant);
+    padding: 8px 12px;
+    gap: 10px;
+  }
+  .char-bind-strip--unbound .char-bind-strip__glow { display: none; }
+  .char-bind-strip__unbound-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--surface-container);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--outline-variant);
+    flex-shrink: 0;
+  }
+  .char-bind-strip__unbound-avatar .material-symbols-outlined { font-size: 18px; }
+  .char-bind-strip__unbound-text {
+    flex: 1; font-size: 12px; font-weight: 500;
+    color: var(--on-surface-variant);
+  }
+  .char-bind-strip__bind-link {
+    font-size: 12px; font-weight: 700; color: var(--primary);
+    display: inline-flex; align-items: center; gap: 1px;
+    flex-shrink: 0;
+  }
+  .char-bind-strip__bind-link .material-symbols-outlined { font-size: 16px; }
+
   .theme-toggle{position:fixed;top:24px;right:24px;z-index:9999;width:44px;height:44px;border:0;border-radius:50%;background:var(--surface-container-lowest);color:var(--primary);box-shadow:0 4px 16px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s,background .15s,color .15s;}
   .theme-toggle:hover{transform:scale(1.08);}
   .theme-toggle .material-symbols-outlined{font-size:22px;}
@@ -668,10 +896,104 @@
   .theme-toggle .icon-light{display:none;}
   [data-theme="dark"] .theme-toggle .icon-dark{display:none;}
   [data-theme="dark"] .theme-toggle .icon-light{display:inline-block;}
+
+  /* ── Variant Switcher（网页/APP/简洁 3 版本切换） ── */
+  .variant-switcher {
+    position: fixed; top: 24px; right: 80px; z-index: 9999;
+    display: inline-flex; background: var(--surface-container-lowest);
+    border-radius: 999px; padding: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  .variant-switcher button {
+    border: none; background: transparent;
+    font-family: Inter, sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--on-surface-variant);
+    border-radius: 999px; padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .variant-switcher button.active {
+    background: var(--primary); color: #fff;
+  }
+  .variant-switcher button:not(.active):hover {
+    color: var(--on-surface);
+  }
+
+  /* ── 简洁版：rec-card 改造为「左 72px 图 + 右文 + chip 在标题上方 + 左侧火条」 ── */
+  body[data-variant="simple"] .rec-card {
+    margin: 0 12px 8px;
+    background: var(--surface-container-lowest);
+    border-radius: 12px;
+    display: flex; align-items: center;
+    overflow: hidden;
+    box-shadow: 0 1px 6px rgba(42,52,57,.07);
+    position: relative;
+    padding: 10px 12px;
+    gap: 10px;
+    min-height: 92px;
+  }
+  body[data-variant="simple"] .rec-card::before {
+    content: ''; position: absolute;
+    top: 0; bottom: 0; left: 0; width: 3px;
+    background: linear-gradient(180deg, #ffb627 0%, #ff4757 100%);
+  }
+  body[data-variant="simple"] .rec-card__media {
+    width: 72px; height: 72px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  body[data-variant="simple"] .rec-card__img {
+    width: 72px; height: 72px;
+    border-radius: 8px;
+    object-fit: cover;
+    display: block;
+  }
+  /* 原 pick 在 media 内的角标 —— 简洁版下隐藏，让 JS 注入的副本接管 */
+  body[data-variant="simple"] .rec-card__media .rec-card__pick { display: none; }
+  body[data-variant="simple"] .rec-card__body {
+    padding: 0;
+    background: transparent;
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    gap: 4px;
+  }
+  /* JS 注入的 chip 副本：仅简洁版显示 */
+  .rec-card__pick--simple { display: none; }
+  body[data-variant="simple"] .rec-card__pick--simple {
+    position: static;
+    display: inline-flex;
+    align-self: flex-start;
+  }
+  body[data-variant="simple"] .rec-card__name {
+    font-family: Inter, sans-serif;
+    font-size: 14px; font-weight: 700;
+    color: var(--on-surface);
+    line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+  }
+  body[data-variant="simple"] .rec-card__meta { margin-top: 0; gap: 10px; }
+  body[data-variant="simple"] .rec-card__meta-item {
+    font-size: 11px; color: var(--outline-variant);
+  }
+  body[data-variant="simple"] .rec-card__meta-item svg { opacity: 1; }
+  body[data-variant="simple"] .rec-card__desc,
+  body[data-variant="simple"] .rec-card__tag,
+  body[data-variant="simple"] .rec-card__cta { display: none; }
+
 </style>
 </head>
-<body class="flex justify-center items-start py-10 min-h-screen" style="background:var(--bg-body);">
+<body class="flex justify-center items-start py-10 min-h-screen" style="background:var(--bg-body);" data-variant="web">
 <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><span class="material-symbols-outlined icon-dark">dark_mode</span><span class="material-symbols-outlined icon-light">light_mode</span></button>
+<div class="variant-switcher" id="variantSwitcher">
+  <button data-variant="web" class="active" onclick="setVariant('web')">网页版</button>
+  <button data-variant="app" onclick="setVariant('app')">APP版</button>
+  <button data-variant="simple" onclick="setVariant('simple')">简洁版</button>
+</div>
 
 <div class="phone-shell">
 
@@ -772,6 +1094,36 @@
           </button>
         </div>
       </div>
+
+      <!-- ── Character Bind Strip ── -->
+      <!-- 已绑定状态 -->
+      <div id="char-bind-strip-bound" class="char-bind-strip" onclick="launchGame()">
+        <div class="char-bind-strip__glow"></div>
+        <img class="char-bind-strip__avatar"
+             src="https://opsoss.q1.com/club/avatar/2023/01/06/1672984017367_069a1712-8db1-486b-9639-52e5a2bf3d59.jpg"
+             alt="character avatar">
+        <div class="char-bind-strip__info">
+          <div class="char-bind-strip__name">YaoShen · Lv.85</div>
+          <div class="char-bind-strip__sub">F2P · Server 38</div>
+        </div>
+        <div class="char-bind-strip__actions">
+          <button class="char-bind-strip__switch" onclick="switchCharacter(event)">Switch</button>
+          <button class="char-bind-strip__launch" onclick="launchGame(event)">
+            <span class="material-symbols-outlined">play_arrow</span>Play
+          </button>
+        </div>
+      </div>
+      <!-- 未绑定状态（默认隐藏，需要时 JS 切换显示）-->
+      <div id="char-bind-strip-unbound" class="char-bind-strip char-bind-strip--unbound" style="display:none;" onclick="bindCharacter()">
+        <div class="char-bind-strip__unbound-avatar">
+          <span class="material-symbols-outlined">person</span>
+        </div>
+        <div class="char-bind-strip__unbound-text">No character bound</div>
+        <span class="char-bind-strip__bind-link">
+          Bind <span class="material-symbols-outlined">chevron_right</span>
+        </span>
+      </div>
+
       <div id="tab-nav" class="flex items-center gap-6 px-4 border-b border-outline-variant">
         <button class="tab-active text-[15px] py-2.5" onclick="switchTab(this)">Recommend</button>
         <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">Discover</button>
@@ -842,16 +1194,22 @@
 
     <!-- Rec card 1 -->
     <div class="rec-card">
-      <img class="rec-card__img"
-        src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
-        alt="Hidden Facts" loading="lazy">
+      <div class="rec-card__media">
+        <img class="rec-card__img"
+          src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
+          alt="Hidden Facts" loading="lazy">
+        <span class="rec-card__pick">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+          Editor's Pick
+        </span>
+      </div>
       <div class="rec-card__body">
         <p class="rec-card__name">Hidden Facts About Yaoshen Ji</p>
         <p class="rec-card__desc">Based on this week's most-read player guides — things your in-game tutorial never told you.</p>
         <div class="rec-card__meta">
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-            2.4k
+          <span class="rec-card__meta-item like-btn" onclick="toggleLike(event,this)" data-count="2400">
+            <svg class="like-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            <span class="like-count">2.4k</span>
           </span>
           <span class="rec-card__meta-item">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -867,16 +1225,22 @@
 
     <!-- Rec card 2 -->
     <div class="rec-card">
-      <img class="rec-card__img"
-        src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
-        alt="Fan Art" loading="lazy">
+      <div class="rec-card__media">
+        <img class="rec-card__img"
+          src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
+          alt="Fan Art" loading="lazy">
+        <span class="rec-card__pick">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+          Editor's Pick
+        </span>
+      </div>
       <div class="rec-card__body">
         <p class="rec-card__name">Water Spirit Goddess — Fan Art Edition</p>
         <p class="rec-card__desc">Hand-drawn by Melody — special edition for the college exam season.</p>
         <div class="rec-card__meta">
-          <span class="rec-card__meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-            1.8k
+          <span class="rec-card__meta-item like-btn" onclick="toggleLike(event,this)" data-count="1800">
+            <svg class="like-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            <span class="like-count">1.8k</span>
           </span>
           <span class="rec-card__meta-item">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -893,7 +1257,17 @@
     <!-- ── Hot in Community ── -->
     <div class="section-divider"></div>
     <div class="flex items-center justify-between px-4 pt-4 pb-3">
-      <h2 class="font-headline text-[20px] font-extrabold text-on-surface tracking-tight">Hot in Community</h2>
+      <div class="flex items-center gap-2.5">
+        <h2 class="font-headline text-[20px] font-extrabold text-on-surface tracking-tight">Hot in Community</h2>
+        <div class="hic-toggle" role="tablist" aria-label="Layout">
+          <button id="hicToggleCard" class="on" onclick="switchHicLayout('card')" aria-label="Card view" aria-pressed="true">
+            <span class="material-symbols-outlined">view_agenda</span>
+          </button>
+          <button id="hicToggleMasonry" onclick="switchHicLayout('masonry')" aria-label="Masonry view" aria-pressed="false">
+            <span class="material-symbols-outlined">grid_view</span>
+          </button>
+        </div>
+      </div>
       <button onclick="refreshHotCommunity(this)" class="flex items-center justify-center w-8 h-8 rounded-full text-on-surface-variant hover:bg-surface-variant active:scale-90 transition-transform" aria-label="Refresh">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
@@ -903,6 +1277,9 @@
         </svg>
       </button>
     </div>
+
+    <!-- ── Hot in Community: Card layout ── -->
+    <div id="hicCardView">
 
     <!-- Post 1 -->
     <div class="post-card">
@@ -926,6 +1303,7 @@
         <span class="post-card__cat">Guide</span>
       </div>
       <p class="post-card__title">Hidden Facts About Yaoshen Ji That Nobody Tells You</p>
+      <p class="post-card__excerpt">A growing collection of trivia we've dug up since launch — hidden storylines, easter eggs, and underrated hero synergies you've probably been ignoring all along.</p>
       <img class="post-card__cover"
         src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
         alt="cover" loading="lazy">
@@ -964,6 +1342,7 @@
         <span class="post-card__cat">Fan Art</span>
       </div>
       <p class="post-card__title">Water Spirit Goddess — Hand-drawn (Exam Season Special)</p>
+      <p class="post-card__excerpt">A gift to everyone grinding through finals season — may you all top your charts. Original lineart attached, feel free to repost and save.</p>
       <img class="post-card__cover"
         src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
         alt="cover" loading="lazy">
@@ -981,6 +1360,110 @@
     </div>
 
     <div style="height:20px;"></div>
+
+    </div><!-- /hicCardView -->
+
+    <!-- ── Hot in Community: Masonry layout ── -->
+    <div id="hicMasonryView" class="masonry-grid" style="display:none;">
+
+      <div class="m-card">
+        <div class="m-card__cover-wrap">
+          <img class="m-card__cover" style="height:200px;"
+            src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
+            alt="cover" loading="lazy">
+          <span class="m-card__likes"><span class="material-symbols-outlined">thumb_up</span>240</span>
+        </div>
+        <p class="m-card__title">My top picks from the new patch drop</p>
+        <div class="m-card__author">
+          <img class="m-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
+            alt="author" loading="lazy">
+          <span class="m-card__nick">NightOwl_G</span>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <div class="m-card__cover-wrap">
+          <img class="m-card__cover" style="height:140px;"
+            src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
+            alt="cover" loading="lazy">
+          <span class="m-card__likes"><span class="material-symbols-outlined">thumb_up</span>384</span>
+        </div>
+        <p class="m-card__title">Dragon skin concept art — full process</p>
+        <div class="m-card__author">
+          <img class="m-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
+            alt="author" loading="lazy">
+          <span class="m-card__nick">IronWolf</span>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <div class="m-card__cover-wrap">
+          <img class="m-card__cover" style="height:170px;"
+            src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
+            alt="cover" loading="lazy">
+          <span class="m-card__likes"><span class="material-symbols-outlined">thumb_up</span>229</span>
+        </div>
+        <p class="m-card__title">Hidden Facts About Yaoshen Ji That Nobody Tells You</p>
+        <div class="m-card__author">
+          <img class="m-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
+            alt="author" loading="lazy">
+          <span class="m-card__nick">F2P Server 38</span>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <div class="m-card__cover-wrap">
+          <img class="m-card__cover" style="height:220px;"
+            src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
+            alt="cover" loading="lazy">
+          <span class="m-card__likes"><span class="material-symbols-outlined">thumb_up</span>273</span>
+        </div>
+        <p class="m-card__title">Water Spirit Goddess — Hand-drawn (Exam Season Special)</p>
+        <div class="m-card__author">
+          <img class="m-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
+            alt="author" loading="lazy">
+          <span class="m-card__nick">Melody</span>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <div class="m-card__cover-wrap">
+          <img class="m-card__cover" style="height:150px;"
+            src="https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png"
+            alt="cover" loading="lazy">
+          <span class="m-card__likes"><span class="material-symbols-outlined">thumb_up</span>512</span>
+        </div>
+        <p class="m-card__title">Beginner's Roadmap — Everything You Need</p>
+        <div class="m-card__author">
+          <img class="m-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
+            alt="author" loading="lazy">
+          <span class="m-card__nick">StarSeeker</span>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <div class="m-card__cover-wrap">
+          <img class="m-card__cover" style="height:200px;"
+            src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg"
+            alt="cover" loading="lazy">
+          <span class="m-card__likes"><span class="material-symbols-outlined">thumb_up</span>152</span>
+        </div>
+        <p class="m-card__title">Behind-the-scenes: how we drew the new banner</p>
+        <div class="m-card__author">
+          <img class="m-card__avatar"
+            src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
+            alt="author" loading="lazy">
+          <span class="m-card__nick">DesignFox</span>
+        </div>
+      </div>
+
+      <div style="height:20px;"></div>
+    </div><!-- /hicMasonryView -->
 
     </div><!-- /tab-recommend -->
 
@@ -1008,6 +1491,7 @@
           <span class="post-card__cat">Follow</span>
         </div>
         <p class="post-card__title">The Ultimate Beginner's Roadmap — Everything You Need to Know</p>
+        <p class="post-card__excerpt">From opening picks to mid- and late-game build paths — a full walkthrough covering resources, team comps and dungeon strategies. Veterans will pick up a thing or two too.</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
           alt="cover" loading="lazy">
@@ -1045,6 +1529,7 @@
           <span class="post-card__cat">Follow</span>
         </div>
         <p class="post-card__title">S-Tier Heroes Ranked for April — Who's Worth Building?</p>
+        <p class="post-card__excerpt">Hands-on ranking after this month's patch, balancing PVE and PVP performance to call the build priorities. New players save your shards, veterans go all in.</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
           alt="cover" loading="lazy">
@@ -1302,6 +1787,7 @@
           <span class="post-card__cat">Guide</span>
         </div>
         <p class="post-card__title">Rosalind Trial — Best Lineup for World Boss Clear</p>
+        <p class="post-card__excerpt">Three battle-tested comps that consistently clear, complete with skill rotation order and positioning notes — viable for F2P, low-spend, and monthly-card players alike.</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
           alt="cover" loading="lazy">
@@ -1346,6 +1832,7 @@
           <button class="follow-btn">Following</button>
         </div>
         <p class="post-card__title">The Ultimate Beginner's Roadmap — Everything You Need to Know</p>
+        <p class="post-card__excerpt">From opening picks to mid- and late-game build paths — a full walkthrough covering resources, team comps and dungeon strategies. Veterans will pick up a thing or two too.</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg"
           alt="cover" loading="lazy">
@@ -1383,6 +1870,7 @@
           <button class="follow-btn">Following</button>
         </div>
         <p class="post-card__title">S-Tier Heroes Ranked for April — Who's Worth Building?</p>
+        <p class="post-card__excerpt">Hands-on ranking after this month's patch, balancing PVE and PVP performance to call the build priorities. New players save your shards, veterans go all in.</p>
         <img class="post-card__cover"
           src="https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png"
           alt="cover" loading="lazy">
@@ -1650,6 +2138,57 @@
   /* init */
   buildCommunityList();
 
+  /* ── Variant Switcher（网页 / APP / 简洁 3 版本切换）── */
+  function setVariant(variant) {
+    if (!['web', 'app', 'simple'].includes(variant)) variant = 'web';
+    document.body.setAttribute('data-variant', variant);
+    document.querySelectorAll('#variantSwitcher button').forEach(b => {
+      b.classList.toggle('active', b.dataset.variant === variant);
+    });
+    syncRecCardPickClones(variant === 'simple');
+    try { localStorage.setItem('home-en-variant', variant); } catch (e) {}
+  }
+  function syncRecCardPickClones(enable) {
+    document.querySelectorAll('.rec-card').forEach(card => {
+      const body = card.querySelector('.rec-card__body');
+      const origPick = card.querySelector('.rec-card__media .rec-card__pick');
+      if (!body || !origPick) return;
+      let clone = body.querySelector(':scope > .rec-card__pick--simple');
+      if (enable && !clone) {
+        clone = origPick.cloneNode(true);
+        clone.classList.add('rec-card__pick--simple');
+        body.insertBefore(clone, body.firstChild);
+      } else if (!enable && clone) {
+        clone.remove();
+      }
+    });
+  }
+  (function initVariant() {
+    let saved = 'web';
+    try { saved = localStorage.getItem('home-en-variant') || 'web'; } catch (e) {}
+    setVariant(saved);
+  })();
+
+  /* ── Character Bind Strip ── */
+  function setCharBindState(bound) {
+    const boundEl = document.getElementById('char-bind-strip-bound');
+    const unboundEl = document.getElementById('char-bind-strip-unbound');
+    if (!boundEl || !unboundEl) return;
+    boundEl.style.display = bound ? '' : 'none';
+    unboundEl.style.display = bound ? 'none' : '';
+  }
+  function launchGame(e) {
+    if (e) e.stopPropagation();
+    alert('Launching game...');
+  }
+  function switchCharacter(e) {
+    if (e) e.stopPropagation();
+    alert('Switch character');
+  }
+  function bindCharacter() {
+    alert('Bind character');
+  }
+
   function switchTab(btn) {
     document.querySelectorAll('#tab-nav button').forEach(b => {
       b.className = 'tab-inactive text-[15px] py-2.5';
@@ -1806,6 +2345,24 @@
   function refreshHotCommunity(btn) {
     btn.classList.add('animate-spin');
     setTimeout(() => btn.classList.remove('animate-spin'), 600);
+  }
+
+  function switchHicLayout(mode) {
+    var cardView = document.getElementById('hicCardView');
+    var masonryView = document.getElementById('hicMasonryView');
+    var btnCard = document.getElementById('hicToggleCard');
+    var btnMasonry = document.getElementById('hicToggleMasonry');
+    if (mode === 'masonry') {
+      cardView.style.display = 'none';
+      masonryView.style.display = '';
+      btnCard.classList.remove('on'); btnCard.setAttribute('aria-pressed', 'false');
+      btnMasonry.classList.add('on'); btnMasonry.setAttribute('aria-pressed', 'true');
+    } else {
+      cardView.style.display = '';
+      masonryView.style.display = 'none';
+      btnCard.classList.add('on'); btnCard.setAttribute('aria-pressed', 'true');
+      btnMasonry.classList.remove('on'); btnMasonry.setAttribute('aria-pressed', 'false');
+    }
   }
 
 var _postOpen = false;
@@ -2118,6 +2675,60 @@ function closeSpecPanel(){
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSpecPanel();});
 </script>
 <!-- ══ /Spec Panel ══ -->
+
+<!-- ══ Like button toggle ══ -->
+<script>
+function toggleLike(ev, el) {
+  ev.stopPropagation();
+  var liked = el.classList.toggle('liked');
+  var countEl = el.querySelector('.like-count');
+  var n = parseInt(el.getAttribute('data-count') || (countEl ? countEl.textContent : '0'), 10) || 0;
+  if (liked) {
+    n += 1;
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+    var pop = document.createElement('span');
+    pop.className = 'like-pop';
+    pop.textContent = '+1';
+    el.appendChild(pop);
+    setTimeout(function(){ if (pop.parentNode) pop.parentNode.removeChild(pop); }, 950);
+  } else {
+    n = Math.max(0, n - 1);
+  }
+  el.setAttribute('data-count', n);
+  if (countEl) countEl.textContent = n;
+}
+// Auto-wrap thumb_up icons in post-cards as like buttons
+(function(){
+  document.querySelectorAll('.post-card').forEach(function(card){
+    var rows = card.querySelectorAll('.flex.gap-4 > .flex.items-center');
+    rows.forEach(function(row){
+      var icon = row.querySelector('.material-symbols-outlined');
+      if (!icon || icon.textContent.trim() !== 'thumb_up') return;
+      if (row.classList.contains('like-btn')) return;
+      var txt = row.textContent.replace('thumb_up','').trim();
+      var n = parseInt(txt.replace(/[^\d.]/g,''), 10) || 0;
+      row.classList.add('like-btn');
+      row.setAttribute('data-count', n);
+      row.setAttribute('onclick', 'toggleLike(event,this)');
+      icon.classList.add('like-icon','ms-icon');
+      var nodes = row.childNodes;
+      for (var i=0;i<nodes.length;i++){
+        var nd = nodes[i];
+        if (nd.nodeType===3 && nd.textContent.trim()){
+          var span = document.createElement('span');
+          span.className = 'like-count';
+          span.textContent = nd.textContent.trim();
+          row.replaceChild(span, nd);
+          break;
+        }
+      }
+    });
+  });
+})();
+</script>
+<!-- ══ /Like button ══ -->
 
 </body>
 </html>
