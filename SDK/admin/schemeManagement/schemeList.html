@@ -661,13 +661,130 @@ body{
         <button class="f-btn ghost">重置</button>
       </div>
 
-      <!-- FALLBACK SCHEME NOTICE -->
-      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px 24px;display:flex;align-items:flex-start;gap:12px;box-shadow:var(--shadow-sm);">
-        <span style="color:#dc2626;font-size:18px;flex-shrink:0;">⚠️</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;color:#991b1b;margin-bottom:4px;">官方兜底方案</div>
-          <div style="font-size:12px;color:#7f1d1d;line-height:1.5;">当渠道未配置特定方案时，系统将使用官方兜底方案作为默认配置。<a href="javascript:void(0)" style="color:#dc2626;text-decoration:underline;font-weight:500;">了解详情</a></div>
+      <!-- 官方认可的兜底方案 -->
+      <div class="collapse-bar" id="defBar" onclick="toggleDef()">
+        <span class="icon chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+        <div class="collapse-icon"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span></div>
+        <div class="collapse-info">
+          <div class="collapse-title">官方认可的兜底方案 <span style="font-size:11px;font-weight:600;background:var(--grey-bg);color:var(--grey);padding:2px 7px;border-radius:5px;margin-left:6px;">10</span></div>
+          <div class="collapse-desc">每个 SDK 类型自带的官方默认配置，新游戏未配置自定义方案时使用。</div>
         </div>
+        <span style="font-size:12.5px;color:var(--ink-4);">展开管理</span>
+      </div>
+      <div class="collapse-body" id="defBody" style="display:none;">
+        <div class="sec-note">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+          这些是冰川 SDK 平台为每种 SDK 类型预置的兜底方案。如需修改请联系 SDK 平台管理员，普通运营人员只能查看。
+        </div>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>方案 ID</th><th>方案名</th><th>SDK 类型</th><th>合规状态</th><th>已关联渠道</th><th>最后操作时间</th><th>操作人</th><th style="text-align:right;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="default-row">
+              <td><span class="s-id">63b3979ff46240009a688f5f</span></td>
+              <td><span class="s-name">移动端 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mobile">移动端 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind">是</span></td>
+              <td><span class="t-time">2026-03-25 18:33</span></td>
+              <td>柴智</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">63b3979ff46240009a688f61</span></td>
+              <td><span class="s-name">windowsSDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-pc">windows SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2023-01-03 10:49</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">63b3979ff46240009a688f63</span></td>
+              <td><span class="s-name">微信小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">微信小游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2023-01-03 10:49</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op urgent">立即处理</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">6413bf0790323400628a67bb</span></td>
+              <td><span class="s-name">抖音小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">抖音小游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2023-03-17 09:14</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">659cc554560cad0078f8a0a7</span></td>
+              <td><span class="s-name">支付宝 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-pay">支付宝 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2024-01-09 12:02</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">673d53ad718acb0039da56e8</span></td>
+              <td><span class="s-name">华为快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">华为快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2024-11-20 11:12</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">67d39a2a661c4b00935a1512</span></td>
+              <td><span class="s-name">小米快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">小米快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2025-03-14 10:53</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">67d39a2a661c4b00935a1513</span></td>
+              <td><span class="s-name">VIVO 快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">VIVO 快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2025-03-14 10:53</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">67d39a2a661c4b00935a1514</span></td>
+              <td><span class="s-name">OPPO 快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">OPPO 快游戏 SDK</span></td>
+              <td><span class="compl c-risk">风险</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2025-03-14 10:53</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+            <tr class="default-row">
+              <td><span class="s-id">695a3a2c5759b0009561fa8e</span></td>
+              <td><span class="s-name">B 站小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
+              <td><span class="s-type t-mini">B 站小游戏 SDK</span></td>
+              <td><span class="compl c-ok">合规</span></td>
+              <td><span class="s-bind no">否</span></td>
+              <td><span class="t-time">2026-01-04 17:59</span></td>
+              <td>管理员</td>
+              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- 我的方案 -->
@@ -798,131 +915,6 @@ body{
         </div>
       </div>
 
-      <!-- 默认兜底方案 折叠条 -->
-      <div class="collapse-bar" id="defBar" onclick="toggleDef()">
-        <span class="icon chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
-        <div class="collapse-icon"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span></div>
-        <div class="collapse-info">
-          <div class="collapse-title">官方默认兜底方案 <span style="font-size:11px;font-weight:600;background:var(--grey-bg);color:var(--grey);padding:2px 7px;border-radius:5px;margin-left:6px;">10</span></div>
-          <div class="collapse-desc">每个 SDK 类型自带的官方默认配置，新游戏未配置自定义方案时使用。一般无需修改。</div>
-        </div>
-        <span style="font-size:12.5px;color:var(--ink-4);">展开管理</span>
-      </div>
-      <div class="collapse-body" id="defBody" style="display:none;">
-        <div class="sec-note">
-          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
-          这些是冰川 SDK 平台为每种 SDK 类型预置的兜底方案。如需修改请联系 SDK 平台管理员，普通运营人员只能查看。
-        </div>
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>方案 ID</th><th>方案名</th><th>SDK 类型</th><th>合规状态</th><th>已关联渠道</th><th>最后操作时间</th><th>操作人</th><th style="text-align:right;">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="default-row">
-              <td><span class="s-id">63b3979ff46240009a688f5f</span></td>
-              <td><span class="s-name">移动端 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mobile">移动端 SDK</span></td>
-              <td><span class="compl c-ok">合规</span></td>
-              <td><span class="s-bind">是</span></td>
-              <td><span class="t-time">2026-03-25 18:33</span></td>
-              <td>柴智</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">63b3979ff46240009a688f61</span></td>
-              <td><span class="s-name">windowsSDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-pc">windows SDK</span></td>
-              <td><span class="compl c-ok">合规</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2023-01-03 10:49</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">63b3979ff46240009a688f63</span></td>
-              <td><span class="s-name">微信小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mini">微信小游戏 SDK</span></td>
-              <td><span class="compl c-risk">风险</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2023-01-03 10:49</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op urgent">立即处理</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">6413bf0790323400628a67bb</span></td>
-              <td><span class="s-name">抖音小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mini">抖音小游戏 SDK</span></td>
-              <td><span class="compl c-risk">风险</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2023-03-17 09:14</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">659cc554560cad0078f8a0a7</span></td>
-              <td><span class="s-name">支付宝 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-pay">支付宝 SDK</span></td>
-              <td><span class="compl c-risk">风险</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2024-01-09 12:02</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">673d53ad718acb0039da56e8</span></td>
-              <td><span class="s-name">华为快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mini">华为快游戏 SDK</span></td>
-              <td><span class="compl c-risk">风险</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2024-11-20 11:12</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">67d39a2a661c4b00935a1512</span></td>
-              <td><span class="s-name">小米快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mini">小米快游戏 SDK</span></td>
-              <td><span class="compl c-risk">风险</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2025-03-14 10:53</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">67d39a2a661c4b00935a1513</span></td>
-              <td><span class="s-name">VIVO 快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mini">VIVO 快游戏 SDK</span></td>
-              <td><span class="compl c-risk">风险</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2025-03-14 10:53</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">67d39a2a661c4b00935a1514</span></td>
-              <td><span class="s-name">OPPO 快游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mini">OPPO 快游戏 SDK</span></td>
-              <td><span class="compl c-risk">风险</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2025-03-14 10:53</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-            <tr class="default-row">
-              <td><span class="s-id">695a3a2c5759b0009561fa8e</span></td>
-              <td><span class="s-name">B 站小游戏 SDK 官方默认方案 <span class="pin">默认</span></span></td>
-              <td><span class="s-type t-mini">B 站小游戏 SDK</span></td>
-              <td><span class="compl c-ok">合规</span></td>
-              <td><span class="s-bind no">否</span></td>
-              <td><span class="t-time">2026-01-04 17:59</span></td>
-              <td>管理员</td>
-              <td style="text-align:right;"><span class="tbl-op">查看</span><span class="tbl-op muted">编辑</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
 
       </div><!-- /view-list -->
 
