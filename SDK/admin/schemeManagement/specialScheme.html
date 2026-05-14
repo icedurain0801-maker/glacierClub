@@ -8,6 +8,7 @@
   --ink:#0b1220;--ink-2:#1f2937;--ink-3:#475569;--ink-4:#94a3b8;
   --border:#e5e9f0;--border-2:#eef1f6;--bg:#f5f7fa;--bg-2:#fafbfc;--white:#fff;
   --brand:#2563eb;--brand-deep:#1e3a8a;--brand-soft:#dbeafe;
+  --brand-light:#eff6ff;--brand-mid:#93c5fd;--brand-hover:#1d4ed8;--brand-text:#3b82f6;--brand-border:#bfdbfe;--brand-label:#1e40af;
   --green:#059669;--green-bg:#ecfdf5;
   --amber:#d97706;--amber-bg:#fffbeb;
   --red:#dc2626;--red-bg:#fef2f2;
@@ -252,32 +253,32 @@ body{
 /* ── GUIDE BANNER ── */
 .guide-banner{
   display:flex;align-items:center;justify-content:space-between;
-  background:#eff6ff;border-bottom:1px solid #bfdbfe;
+  background:var(--brand-light);border-bottom:1px solid var(--brand-border);
   padding:10px 20px;gap:12px;flex-shrink:0;
 }
 .guide-banner-body{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
-.guide-step{display:flex;align-items:center;gap:7px;font-size:13px;color:#1e40af;font-weight:500;}
+.guide-step{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--brand-label);font-weight:500;}
 .guide-num{
   width:20px;height:20px;border-radius:50%;
-  background:#2563eb;color:#fff;
+  background:var(--brand);color:var(--white);
   display:inline-flex;align-items:center;justify-content:center;
   font-size:11px;font-weight:700;flex-shrink:0;
 }
-.guide-arrow{color:#93c5fd;font-size:16px;font-weight:400;}
-.guide-link{color:#2563eb;text-decoration:underline;cursor:pointer;font-weight:600;}
-.guide-link:hover{color:#1d4ed8;}
+.guide-arrow{color:var(--brand-mid);font-size:16px;font-weight:400;}
+.guide-link{color:var(--brand);text-decoration:underline;cursor:pointer;font-weight:600;}
+.guide-link:hover{color:var(--brand-hover);}
 .guide-banner-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .guide-dismiss-btn{
-  font-size:12px;color:#3b82f6;cursor:pointer;
-  padding:3px 9px;border:1px solid #93c5fd;border-radius:4px;
+  font-size:12px;color:var(--brand-text);cursor:pointer;
+  padding:3px 9px;border:1px solid var(--brand-mid);border-radius:4px;
   background:transparent;line-height:1.5;
 }
-.guide-dismiss-btn:hover{background:#dbeafe;}
+.guide-dismiss-btn:hover{background:var(--brand-soft);}
 .guide-close-btn{
-  font-size:18px;color:#93c5fd;cursor:pointer;
+  font-size:18px;color:var(--brand-mid);cursor:pointer;
   background:none;border:none;line-height:1;padding:0 2px;
 }
-.guide-close-btn:hover{color:#3b82f6;}
+.guide-close-btn:hover{color:var(--brand-text);}
 </style>
 </head>
 <body>
