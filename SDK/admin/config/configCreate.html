@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDK 管理后台 · 配置新增</title>
+<style>
+:root{
+  --ink:#0b1220;--ink-2:#1f2937;--ink-3:#475569;--ink-4:#94a3b8;
+  --border:#e5e9f0;--border-2:#eef1f6;--bg:#f5f7fa;--bg-2:#fafbfc;--white:#fff;
+  --brand:#2563eb;--brand-deep:#1e3a8a;--brand-soft:#dbeafe;
+  --green:#059669;--green-bg:#ecfdf5;
+  --amber:#d97706;--amber-bg:#fffbeb;
+  --red:#dc2626;--red-bg:#fef2f2;
+  --sidebar:232px;--topnav-h:48px;--topbar-h:60px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);
+  line-height:1.55;font-size:14px;
+  display:flex;flex-direction:column;min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.icon svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+
+/* ════ TOP NAV ════ */
+.plat-nav{background:#0a1828;color:#cbd5e1;height:var(--topnav-h);flex-shrink:0;display:flex;align-items:center;font-size:13px;}
+.plat-brand{display:flex;align-items:center;gap:10px;padding:0 24px;height:100%;font-weight:700;color:white;}
+.plat-brand-ico{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#3b82f6,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:white;}
+.plat-nav-list{display:flex;align-items:center;height:100%;}
+.plat-nav-item{padding:0 18px;height:100%;display:flex;align-items:center;color:#94a3b8;cursor:pointer;position:relative;transition:color .15s;}
+.plat-nav-item:hover{color:#e2e8f0;}
+.plat-nav-item.active{color:white;font-weight:600;}
+.plat-nav-item.active::after{content:'';position:absolute;left:18px;right:18px;bottom:0;height:2px;background:#3b82f6;}
+
+.app-shell{flex:1;display:flex;min-height:0;}
+
+/* ══ SIDEBAR ══ */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:#2c3e50;border-right:1px solid #1a2734;
+  height:calc(100vh - var(--topnav-h));position:sticky;top:var(--topnav-h);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:6px;}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
+.sb-section{padding:0;}
+.sb-section + .sb-section{border-top:1px solid rgba(255,255,255,.06);}
+.sb-section-label{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;letter-spacing:.02em;
+  color:#cbd5e1;text-transform:none;
+  padding:14px 18px 12px;margin:0;
+  background:rgba(0,0,0,.15);
+}
+.sb-section-label::before{
+  content:'';width:14px;height:14px;flex-shrink:0;
+  background:currentColor;opacity:.7;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M4 12h16M4 17h10'/></svg>") no-repeat center / contain;
+          mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M4 12h16M4 17h10'/></svg>") no-repeat center / contain;
+}
+.sb-section-label::after{
+  content:'';margin-left:auto;width:12px;height:12px;
+  background:currentColor;opacity:.6;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='18 15 12 9 6 15'/></svg>") no-repeat center / contain;
+          mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='18 15 12 9 6 15'/></svg>") no-repeat center / contain;
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 18px 11px 38px;border-radius:0;
+  font-size:13.5px;color:#cbd5e1;cursor:pointer;
+  margin-bottom:0;transition:background .15s,color .15s;font-weight:400;
+}
+.nav-item:hover{background:rgba(255,255,255,.05);color:#fff;}
+.nav-item.active{background:#2563eb;color:#fff;font-weight:500;}
+.nav-item .icon{width:16px;height:16px;color:inherit;opacity:.85;}
+.nav-item.active .icon{color:#fff;opacity:1;}
+.sb-divider{display:none;}
+
+/* ══ SIDEBAR COLLAPSE ══ */
+.sidebar{transition:width .22s ease,opacity .22s ease;}
+.app-shell.sidebar-collapsed .sidebar{width:0;overflow:hidden;opacity:0;}
+.tb-toggle:hover{color:var(--ink-2);}
+
+/* ════ MAIN ════ */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;height:calc(100vh - var(--topnav-h));overflow-y:auto;}
+.topbar{
+  background:white;border-bottom:1px solid var(--border);
+  padding:0 20px;height:48px;flex-shrink:0;
+  display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:5;
+}
+.tb-toggle{width:24px;height:24px;color:var(--ink-3);cursor:pointer;}
+.tb-spacer{flex:1;}
+.tb-tools{display:flex;align-items:center;gap:8px;}
+.tb-search{
+  display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+  border:1px solid var(--border);border-radius:6px;
+  font-size:12.5px;color:var(--ink-4);background:white;cursor:pointer;min-width:240px;
+}
+.tb-search .placeholder{flex:1;}
+.tb-search .kbd{font-size:11px;color:var(--ink-4);background:var(--bg-2);padding:1px 6px;border-radius:4px;border:1px solid var(--border);}
+.tb-icon-btn{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;position:relative;}
+.tb-icon-btn:hover{background:var(--bg-2);}
+.tb-icon-btn .icon{width:16px;height:16px;}
+.tb-icon-btn .alert-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--red);}
+.tb-pill{
+  display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;
+  border:1px solid var(--amber);border-radius:6px;
+  background:var(--amber-bg);color:var(--amber);
+  font-size:12px;font-weight:600;cursor:pointer;
+}
+.tb-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);}
+.tb-select{
+  display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;
+  border:1px solid var(--border);border-radius:6px;
+  background:white;font-size:12.5px;color:var(--ink-2);cursor:pointer;
+}
+.tb-select .caret{color:var(--ink-4);font-size:9px;margin-left:2px;}
+.tb-select.user .avatar{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:white;}
+
+.tabbar{
+  background:#fafbfc;border-bottom:1px solid var(--border);
+  height:44px;flex-shrink:0;
+  display:flex;align-items:center;padding:0 12px;gap:6px;
+}
+.tab{
+  display:flex;align-items:center;gap:6px;
+  height:32px;padding:0 14px;
+  color:var(--ink-3);background:#eef1f6;
+  font-size:12.5px;cursor:pointer;
+  border:1px solid var(--border-2);border-radius:6px;
+  transition:all .2s;font-weight:400;
+}
+.tab.active{
+  color:var(--brand);font-weight:600;
+  background:rgba(37,99,235,.08);
+  border-color:rgba(37,99,235,.2);
+}
+.tab .x{width:14px;height:14px;color:inherit;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;opacity:.6;transition:opacity .2s;}
+.tab .x:hover{opacity:1;background:rgba(0,0,0,.08);}
+
+.content{flex:1;padding:32px 36px 36px;max-width:960px;width:100%;margin:0 auto;}
+
+.page-title {
+  font-size: 16px; font-weight: 700;
+  margin-bottom: 24px; color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: white;
+  border: 1px solid var(--border);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+
+.back-btn:hover {
+  background: var(--bg-2);
+  color: var(--ink-2);
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-icon {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+  display: flex;
+  gap: 4px;
+}
+.form-label .req {
+  color: #dc2626;
+}
+
+.radio-group {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: white;
+  font-size: 13px;
+  color: var(--ink-2);
+  font-family: inherit;
+}
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.warning-box {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #78350f;
+  line-height: 1.5;
+}
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px dashed var(--brand);
+  background: white;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.add-btn:hover {
+  background: var(--brand-soft);
+}
+
+.full-width-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.time-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-2);
+}
+
+.btn {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.12s;
+}
+.btn.primary {
+  background: var(--brand);
+  color: white;
+}
+.btn.primary:hover {
+  background: var(--brand-deep);
+}
+.btn.ghost {
+  background: white;
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+}
+.btn.ghost:hover {
+  background: var(--bg);
+}
+
+/* ── PARAM SCHEME GUIDE CARD ── */
+.param-guide-card {
+  border: 1.5px dashed var(--brand-soft);
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.04);
+  padding: 22px 16px;
+  text-align: center;
+  margin: 12px 0;
+}
+.param-guide-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+.param-guide-title {
+  font-weight: 600;
+  color: var(--brand);
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.param-guide-desc {
+  color: var(--brand);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.param-guide-btn {
+  display: inline-block;
+  background: var(--brand);
+  color: white;
+  padding: 7px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.param-guide-btn:hover {
+  background: var(--brand-deep);
+}
+</style>
+</head>
+<body>
+
+<!-- ════ TOP NAV ════ -->
+<div class="plat-nav">
+  <div class="plat-brand">
+    <span class="plat-brand-ico">冰</span>冰川业务平台
+  </div>
+  <div class="plat-nav-list">
+    <div class="plat-nav-item">游戏运营后台</div>
+    <div class="plat-nav-item">自动化运维</div>
+    <div class="plat-nav-item">自动化部署</div>
+    <div class="plat-nav-item active">SDK 管理后台</div>
+    <div class="plat-nav-item">会员管理后台</div>
+    <div class="plat-nav-item">数数分析</div>
+    <div class="plat-nav-item">客服后台</div>
+    <div class="plat-nav-item">活动管理系统</div>
+    <div class="plat-nav-item">聊天系统</div>
+    <div class="plat-nav-item">联合业务后台</div>
+    <div class="plat-nav-item">开放平台</div>
+    <div class="plat-nav-item">通用配置</div>
+  </div>
+</div>
+
+<!-- ════ APP SHELL ════ -->
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sb-section">
+      <div class="sb-section-label">SDK 管理</div>
+      <div class="nav-item" onclick="location.href='sdkSchemeManagement.html'">
+        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></span>
+        工作台
+      </div>
+      <div class="nav-item" onclick="location.href='schemeList.html'">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        方案管理
+      </div>
+      <div class="nav-item active">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+        配置中心
+      </div>
+      <div class="nav-item" onclick="location.href='specialScheme.html'">
+        <span class="icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+        特殊方案
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">记录</div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        操作日志
+      </div>
+    </div>
+
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <span class="tb-toggle icon" onclick="document.querySelector('.app-shell').classList.toggle('sidebar-collapsed')"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
+      <div class="tb-spacer"></div>
+      <div class="tb-tools">
+        <span class="tb-icon-btn"><span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></span>
+        <div class="tb-search">
+          <span class="icon" style="width:14px;height:14px;color:var(--ink-4);"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <span class="placeholder">输入功能名称</span>
+          <span class="kbd">Ctrl+K</span>
+        </div>
+        <span class="tb-icon-btn"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></span>
+        <div class="tb-select"><span>境内</span><span class="caret">▼</span></div>
+        <div class="tb-select"><span>远征手游</span><span class="caret">▼</span></div>
+        <div class="tb-select user"><span class="avatar">福</span><span>福毅</span><span class="caret">▼</span></div>
+      </div>
+    </div>
+
+    <!-- TAB BAR -->
+    <div class="tabbar">
+      <div class="tab" onclick="location.href='sdkSchemeManagement.html'">首页 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+      <div class="tab active">配置方案 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+      <div class="tab">回传配置 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+      <div class="tab">虚拟配置管理 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+    </div>
+
+    <div class="content">
+    <div class="page-title">
+      <button class="back-btn" onclick="location.href='configList.html'" title="返回">
+        <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+      </button>
+      <span>新增配置方案</span>
+    </div>
+
+    <!-- 配置对象 -->
+    <div class="card">
+      <div class="card-title">
+        <div class="card-icon"></div>
+        配置对象
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">配置方式：</div>
+        <div class="radio-group">
+          <label class="radio-option">
+            <input type="radio" name="config-mode" checked />
+            <span>直连</span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="config-mode" />
+            <span>渠道组</span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="config-mode" />
+            <span>游戏</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">渠道 <span class="req">*</span></label>
+        <select class="form-select">
+          <option>请选择</option>
+          <option>冰川网络-商务CPS包</option>
+          <option>雷牛-游否-国服IOS包</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 方案选择 -->
+    <div class="full-width-card">
+      <div class="card-title">
+        <div class="card-icon"></div>
+        方案选择
+      </div>
+
+      <div class="warning-box">
+        <strong>至少需要选中一个SDK方案、回传方案、自定义参数方案中的方案</strong>
+      </div>
+
+      <div class="cards-grid">
+        <!-- SDK方案 -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div style="font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 12px;">SDK方案</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div class="form-group">
+              <label class="form-label">移动端方案</label>
+              <select class="form-select">
+                <option>无</option>
+                <option>移动端主方案-2026春节</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">模拟器方案</label>
+              <select class="form-select">
+                <option>无</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label">微信小游戏方案</label>
+              <select class="form-select">
+                <option>无</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">其他方案</label>
+              <select class="form-select">
+                <option>无</option>
+              </select>
+            </div>
+          </div>
+          <button class="add-btn">+ 添加更多方案</button>
+        </div>
+
+        <!-- 回传方案 -->
+        <div class="card">
+          <div style="font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px;">回传方案</div>
+          <div class="form-group">
+            <label class="form-label">支付回传方案</label>
+            <select class="form-select">
+              <option>无</option>
+            </select>
+          </div>
+          <button class="add-btn">+ 添加</button>
+        </div>
+
+        <!-- 自定义参数方案 -->
+        <div class="card">
+          <div style="font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px;">自定义参数方案</div>
+          <div class="form-group">
+            <label class="form-label">参数方案</label>
+            <select class="form-select" id="param-scheme-select" onchange="toggleParamSchemeGuide(this)">
+              <option value="">无</option>
+            </select>
+            <div style="font-size: 13px; color: var(--ink-4); margin-top: 6px;">需在方案配置中设置参数代码值</div>
+          </div>
+          <!-- 引导卡片：参数方案为空时显示 -->
+          <div class="param-guide-card" id="param-scheme-guide">
+            <div class="param-guide-icon">📋</div>
+            <div class="param-guide-title">还没有可用的参数方案</div>
+            <div class="param-guide-desc">
+              创建方案前，需要先在「参数管理」中建立参数。<br>
+              建完后回来，在此处选择对应的参数方案。
+            </div>
+            <a class="param-guide-btn" href="configList.html">前往参数管理 →</a>
+          </div>
+          <button class="add-btn">+ 添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 生效时间 -->
+    <div class="card">
+      <div class="card-title">
+        <div class="card-icon"></div>
+        生效时间
+      </div>
+
+      <div class="time-row">
+        <div class="form-group">
+          <label class="form-label">生效时间</label>
+          <input class="form-input" type="datetime-local" value="2026-05-14T00:00" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">失效时间</label>
+          <input class="form-input" type="datetime-local" value="2099-12-31T23:59" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div style="background: white; border: 1px solid var(--border); border-radius: 14px; padding: 24px;">
+      <div class="actions">
+        <button class="btn ghost">取消</button>
+        <button class="btn primary">保存配置</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script src="../sidebar.js"></script>
+
+<script>
+// Param scheme guide card
+function toggleParamSchemeGuide(sel) {
+  var guide = document.getElementById('param-scheme-guide');
+  if (!guide) return;
+  guide.style.display = (sel.value === '' || sel.value === '无') ? 'block' : 'none';
+}
+
+(function initParamSchemeGuide() {
+  var sel = document.getElementById('param-scheme-select');
+  var guide = document.getElementById('param-scheme-guide');
+  if (!sel || !guide) return;
+  // 默认：select 只有「无」选项时，显示引导卡片
+  guide.style.display = (sel.options.length <= 1) ? 'block' : 'none';
+})();
+</script>
+</body>
+</html>
