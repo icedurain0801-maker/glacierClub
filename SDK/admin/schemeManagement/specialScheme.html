@@ -517,5 +517,26 @@ body{
   </div>
 </div>
 
+<script src="../sidebar.js"></script>
+<script>
+// Guide banner
+(function() {
+  var banner = document.getElementById('param-guide-banner');
+  if (!banner) return;
+  if (localStorage.getItem('hideParamSchemeGuide') === '1') {
+    banner.style.display = 'none';
+  }
+})();
+
+function closeGuideBanner() {
+  var banner = document.getElementById('param-guide-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+function dismissGuideBanner() {
+  localStorage.setItem('hideParamSchemeGuide', '1');
+  closeGuideBanner();
+}
+</script>
 </body>
 </html>
