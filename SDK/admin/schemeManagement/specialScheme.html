@@ -324,8 +324,6 @@ body{
           <span class="placeholder">输入功能名称</span>
           <span class="kbd">Ctrl+K</span>
         </div>
-        <span class="tb-pill"><span class="dot"></span>2 项待处理</span>
-        <span class="tb-icon-btn"><span class="icon"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span class="alert-dot"></span></span>
         <span class="tb-icon-btn"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></span>
         <div class="tb-select"><span>境内</span><span class="caret">▼</span></div>
         <div class="tb-select"><span>远征手游</span><span class="caret">▼</span></div>
@@ -341,6 +339,25 @@ body{
 
     <!-- CONTENT -->
     <div class="content">
+
+      <!-- GUIDE BANNER -->
+      <div class="guide-banner" id="param-guide-banner">
+        <div class="guide-banner-body">
+          <span class="guide-step">
+            <span class="guide-num">1</span>
+            先在 <a class="guide-link" href="../config/configList.html">参数管理</a> 中新建参数
+          </span>
+          <span class="guide-arrow">→</span>
+          <span class="guide-step">
+            <span class="guide-num">2</span>
+            回此页点「新增方案」，从参数中选值并填写
+          </span>
+        </div>
+        <div class="guide-banner-actions">
+          <button class="guide-dismiss-btn" onclick="dismissGuideBanner()">不再显示</button>
+          <button class="guide-close-btn" onclick="closeGuideBanner()">×</button>
+        </div>
+      </div>
 
       <!-- ACTIONS -->
       <div class="actions-bar">
@@ -467,5 +484,6 @@ body{
   </div>
 </div>
 
+<script src="../sidebar.js"></script>
 </body>
 </html>
