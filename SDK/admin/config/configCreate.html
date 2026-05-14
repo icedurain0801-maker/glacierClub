@@ -354,7 +354,7 @@ body{
   margin-bottom: 6px;
 }
 .param-guide-desc {
-  color: var(--brand);
+  color: var(--ink-3);
   font-size: 13px;
   line-height: 1.6;
   margin-bottom: 14px;
@@ -638,7 +638,7 @@ function toggleParamSchemeGuide(sel) {
   var guide = document.getElementById('param-scheme-guide');
   if (!sel || !guide) return;
   // 默认：select 只有「无」选项时，显示引导卡片
-  guide.style.display = (sel.options.length <= 1) ? 'block' : 'none';
+  guide.style.display = (sel.value === '' || sel.value === '无') ? 'block' : 'none';
 })();
 </script>
 </body>
