@@ -478,6 +478,33 @@
   }
   .quick-item__label { font-size: 10px; color: var(--on-surface-variant); font-weight: 500; text-align: center; }
 
+  /* ── Toolbox (Guides tab) ── */
+  .toolbox-scroll {
+    display: flex; gap: 14px;
+    padding: 4px 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .toolbox-scroll::-webkit-scrollbar { display: none; }
+  .toolbox-item {
+    flex-shrink: 0; width: 64px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+  .toolbox-item__icon {
+    width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; background: transparent;
+    transition: transform .15s;
+  }
+  .toolbox-item:active .toolbox-item__icon { transform: scale(.94); }
+  .toolbox-item__icon img { width: 44px; height: 44px; object-fit: contain; display: block; }
+  .toolbox-item__label {
+    font-size: 11px; line-height: 1.3; color: var(--on-surface-variant);
+    text-align: center; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 64px;
+  }
+
   /* ── Announcement strip ── */
   .announce-strip {
     margin: 8px 12px 2px;
@@ -685,6 +712,25 @@
   .drawer-community-chevron.open { transform: rotate(180deg); }
   .drawer-username { font-family: Manrope, sans-serif; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); margin-top: 4px; }
   .drawer-lv { font-size: 11px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+
+  /* ── Drawer header 右上角：组合版块入口 ── */
+  .drawer-combo-btn {
+    position: absolute;
+    top: 14px; right: 16px;
+    z-index: 2;
+    width: 36px; height: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.18);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.12s;
+  }
+  .drawer-combo-btn:hover { background: rgba(255,255,255,0.28); }
+  .drawer-combo-btn:active { transform: scale(0.94); }
+  .drawer-combo-btn .material-symbols-outlined { font-size: 20px; }
 
   /* ── Community switcher dropdown ── */
   .community-dropdown {
@@ -1124,6 +1170,9 @@
     <div class="drawer-header" id="drawer-header">
       <div class="drawer-header__bg" id="drawer-bg" style="background-image:url('https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2025/12/30/1767084148075c709f857-caef-4537-8e60-d59cf8948d49.png');"></div>
       <div class="drawer-header__mask"></div>
+      <button class="drawer-combo-btn" onclick="closeDrawer()" aria-label="Combo Sections" title="Combo Sections">
+        <span class="material-symbols-outlined">dashboard_customize</span>
+      </button>
       <div class="drawer-header__content">
         <div class="drawer-community" onclick="toggleCommunityDropdown(event)">
           <span id="drawer-community-name">X-HERO</span>
@@ -1694,6 +1743,46 @@
 
     <!-- ── Guides panel ── -->
     <div id="tab-guides" class="pt-3" style="display:none;">
+
+      <!-- Toolbox section -->
+      <div class="flex items-center justify-between px-4 pb-2">
+        <h2 class="font-headline text-[18px] font-extrabold text-on-surface tracking-tight">Toolbox</h2>
+        <button class="text-[13px] font-semibold flex items-center gap-0.5" style="color:var(--primary);">
+          More<span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+        </button>
+      </div>
+      <div class="toolbox-scroll">
+        <div class="toolbox-item">
+          <div class="toolbox-item__icon"><img src="https://api.iconify.design/twemoji:broken-heart.svg" alt="" loading="lazy"></div>
+          <span class="toolbox-item__label">Confess</span>
+        </div>
+        <div class="toolbox-item">
+          <div class="toolbox-item__icon"><img src="https://api.iconify.design/twemoji:thumbs-up.svg" alt="" loading="lazy"></div>
+          <span class="toolbox-item__label">Tier List</span>
+        </div>
+        <div class="toolbox-item">
+          <div class="toolbox-item__icon"><img src="https://api.iconify.design/twemoji:fire.svg" alt="" loading="lazy"></div>
+          <span class="toolbox-item__label">Hot Topics</span>
+        </div>
+        <div class="toolbox-item">
+          <div class="toolbox-item__icon"><img src="https://api.iconify.design/twemoji:revolving-hearts.svg" alt="" loading="lazy"></div>
+          <span class="toolbox-item__label">CP Match</span>
+        </div>
+        <div class="toolbox-item">
+          <div class="toolbox-item__icon"><img src="https://api.iconify.design/twemoji:open-book.svg" alt="" loading="lazy"></div>
+          <span class="toolbox-item__label">Wiki</span>
+        </div>
+        <div class="toolbox-item">
+          <div class="toolbox-item__icon"><img src="https://api.iconify.design/twemoji:crystal-ball.svg" alt="" loading="lazy"></div>
+          <span class="toolbox-item__label">Fortune</span>
+        </div>
+        <div class="toolbox-item">
+          <div class="toolbox-item__icon"><img src="https://api.iconify.design/twemoji:trophy.svg" alt="" loading="lazy"></div>
+          <span class="toolbox-item__label">Ranks</span>
+        </div>
+      </div>
+
+      <div class="section-divider my-3"></div>
 
       <!-- Popular Guides section (moved to top) -->
       <div class="flex items-center justify-between px-4 pb-2">
