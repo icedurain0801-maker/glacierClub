@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDK 管理后台 · 渠道组管理</title>
+<style>
+:root{
+  --ink:#0b1220;--ink-2:#1f2937;--ink-3:#475569;--ink-4:#94a3b8;
+  --border:#e5e9f0;--border-2:#eef1f6;--bg:#f5f7fa;--bg-2:#fafbfc;--white:#fff;
+  --brand:#2563eb;--brand-deep:#1e3a8a;--brand-soft:#dbeafe;
+  --green:#059669;--green-bg:#ecfdf5;
+  --amber:#d97706;--amber-bg:#fffbeb;
+  --red:#dc2626;--red-bg:#fef2f2;
+  --grey:#64748b;--grey-bg:#f1f5f9;
+  --sidebar:232px;--topnav-h:48px;--topbar-h:48px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+  --shadow-card:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);
+  line-height:1.55;font-size:14px;
+  display:flex;flex-direction:column;min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.icon svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+
+/* ════ TOP NAV ════ */
+.plat-nav{background:#0a1828;color:#cbd5e1;height:var(--topnav-h);flex-shrink:0;display:flex;align-items:center;font-size:13px;}
+.plat-brand{display:flex;align-items:center;gap:10px;padding:0 24px;height:100%;font-weight:700;color:white;}
+.plat-brand-ico{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#3b82f6,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:white;}
+.plat-nav-list{display:flex;align-items:center;height:100%;}
+.plat-nav-item{padding:0 18px;height:100%;display:flex;align-items:center;color:#94a3b8;cursor:pointer;position:relative;transition:color .15s;}
+.plat-nav-item:hover{color:#e2e8f0;}
+.plat-nav-item.active{color:white;font-weight:600;}
+.plat-nav-item.active::after{content:'';position:absolute;left:18px;right:18px;bottom:0;height:2px;background:#3b82f6;}
+
+.app-shell{flex:1;display:flex;min-height:0;}
+
+/* ══ SIDEBAR ══ */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:#2c3e50;border-right:1px solid #1a2734;
+  height:calc(100vh - var(--topnav-h));position:sticky;top:var(--topnav-h);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:6px;}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
+.sb-section{padding:0;}
+.sb-section + .sb-section{border-top:1px solid rgba(255,255,255,.06);}
+.sb-section-label{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;letter-spacing:.02em;
+  color:#cbd5e1;text-transform:none;
+  padding:14px 18px 12px;margin:0;
+  background:rgba(0,0,0,.15);
+}
+.sb-section-label::before{
+  content:'';width:14px;height:14px;flex-shrink:0;
+  background:currentColor;opacity:.7;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M4 12h16M4 17h10'/></svg>") no-repeat center/contain;
+          mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M4 12h16M4 17h10'/></svg>") no-repeat center/contain;
+}
+.sb-section-label::after{
+  content:'';margin-left:auto;width:12px;height:12px;
+  background:currentColor;opacity:.6;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='18 15 12 9 6 15'/></svg>") no-repeat center/contain;
+          mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='18 15 12 9 6 15'/></svg>") no-repeat center/contain;
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 18px 11px 38px;border-radius:0;
+  font-size:13.5px;color:#cbd5e1;cursor:pointer;
+  margin-bottom:0;transition:background .15s,color .15s;font-weight:400;
+}
+.nav-item:hover{background:rgba(255,255,255,.05);color:#fff;}
+.nav-item.active{background:#2563eb;color:#fff;font-weight:500;}
+.nav-item .icon{width:16px;height:16px;color:inherit;opacity:.85;}
+.nav-item.active .icon{color:#fff;opacity:1;}
+.sb-divider{display:none;}
+
+/* ══ SIDEBAR COLLAPSE ══ */
+.sidebar{transition:width .22s ease;overflow:hidden;}
+.app-shell.sidebar-collapsed .sidebar{width:4px;}
+.app-shell.sidebar-collapsed .sidebar::after{content:'';display:block;width:4px;height:100%;background:linear-gradient(180deg,rgba(59,130,246,.5),rgba(59,130,246,.1));}
+.tb-toggle:hover{color:var(--ink-2);}
+.app-shell:not(.sidebar-collapsed) .tb-toggle-icon-open{display:none;}
+.app-shell.sidebar-collapsed .tb-toggle-icon-close{display:none;}
+
+/* ════ MAIN ════ */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;height:calc(100vh - var(--topnav-h));overflow-y:auto;}
+.topbar{
+  background:white;border-bottom:1px solid var(--border);
+  padding:0 20px;height:var(--topbar-h);flex-shrink:0;
+  display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:5;
+}
+.tb-toggle{width:24px;height:24px;color:var(--ink-3);cursor:pointer;}
+.tb-spacer{flex:1;}
+.tb-tools{display:flex;align-items:center;gap:8px;}
+.tb-search{
+  display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+  border:1px solid var(--border);border-radius:6px;
+  font-size:12.5px;color:var(--ink-4);background:white;cursor:pointer;min-width:240px;
+}
+.tb-search .placeholder{flex:1;}
+.tb-search .kbd{font-size:11px;color:var(--ink-4);background:var(--bg-2);padding:1px 6px;border-radius:4px;border:1px solid var(--border);}
+.tb-icon-btn{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;position:relative;}
+.tb-icon-btn:hover{background:var(--bg-2);}
+.tb-icon-btn .icon{width:16px;height:16px;}
+.tb-select{display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:white;font-size:12.5px;color:var(--ink-2);cursor:pointer;}
+.tb-select .caret{color:var(--ink-4);font-size:9px;margin-left:2px;}
+.tb-select.user .avatar{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:white;}
+
+/* TAB BAR */
+.tabbar{
+  background:#fafbfc;border-bottom:1px solid var(--border);
+  height:44px;flex-shrink:0;
+  display:flex;align-items:center;padding:0 12px;gap:6px;
+}
+.tab{
+  display:flex;align-items:center;gap:6px;
+  height:32px;padding:0 14px;
+  color:var(--ink-3);background:#eef1f6;
+  font-size:12.5px;cursor:pointer;
+  border:1px solid var(--border-2);border-radius:6px;
+  transition:all .2s;font-weight:400;
+}
+.tab:hover{color:var(--ink-2);background:#e9edf3;border-color:var(--border);}
+.tab.active{color:var(--brand);font-weight:600;background:rgba(37,99,235,.08);border-color:rgba(37,99,235,.2);box-shadow:0 1px 3px rgba(37,99,235,.1);}
+.tab .x{width:14px;height:14px;color:inherit;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;opacity:.6;transition:opacity .2s;}
+.tab .x:hover{opacity:1;background:rgba(0,0,0,.08);}
+
+/* CONTENT */
+.content{flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
+
+/* ── STATS BAR ── */
+.stats-bar{display:flex;gap:12px;}
+.stat-card{
+  background:white;border:1px solid var(--border);border-radius:8px;
+  padding:14px 20px;
+  box-shadow:var(--shadow-sm);
+  display:flex;flex-direction:column;gap:4px;
+  min-width:120px;
+}
+.stat-val{font-size:24px;font-weight:700;color:var(--ink);line-height:1.1;}
+.stat-val.green{color:var(--green);}
+.stat-val.brand{color:var(--brand);}
+.stat-lbl{font-size:12px;color:var(--ink-4);}
+
+/* ── FILTER & ACTIONS ── */
+.toolbar{
+  background:white;border:1px solid var(--border);border-radius:8px;
+  padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  box-shadow:var(--shadow-sm);
+}
+.f-input,.f-sel{
+  height:32px;padding:0 12px;
+  border:1px solid var(--border);border-radius:4px;
+  background:white;font-size:13px;color:var(--ink-2);
+  min-width:auto;outline:none;transition:border-color .12s;
+}
+.f-input::placeholder{color:var(--ink-4);}
+.f-input:focus,.f-sel:focus{border-color:var(--brand);}
+.f-sel{
+  appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 8px center;background-size:14px;
+  padding-right:28px;cursor:pointer;
+}
+.btn{
+  height:32px;padding:0 14px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;border:1px solid transparent;transition:all .12s;
+}
+.btn.primary{background:var(--brand);color:white;border-color:var(--brand);}
+.btn.primary:hover{background:var(--brand-deep);}
+.btn.ghost{background:white;color:var(--ink-2);border-color:var(--border);}
+.btn.ghost:hover{background:var(--bg-2);border-color:var(--ink-4);}
+.btn .icon{width:14px;height:14px;}
+.tb-divider{width:1px;height:20px;background:var(--border);margin:0 2px;}
+
+/* ── CARD GRID ── */
+.card-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(400px,1fr));
+  gap:14px;
+}
+
+/* ── GROUP CARD ── */
+.group-card{
+  background:white;border:1px solid var(--border);border-radius:8px;
+  box-shadow:var(--shadow-card);
+  display:flex;flex-direction:column;
+  transition:border-color .15s,box-shadow .15s;
+  cursor:pointer;
+}
+.group-card:hover{
+  border-color:rgba(37,99,235,.35);
+  box-shadow:0 4px 16px rgba(37,99,235,.09);
+}
+
+/* card header */
+.gc-header{
+  padding:14px 16px 10px;
+  border-bottom:1px solid var(--border-2);
+}
+.gc-header-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
+.gc-name{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.3;}
+.gc-test-tag{
+  display:inline-flex;align-items:center;
+  height:16px;padding:0 6px;
+  background:#fff7ed;border:1px solid #fed7aa;
+  color:#c2410c;border-radius:3px;font-size:10px;font-weight:600;
+  margin-left:5px;vertical-align:middle;flex-shrink:0;
+}
+.gc-bound{
+  flex-shrink:0;display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;
+}
+.gc-bound::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.gc-bound.yes{background:var(--green-bg);color:var(--green);}
+.gc-bound.no{background:var(--grey-bg);color:var(--grey);}
+
+.gc-meta{display:flex;gap:10px;flex-wrap:wrap;}
+.gc-meta-item{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11.5px;color:var(--ink-4);
+}
+.gc-meta-item strong{color:var(--brand);font-weight:700;}
+.gc-meta-sep{color:var(--border);font-size:12px;}
+
+/* card channel area */
+.gc-channels{
+  padding:10px 16px 12px;
+  flex:1;
+  display:flex;align-items:flex-start;
+}
+.gc-ch-wrap{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;}
+.gc-ch-tag{
+  display:inline-flex;align-items:center;
+  height:24px;padding:0 10px;
+  background:var(--brand-soft);color:var(--brand);
+  border-radius:5px;font-size:12px;font-weight:500;
+  white-space:nowrap;max-width:100%;
+}
+.gc-ch-more{
+  display:inline-flex;align-items:center;
+  height:24px;padding:0 10px;
+  background:var(--grey-bg);color:var(--grey);
+  border-radius:5px;font-size:12px;cursor:pointer;white-space:nowrap;
+}
+.gc-ch-more:hover{background:#e2e8f0;color:var(--ink-3);}
+.gc-empty{color:var(--ink-4);font-size:12.5px;align-self:center;}
+
+/* card footer */
+.gc-footer{
+  padding:9px 16px;
+  border-top:1px solid var(--border-2);
+  background:var(--bg-2);
+  border-radius:0 0 8px 8px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.gc-footer-meta{font-size:11.5px;color:var(--ink-4);}
+.gc-footer-meta span{font-weight:500;color:var(--ink-3);}
+.gc-ops{display:flex;gap:0;align-items:center;}
+.gc-op{
+  padding:4px 8px;border-radius:5px;
+  font-size:12px;font-weight:500;color:var(--brand);
+  cursor:pointer;transition:background .12s;white-space:nowrap;
+}
+.gc-op:hover{background:var(--brand-soft);}
+.gc-op.danger{color:var(--red);}
+.gc-op.danger:hover{background:var(--red-bg);}
+
+/* 新增卡片 */
+.gc-add{
+  background:transparent;
+  border:1.5px dashed var(--border);
+  border-radius:8px;
+  min-height:168px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;color:var(--ink-4);cursor:pointer;
+  transition:border-color .15s,color .15s;
+  box-shadow:none;
+}
+.gc-add:hover{border-color:var(--brand);color:var(--brand);}
+.gc-add-ico{
+  width:36px;height:36px;border-radius:8px;
+  border:1.5px dashed currentColor;
+  display:flex;align-items:center;justify-content:center;
+}
+.gc-add-ico .icon{width:18px;height:18px;}
+.gc-add-lbl{font-size:13px;font-weight:500;}
+
+/* PAGER */
+.pager{
+  display:flex;align-items:center;gap:0;
+  font-size:12.5px;color:var(--ink-3);
+  padding:4px 0;
+}
+.pager .total{margin-right:auto;}
+.pg-btn{
+  width:30px;height:30px;border:1px solid var(--border);background:white;
+  border-radius:6px;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--ink-3);cursor:pointer;font-weight:500;margin:0 2px;font-size:13px;
+  transition:border-color .12s,color .12s;
+}
+.pg-btn:hover{border-color:var(--brand);color:var(--brand);}
+.pg-btn.active{background:var(--brand);color:white;border-color:var(--brand);}
+.pg-btn.disabled{color:var(--ink-4);cursor:default;pointer-events:none;}
+.pg-jump{display:flex;align-items:center;gap:6px;margin-left:14px;font-size:12.5px;}
+.pg-jump input{width:44px;height:28px;border:1px solid var(--border);border-radius:4px;text-align:center;font-size:12.5px;outline:none;}
+.pg-jump input:focus{border-color:var(--brand);}
+.pg-sel{margin-left:10px;height:30px;padding:0 10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:12.5px;color:var(--ink-3);cursor:pointer;outline:none;}
+
+/* ── MODAL OVERLAY ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,.45);
+  display:flex;align-items:center;justify-content:center;
+  z-index:100;opacity:0;pointer-events:none;transition:opacity .18s;
+}
+.modal-overlay.open{opacity:1;pointer-events:auto;}
+.modal{
+  background:white;border-radius:10px;
+  box-shadow:0 20px 60px rgba(15,23,42,.25);
+  width:560px;max-width:calc(100vw - 40px);
+  max-height:90vh;display:flex;flex-direction:column;
+  transform:translateY(10px);transition:transform .18s;
+}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-header{
+  padding:18px 20px 14px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-title{font-size:15px;font-weight:700;color:var(--ink);}
+.modal-close{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink-4);cursor:pointer;}
+.modal-close:hover{background:var(--bg);color:var(--ink-3);}
+.modal-close .icon{width:16px;height:16px;}
+.modal-body{padding:20px;overflow-y:auto;flex:1;}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+
+/* form */
+.form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.form-row:last-child{margin-bottom:0;}
+.form-label{font-size:13px;font-weight:600;color:var(--ink-2);}
+.form-label .req{color:var(--red);margin-left:2px;}
+.form-input,.form-sel{
+  height:36px;padding:0 12px;
+  border:1px solid var(--border);border-radius:6px;
+  background:white;font-size:13px;color:var(--ink);
+  outline:none;transition:border-color .12s;width:100%;
+}
+.form-input:focus,.form-sel:focus{border-color:var(--brand);}
+.form-input::placeholder{color:var(--ink-4);}
+.form-sel{
+  appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:14px;
+  padding-right:32px;cursor:pointer;
+}
+.form-hint{font-size:12px;color:var(--ink-4);}
+
+/* channel picker */
+.ch-picker{border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.ch-picker-search{
+  padding:8px 10px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;
+}
+.ch-picker-search input{
+  flex:1;border:none;outline:none;font-size:13px;color:var(--ink);background:transparent;
+}
+.ch-picker-search input::placeholder{color:var(--ink-4);}
+.ch-picker-list{max-height:180px;overflow-y:auto;}
+.ch-picker-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;cursor:pointer;transition:background .1s;
+  border-bottom:1px solid var(--border-2);
+}
+.ch-picker-item:last-child{border-bottom:none;}
+.ch-picker-item:hover{background:var(--bg-2);}
+.ch-picker-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--brand);cursor:pointer;flex-shrink:0;}
+.ch-picker-item-name{font-size:13px;color:var(--ink-2);flex:1;}
+.ch-picker-item-id{font-size:11.5px;color:var(--ink-4);font-family:monospace;}
+.ch-selected{
+  margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;
+}
+.ch-sel-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  height:24px;padding:0 8px 0 10px;
+  background:var(--brand-soft);color:var(--brand);
+  border-radius:5px;font-size:12px;font-weight:500;
+}
+.ch-sel-tag .rm{
+  width:14px;height:14px;border-radius:3px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;opacity:.7;
+}
+.ch-sel-tag .rm:hover{background:rgba(37,99,235,.15);opacity:1;}
+.ch-sel-tag .rm .icon{width:10px;height:10px;}
+</style>
+</head>
+<body>
+
+<!-- ════ TOP NAV ════ -->
+<div class="plat-nav">
+  <div class="plat-brand">
+    <span class="plat-brand-ico">冰</span>冰川业务平台
+  </div>
+  <div class="plat-nav-list">
+    <div class="plat-nav-item">游戏运营后台</div>
+    <div class="plat-nav-item">自动化运维</div>
+    <div class="plat-nav-item">自动化部署</div>
+    <div class="plat-nav-item active">SDK 管理后台</div>
+    <div class="plat-nav-item">会员管理后台</div>
+    <div class="plat-nav-item">数数分析</div>
+    <div class="plat-nav-item">客服后台</div>
+    <div class="plat-nav-item">活动管理系统</div>
+    <div class="plat-nav-item">聊天系统</div>
+    <div class="plat-nav-item">联合业务后台</div>
+    <div class="plat-nav-item">开放平台</div>
+    <div class="plat-nav-item">通用配置</div>
+  </div>
+</div>
+
+<!-- ════ APP SHELL ════ -->
+<div class="app-shell" id="appShell">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sb-section">
+      <div class="sb-section-label">SDK 管理</div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></span>
+        工作台
+      </div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        方案管理
+      </div>
+      <div class="nav-item active">
+        <span class="icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+        配置中心
+      </div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+        特殊方案
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-label">记录</div>
+      <div class="nav-item">
+        <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        操作日志
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <span class="tb-toggle icon" onclick="document.getElementById('appShell').classList.toggle('sidebar-collapsed')" title="折叠/展开侧边栏">
+        <svg class="tb-toggle-icon-close" viewBox="0 0 20 20" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><line x1="3" y1="3" x2="3" y2="17"/><polyline points="17 6 11 10 17 14"/></svg>
+        <svg class="tb-toggle-icon-open" viewBox="0 0 20 20" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><line x1="17" y1="3" x2="17" y2="17"/><polyline points="3 6 9 10 3 14"/></svg>
+      </span>
+      <div class="tb-spacer"></div>
+      <div class="tb-tools">
+        <span class="tb-icon-btn"><span class="icon" style="width:16px;height:16px;"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></span>
+        <div class="tb-search">
+          <span class="icon" style="width:14px;height:14px;color:var(--ink-4);"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <span class="placeholder">输入功能名称</span>
+          <span class="kbd">Ctrl+K</span>
+        </div>
+        <span class="tb-icon-btn"><span class="icon" style="width:16px;height:16px;"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></span>
+        <div class="tb-select"><span>境内</span><span class="caret">▼</span></div>
+        <div class="tb-select"><span>远征手游</span><span class="caret">▼</span></div>
+        <div class="tb-select user"><span class="avatar">福</span><span>福毅</span><span class="caret">▼</span></div>
+      </div>
+    </div>
+
+    <!-- TAB BAR -->
+    <div class="tabbar">
+      <div class="tab" onclick="location.href='configList.html'" style="gap:5px;color:var(--ink-3);">
+        <span class="icon" style="width:13px;height:13px;"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+        返回
+      </div>
+      <div style="width:1px;height:18px;background:var(--border);margin:0 4px;"></div>
+      <div class="tab">首页 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+      <div class="tab">配置列表 <span class="x icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+      <div class="tab active">渠道组管理</div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- STATS BAR -->
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-val" id="statTotal">26</div>
+          <div class="stat-lbl">渠道组总数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val green" id="statBound">11</div>
+          <div class="stat-lbl">已绑定配置</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val brand" id="statChannels">87</div>
+          <div class="stat-lbl">覆盖渠道总量</div>
+        </div>
+      </div>
+
+      <!-- TOOLBAR -->
+      <div class="toolbar">
+        <input class="f-input" id="searchInput" style="width:180px;" placeholder="输入渠道组名称">
+        <select class="f-sel" id="filterBound" style="min-width:100px;">
+          <option value="">绑定状态</option>
+          <option value="yes">已绑定</option>
+          <option value="no">未绑定</option>
+        </select>
+        <select class="f-sel" id="filterSdk" style="min-width:100px;">
+          <option value="">SDK 类型</option>
+          <option value="通用">通用</option>
+          <option value="iOS">iOS</option>
+          <option value="安卓">安卓</option>
+        </select>
+        <select class="f-sel" id="filterEntity" style="min-width:130px;">
+          <option value="">所属主体</option>
+          <option value="海南冰川">海南冰川</option>
+          <option value="海南岚滨科技">海南岚滨科技</option>
+          <option value="海南咬哟互娱网络科技">海南咬哟互娱</option>
+        </select>
+        <button class="btn primary" onclick="applyFilter()">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>查询
+        </button>
+        <button class="btn ghost" onclick="resetFilter()">重置</button>
+        <div class="tb-divider"></div>
+        <button class="btn primary" style="margin-left:auto;" onclick="location.href='channelGroupCreate.html'">
+          <span class="icon"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+          新增渠道组
+        </button>
+      </div>
+
+      <!-- CARD GRID -->
+      <div class="card-grid" id="cardGrid"></div>
+
+      <!-- PAGER -->
+      <div class="pager">
+        <span class="total" id="pagerTotal">共 26 条</span>
+        <span class="pg-btn disabled" id="pgPrev" onclick="changePage(-1)">‹</span>
+        <span class="pg-btn active" id="pg1">1</span>
+        <span class="pg-btn" id="pg2" onclick="jumpPage(2)">2</span>
+        <span class="pg-btn" id="pg3" onclick="jumpPage(3)">3</span>
+        <span class="pg-btn" onclick="changePage(1)">›</span>
+        <select class="pg-sel" onchange="changePageSize(this.value)">
+          <option value="9">9 条/页</option>
+          <option value="18">18 条/页</option>
+          <option value="27">27 条/页</option>
+        </select>
+        <div class="pg-jump">跳至 <input type="number" min="1" id="jumpInput" onkeydown="if(event.key==='Enter')jumpPage(parseInt(this.value))"> 页</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════ 新增 / 编辑 MODAL ════ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">新增渠道组</div>
+      <div class="modal-close" onclick="closeModal()">
+        <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">渠道组名称 <span class="req">*</span></label>
+        <input class="form-input" id="formName" placeholder="请输入渠道组名称">
+      </div>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="form-label">SDK 类型 <span class="req">*</span></label>
+          <select class="form-sel" id="formSdk" style="margin-top:6px;">
+            <option value="">请选择</option>
+            <option value="通用">通用</option>
+            <option value="iOS">iOS</option>
+            <option value="安卓">安卓</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">所属主体 <span class="req">*</span></label>
+          <select class="form-sel" id="formEntity" style="margin-top:6px;">
+            <option value="">请选择</option>
+            <option value="海南冰川">海南冰川</option>
+            <option value="海南岚滨科技">海南岚滨科技</option>
+            <option value="海南咬哟互娱网络科技">海南咬哟互娱网络科技</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">包含渠道</label>
+        <div class="ch-picker">
+          <div class="ch-picker-search">
+            <span class="icon" style="width:14px;height:14px;color:var(--ink-4);flex-shrink:0;"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+            <input placeholder="搜索渠道名称或ID" oninput="filterChannels(this.value)">
+          </div>
+          <div class="ch-picker-list" id="chPickerList"></div>
+        </div>
+        <div class="ch-selected" id="chSelected"></div>
+        <div class="form-hint">已选 <span id="chCount" style="color:var(--brand);font-weight:600;">0</span> 个渠道</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModal()">取消</button>
+      <button class="btn primary" onclick="submitForm()">确认保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 模拟数据 ──
+const ALL_CHANNELS = [
+  {id:'116',name:'腾讯应用宝'},{id:'152',name:'腾讯应用宝（广告）'},
+  {id:'21071002',name:'冰川-IOS返利服务-远征手游'},{id:'2107888',name:'132'},
+  {id:'2107261',name:'冰川网络-远征手游-广告分包'},{id:'21074123',name:'品质内网测试用'},
+  {id:'2107999',name:'13215'},{id:'2107343',name:'新马版-英文版安卓-远征'},
+  {id:'2107620',name:'冰川网络-商务CPS包-远征手游'},{id:'21071001',name:'安卓返利服务-远征手游'},
+  {id:'2',name:'内网测试-远征手游'},{id:'2107615',name:'腾讯云游戏-远征手游'},
+  {id:'2107634',name:'雷牛-游否-国服iOS包'},{id:'2107631',name:'雷牛-国服版本-新安卓混服包'},
+  {id:'2107625',name:'网易-OPPO快游戏-远征手游'},{id:'2107621',name:'冰川网络-商务CPS包'},
+];
+
+const RAW_DATA = [
+  {id:1,name:'官方包组A',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['116','152','21071002','2107888','2107261'],time:'2026-04-23 17:10',by:'周满',test:false},
+  {id:2,name:'测试渠道组',bound:'no',sdk:'iOS',entity:'海南岚滨科技',channels:['2','21071001'],time:'2026-04-02 10:39',by:'周满',test:true},
+  {id:3,name:'广告联盟组',bound:'no',sdk:'安卓',entity:'海南咬哟互娱网络科技',channels:['2107343','2107261','21074123'],time:'2026-04-01 18:28',by:'周满',test:false},
+  {id:4,name:'商务合作组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['2107620'],time:'2023-04-19 16:38',by:'周满',test:false},
+  {id:5,name:'品质内网测试组',bound:'no',sdk:'安卓',entity:'海南岚滨科技',channels:['21074123','2107999','2107261'],time:'2026-04-01 18:28',by:'周满',test:true},
+  {id:6,name:'腾讯渠道组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['116','152'],time:'2023-05-18 18:48',by:'管理员',test:false},
+  {id:7,name:'iOS返利组',bound:'no',sdk:'iOS',entity:'海南岚滨科技',channels:['21071002','21071001','2','2107888'],time:'2023-03-15 11:51',by:'周满',test:false},
+  {id:8,name:'云游戏组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['2107615'],time:'2023-03-15 11:51',by:'周满',test:false},
+  {id:9,name:'海外英文安卓组',bound:'no',sdk:'安卓',entity:'海南咬哟互娱网络科技',channels:['2107343','2107631'],time:'2023-03-15 11:09',by:'周满',test:false},
+];
+
+let data = [...RAW_DATA];
+let filtered = [...data];
+let currentPage = 1;
+let pageSize = 9;
+let editingId = null;
+let selectedChannels = [];
+
+function getChannelName(id){
+  const c = ALL_CHANNELS.find(c=>c.id===id);
+  return c ? c.name : id;
+}
+function getChannelFullName(id){
+  const c = ALL_CHANNELS.find(c=>c.id===id);
+  return c ? c.name : id;
+}
+
+function renderCards(){
+  const grid = document.getElementById('cardGrid');
+  const start = (currentPage-1)*pageSize;
+  const end = Math.min(start+pageSize, filtered.length);
+  const page = filtered.slice(start, end);
+
+  let html = '';
+  page.forEach(g => {
+    const chTags = g.channels.slice(0,4).map(id =>
+      `<span class="gc-ch-tag">${getChannelName(id)}(${id})</span>`
+    ).join('');
+    const moreTag = g.channels.length > 4
+      ? `<span class="gc-ch-more">+${g.channels.length-4}</span>` : '';
+    const channelArea = g.channels.length === 0
+      ? `<span class="gc-empty">暂无渠道，点击管理渠道添加</span>`
+      : `<div class="gc-ch-wrap">${chTags}${moreTag}</div>`;
+
+    html += `
+    <div class="group-card" onclick="location.href='channelGroupCreate.html?id=${g.id}'">
+      <div class="gc-header">
+        <div class="gc-header-top">
+          <div class="gc-name">${g.name}${g.test ? '<span class="gc-test-tag">测试</span>' : ''}</div>
+          <span class="gc-bound ${g.bound}">${g.bound==='yes'?'已绑定':'未绑定'}</span>
+        </div>
+        <div class="gc-meta">
+          <span class="gc-meta-item"><strong>${g.channels.length}</strong> 个渠道</span>
+          <span class="gc-meta-sep">·</span>
+          <span class="gc-meta-item">${g.sdk}</span>
+          <span class="gc-meta-sep">·</span>
+          <span class="gc-meta-item">${g.entity.length>6?g.entity.slice(0,6)+'…':g.entity}</span>
+        </div>
+      </div>
+      <div class="gc-channels">${channelArea}</div>
+      <div class="gc-footer">
+        <span class="gc-footer-meta"><span>${g.by}</span> · ${g.time.slice(0,10)}</span>
+        <div class="gc-ops" onclick="event.stopPropagation()">
+          <span class="gc-op" onclick="location.href='channelGroupCreate.html?id=${g.id}'">编辑</span>
+          <span class="gc-op danger" onclick="deleteGroup(${g.id})">删除</span>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  // 新增卡片（末尾）
+  if(page.length < pageSize){
+    html += `
+    <div class="group-card gc-add" onclick="location.href='channelGroupCreate.html'">
+      <div class="gc-add-ico"><span class="icon"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+      <div class="gc-add-lbl">新增渠道组</div>
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+  renderPager();
+}
+
+function renderPager(){
+  const total = filtered.length;
+  const pages = Math.ceil(total/pageSize) || 1;
+  document.getElementById('pagerTotal').textContent = `共 ${total} 条`;
+  document.getElementById('pg1').textContent = currentPage > 2 ? '…' : '1';
+  document.getElementById('pg1').className = 'pg-btn' + (currentPage===1?' active':'');
+  document.getElementById('pg2').textContent = currentPage > 1 ? currentPage : '2';
+  document.getElementById('pg2').className = 'pg-btn' + (currentPage>1&&currentPage<pages?' active':'');
+  document.getElementById('pg3').textContent = pages > 2 ? (currentPage===pages?currentPage:pages) : '3';
+  document.getElementById('pg3').className = 'pg-btn' + (currentPage===pages&&pages>1?' active':'');
+  document.getElementById('pgPrev').className = 'pg-btn' + (currentPage===1?' disabled':'');
+}
+
+function applyFilter(){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const bound = document.getElementById('filterBound').value;
+  const sdk = document.getElementById('filterSdk').value;
+  const entity = document.getElementById('filterEntity').value;
+  filtered = data.filter(g =>
+    (!q || g.name.toLowerCase().includes(q)) &&
+    (!bound || g.bound===bound) &&
+    (!sdk || g.sdk===sdk) &&
+    (!entity || g.entity.includes(entity.slice(0,4)))
+  );
+  currentPage = 1;
+  renderCards();
+}
+
+function resetFilter(){
+  document.getElementById('searchInput').value='';
+  document.getElementById('filterBound').value='';
+  document.getElementById('filterSdk').value='';
+  document.getElementById('filterEntity').value='';
+  filtered=[...data];currentPage=1;renderCards();
+}
+
+function changePage(dir){
+  const pages=Math.ceil(filtered.length/pageSize)||1;
+  currentPage=Math.max(1,Math.min(pages,currentPage+dir));
+  renderCards();
+}
+function jumpPage(p){
+  const pages=Math.ceil(filtered.length/pageSize)||1;
+  if(!isNaN(p))currentPage=Math.max(1,Math.min(pages,p));
+  renderCards();
+}
+function changePageSize(v){pageSize=parseInt(v);currentPage=1;renderCards();}
+
+function deleteGroup(id){
+  if(!confirm('确认删除该渠道组？'))return;
+  data=data.filter(g=>g.id!==id);
+  filtered=filtered.filter(g=>g.id!==id);
+  updateStats();renderCards();
+}
+
+function updateStats(){
+  document.getElementById('statTotal').textContent=data.length;
+  document.getElementById('statBound').textContent=data.filter(g=>g.bound==='yes').length;
+  document.getElementById('statChannels').textContent=[...new Set(data.flatMap(g=>g.channels))].length;
+}
+
+// ── MODAL ──
+function renderChPicker(q=''){
+  const list = document.getElementById('chPickerList');
+  const lower = q.toLowerCase();
+  const items = ALL_CHANNELS.filter(c=>
+    !q || c.name.toLowerCase().includes(lower) || c.id.includes(lower)
+  );
+  list.innerHTML = items.map(c=>`
+    <label class="ch-picker-item">
+      <input type="checkbox" value="${c.id}" ${selectedChannels.includes(c.id)?'checked':''}
+        onchange="toggleChannel('${c.id}')">
+      <span class="ch-picker-item-name">${c.name}</span>
+      <span class="ch-picker-item-id">${c.id}</span>
+    </label>`).join('');
+}
+
+function toggleChannel(id){
+  if(selectedChannels.includes(id)){
+    selectedChannels=selectedChannels.filter(x=>x!==id);
+  } else {
+    selectedChannels.push(id);
+  }
+  renderChSelected();
+}
+
+function renderChSelected(){
+  const wrap = document.getElementById('chSelected');
+  document.getElementById('chCount').textContent=selectedChannels.length;
+  wrap.innerHTML = selectedChannels.map(id=>`
+    <span class="ch-sel-tag">
+      ${getChannelFullName(id)}(${id})
+      <span class="rm" onclick="removeChannel('${id}')">
+        <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+      </span>
+    </span>`).join('');
+}
+
+function removeChannel(id){
+  selectedChannels=selectedChannels.filter(x=>x!==id);
+  renderChPicker(document.querySelector('.ch-picker-search input').value);
+  renderChSelected();
+}
+
+function filterChannels(q){renderChPicker(q);}
+
+function openModal(mode, id){
+  editingId = mode==='edit' ? id : null;
+  document.getElementById('modalTitle').textContent = mode==='edit' ? '编辑渠道组' : '新增渠道组';
+  if(mode==='edit'&&id){
+    const g=data.find(d=>d.id===id);
+    document.getElementById('formName').value=g.name;
+    document.getElementById('formSdk').value=g.sdk;
+    document.getElementById('formEntity').value=g.entity;
+    selectedChannels=[...g.channels];
+  } else {
+    document.getElementById('formName').value='';
+    document.getElementById('formSdk').value='';
+    document.getElementById('formEntity').value='';
+    selectedChannels=[];
+  }
+  renderChPicker();renderChSelected();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(e){
+  if(e&&e.target!==document.getElementById('modalOverlay'))return;
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function submitForm(){
+  const name=document.getElementById('formName').value.trim();
+  const sdk=document.getElementById('formSdk').value;
+  const entity=document.getElementById('formEntity').value;
+  if(!name){alert('请输入渠道组名称');return;}
+  if(!sdk){alert('请选择 SDK 类型');return;}
+  if(!entity){alert('请选择所属主体');return;}
+
+  if(editingId){
+    const g=data.find(d=>d.id===editingId);
+    g.name=name;g.sdk=sdk;g.entity=entity;g.channels=[...selectedChannels];
+    g.time=new Date().toLocaleString('zh-CN',{hour12:false}).replace(/\//g,'-').slice(0,16);
+    g.by='福毅';
+  } else {
+    const newId=Math.max(...data.map(d=>d.id))+1;
+    data.unshift({id:newId,name,bound:'no',sdk,entity,channels:[...selectedChannels],
+      time:new Date().toLocaleString('zh-CN',{hour12:false}).replace(/\//g,'-').slice(0,16),
+      by:'福毅',test:false});
+  }
+  filtered=[...data];
+  updateStats();renderCards();
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+// init
+updateStats();renderCards();
+</script>
+<script src="../sidebar.js"></script>
+</body>
+</html>
