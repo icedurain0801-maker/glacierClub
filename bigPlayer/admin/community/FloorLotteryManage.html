@@ -320,6 +320,60 @@ tbody tr:hover { background: #fafeff; }
   padding: 0 4px;
 }
 .cycle-kw-table .del-cycle-btn:hover { text-decoration: underline; }
+
+/* 周期行关键词 tag 输入区 */
+.cycle-table-wrap {
+  position: relative;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.cycle-table-wrap.collapsed {
+  max-height: 286px;
+}
+.cycle-table-wrap.collapsed::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 72px;
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.92));
+  pointer-events: none;
+}
+.cycle-table-expand {
+  display: none;
+  margin-top: 8px;
+  color: #1890ff;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.cycle-table-expand.visible {
+  display: inline-flex;
+  align-items: center;
+}
+.cycle-kw-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cycle-kw-cell .kw-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #e6f7ff; border: 1px solid #91d5ff;
+  border-radius: 12px; padding: 2px 8px;
+  font-size: 12px; color: #096dd9;
+}
+.cycle-kw-cell .kw-tag-rm { cursor: pointer; font-size: 12px; line-height: 1; }
+.cycle-kw-cell .kw-tag-rm:hover { color: #ff4d4f; }
+.cycle-kw-cell .kw-add-input {
+  height: 26px; border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 0 8px; font-size: 12px; outline: none; width: 120px;
+  font-family: inherit;
+}
+.cycle-kw-cell .kw-add-input:focus { border-color: #1890ff; }
+.cycle-kw-cell .kw-add-btn {
+  height: 26px; padding: 0 10px;
+  background: #1890ff; color: #fff;
+  border: none; border-radius: 4px;
+  font-size: 12px; cursor: pointer;
+}
+.cycle-kw-cell .kw-add-btn:hover { background: #40a9ff; }
 .add-cycle-row-btn {
   display: inline-flex;
   align-items: center;
@@ -337,9 +391,31 @@ tbody tr:hover { background: #fafeff; }
 }
 .add-cycle-row-btn:hover { background: #bae7ff; }
 /* 周期活动账号上限行 */
-#row-cycle-limit, #row-cycle-time, #row-cycle-unit, #row-cycle-range, #row-cycle-kw-mode, #section-cycle-table {
+#row-cycle-limit, #row-cycle-award-time {
   display: none;
 }
+
+/* 活动发奖时间 — 整合行 */
+.award-time-block { display: flex; flex-direction: column; gap: 10px; }
+.award-time-item { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.award-time-sub-label {
+  width: 72px;
+  flex-shrink: 0;
+  padding-top: 7px;
+  font-size: 13px;
+  color: #595959;
+}
+.award-time-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.award-time-main .form-input:not(.short) {
+  width: 160px;
+  flex: 0 0 160px;
+}
+.award-time-main .form-input.short { flex: 0 0 110px; }
+/* 第一行：周期单位选择器（与图1 radio-group 风格一致） */
+/* 第二行：日期范围 */
+/* 第三行：每 N 周期/天，发奖时间 */
+.award-time-sep { font-size: 13px; color: #595959; margin: 0 2px; }
+.award-time-unit-label { font-size: 13px; color: #595959; }
 /* 自动发奖周期说明 */
 #auto-award-cycle-note { display: none; }
 
@@ -379,7 +455,7 @@ tbody tr:hover { background: #fafeff; }
   font-size: 13px;
   color: #595959;
   padding-top: 7px;
-  text-align: left;
+  text-align: right;
 }
 .form-required { color: #ff4d4f; }
 
@@ -552,7 +628,15 @@ tbody tr:hover { background: #fafeff; }
   font-size: 13px;
   color: #595959;
   white-space: nowrap;
-  text-align: left;
+  text-align: right;
+}
+.cond-sub-row > .cond-sub-label:first-child {
+  width: 110px;
+  flex-shrink: 0;
+}
+.cond-sub-row > .keyword-add-row:first-child,
+.cond-sub-row > .keyword-list:first-child {
+  margin-left: 122px;
 }
 /* 关键词添加行 */
 .keyword-add-row { display: flex; align-items: center; gap: 8px; }
@@ -621,10 +705,33 @@ tbody tr:hover { background: #fafeff; }
   color: #d4380d; line-height: 1; margin-left: 2px;
 }
 .prize-tag-remove:hover { color: #ff4d4f; }
+
+.toast {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 2000;
+  min-width: 180px;
+  padding: 9px 16px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s, transform .18s;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 </style>
 </head>
 <body>
 <nav id="sidebar" class="sidebar"></nav>
+<div class="toast" id="page-toast"></div>
 
 <div class="admin-main" id="admin-main">
 
@@ -784,36 +891,13 @@ tbody tr:hover { background: #fafeff; }
     <div class="section-title">活动信息</div>
     <div class="section-required-hint">* 为必填项</div>
 
-    <div class="form-row">
+    <div class="form-row" id="row-reward-mode">
       <div class="form-label"><span class="form-required">*</span> 活动名称：</div>
       <div class="form-control">
         <input type="text" class="form-input mid" id="e-name" placeholder="请输入活动名称">
       </div>
     </div>
 
-    <!-- 活动类型 -->
-    <div class="form-row">
-      <div class="form-label"><span class="form-required">*</span> 活动类型：</div>
-      <div class="form-control">
-        <div class="radio-group" id="activity-type-group">
-          <div class="radio-btn active" data-atype="single">单次活动</div>
-          <div class="radio-btn" data-atype="cycle">周期活动</div>
-        </div>
-        <div class="form-hint-text info" id="atype-hint">单次活动：在截止时间一次性开奖，参与条件统一配置</div>
-      </div>
-    </div>
-
-    <!-- 周期单位（周期活动专属） -->
-    <div class="form-row" id="row-cycle-unit">
-      <div class="form-label"><span class="form-required">*</span> 周期单位：</div>
-      <div class="form-control">
-        <div class="radio-group" id="cycle-unit-group">
-          <div class="radio-btn active" data-unit="day">每天</div>
-          <div class="radio-btn" data-unit="week">每周</div>
-        </div>
-        <div class="form-hint-text" id="cycle-unit-hint">每天：活动期间内每天各触发一次抽奖，可为每天独立配置关键词</div>
-      </div>
-    </div>
 
     <div class="form-row">
       <div class="form-label"><span class="form-required">*</span> 关联作者：</div>
@@ -841,11 +925,50 @@ tbody tr:hover { background: #fafeff; }
       </div>
     </div>
 
+    <!-- 活动类型 -->
     <div class="form-row">
-      <div class="form-label"><span class="form-required">*</span> 开奖人数：</div>
+      <div class="form-label"><span class="form-required">*</span> 活动类型：</div>
+      <div class="form-control">
+        <div class="radio-group" id="activity-type-group">
+          <div class="radio-btn active" data-atype="single">单次活动</div>
+          <div class="radio-btn" data-atype="cycle">周期活动</div>
+        </div>
+        <div class="form-hint-text info" id="atype-hint">单次活动：在截止时间一次性开奖，参与条件统一配置</div>
+      </div>
+    </div>
+
+    <!-- 周期活动：活动时间（整合字段） -->
+    <div class="form-row" id="row-cycle-award-time">
+      <div class="form-label"><span class="form-required">*</span> 活动时间：</div>
+      <div class="form-control">
+        <div class="award-time-block">
+          <div class="award-time-item">
+            <div class="award-time-sub-label">活动时段</div>
+            <div class="award-time-main">
+              <input type="date" class="form-input" id="e-cycle-start" placeholder="开始日期">
+              <span class="award-time-sep">至</span>
+              <input type="date" class="form-input" id="e-cycle-end" placeholder="结束日期">
+              <span class="cycle-badge" id="cycle-count-badge">共 0 个周期</span>
+            </div>
+          </div>
+          <div class="form-hint-text">系统将按所选周期单位在活动时段内自动生成参与条件配置行</div>
+          <div class="award-time-item">
+            <div class="award-time-sub-label">开奖时间</div>
+            <div class="award-time-main">
+              <input type="time" class="form-input short" id="e-cycle-award-time" value="14:00">
+              <span style="font-size:13px;color:#8c8c8c;">每个周期到达该时刻后自动触发抽奖</span>
+            </div>
+          </div>
+          <div class="form-hint-text warn">修改后仅对尚未到达的周期生效，已触发的周期不受影响</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> <span id="winners-label-text">开奖人数</span>：</div>
       <div class="form-control">
         <input type="number" class="form-input short" id="e-winners" min="1">
-        <span style="font-size:13px; color:#595959; margin-left:6px;">人</span>
+        <span style="font-size:13px; color:#595959; margin-left:6px;" id="winners-unit-text">人</span>
         <div class="form-hint-text" id="winners-hint" style="display:none">周期活动中，每个周期的开奖人数</div>
       </div>
     </div>
@@ -861,44 +984,7 @@ tbody tr:hover { background: #fafeff; }
       </div>
     </div>
 
-    <!-- 周期活动：活动时段 -->
-    <div class="form-row" id="row-cycle-range">
-      <div class="form-label"><span class="form-required">*</span> 活动时段：</div>
-      <div class="form-control">
-        <div class="datetime-row" style="flex-wrap:wrap;gap:8px;">
-          <input type="date" class="form-input" id="e-cycle-start" placeholder="开始日期">
-          <span class="time-text">至</span>
-          <input type="date" class="form-input" id="e-cycle-end" placeholder="结束日期">
-          <span class="cycle-badge" id="cycle-count-badge">共 0 个周期</span>
-        </div>
-        <div class="form-hint-text">系统将按所选周期单位在活动时段内自动生成参与条件配置行</div>
-      </div>
-    </div>
-
-    <!-- 周期活动：每期发奖时间 -->
-    <div class="form-row" id="row-cycle-time">
-      <div class="form-label"><span class="form-required">*</span> 每期发奖时间：</div>
-      <div class="form-control">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input type="time" class="form-input short" id="e-cycle-award-time" value="14:00">
-          <span style="font-size:13px;color:#8c8c8c;">每个周期到该时刻后触发抽奖</span>
-        </div>
-        <div class="form-hint-text warn">⚠ 修改仅对尚未触发的周期生效</div>
-      </div>
-    </div>
-
-    <!-- 周期活动：账号领取上限 -->
-    <div class="form-row" id="row-cycle-limit">
-      <div class="form-label"><span class="form-required">*</span> 账号领取上限：
-        <span class="help-tip" data-tip="整个活动期间内，同一账号最多中奖的总次数。超出上限后，该账号不再进入后续周期的抽奖池。">?</span>
-      </div>
-      <div class="form-control">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input type="number" class="form-input short" id="e-cycle-limit" min="1" value="1">
-          <span style="font-size:13px;color:#595959;">次 / 整个活动期</span>
-        </div>
-      </div>
-    </div>
+    <!-- 周期活动：账号领取上限（已移除） -->
 
     <div class="form-row">
       <div class="form-label"><span class="form-required">*</span> 发奖方式<span class="help-tip" data-tip="人工审核为人工审核获奖名单并手动确认发奖，适用于道具奖励价值较高或需要控制获奖用户的活动。自动发奖为系统到了活动截止时间随机抽取玩家发奖，适用于道具奖励价值较低且固定的活动。">?</span>：</div>
@@ -974,14 +1060,13 @@ tbody tr:hover { background: #fafeff; }
             </div>
           </div>
 
-          <!-- 周期活动：关键词模式切换 -->
+          <!-- 周期活动：关键词模式切换（仅精准/模糊匹配时显示） -->
           <div class="cond-sub-row" id="row-cycle-kw-mode">
-            <span class="cond-sub-label">关键词模式：</span>
+            <span class="cond-sub-label"><span class="form-required">*</span> 匹配类型：</span>
             <div class="radio-group" id="cycle-kw-mode-group">
-              <div class="radio-btn active" data-kwmode="same">统一关键词</div>
-              <div class="radio-btn" data-kwmode="diff">按周期各配</div>
+              <div class="radio-btn active" data-kwmode="same">统一</div>
+              <div class="radio-btn" data-kwmode="diff">按周期配置</div>
             </div>
-            <span style="font-size:12px;color:#8c8c8c;margin-left:10px;" id="kw-mode-hint">所有周期使用相同关键词</span>
           </div>
 
           <!-- 单次/统一关键词 输入区 -->
@@ -997,21 +1082,20 @@ tbody tr:hover { background: #fafeff; }
 
           <!-- 周期活动：按周期配置关键词表格 -->
           <div id="section-cycle-table">
-            <div class="form-hint-text info" style="margin-bottom:8px;">系统已按活动时段自动生成周期行，可逐行填写关键词、楼层要求、开奖人数，也可手动添加/删除行。</div>
-            <table class="cycle-kw-table" id="cycle-kw-table">
-              <thead>
-                <tr>
-                  <th style="width:150px;">周期</th>
-                  <th>关键词<span class="form-required">*</span></th>
-                  <th style="width:100px;">最低楼层<span class="form-required">*</span></th>
-                  <th style="width:90px;">开奖人数<span class="form-required">*</span></th>
-                  <th style="width:50px;">操作</th>
-                </tr>
-              </thead>
-              <tbody id="cycle-kw-tbody"></tbody>
-            </table>
-            <div class="add-cycle-row-btn" id="btn-add-cycle-row">＋ 手动添加周期行</div>
-            <div class="form-hint-text" style="margin-top:6px;">切换活动时段后系统自动重新生成周期行；手动添加的行不受影响</div>
+            <div class="form-hint-text info" style="margin-bottom:8px;">系统已按活动时段自动生成周期行，请逐行填写关键词（可添加多个）。</div>
+            <div class="cycle-table-wrap" id="cycle-table-wrap">
+              <table class="cycle-kw-table" id="cycle-kw-table">
+                <thead>
+                  <tr>
+                    <th style="width:180px;">周期</th>
+                    <th>关键词<span class="form-required">*</span></th>
+                  </tr>
+                </thead>
+                <tbody id="cycle-kw-tbody"></tbody>
+              </table>
+            </div>
+            <div class="cycle-table-expand" id="cycle-table-expand">展开全部</div>
+            <div class="form-hint-text" style="margin-top:6px;">切换活动时段后系统自动重新生成周期行</div>
           </div>
         </div>
 
@@ -1342,6 +1426,7 @@ tbody tr:hover { background: #fafeff; }
     btn.addEventListener('click', function() {
       document.querySelectorAll('#keyword-match-group .radio-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
+      refreshCycleKwMode();
     });
   });
 
@@ -1443,13 +1528,12 @@ tbody tr:hover { background: #fafeff; }
   // 活动类型 & 周期交互逻辑
   // ══════════════════════════════════════
 
-  const CYCLE_FIELDS = ['row-cycle-unit', 'row-cycle-range', 'row-cycle-time', 'row-cycle-limit'];
+  const CYCLE_FIELDS = ['row-cycle-award-time'];
   let activityType = 'single'; // 'single' | 'cycle'
   let cycleUnit    = 'day';    // 'day' | 'week'
   let kwMode       = 'same';   // 'same' | 'diff'
   let cycleRows    = [];       // 自动生成行
-  let manualRows   = [];       // 手动添加行
-  let manualIdSeed = 1000;
+  let cycleTableExpanded = false;
 
   // ── 活动类型切换 ──
   document.querySelectorAll('#activity-type-group .radio-btn').forEach(btn => {
@@ -1471,10 +1555,12 @@ tbody tr:hover { background: #fafeff; }
 
     // 字段显示
     CYCLE_FIELDS.forEach(id => {
-      document.getElementById(id).style.display = isCycle ? '' : 'none';
+      document.getElementById(id).style.display = isCycle ? 'flex' : 'none';
     });
     document.getElementById('row-single-deadline').style.display = isCycle ? 'none' : '';
     document.getElementById('winners-hint').style.display = isCycle ? '' : 'none';
+    document.getElementById('winners-label-text').textContent = isCycle ? '周期总数' : '开奖人数';
+    document.getElementById('row-reward-mode').style.display = isCycle ? 'none' : 'flex';
 
     // 周期关键词模式行（仅勾选评论关键词时可见，由 refreshCommentSub 控制）
     refreshCycleKwMode();
@@ -1483,28 +1569,26 @@ tbody tr:hover { background: #fafeff; }
     refreshAwardNote();
   }
 
-  // ── 周期单位切换 ──
-  document.querySelectorAll('#cycle-unit-group .radio-btn').forEach(btn => {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('#cycle-unit-group .radio-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      cycleUnit = this.dataset.unit;
-      document.getElementById('cycle-unit-hint').textContent = cycleUnit === 'day'
-        ? '每天：活动期间内每天各触发一次抽奖，可为每天独立配置关键词'
-        : '每周：活动期间内每自然周触发一次抽奖，可为每周独立配置关键词';
-      rebuildCycleRows();
-    });
-  });
+  // ── 周期单位切换（UI 暂未��供切换器，默认每天；保留函数供后续扩展）──
+  function setCycleUnit(unit) {
+    cycleUnit = unit;
+    rebuildCycleRows();
+  }
 
   // ── 活动时段变化时重新生成周期行 ──
   document.getElementById('e-cycle-start').addEventListener('change', rebuildCycleRows);
   document.getElementById('e-cycle-end').addEventListener('change', rebuildCycleRows);
+  document.getElementById('cycle-table-expand').addEventListener('click', () => {
+    cycleTableExpanded = true;
+    refreshCycleTableCollapse();
+  });
 
   function rebuildCycleRows() {
     const start = document.getElementById('e-cycle-start').value;
     const end   = document.getElementById('e-cycle-end').value;
     if (!start || !end || start > end) {
       cycleRows = [];
+      cycleTableExpanded = false;
       document.getElementById('cycle-count-badge').textContent = '请先选择有效时段';
       renderCycleTable();
       return;
@@ -1512,6 +1596,7 @@ tbody tr:hover { background: #fafeff; }
     const startDate = new Date(start);
     const endDate   = new Date(end);
     cycleRows = [];
+    cycleTableExpanded = false;
     if (cycleUnit === 'day') {
       let cur = new Date(startDate);
       let idx = 1;
@@ -1519,7 +1604,7 @@ tbody tr:hover { background: #fafeff; }
         const d = cur.toISOString().slice(0, 10);
         const weekdays = ['周日','周一','周二','周三','周四','周五','周六'];
         const wd = weekdays[cur.getDay()];
-        cycleRows.push({ id: idx, label: `第${idx}天 · ${d}（${wd}）`, keyword: '', floor: '10', winners: '5', auto: true });
+        cycleRows.push({ id: idx, label: `第${idx}天 · ${d}（${wd}）`, keywords: [], auto: true });
         cur.setDate(cur.getDate() + 1);
         idx++;
       }
@@ -1536,13 +1621,12 @@ tbody tr:hover { background: #fafeff; }
         const we = new Date(weekStart);
         we.setDate(we.getDate() + 6);
         const weStr = we.toISOString().slice(0, 10);
-        cycleRows.push({ id: idx, label: `第${idx}周 · ${ws} ~ ${weStr}`, keyword: '', floor: '10', winners: '5', auto: true });
+        cycleRows.push({ id: idx, label: `第${idx}周 · ${ws} ~ ${weStr}`, keywords: [], auto: true });
         weekStart.setDate(weekStart.getDate() + 7);
         idx++;
       }
       document.getElementById('cycle-count-badge').textContent = `共 ${cycleRows.length} 周 · ${cycleRows.length} 个周期`;
     }
-    manualRows = [];
     renderCycleTable();
   }
 
@@ -1550,62 +1634,118 @@ tbody tr:hover { background: #fafeff; }
     const tbody = document.getElementById('cycle-kw-tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
-    const all = cycleRows.concat(manualRows);
-    all.forEach(row => {
+    cycleRows.forEach(row => {
       const tr = document.createElement('tr');
-      if (!row.auto) tr.classList.add('manual-row');
+      const tags = (row.keywords || []).map((k, ki) =>
+        `<span class="kw-tag">${k}<span class="kw-tag-rm" onclick="removeCycleKw(${row.id},${row.auto},${ki})">×</span></span>`
+      ).join('');
       tr.innerHTML = `
-        <td>${row.auto
-          ? `<span style="font-size:12px;color:#595959;">${row.label}</span>`
-          : `<input class="tc-input" value="${row.label}" style="width:140px;">`}
+        <td style="white-space:nowrap;font-size:12px;color:#595959;">${row.label}</td>
+        <td>
+          <div class="cycle-kw-cell">
+            ${tags}
+            <input class="kw-add-input" placeholder="输入关键词" data-rowid="${row.id}" data-isauto="${row.auto}">
+            <button class="kw-add-btn" onclick="addCycleKw(${row.id},${row.auto},this)">添加</button>
+          </div>
         </td>
-        <td><input class="tc-input keyword" value="${row.keyword}" placeholder="请输入关键词"></td>
-        <td><input class="tc-input num" type="number" value="${row.floor}" min="1" placeholder="楼层"></td>
-        <td><input class="tc-input num" type="number" value="${row.winners}" min="1" placeholder="人数"></td>
-        <td><button class="del-cycle-btn" onclick="delCycleRow(${row.id},${row.auto})">删除</button></td>
       `;
       tbody.appendChild(tr);
     });
+    // 绑定回车
+    tbody.querySelectorAll('.kw-add-input').forEach(inp => {
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addCycleKwByInput(inp); }
+      });
+    });
+    refreshCycleTableCollapse();
   }
 
-  function delCycleRow(id, isAuto) {
-    if (isAuto) {
-      cycleRows = cycleRows.filter(r => r.id !== id);
-    } else {
-      manualRows = manualRows.filter(r => r.id !== id);
-    }
-    renderCycleTable();
+  function refreshCycleTableCollapse() {
+    const wrap = document.getElementById('cycle-table-wrap');
+    const expandBtn = document.getElementById('cycle-table-expand');
+    const shouldCollapse = cycleRows.length > 7 && !cycleTableExpanded;
+    wrap.classList.toggle('collapsed', shouldCollapse);
+    expandBtn.classList.toggle('visible', cycleRows.length > 7 && !cycleTableExpanded);
   }
 
-  document.getElementById('btn-add-cycle-row').addEventListener('click', () => {
-    manualIdSeed++;
-    manualRows.push({ id: manualIdSeed, label: '自定义周期', keyword: '', floor: '10', winners: '5', auto: false });
+  function getRow(id, isAuto) {
+    return cycleRows.find(r => r.id === id);
+  }
+  function addCycleKw(id, isAuto, btn) {
+    const inp = btn.previousElementSibling;
+    addCycleKwByInput(inp);
+  }
+  function addCycleKwByInput(inp) {
+    const id = Number(inp.dataset.rowid);
+    const isAuto = inp.dataset.isauto === 'true';
+    const val = inp.value.trim();
+    if (!val) return;
+    const row = getRow(id, isAuto);
+    if (row && !row.keywords.includes(val)) { row.keywords.push(val); }
     renderCycleTable();
-    document.getElementById('cycle-kw-tbody').lastChild
-      && document.getElementById('cycle-kw-tbody').lastChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  });
+  }
+  function removeCycleKw(id, isAuto, ki) {
+    const row = getRow(id, isAuto);
+    if (row) row.keywords.splice(ki, 1);
+    renderCycleTable();
+  }
 
   // ── 关键词模式切换（仅周期活动下）──
   document.querySelectorAll('#cycle-kw-mode-group .radio-btn').forEach(btn => {
     btn.addEventListener('click', function () {
+      if (this.dataset.kwmode === 'diff' && !hasCycleTime()) {
+        showToast('需要先选择活动时间');
+        return;
+      }
       document.querySelectorAll('#cycle-kw-mode-group .radio-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       kwMode = this.dataset.kwmode;
-      document.getElementById('kw-mode-hint').textContent = kwMode === 'same'
-        ? '所有周期使用相同关键词' : '每个周期单独配置关键词';
       refreshCycleKwMode();
     });
   });
 
+  let toastTimer = null;
+  function showToast(text) {
+    const toast = document.getElementById('page-toast');
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  function hasCycleTime() {
+    return !!(document.getElementById('e-cycle-start').value && document.getElementById('e-cycle-end').value);
+  }
+
+  function getMatchMode() {
+    const active = document.querySelector('#keyword-match-group .radio-btn.active');
+    return active ? active.dataset.match : '模糊匹配';
+  }
+
   function refreshCycleKwMode() {
     const commentChecked = document.getElementById('cond-comment').checked;
     const isCycle = activityType === 'cycle';
+    const matchMode = getMatchMode();
+    const hasKeyword = matchMode === '精准匹配' || matchMode === '模糊匹配';
 
-    document.getElementById('row-cycle-kw-mode').style.display = (isCycle && commentChecked) ? '' : 'none';
+    // 匹配类型行：周期活动 + 勾选评论关键词 + 非"不限"
+    document.getElementById('row-cycle-kw-mode').style.display =
+      (isCycle && commentChecked && hasKeyword) ? '' : 'none';
+
+    // 统一输入区：仅精准/模糊匹配时显示；选"不限"时隐藏
     document.getElementById('section-unified-kw').style.display =
-      (!isCycle || kwMode === 'same') ? '' : 'none';
-    document.getElementById('section-cycle-table').style.display =
-      (isCycle && kwMode === 'diff' && commentChecked) ? '' : 'none';
+      (hasKeyword && (!isCycle || kwMode === 'same')) ? '' : 'none';
+
+    // 按周期配置表格：周期活动 + 按周期配置 + 非"不限"
+    const showCycleTable = isCycle && kwMode === 'diff' && commentChecked && hasKeyword;
+    document.getElementById('section-cycle-table').style.display = showCycleTable ? '' : 'none';
+    if (showCycleTable) rebuildCycleRows();
+
+    // 若切换为"不限"时强制重置为统一模式
+    if (!hasKeyword && kwMode === 'diff') {
+      kwMode = 'same';
+      document.querySelectorAll('#cycle-kw-mode-group .radio-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+    }
   }
 
   // ── 勾选评论关键词时联动 ──
