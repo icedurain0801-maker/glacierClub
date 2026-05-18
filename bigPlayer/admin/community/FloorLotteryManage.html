@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>楼层抽奖 - 大玩家后台</title>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f5f7fa;
+  min-height: 100vh;
+  display: flex;
+}
+.admin-main {
+  flex: 1;
+  min-height: 100vh;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* ── 页面卡片 ── */
+.page-card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+/* ── 视图切换 ── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── Tab 栏 ── */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 0 20px;
+}
+.tab-item {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #595959;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+.tab-item.active {
+  color: #1890ff;
+  font-weight: 500;
+}
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+  border-radius: 1px 1px 0 0;
+}
+
+/* ── 筛选栏 ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #595959;
+}
+.filter-required { color: #ff4d4f; }
+.filter-select, .filter-input {
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #262626;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  min-width: 140px;
+}
+.filter-input { min-width: 160px; cursor: text; }
+.filter-select:focus, .filter-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+.date-range {
+  display: flex; align-items: center; gap: 6px;
+}
+.date-range input { min-width: 130px; }
+.date-range .arrow { color: #bfbfbf; }
+.btn-query {
+  height: 32px;
+  padding: 0 16px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-query:hover { background: #40a9ff; }
+
+/* ── 操作栏 ── */
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.btn-add {
+  height: 32px;
+  padding: 0 16px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-add:hover { background: #40a9ff; }
+.toolbar-icons { display: flex; gap: 8px; }
+.toolbar-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  font-size: 14px; cursor: pointer; color: #595959;
+  background: #fff;
+}
+.toolbar-icon:hover { border-color: #1890ff; color: #1890ff; }
+
+/* ── 表格 ── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead tr { background: #fafafa; }
+th {
+  padding: 12px 12px;
+  text-align: left;
+  font-weight: 500;
+  color: #262626;
+  border-bottom: 1px solid #e8e8e8;
+  white-space: nowrap;
+}
+td {
+  padding: 14px 12px;
+  color: #595959;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+tbody tr:hover { background: #fafeff; }
+
+/* 状态文本 */
+.status-running  { color: #52c41a; font-weight: 500; }
+.status-finished { color: #1890ff; font-weight: 500; }
+.status-pending  { color: #fa8c16; font-weight: 500; }
+.status-reject   { color: #ff4d4f; font-weight: 500; }
+.status-confirmed{ color: #52c41a; font-weight: 500; }
+
+/* 操作按钮 */
+.op-btn {
+  background: none; border: none;
+  font-size: 13px; cursor: pointer;
+  padding: 2px 4px;
+  color: #1890ff;
+}
+.op-btn:hover { color: #40a9ff; }
+.op-btn.danger { color: #ff4d4f; }
+.op-btn.danger:hover { color: #ff7875; }
+
+/* ── 开关 ── */
+.toggle-switch {
+  position: relative; width: 36px; height: 20px;
+  display: inline-block; cursor: pointer; flex-shrink: 0;
+  vertical-align: middle;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: #d9d9d9; border-radius: 20px;
+  transition: background 0.2s;
+}
+.toggle-track::before {
+  content: ''; position: absolute;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; top: 3px; left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-track { background: #1890ff; }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+
+/* ── 分页 ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 14px 20px;
+  font-size: 13px;
+  color: #595959;
+}
+.page-total { margin-right: 8px; }
+.page-btn {
+  min-width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  cursor: pointer; font-size: 13px; background: #fff;
+  padding: 0 6px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.page-btn:hover { border-color: #1890ff; color: #1890ff; }
+.page-btn.active { background: #1890ff; border-color: #1890ff; color: #fff; }
+.page-btn.disabled { color: #d9d9d9; cursor: not-allowed; border-color: #d9d9d9; }
+.page-jump {
+  display: flex; align-items: center; gap: 6px; margin-left: 8px;
+}
+.page-jump input {
+  width: 44px; height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  text-align: center; font-size: 13px; outline: none;
+}
+.page-size-select {
+  height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 0 6px; font-size: 13px; outline: none;
+  cursor: pointer;
+}
+
+/* ── 编辑/新增 视图 ── */
+.section-card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+  padding: 20px 28px 24px;
+  position: relative;
+}
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.section-required-hint {
+  position: absolute;
+  top: 22px; right: 28px;
+  font-size: 12px;
+  color: #ff4d4f;
+}
+
+.form-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  gap: 10px;
+}
+.form-label {
+  width: 110px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #595959;
+  padding-top: 7px;
+  text-align: right;
+}
+.form-required { color: #ff4d4f; }
+.form-control { flex: 1; max-width: 720px; }
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  height: 34px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #262626;
+  outline: none;
+  background: #fff;
+  font-family: inherit;
+}
+.form-textarea {
+  height: 90px;
+  padding: 8px 10px;
+  resize: vertical;
+  line-height: 1.55;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.15);
+}
+.form-input.short { width: 110px; }
+.form-input.mid   { width: 220px; }
+.form-textarea-wrap { position: relative; }
+.textarea-count {
+  position: absolute;
+  right: 10px; bottom: 6px;
+  font-size: 11px;
+  color: #bfbfbf;
+}
+
+/* 奖品行 */
+.prize-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.prize-row .form-select { flex: 0 0 130px; width: 130px; }
+.prize-row .form-input.name { flex: 1; min-width: 180px; max-width: 260px; }
+.prize-row .form-input.qty  { flex: 0 0 150px; width: 150px; }
+.btn-inline {
+  height: 34px; padding: 0 14px;
+  background: #1890ff; color: #fff;
+  border: none; border-radius: 4px;
+  font-size: 13px; cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-inline:hover { background: #40a9ff; }
+.btn-inline.outline {
+  background: #fff; color: #595959;
+  border: 1px solid #d9d9d9;
+}
+.btn-inline.outline:hover { border-color: #1890ff; color: #1890ff; }
+.btn-inline:disabled { background: #bfbfbf; cursor: not-allowed; }
+
+/* 日期 + 时间 */
+.datetime-row { display: flex; align-items: center; gap: 10px; }
+.datetime-row .form-input { flex: 0 0 220px; }
+.datetime-row .time-text { font-size: 13px; color: #595959; }
+
+/* 复选框组 */
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 24px; padding-top: 7px; }
+.checkbox-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: #262626; cursor: pointer;
+  user-select: none;
+}
+.checkbox-item input { width: 14px; height: 14px; accent-color: #1890ff; }
+
+/* 单选按钮组（楼层规则） */
+.radio-group { display: inline-flex; border: 1px solid #d9d9d9; border-radius: 4px; overflow: hidden; }
+.radio-btn {
+  padding: 7px 18px;
+  font-size: 13px;
+  color: #595959;
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+  border-right: 1px solid #d9d9d9;
+  transition: all 0.15s;
+}
+.radio-btn:last-child { border-right: none; }
+.radio-btn.active { background: #1890ff; color: #fff; }
+
+/* 关联作者：select 下拉外观 */
+.author-select-wrap { position: relative; }
+.author-select-wrap::after {
+  content: '⌄';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-65%);
+  color: #bfbfbf;
+  pointer-events: none;
+  font-size: 14px;
+}
+
+/* 编辑视图底部提交栏 */
+.edit-footer {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: 14px 28px;
+  display: flex;
+  justify-content: flex-end;
+  position: sticky;
+  bottom: 0;
+}
+.btn-submit {
+  height: 34px;
+  padding: 0 24px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-submit:hover { background: #40a9ff; }
+.btn-cancel {
+  height: 34px;
+  padding: 0 20px;
+  background: #fff;
+  color: #595959;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+.btn-cancel:hover { border-color: #1890ff; color: #1890ff; }
+
+/* 已添加奖品 tags */
+.prize-added-list {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+}
+.prize-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #fff0e6; border: 1px solid #ffbb96;
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 12px; color: #d4380d;
+}
+.prize-tag-remove {
+  cursor: pointer; font-size: 13px;
+  color: #d4380d; line-height: 1; margin-left: 2px;
+}
+.prize-tag-remove:hover { color: #ff4d4f; }
+</style>
+</head>
+<body>
+<nav id="sidebar" class="sidebar"></nav>
+
+<div class="admin-main" id="admin-main">
+
+<!-- ============ 视图1：列表 ============ -->
+<div class="view active" id="view-list">
+  <div class="page-card">
+    <!-- Tab 栏 -->
+    <div class="tab-bar">
+      <div class="tab-item active" id="tab-list">抽奖列表</div>
+      <div class="tab-item" id="tab-audit">审核列表</div>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <div class="filter-item">
+        <span><span class="filter-required">*</span> 所属版块：</span>
+        <select class="filter-select" id="filter-module">
+          <option value="圣魂纷争">圣魂纷争</option>
+          <option value="超能世界">超能世界</option>
+          <option value="天墙传说手游">天墙传说手游</option>
+          <option value="逍遥情缘">逍遥情缘</option>
+          <option value="太初界">太初界</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <span>状态：</span>
+        <select class="filter-select" id="filter-status">
+          <option value="">不限</option>
+          <option value="进行中">进行中</option>
+          <option value="已结束">已结束</option>
+          <option value="待审核">待审核</option>
+          <option value="已拒绝">已拒绝</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <span>活动名称：</span>
+        <input type="text" class="filter-input" id="filter-name" placeholder="活动名称">
+      </div>
+      <button class="btn-query" onclick="renderListTable()">查询</button>
+    </div>
+
+    <!-- 操作栏 -->
+    <div class="action-bar">
+      <button class="btn-add" onclick="showView('edit')">新 增</button>
+      <div class="toolbar-icons">
+        <div class="toolbar-icon" title="列设置">⊟</div>
+        <div class="toolbar-icon" title="设置">⚙</div>
+      </div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>启用状态</th>
+            <th>活动ID</th>
+            <th>活动名称</th>
+            <th>状态</th>
+            <th>审核人</th>
+            <th>审核时间</th>
+            <th>审核备注</th>
+            <th>申请人</th>
+            <th>申请时间</th>
+            <th>发放奖励时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="list-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination">
+      <span class="page-total">共15条</span>
+      <div class="page-btn disabled">‹</div>
+      <div class="page-btn active">1</div>
+      <div class="page-btn">2</div>
+      <div class="page-btn">›</div>
+      <select class="page-size-select"><option>10条/页</option><option>20条/页</option><option>50条/页</option></select>
+      <div class="page-jump">
+        跳至 <input type="number" min="1" max="2"> 页
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 视图2：新增/编辑 ============ -->
+<div class="view" id="view-edit">
+  <!-- 视图顶部 Tab 模拟 -->
+  <div class="page-card" style="margin-bottom: 16px;">
+    <div class="tab-bar">
+      <div class="tab-item" onclick="showView('list')">楼层抽奖</div>
+      <div class="tab-item active" id="edit-tab-title">新增抽奖</div>
+    </div>
+  </div>
+
+  <!-- 活动信息 -->
+  <div class="section-card">
+    <div class="section-title">活动信息</div>
+    <div class="section-required-hint">* 为必填项</div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 活动名称：</div>
+      <div class="form-control">
+        <input type="text" class="form-input mid" id="e-name" placeholder="请输入活动名称">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 关联作者：</div>
+      <div class="form-control">
+        <div class="author-select-wrap" style="max-width: 240px;">
+          <input type="text" class="form-input" id="e-author" placeholder="请输入大玩家ID或昵称">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 活动奖品：</div>
+      <div class="form-control">
+        <div class="prize-row">
+          <select class="form-select" id="prize-type">
+            <option value="游戏道具">游戏道具</option>
+            <option value="头像框">头像框</option>
+          </select>
+          <input type="text" class="form-input name" id="prize-name" placeholder="请输入物品名称（ID）">
+          <input type="number" class="form-input qty" id="prize-qty" placeholder="最大输入：999999..." max="999999">
+          <button class="btn-inline" id="btn-prize-add">添 加</button>
+          <button class="btn-inline outline" id="btn-prize-clear">清 空</button>
+        </div>
+        <div class="prize-added-list" id="prize-added-list"></div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 开奖人数：</div>
+      <div class="form-control">
+        <input type="number" class="form-input short" id="e-winners" min="1">
+        <span style="font-size:13px; color:#595959; margin-left:6px;">人</span>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 活动截止时间：</div>
+      <div class="form-control">
+        <div class="datetime-row">
+          <input type="date" class="form-input" id="e-deadline" placeholder="请选择日期">
+          <span class="time-text">00:00:00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-label">活动说明：</div>
+      <div class="form-control">
+        <div class="form-textarea-wrap">
+          <textarea class="form-textarea" id="e-desc" maxlength="200" placeholder="请输入活动说明"></textarea>
+          <span class="textarea-count"><span id="desc-count">0</span> / 200</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 参与条件 -->
+  <div class="section-card">
+    <div class="section-title">参与条件</div>
+    <div class="section-required-hint">* 为必填项</div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 参与条件：</div>
+      <div class="form-control">
+        <div class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" value="关注"> 关注</label>
+          <label class="checkbox-item"><input type="checkbox" value="评论关键词"> 评论关键词</label>
+          <label class="checkbox-item"><input type="checkbox" value="点赞创作"> 点赞创作</label>
+          <label class="checkbox-item"><input type="checkbox" value="收藏创作"> 收藏创作</label>
+          <label class="checkbox-item"><input type="checkbox" value="投票创作"> 投票创作</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 限定条件 -->
+  <div class="section-card">
+    <div class="section-title">限定条件</div>
+    <div class="section-required-hint">* 为必填项</div>
+
+    <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 楼层抽奖规则：</div>
+      <div class="form-control">
+        <div class="radio-group" id="rule-group">
+          <div class="radio-btn active" data-rule="随机">随机</div>
+          <div class="radio-btn" data-rule="指定楼层">指定楼层</div>
+        </div>
+        <div id="rule-detail" style="margin-top: 14px; display: none;">
+          <input type="text" class="form-input mid" placeholder="请输入指定楼层（如：1,3,5,10）">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部提交栏 -->
+  <div class="edit-footer">
+    <button class="btn-cancel" onclick="showView('list')">取消</button>
+    <button class="btn-submit" onclick="submitEdit()">提交审核</button>
+  </div>
+</div>
+
+<!-- ============ 视图3：抽奖记录 ============ -->
+<div class="view" id="view-record">
+  <div class="page-card" style="margin-bottom: 16px;">
+    <div class="tab-bar">
+      <div class="tab-item" onclick="showView('list')">楼层抽奖</div>
+      <div class="tab-item active">抽奖记录</div>
+    </div>
+  </div>
+
+  <div class="page-card">
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <div class="filter-item">
+        <span>确认日期：</span>
+        <div class="date-range">
+          <input type="date" class="filter-input" id="rec-date-start" placeholder="开始日期">
+          <span class="arrow">→</span>
+          <input type="date" class="filter-input" id="rec-date-end" placeholder="结束日期">
+        </div>
+      </div>
+      <div class="filter-item">
+        <span>用户ID：</span>
+        <select class="filter-select" id="rec-id-type" style="min-width: 110px;">
+          <option value="userId">用户ID</option>
+          <option value="nick">昵称</option>
+        </select>
+        <input type="text" class="filter-input" id="rec-id-value" placeholder="请输入">
+      </div>
+      <button class="btn-query" onclick="renderRecordTable()">查询</button>
+    </div>
+
+    <!-- 操作栏 -->
+    <div class="action-bar">
+      <div></div>
+      <div class="toolbar-icons">
+        <div class="toolbar-icon" title="列设置">⊟</div>
+        <div class="toolbar-icon" title="设置">⚙</div>
+      </div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>序号</th>
+            <th>用户ID</th>
+            <th>昵称</th>
+            <th>通行证ID</th>
+            <th>通行证账号</th>
+            <th>角色ID</th>
+            <th>角色名称</th>
+            <th>游戏世界</th>
+            <th>领取状态</th>
+            <th>奖品</th>
+            <th>奖品类型</th>
+            <th>收货信息</th>
+            <th>确认时间</th>
+          </tr>
+        </thead>
+        <tbody id="record-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination">
+      <span class="page-total">共50条</span>
+      <div class="page-btn disabled">‹</div>
+      <div class="page-btn active">1</div>
+      <div class="page-btn">2</div>
+      <div class="page-btn">3</div>
+      <div class="page-btn">4</div>
+      <div class="page-btn">5</div>
+      <div class="page-btn">›</div>
+      <select class="page-size-select"><option>10条/页</option><option>20条/页</option><option>50条/页</option></select>
+      <div class="page-jump">跳至 <input type="number" min="1" max="5"> 页</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /admin-main -->
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/sidebar.js"></script>
+<script>
+  initSidebar({
+    root: '../..',
+    currentHref: 'admin/community/FloorLotteryManage.html'
+  });
+
+  // ── Mock 数据：楼层抽奖列表 ──
+  const MOCK_LIST = [
+    { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
+    { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1147, name: '明察秋毫找内鬼第二期',  status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-12 20:08:19', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-12 20:08:12', rewardTime: '2024-11-13 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1143, name: '万圣节特别活动',        status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-07 10:02:43', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-07 10:02:37', rewardTime: '2024-11-08 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1128, name: '【位面遗玩社】能量补给站', status: '已结束', statusCls: 'status-finished', reviewer: '杨梓源', reviewTime: '2024-09-23 18:42:35', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-09-23 18:42:26', rewardTime: '2024-09-24 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1111, name: '【话题互动】说一个含"火"的成语', status: '已结束', statusCls: 'status-finished', reviewer: '杨梓源', reviewTime: '2024-07-23 17:00:27', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-07-23 17:00:18', rewardTime: '2024-07-24 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1104, name: '发奖扣111',              status: '已结束', statusCls: 'status-finished', reviewer: '杨梓源', reviewTime: '2024-06-12 11:28:31', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-06-12 11:28:23', rewardTime: '2024-06-13 00:00:00', extra: ['复制','删除','记录'] },
+  ];
+
+  function renderListTable() {
+    const tbody = document.getElementById('list-tbody');
+    tbody.innerHTML = MOCK_LIST.map(r => `
+      <tr>
+        <td>
+          <label class="toggle-switch">
+            <input type="checkbox" ${r.enabled ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+          </label>
+        </td>
+        <td>${r.id}</td>
+        <td>${r.name}</td>
+        <td><span class="${r.statusCls}">${r.status}</span></td>
+        <td>${r.reviewer}</td>
+        <td>${r.reviewTime}</td>
+        <td>${r.reviewNote}</td>
+        <td>${r.applicant}</td>
+        <td>${r.applyTime}</td>
+        <td>${r.rewardTime}</td>
+        <td>${r.extra.map(t => {
+          const cls = t === '删除' ? 'op-btn danger' : 'op-btn';
+          if (t === '编辑')   return `<button class="${cls}" onclick="openEdit(${r.id})">${t}</button>`;
+          if (t === '记录')   return `<button class="${cls}" onclick="showView('record')">${t}</button>`;
+          return `<button class="${cls}">${t}</button>`;
+        }).join(' ')}</td>
+      </tr>
+    `).join('');
+  }
+  renderListTable();
+
+  // ── Mock 数据：抽奖记录 ──
+  const MOCK_RECORDS = [
+    { idx: 1, userId: 4795488, nick: '星光灿烂',          passId: 167443122,  passAcc: 'user167443122', roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-12-...' },
+    { idx: 2, userId: 4890216, nick: '百战穿金甲',        passId: 161019986,  passAcc: 'sclucky',       roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-12-...' },
+    { idx: 3, userId: 4904354, nick: '玩家544677132',     passId: 1015309707, passAcc: 'wk01745879',    roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-12-...' },
+    { idx: 4, userId: 4883292, nick: '玩家241496597',     passId: 1015119933, passAcc: 'wk01842026',    roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-11-...' },
+    { idx: 5, userId: 4904040, nick: '意中人',            passId: 1003505231, passAcc: '15620005928',   roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-11-...' },
+    { idx: 6, userId: 4888245, nick: '玩家884229346',     passId: 1006239737, passAcc: 'wk09171567',    roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-11-...' },
+    { idx: 7, userId: 4802323, nick: 'user1000373709',    passId: 1000373709, passAcc: 'user1000373709',roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-11-...' },
+    { idx: 8, userId: 4896229, nick: '墨染青衣飘荡',      passId: 1012290477, passAcc: 'wsk1993528',    roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-11-...' },
+    { idx: 9, userId: 4939261, nick: '水清浅',            passId: 1012146121, passAcc: 'wk02193390',    roleId: '', roleName: '', world: '', status: '已确认', prize: '经验值*2000', prizeType: '游戏道具', shipInfo: '-', confirmTime: '2024-11-...' },
+  ];
+
+  function renderRecordTable() {
+    const tbody = document.getElementById('record-tbody');
+    tbody.innerHTML = MOCK_RECORDS.map(r => `
+      <tr>
+        <td>${r.idx}</td>
+        <td>${r.userId}</td>
+        <td>${r.nick}</td>
+        <td>${r.passId}</td>
+        <td>${r.passAcc}</td>
+        <td>${r.roleId || ''}</td>
+        <td>${r.roleName || ''}</td>
+        <td>${r.world || ''}</td>
+        <td><span class="status-confirmed">${r.status}</span></td>
+        <td>${r.prize}</td>
+        <td>${r.prizeType}</td>
+        <td>${r.shipInfo}</td>
+        <td>${r.confirmTime}</td>
+      </tr>
+    `).join('');
+  }
+  renderRecordTable();
+
+  // ── 视图切换 ──
+  function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const map = { list: 'view-list', edit: 'view-edit', record: 'view-record' };
+    document.getElementById(map[name]).classList.add('active');
+    if (name === 'list') {
+      document.getElementById('edit-tab-title').textContent = '新增抽奖';
+      resetEditForm();
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function openEdit(id) {
+    const r = MOCK_LIST.find(x => x.id === id);
+    if (!r) return;
+    document.getElementById('edit-tab-title').textContent = '编辑抽奖';
+    document.getElementById('e-name').value = r.name;
+    showView('edit');
+  }
+
+  function resetEditForm() {
+    ['e-name','e-author','e-winners','e-deadline','e-desc','prize-name','prize-qty'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('desc-count').textContent = '0';
+    addedPrizes = [];
+    renderPrizeList();
+    document.querySelectorAll('.checkbox-item input').forEach(c => c.checked = false);
+    // 重置楼层规则
+    document.querySelectorAll('#rule-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
+    document.getElementById('rule-detail').style.display = 'none';
+  }
+
+  // ── 列表 Tab 切换 ──
+  document.getElementById('tab-list').addEventListener('click', () => {
+    document.getElementById('tab-list').classList.add('active');
+    document.getElementById('tab-audit').classList.remove('active');
+  });
+  document.getElementById('tab-audit').addEventListener('click', () => {
+    document.getElementById('tab-audit').classList.add('active');
+    document.getElementById('tab-list').classList.remove('active');
+  });
+
+  // ── 描述字数统计 ──
+  document.getElementById('e-desc').addEventListener('input', function() {
+    document.getElementById('desc-count').textContent = this.value.length;
+  });
+
+  // ── 楼层规则切换 ──
+  document.querySelectorAll('#rule-group .radio-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#rule-group .radio-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      document.getElementById('rule-detail').style.display = this.dataset.rule === '指定楼层' ? '' : 'none';
+    });
+  });
+
+  // ── 奖品添加 ──
+  let addedPrizes = [];
+  const MAX_PRIZES = 5;
+
+  document.getElementById('prize-type').addEventListener('change', function() {
+    document.getElementById('prize-qty').style.display = this.value === '头像框' ? 'none' : '';
+  });
+
+  function renderPrizeList() {
+    const list = document.getElementById('prize-added-list');
+    list.innerHTML = addedPrizes.map((p, i) => `
+      <div class="prize-tag">
+        🎁 ${p.name}${p.qty ? '×' + p.qty : ''}
+        <span class="prize-tag-remove" onclick="removePrize(${i})">×</span>
+      </div>
+    `).join('');
+    document.getElementById('btn-prize-add').disabled = addedPrizes.length >= MAX_PRIZES;
+  }
+  function removePrize(i) { addedPrizes.splice(i, 1); renderPrizeList(); }
+
+  document.getElementById('btn-prize-add').addEventListener('click', () => {
+    const type = document.getElementById('prize-type').value;
+    const name = document.getElementById('prize-name').value.trim();
+    const qty  = document.getElementById('prize-qty').value.trim();
+    if (!name) { alert('请输入物品名称'); return; }
+    if (type === '游戏道具' && !qty) { alert('请输入数量'); return; }
+    if (addedPrizes.length >= MAX_PRIZES) { alert('最多添加5个奖品'); return; }
+    addedPrizes.push({ type, name, qty: type === '头像框' ? '' : qty });
+    document.getElementById('prize-name').value = '';
+    document.getElementById('prize-qty').value = '';
+    renderPrizeList();
+  });
+
+  document.getElementById('btn-prize-clear').addEventListener('click', () => {
+    document.getElementById('prize-name').value = '';
+    document.getElementById('prize-qty').value = '';
+  });
+
+  function submitEdit() {
+    const name = document.getElementById('e-name').value.trim();
+    if (!name) { alert('请输入活动名称'); return; }
+    alert('提交审核成功（mock）');
+    showView('list');
+  }
+</script>
+
+</body>
+</html>
