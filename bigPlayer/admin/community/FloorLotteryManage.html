@@ -182,6 +182,31 @@ tbody tr:hover { background: #fafeff; }
 .reward-mode-manual { color: #fa8c16; border: 1px solid #fa8c16; background: #fff7e6; }
 .reward-mode-auto   { color: #52c41a; border: 1px solid #52c41a; background: #f6ffed; }
 
+/* 活动类型标签 */
+.activity-type-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.activity-type-single { color: #1890ff; border: 1px solid #1890ff; background: #e6f7ff; }
+.activity-type-cycle  { color: #722ed1; border: 1px solid #722ed1; background: #f9f0ff; }
+
+/* 名称后小尺寸发奖方式徽标 */
+.name-reward-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1.5;
+  margin-left: 6px;
+  vertical-align: middle;
+  background: transparent;
+}
+.name-reward-badge.manual { color: #fa8c16; border: 1px solid #fa8c16; }
+.name-reward-badge.auto   { color: #52c41a; border: 1px solid #52c41a; }
+
 /* 操作按钮 */
 .op-btn {
   background: none; border: none;
@@ -791,7 +816,7 @@ tbody tr:hover { background: #fafeff; }
               <th>活动ID</th>
               <th>活动名称</th>
               <th>状态</th>
-              <th>发奖方式</th>
+              <th>活动类型</th>
               <th>审核人</th>
               <th>审核时间</th>
               <th>审核备注</th>
@@ -853,7 +878,7 @@ tbody tr:hover { background: #fafeff; }
               <th>活动ID</th>
               <th>活动名称</th>
               <th>状态</th>
-              <th>发奖方式</th>
+              <th>活动类型</th>
               <th>申请人</th>
               <th>申请时间</th>
               <th>发放奖励时间</th>
@@ -1245,14 +1270,14 @@ tbody tr:hover { background: #fafeff; }
 
   // ── Mock 数据：楼层抽奖列表 ──
   const MOCK_LIST = [
-    { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  rewardMode: '人工审核', reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
-    { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1147, name: '明察秋毫找内鬼第二期',  status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-12 20:08:19', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-12 20:08:12', rewardTime: '2024-11-13 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1143, name: '万圣节特别活动',        status: '已结束', statusCls: 'status-finished', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-07 10:02:43', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-07 10:02:37', rewardTime: '2024-11-08 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1128, name: '【位面遗玩社】能量补给站', status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-09-23 18:42:35', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-09-23 18:42:26', rewardTime: '2024-09-24 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1111, name: '【话题互动】说一个含"火"的成语', status: '已结束', statusCls: 'status-finished', rewardMode: '人工审核', reviewer: '杨梓源', reviewTime: '2024-07-23 17:00:27', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-07-23 17:00:18', rewardTime: '2024-07-24 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1104, name: '发奖扣111',              status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-06-12 11:28:31', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-06-12 11:28:23', rewardTime: '2024-06-13 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  activityType: '单次', rewardMode: '人工审核', reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
+    { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1147, name: '明察秋毫找内鬼第二期',  status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-12 20:08:19', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-12 20:08:12', rewardTime: '2024-11-13 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1143, name: '万圣节特别活动',        status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-07 10:02:43', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-07 10:02:37', rewardTime: '2024-11-08 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1128, name: '【位面遗玩社】能量补给站', status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-09-23 18:42:35', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-09-23 18:42:26', rewardTime: '2024-09-24 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1111, name: '【话题互动】说一个含"火"的成语', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-07-23 17:00:27', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-07-23 17:00:18', rewardTime: '2024-07-24 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1104, name: '发奖扣111',              status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-06-12 11:28:31', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-06-12 11:28:23', rewardTime: '2024-06-13 00:00:00', extra: ['复制','删除','记录'] },
   ];
 
   function renderListTable() {
@@ -1266,9 +1291,9 @@ tbody tr:hover { background: #fafeff; }
           </label>
         </td>
         <td>${r.id}</td>
-        <td>${r.name}</td>
+        <td>${r.name}<span class="name-reward-badge ${r.rewardMode === '人工审核' ? 'manual' : 'auto'}">${r.rewardMode}</span></td>
         <td><span class="${r.statusCls}">${r.status}</span></td>
-        <td><span class="reward-mode-tag ${r.rewardMode === '人工审核' ? 'reward-mode-manual' : 'reward-mode-auto'}">${r.rewardMode}</span></td>
+        <td>${r.activityType}活动</td>
         <td>${r.reviewer}</td>
         <td>${r.reviewTime}</td>
         <td>${r.reviewNote}</td>
@@ -1372,8 +1397,8 @@ tbody tr:hover { background: #fafeff; }
 
   // ── 列表 Tab 切换 ──
   const MOCK_AUDIT = [
-    { id: 1136, name: '你最喜欢和期待的超能皮肤风格', status: '待审核', statusCls: 'status-pending', rewardMode: '人工审核', applicant: '黄梦琪', applyTime: '2024-10-23 16:51:59', rewardTime: '2024-10-24 00:00:00' },
-    { id: 1094, name: '超能知识竞赛-谷雨节气',        status: '待审核', statusCls: 'status-pending', rewardMode: '自动发奖', applicant: '黄梦琪', applyTime: '2024-04-24 15:00:51', rewardTime: '2024-04-25 00:00:00' },
+    { id: 1136, name: '你最喜欢和期待的超能皮肤风格', status: '待审核', statusCls: 'status-pending', activityType: '单次', rewardMode: '人工审核', applicant: '黄梦琪', applyTime: '2024-10-23 16:51:59', rewardTime: '2024-10-24 00:00:00' },
+    { id: 1094, name: '超能知识竞赛-谷雨节气',        status: '待审核', statusCls: 'status-pending', activityType: '周期', rewardMode: '自动发奖', applicant: '黄梦琪', applyTime: '2024-04-24 15:00:51', rewardTime: '2024-04-25 00:00:00' },
   ];
 
   function renderAuditTable() {
@@ -1382,9 +1407,9 @@ tbody tr:hover { background: #fafeff; }
       <tr>
         <td><input type="checkbox" class="audit-row-check" style="width:14px;height:14px;accent-color:#1890ff;"></td>
         <td>${r.id}</td>
-        <td>${r.name}</td>
+        <td>${r.name}<span class="name-reward-badge ${r.rewardMode === '人工审核' ? 'manual' : 'auto'}">${r.rewardMode}</span></td>
         <td><span class="${r.statusCls}">${r.status}</span></td>
-        <td><span class="reward-mode-tag ${r.rewardMode === '人工审核' ? 'reward-mode-manual' : 'reward-mode-auto'}">${r.rewardMode}</span></td>
+        <td>${r.activityType}活动</td>
         <td>${r.applicant}</td>
         <td>${r.applyTime}</td>
         <td>${r.rewardTime}</td>
@@ -2102,7 +2127,7 @@ tbody tr:hover { background: #fafeff; }
 
         <div class="help-section">
           <div class="help-section-title">本次变更</div>
-          <p>楼层抽奖新增<strong>活动类型</strong>维度，拆分为「单次活动」与「周期活动」。单次活动逻辑沿用原版，仅多一个发奖方式字段；<strong>周期活动</strong>为本次新增形态，支持活动时段、周期总数、活动说明三项基础配置，并在评论关键词「精准/模糊匹配」下新增「匹配类型」字段（统一 / 按周期配置），支持按周期下发不同关键词。</p>
+          <p>楼层抽奖新增<strong>活动类型</strong>维度，拆分为「单次活动」与「周期活动」。单次活动逻辑沿用原版，仅多一个发奖方式字段（人工审核 / 自动发奖）；<strong>周期活动</strong>为本次新增形态，<strong>强制使用自动发奖</strong>（表单不展示发奖方式字段），支持活动时段、周期总数、活动说明三项基础配置，并在评论关键词「精准/模糊匹配」下新增「匹配类型」字段（统一 / 按周期配置），支持按周期下发不同关键词。</p>
         </div>
 
         <div class="help-section">
@@ -2141,13 +2166,13 @@ tbody tr:hover { background: #fafeff; }
               </tr>
               <tr>
                 <td>开奖人数 / <strong>周期总数</strong></td>
-                <td>数字</td><td><span class="req">*</span>是</td><td>全部</td>
-                <td>单次=开奖人数；周期=每个周期开奖人数（label 联动）</td>
+                <td>单次=数字<br>周期=单选+数字 <span class="htag new">UPD</span></td><td><span class="req">*</span>是</td><td>全部</td>
+                <td>单次活动：直接输入开奖人数（≥ 1）。<br>周期活动：label 联动为「周期总数」，可选 <code>不限</code>（默认）或 <code>周期限制</code>；选「周期限制」时出现输入框，限制每个周期获奖总人数。</td>
               </tr>
               <tr>
                 <td><strong>发奖方式</strong> <span class="htag new">NEW</span></td>
-                <td>单选</td><td><span class="req">*</span>是</td><td>全部</td>
-                <td><code>人工审核</code>（默认）/ <code>自动发奖</code></td>
+                <td>单选</td><td><span class="req">*</span>是</td><td>仅单次</td>
+                <td><code>人工审核</code>（默认）/ <code>自动发奖</code>；<strong>周期活动不展示该字段，固定为自动发奖</strong></td>
               </tr>
               <tr>
                 <td><strong>活动说明</strong> <span class="htag new">NEW</span></td>
@@ -2224,14 +2249,14 @@ tbody tr:hover { background: #fafeff; }
               <div class="help-flow-no">3</div>
               <div class="help-flow-body">
                 <div class="help-flow-title">配置开奖人数 / 周期总数</div>
-                <div class="help-flow-desc">数字 ≥ 1。周期活动下，该数字为<strong>每个周期</strong>开奖人数。</div>
+                <div class="help-flow-desc">单次活动：直接输入开奖人数（≥ 1）。周期活动下默认<strong>不限</strong>，选「周期限制」时填入数字，作为<strong>每个周期</strong>获奖总人数上限。</div>
               </div>
             </div>
             <div class="help-flow-step">
               <div class="help-flow-no">4</div>
               <div class="help-flow-body">
                 <div class="help-flow-title">选择发奖方式</div>
-                <div class="help-flow-desc">默认「人工审核」。选择「自动发奖」且活动类型为周期时，显示 <code>M&lt;N 不补发</code> 提示文案。</div>
+                <div class="help-flow-desc"><strong>仅单次活动</strong>需选择，默认「人工审核」。<strong>周期活动不展示该字段，系统固定为自动发奖</strong>，并显示 <code>M&lt;N 不补发</code> 提示文案。</div>
               </div>
             </div>
             <div class="help-flow-step">
@@ -2284,13 +2309,8 @@ tbody tr:hover { background: #fafeff; }
             <div class="help-flow-step">
               <div class="help-flow-no branch">3</div>
               <div class="help-flow-body">
-                <div class="help-flow-title">按发奖方式分流</div>
-                <div class="help-flow-desc">
-                  <ul style="margin:4px 0 0; padding-left:18px;">
-                    <li><code>人工审核</code>：生成预选名单（min(N,M) 人），等待运营手动确认发奖</li>
-                    <li><code>自动发奖</code>：系统自动从达标玩家中随机抽取 min(N,M) 人，立即发奖</li>
-                  </ul>
-                </div>
+                <div class="help-flow-title">系统自动发奖</div>
+                <div class="help-flow-desc">周期活动固定走<strong>自动发奖</strong>：系统从达标玩家中随机抽取 min(N,M) 人，立即发奖，无需运营介入。</div>
                 <div class="help-flow-branch">M = 0 → 本期流标，不消耗道具库存；M &lt; N → 实发 M 人，剩余名额不补发。</div>
               </div>
             </div>
@@ -2315,17 +2335,19 @@ tbody tr:hover { background: #fafeff; }
               <tr><td>周期活动 · 开始日 ≥ 结束日</td><td><code>结束日期必须晚于开始日期</code></td></tr>
               <tr><td>周期活动 · 开始日早于今天</td><td><code>活动开始日期不可早于今天</code></td></tr>
               <tr><td>周期总数 = 0</td><td><code>当前活动时段无有效周期</code></td></tr>
+              <tr><td>周期总数选「周期限制」但未填数字</td><td><code>请输入周期内获奖总人数</code></td></tr>
               <tr><td>统一模式关键词为空</td><td><code>请至少添加 1 个关键词</code></td></tr>
               <tr><td>按周期配置任一周期关键词为空</td><td><code>周期 X 的关键词未填写</code>，定位高亮该行</td></tr>
-              <tr><td rowspan="5"><span class="htag border">运行</span></td><td>已创建活动改活动类型</td><td>禁止，字段置灰，hover 提示<code>活动类型创建后不可修改</code></td></tr>
-              <tr><td>已进入发奖流程改发奖方式</td><td>禁止，字段置灰</td></tr>
+              <tr><td rowspan="6"><span class="htag border">运行</span></td><td>已创建活动改活动类型</td><td>禁止，字段置灰，hover 提示<code>活动类型创建后不可修改</code></td></tr>
+              <tr><td>单次活动 · 已进入发奖流程改发奖方式</td><td>禁止，字段置灰</td></tr>
+              <tr><td>周期活动 · 表单提交时发奖方式</td><td>系统固定为 <code>自动发奖</code>，前端不展示该字段；接口接收非 <code>自动发奖</code> 值时直接覆盖</td></tr>
               <tr><td>周期进行中修改活动时段</td><td>仅允许延长未来时段，已触发周期不变；二次确认</td></tr>
-              <tr><td>周期进行中切换匹配类型</td><td>仅对未触发周期生效；二次确认</td></tr>
+              <tr><td>周期进行中切换匹配类型</td><td>禁止，字段及单选项全量置灰，hover 提示「活动进行中匹配类型不可修改」</td></tr>
               <tr><td>重新生成周期导致关键词丢失</td><td>弹窗：<code>检测到周期发生变化，旧关键词将被清空</code></td></tr>
               <tr><td rowspan="3"><span class="htag border">开奖</span></td><td>自动发奖 · M &lt; N</td><td>实发 M 人，剩余名额不补发，记录标注「名额未满」</td></tr>
               <tr><td>自动发奖 · M = 0</td><td>当期流标，不消耗道具库存</td></tr>
               <tr><td>关键词大小写 / 全半角</td><td>统一忽略大小写、全半角归一化；emoji 保留原样</td></tr>
-              <tr><td><span class="htag def">兼容</span></td><td>历史无活动类型 / 发奖方式数据</td><td>活动类型回填 <code>单次活动</code>，发奖方式回填 <code>人工审核</code></td></tr>
+              <tr><td><span class="htag def">兼容</span></td><td>历史无活动类型 / 发奖方式数据</td><td>活动类型回填 <code>单次活动</code>，发奖方式回填 <code>人工审核</code>（仅单次活动）</td></tr>
             </tbody>
           </table>
         </div>
@@ -2333,9 +2355,9 @@ tbody tr:hover { background: #fafeff; }
         <div class="help-section">
           <div class="help-section-title">列表页变更</div>
           <ul>
-            <li><strong>活动类型</strong> 列 <span class="htag new">NEW</span>：单次 / 周期标签</li>
-            <li><strong>活动时间</strong> 列：周期活动展示 <code>开始日 ~ 结束日 · 共 N 周期</code>；单次展示单一截止时间</li>
-            <li><strong>发奖方式</strong> 列 <span class="htag new">NEW</span>：人工审核 / 自动发奖标签</li>
+            <li><strong>「发奖方式」列改为「活动类型」列</strong> <span class="htag new">NEW</span>：以正文文本展示「单次活动」/「周期活动」，<strong>不加描边标签</strong></li>
+            <li><strong>活动名称后追加发奖方式徽标</strong> <span class="htag new">NEW</span>：描边标签紧贴名称右侧，「人工审核」橙色描边、「自动发奖」绿色描边；周期活动统一为「自动发奖」</li>
+            <li>其余列保持不变</li>
           </ul>
         </div>
 
@@ -2343,8 +2365,10 @@ tbody tr:hover { background: #fafeff; }
           <div class="help-section-title">验收清单</div>
           <ol>
             <li>新增页默认「单次活动 + 人工审核」，与历史交互一致</li>
-            <li>切到周期活动：截止时间隐藏、活动时段/开奖时间/周期徽标显示，开奖人数 label 联动「周期总数」</li>
-            <li>周期 + 自动发奖：显示 <code>M&lt;N 不补发</code> 提示</li>
+            <li>切到周期活动：截止时间隐藏、活动时段/开奖时间/周期徽标显示，开奖人数 label 联动「周期总数」，<strong>发奖方式字段整行隐藏</strong></li>
+            <li>周期活动「周期总数」默认「不限」，选「周期限制」时出现人数输入框；提示文字：「周期内限制获奖的总人数」</li>
+            <li>周期活动：保存时发奖方式固定为 <code>自动发奖</code>；详情页和列表页该字段展示「自动发奖」</li>
+            <li>周期活动：显示 <code>M&lt;N 不补发</code> 提示</li>
             <li>评论关键词 + 周期 + 精准/模糊：显示「匹配类型」单选，默认「统一」</li>
             <li>匹配类型切到「按周期配置」：自动按时段生成周期行，每行支持多 tag</li>
             <li>匹配关键词切到「不限」：匹配类型 + 关键词输入整行隐藏</li>
