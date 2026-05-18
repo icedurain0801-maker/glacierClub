@@ -171,6 +171,17 @@ tbody tr:hover { background: #fafeff; }
 .status-reject   { color: #ff4d4f; font-weight: 500; }
 .status-confirmed{ color: #52c41a; font-weight: 500; }
 
+/* 发奖方式标签 */
+.reward-mode-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.reward-mode-manual { color: #fa8c16; border: 1px solid #fa8c16; background: #fff7e6; }
+.reward-mode-auto   { color: #52c41a; border: 1px solid #52c41a; background: #f6ffed; }
+
 /* 操作按钮 */
 .op-btn {
   background: none; border: none;
@@ -278,10 +289,62 @@ tbody tr:hover { background: #fafeff; }
   font-size: 13px;
   color: #595959;
   padding-top: 7px;
-  text-align: right;
+  text-align: left;
 }
 .form-required { color: #ff4d4f; }
-.form-control { flex: 1; max-width: 720px; }
+
+/* 问号说明 */
+.help-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: #bfbfbf;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+  user-select: none;
+}
+.help-tip:hover { background: #1890ff; }
+.help-tip::after {
+  content: attr(data-tip);
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.6;
+  padding: 8px 12px;
+  border-radius: 4px;
+  width: 320px;
+  text-align: left;
+  z-index: 1000;
+  white-space: normal;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  pointer-events: none;
+}
+.help-tip::before {
+  content: '';
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 4px;
+  border: 6px solid transparent;
+  border-bottom-color: rgba(0,0,0,0.85);
+  z-index: 1000;
+  pointer-events: none;
+}
+.help-tip:hover::after,
+.help-tip:hover::before { display: block; }
+.form-control { flex: 1; max-width: 720px; text-align: left; }
 .form-input, .form-select, .form-textarea {
   width: 100%;
   height: 34px;
@@ -378,6 +441,45 @@ tbody tr:hover { background: #fafeff; }
   font-size: 14px;
 }
 
+/* 条件子字段区 */
+.cond-sub {
+  display: none;
+  margin-top: 14px;
+  margin-left: -120px;
+  text-align: left;
+}
+.cond-sub.visible { display: block; }
+.cond-sub-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+.cond-sub-row:last-child { margin-bottom: 0; }
+.cond-sub-label {
+  font-size: 13px;
+  color: #595959;
+  white-space: nowrap;
+  text-align: left;
+}
+/* 关键词添加行 */
+.keyword-add-row { display: flex; align-items: center; gap: 8px; }
+.keyword-add-row .form-input { width: 220px; }
+.keyword-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.keyword-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #e6f7ff; border: 1px solid #91d5ff;
+  border-radius: 12px; padding: 3px 10px;
+  font-size: 12px; color: #096dd9;
+}
+.keyword-tag-remove { cursor: pointer; color: #096dd9; font-size: 13px; line-height: 1; }
+.keyword-tag-remove:hover { color: #ff4d4f; }
+/* 开关（行内） */
+.inline-toggle-wrap { display: flex; align-items: center; gap: 8px; }
+.inline-toggle-label { font-size: 13px; color: #262626; }
+
 /* 编辑视图底部提交栏 */
 .edit-footer {
   background: #fff;
@@ -445,76 +547,133 @@ tbody tr:hover { background: #fafeff; }
       <div class="tab-item" id="tab-audit">审核列表</div>
     </div>
 
-    <!-- 筛选栏 -->
-    <div class="filter-bar">
-      <div class="filter-item">
-        <span><span class="filter-required">*</span> 所属版块：</span>
-        <select class="filter-select" id="filter-module">
-          <option value="圣魂纷争">圣魂纷争</option>
-          <option value="超能世界">超能世界</option>
-          <option value="天墙传说手游">天墙传说手游</option>
-          <option value="逍遥情缘">逍遥情缘</option>
-          <option value="太初界">太初界</option>
-        </select>
+    <!-- 抽奖列表内容 -->
+    <div id="panel-lottery">
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <div class="filter-item">
+          <span><span class="filter-required">*</span> 所属版块：</span>
+          <select class="filter-select" id="filter-module">
+            <option value="圣魂纷争">圣魂纷争</option>
+            <option value="超能世界">超能世界</option>
+            <option value="天墙传说手游">天墙传说手游</option>
+            <option value="逍遥情缘">逍遥情缘</option>
+            <option value="太初界">太初界</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span>状态：</span>
+          <select class="filter-select" id="filter-status">
+            <option value="">不限</option>
+            <option value="进行中">进行中</option>
+            <option value="已结束">已结束</option>
+            <option value="待审核">待审核</option>
+            <option value="已拒绝">已拒绝</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span>活动名称：</span>
+          <input type="text" class="filter-input" id="filter-name" placeholder="活动名称">
+        </div>
+        <button class="btn-query" onclick="renderListTable()">查询</button>
       </div>
-      <div class="filter-item">
-        <span>状态：</span>
-        <select class="filter-select" id="filter-status">
-          <option value="">不限</option>
-          <option value="进行中">进行中</option>
-          <option value="已结束">已结束</option>
-          <option value="待审核">待审核</option>
-          <option value="已拒绝">已拒绝</option>
-        </select>
+      <!-- 操作栏 -->
+      <div class="action-bar">
+        <button class="btn-add" onclick="showView('edit')">新 增</button>
+        <div class="toolbar-icons">
+          <div class="toolbar-icon" title="列设置">⊟</div>
+          <div class="toolbar-icon" title="设置">⚙</div>
+        </div>
       </div>
-      <div class="filter-item">
-        <span>活动名称：</span>
-        <input type="text" class="filter-input" id="filter-name" placeholder="活动名称">
+      <!-- 表格 -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>启用状态</th>
+              <th>活动ID</th>
+              <th>活动名称</th>
+              <th>状态</th>
+              <th>发奖方式</th>
+              <th>审核人</th>
+              <th>审核时间</th>
+              <th>审核备注</th>
+              <th>申请人</th>
+              <th>申请时间</th>
+              <th>发放奖励时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="list-tbody"></tbody>
+        </table>
       </div>
-      <button class="btn-query" onclick="renderListTable()">查询</button>
+      <!-- 分页 -->
+      <div class="pagination">
+        <span class="page-total">共15条</span>
+        <div class="page-btn disabled">‹</div>
+        <div class="page-btn active">1</div>
+        <div class="page-btn">2</div>
+        <div class="page-btn">›</div>
+        <select class="page-size-select"><option>10条/页</option><option>20条/页</option><option>50条/页</option></select>
+        <div class="page-jump">跳至 <input type="number" min="1" max="2"> 页</div>
+      </div>
     </div>
 
-    <!-- 操作栏 -->
-    <div class="action-bar">
-      <button class="btn-add" onclick="showView('edit')">新 增</button>
-      <div class="toolbar-icons">
-        <div class="toolbar-icon" title="列设置">⊟</div>
-        <div class="toolbar-icon" title="设置">⚙</div>
+    <!-- 审核列表内容 -->
+    <div id="panel-audit" style="display:none;">
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <div class="filter-item">
+          <span><span class="filter-required">*</span> 所属版块：</span>
+          <select class="filter-select" id="audit-filter-module">
+            <option value="超能世界">超能世界</option>
+            <option value="圣魂纷争">圣魂纷争</option>
+            <option value="天墙传说手游">天墙传说手游</option>
+            <option value="逍遥情缘">逍遥情缘</option>
+            <option value="太初界">太初界</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span>活动名称：</span>
+          <input type="text" class="filter-input" id="audit-filter-name" placeholder="活动名称">
+        </div>
+        <button class="btn-query" onclick="renderAuditTable()">查询</button>
       </div>
-    </div>
-
-    <!-- 表格 -->
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>启用状态</th>
-            <th>活动ID</th>
-            <th>活动名称</th>
-            <th>状态</th>
-            <th>审核人</th>
-            <th>审核时间</th>
-            <th>审核备注</th>
-            <th>申请人</th>
-            <th>申请时间</th>
-            <th>发放奖励时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="list-tbody"></tbody>
-      </table>
-    </div>
-
-    <!-- 分页 -->
-    <div class="pagination">
-      <span class="page-total">共15条</span>
-      <div class="page-btn disabled">‹</div>
-      <div class="page-btn active">1</div>
-      <div class="page-btn">2</div>
-      <div class="page-btn">›</div>
-      <select class="page-size-select"><option>10条/页</option><option>20条/页</option><option>50条/页</option></select>
-      <div class="page-jump">
-        跳至 <input type="number" min="1" max="2"> 页
+      <!-- 操作栏 -->
+      <div class="action-bar">
+        <button class="btn-add" style="background:#fff;color:#595959;border:1px solid #d9d9d9;" onmouseover="this.style.borderColor='#1890ff';this.style.color='#1890ff'" onmouseout="this.style.borderColor='#d9d9d9';this.style.color='#595959'">批量审核</button>
+        <div class="toolbar-icons">
+          <div class="toolbar-icon" title="列设置">⊟</div>
+          <div class="toolbar-icon" title="设置">⚙</div>
+        </div>
+      </div>
+      <!-- 表格 -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="audit-check-all" style="width:14px;height:14px;accent-color:#1890ff;"></th>
+              <th>活动ID</th>
+              <th>活动名称</th>
+              <th>状态</th>
+              <th>发奖方式</th>
+              <th>申请人</th>
+              <th>申请时间</th>
+              <th>发放奖励时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody"></tbody>
+        </table>
+      </div>
+      <!-- 分页 -->
+      <div class="pagination">
+        <span class="page-total">共2条</span>
+        <div class="page-btn disabled">‹</div>
+        <div class="page-btn active">1</div>
+        <div class="page-btn">›</div>
+        <select class="page-size-select"><option>10条/页</option><option>20条/页</option><option>50条/页</option></select>
+        <div class="page-jump">跳至 <input type="number" min="1" max="1"> 页</div>
       </div>
     </div>
   </div>
@@ -587,6 +746,16 @@ tbody tr:hover { background: #fafeff; }
     </div>
 
     <div class="form-row">
+      <div class="form-label"><span class="form-required">*</span> 发奖方式<span class="help-tip" data-tip="人工审核为人工审核获奖名单并手动确认发奖，适用于道具奖励价值较高或需要控制获奖用户的活动。自动发奖为系统到了活动截止时间随机抽取玩家发奖，适用于道具奖励价值较低且固定的活动。">?</span>：</div>
+      <div class="form-control">
+        <div class="radio-group" id="reward-mode-group">
+          <div class="radio-btn active" data-mode="人工审核">人工审核</div>
+          <div class="radio-btn" data-mode="自动发奖">自动发奖</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
       <div class="form-label">活动说明：</div>
       <div class="form-control">
         <div class="form-textarea-wrap">
@@ -606,11 +775,64 @@ tbody tr:hover { background: #fafeff; }
       <div class="form-label"><span class="form-required">*</span> 参与条件：</div>
       <div class="form-control">
         <div class="checkbox-group">
-          <label class="checkbox-item"><input type="checkbox" value="关注"> 关注</label>
-          <label class="checkbox-item"><input type="checkbox" value="评论关键词"> 评论关键词</label>
-          <label class="checkbox-item"><input type="checkbox" value="点赞创作"> 点赞创作</label>
-          <label class="checkbox-item"><input type="checkbox" value="收藏创作"> 收藏创作</label>
-          <label class="checkbox-item"><input type="checkbox" value="投票创作"> 投票创作</label>
+          <label class="checkbox-item"><input type="checkbox" id="cond-follow" value="关注"> 关注</label>
+          <label class="checkbox-item"><input type="checkbox" id="cond-comment" value="评论关键词"> 评论关键词</label>
+          <label class="checkbox-item"><input type="checkbox" id="cond-like" value="点赞创作"> 点赞创作</label>
+          <label class="checkbox-item"><input type="checkbox" id="cond-collect" value="收藏创作"> 收藏创作</label>
+          <label class="checkbox-item"><input type="checkbox" id="cond-vote" value="投票创作"> 投票创作</label>
+        </div>
+
+        <!-- 关注 子字段 -->
+        <div class="cond-sub" id="sub-follow">
+          <div class="cond-sub-row">
+            <span class="cond-sub-label"><span class="form-required">*</span> 关注：</span>
+            <div class="radio-group" id="follow-type-group">
+              <div class="radio-btn" data-type="作者">作者</div>
+              <div class="radio-btn active" data-type="多个用户">多个用户</div>
+            </div>
+          </div>
+          <div class="cond-sub-row" id="follow-author-row">
+            <span class="cond-sub-label"><span class="form-required">*</span> 关注作者：</span>
+            <input type="text" class="form-input" id="follow-author" placeholder="请输入大玩家ID或昵称" style="max-width:260px;">
+          </div>
+        </div>
+
+        <!-- 评论关键词 子字段 -->
+        <div class="cond-sub" id="sub-comment">
+          <div class="cond-sub-row">
+            <span class="cond-sub-label"><span class="form-required">*</span> 匹配关键词：</span>
+            <div class="radio-group" id="keyword-match-group">
+              <div class="radio-btn" data-match="精准匹配">精准匹配</div>
+              <div class="radio-btn active" data-match="模糊匹配">模糊匹配</div>
+              <div class="radio-btn" data-match="不限">不限</div>
+            </div>
+            <span class="cond-sub-label" style="margin-left:16px;"><span class="form-required">*</span> 关键词显示：</span>
+            <div class="inline-toggle-wrap">
+              <label class="toggle-switch">
+                <input type="checkbox" id="keyword-show-toggle" checked>
+                <span class="toggle-track"></span>
+              </label>
+              <span class="inline-toggle-label" id="keyword-show-label">开启</span>
+            </div>
+          </div>
+          <div class="cond-sub-row">
+            <div class="keyword-add-row">
+              <input type="text" class="form-input" id="keyword-input" placeholder="请输入关键词">
+              <button class="btn-inline" onclick="addKeyword()">添 加</button>
+            </div>
+          </div>
+          <div class="keyword-list" id="keyword-list"></div>
+        </div>
+
+        <!-- 投票创作 子字段 -->
+        <div class="cond-sub" id="sub-vote">
+          <div class="cond-sub-row">
+            <span class="cond-sub-label"><span class="form-required">*</span> 投票选项：</span>
+            <div class="radio-group" id="vote-option-group">
+              <div class="radio-btn active" data-vote="无要求">无要求</div>
+              <div class="radio-btn" data-vote="固定选项">固定选项</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -734,14 +956,14 @@ tbody tr:hover { background: #fafeff; }
 
   // ── Mock 数据：楼层抽奖列表 ──
   const MOCK_LIST = [
-    { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
-    { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1147, name: '明察秋毫找内鬼第二期',  status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-12 20:08:19', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-12 20:08:12', rewardTime: '2024-11-13 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1143, name: '万圣节特别活动',        status: '已结束', statusCls: 'status-finished', reviewer: '黄梦琪', reviewTime: '2024-11-07 10:02:43', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-07 10:02:37', rewardTime: '2024-11-08 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1128, name: '【位面遗玩社】能量补给站', status: '已结束', statusCls: 'status-finished', reviewer: '杨梓源', reviewTime: '2024-09-23 18:42:35', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-09-23 18:42:26', rewardTime: '2024-09-24 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1111, name: '【话题互动】说一个含"火"的成语', status: '已结束', statusCls: 'status-finished', reviewer: '杨梓源', reviewTime: '2024-07-23 17:00:27', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-07-23 17:00:18', rewardTime: '2024-07-24 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1104, name: '发奖扣111',              status: '已结束', statusCls: 'status-finished', reviewer: '杨梓源', reviewTime: '2024-06-12 11:28:31', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-06-12 11:28:23', rewardTime: '2024-06-13 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  rewardMode: '人工审核', reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
+    { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1147, name: '明察秋毫找内鬼第二期',  status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-12 20:08:19', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-12 20:08:12', rewardTime: '2024-11-13 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1143, name: '万圣节特别活动',        status: '已结束', statusCls: 'status-finished', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-07 10:02:43', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-07 10:02:37', rewardTime: '2024-11-08 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1128, name: '【位面遗玩社】能量补给站', status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-09-23 18:42:35', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-09-23 18:42:26', rewardTime: '2024-09-24 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1111, name: '【话题互动】说一个含"火"的成语', status: '已结束', statusCls: 'status-finished', rewardMode: '人工审核', reviewer: '杨梓源', reviewTime: '2024-07-23 17:00:27', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-07-23 17:00:18', rewardTime: '2024-07-24 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1104, name: '发奖扣111',              status: '已结束', statusCls: 'status-finished', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-06-12 11:28:31', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-06-12 11:28:23', rewardTime: '2024-06-13 00:00:00', extra: ['复制','删除','记录'] },
   ];
 
   function renderListTable() {
@@ -757,6 +979,7 @@ tbody tr:hover { background: #fafeff; }
         <td>${r.id}</td>
         <td>${r.name}</td>
         <td><span class="${r.statusCls}">${r.status}</span></td>
+        <td><span class="reward-mode-tag ${r.rewardMode === '人工审核' ? 'reward-mode-manual' : 'reward-mode-auto'}">${r.rewardMode}</span></td>
         <td>${r.reviewer}</td>
         <td>${r.reviewTime}</td>
         <td>${r.reviewNote}</td>
@@ -838,24 +1061,137 @@ tbody tr:hover { background: #fafeff; }
     addedPrizes = [];
     renderPrizeList();
     document.querySelectorAll('.checkbox-item input').forEach(c => c.checked = false);
+    // 重置参与条件子字段
+    ['sub-follow','sub-comment','sub-vote'].forEach(id => document.getElementById(id).classList.remove('visible'));
+    keywords = []; renderKeywords();
+    document.getElementById('keyword-input').value = '';
+    document.getElementById('follow-author').value = '';
+    document.querySelectorAll('#follow-type-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 1));
+    document.querySelectorAll('#keyword-match-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 1));
+    document.getElementById('keyword-show-toggle').checked = true;
+    document.getElementById('keyword-show-label').textContent = '开启';
+    document.querySelectorAll('#vote-option-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
     // 重置楼层规则
     document.querySelectorAll('#rule-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
     document.getElementById('rule-detail').style.display = 'none';
+    // 重置发奖方式（默认人工审核）
+    document.querySelectorAll('#reward-mode-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
   }
 
   // ── 列表 Tab 切换 ──
+  const MOCK_AUDIT = [
+    { id: 1136, name: '你最喜欢和期待的超能皮肤风格', status: '待审核', statusCls: 'status-pending', rewardMode: '人工审核', applicant: '黄梦琪', applyTime: '2024-10-23 16:51:59', rewardTime: '2024-10-24 00:00:00' },
+    { id: 1094, name: '超能知识竞赛-谷雨节气',        status: '待审核', statusCls: 'status-pending', rewardMode: '自动发奖', applicant: '黄梦琪', applyTime: '2024-04-24 15:00:51', rewardTime: '2024-04-25 00:00:00' },
+  ];
+
+  function renderAuditTable() {
+    const tbody = document.getElementById('audit-tbody');
+    tbody.innerHTML = MOCK_AUDIT.map(r => `
+      <tr>
+        <td><input type="checkbox" class="audit-row-check" style="width:14px;height:14px;accent-color:#1890ff;"></td>
+        <td>${r.id}</td>
+        <td>${r.name}</td>
+        <td><span class="${r.statusCls}">${r.status}</span></td>
+        <td><span class="reward-mode-tag ${r.rewardMode === '人工审核' ? 'reward-mode-manual' : 'reward-mode-auto'}">${r.rewardMode}</span></td>
+        <td>${r.applicant}</td>
+        <td>${r.applyTime}</td>
+        <td>${r.rewardTime}</td>
+        <td>
+          <button class="op-btn" onclick="openEdit(${r.id})">编辑</button>
+          <button class="op-btn danger">删除</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+  renderAuditTable();
+
+  // 全选
+  document.getElementById('audit-check-all').addEventListener('change', function() {
+    document.querySelectorAll('.audit-row-check').forEach(c => c.checked = this.checked);
+  });
+
   document.getElementById('tab-list').addEventListener('click', () => {
     document.getElementById('tab-list').classList.add('active');
     document.getElementById('tab-audit').classList.remove('active');
+    document.getElementById('panel-lottery').style.display = '';
+    document.getElementById('panel-audit').style.display = 'none';
   });
   document.getElementById('tab-audit').addEventListener('click', () => {
     document.getElementById('tab-audit').classList.add('active');
     document.getElementById('tab-list').classList.remove('active');
+    document.getElementById('panel-lottery').style.display = 'none';
+    document.getElementById('panel-audit').style.display = '';
   });
 
   // ── 描述字数统计 ──
   document.getElementById('e-desc').addEventListener('input', function() {
     document.getElementById('desc-count').textContent = this.value.length;
+  });
+
+  // ── 参与条件：勾选联动子字段 ──
+  function bindCondToggle(checkboxId, subId) {
+    const cb = document.getElementById(checkboxId);
+    const sub = document.getElementById(subId);
+    cb.addEventListener('change', () => sub.classList.toggle('visible', cb.checked));
+  }
+  bindCondToggle('cond-follow', 'sub-follow');
+  bindCondToggle('cond-comment', 'sub-comment');
+  bindCondToggle('cond-vote', 'sub-vote');
+
+  // 关注类型切换
+  document.querySelectorAll('#follow-type-group .radio-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#follow-type-group .radio-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // 关键词匹配切换
+  document.querySelectorAll('#keyword-match-group .radio-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#keyword-match-group .radio-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // 关键词显示开关
+  document.getElementById('keyword-show-toggle').addEventListener('change', function() {
+    document.getElementById('keyword-show-label').textContent = this.checked ? '开启' : '关闭';
+  });
+
+  // 关键词添加
+  let keywords = [];
+  function addKeyword() {
+    const input = document.getElementById('keyword-input');
+    const val = input.value.trim();
+    if (!val) return;
+    if (keywords.includes(val)) { input.value = ''; return; }
+    keywords.push(val);
+    renderKeywords();
+    input.value = '';
+  }
+  function removeKeyword(i) { keywords.splice(i, 1); renderKeywords(); }
+  function renderKeywords() {
+    document.getElementById('keyword-list').innerHTML = keywords.map((k, i) => `
+      <div class="keyword-tag">${k}<span class="keyword-tag-remove" onclick="removeKeyword(${i})">×</span></div>
+    `).join('');
+  }
+  document.getElementById('keyword-input').addEventListener('keydown', e => { if (e.key === 'Enter') addKeyword(); });
+
+  // 投票选项切换
+  document.querySelectorAll('#vote-option-group .radio-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#vote-option-group .radio-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // ── 发奖方式切换 ──
+  document.querySelectorAll('#reward-mode-group .radio-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#reward-mode-group .radio-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
   });
 
   // ── 楼层规则切换 ──
@@ -911,6 +1247,314 @@ tbody tr:hover { background: #fafeff; }
     alert('提交审核成功（mock）');
     showView('list');
   }
+</script>
+
+<!-- ── 需求说明悬浮按钮 ── -->
+<style>
+.help-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(145deg, #1890ff 0%, #096dd9 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(24,144,255,0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  z-index: 900;
+  user-select: none;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.help-fab:hover { box-shadow: 0 6px 24px rgba(24,144,255,0.6); transform: translateY(-2px); }
+.help-fab:active { transform: translateY(0); }
+.help-fab.dragging { transition: none; box-shadow: 0 8px 28px rgba(24,144,255,0.5); }
+.help-fab-icon { font-size: 36px; line-height: 1; }
+.help-fab-text { font-size: 13px; color: #fff; font-weight: 500; letter-spacing: 0.5px; }
+
+.help-panel {
+  position: fixed;
+  top: 0; right: -480px;
+  width: 480px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(.4,0,.2,1);
+}
+.help-panel.open { right: 0; }
+
+.help-panel-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 949;
+}
+.help-panel-overlay.open { display: block; }
+
+.help-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.help-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.help-panel-title::before {
+  content: '';
+  width: 4px; height: 18px;
+  background: #1890ff;
+  border-radius: 2px;
+}
+.help-panel-close {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f5f5f5;
+  font-size: 16px; color: #888; cursor: pointer; border: none;
+  transition: background 0.15s;
+}
+.help-panel-close:hover { background: #e0e0e0; color: #333; }
+
+.help-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.help-version-block {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.help-version-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer;
+  background: #fff; user-select: none;
+  transition: background 0.15s;
+}
+.help-version-hd:hover { background: #f0f7ff; }
+.help-version-hd.is-latest { background: #e6f7ff; }
+.help-version-num { font-size: 13px; font-weight: 700; color: #262626; }
+.help-version-date { font-size: 11px; color: #aaa; margin-left: 4px; }
+.help-version-badge {
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: #1890ff; border-radius: 8px; padding: 1px 7px; margin-left: 4px;
+}
+.help-version-arrow {
+  margin-left: auto; font-size: 11px; color: #bbb;
+  transition: transform 0.2s;
+}
+.help-version-block.open .help-version-arrow { transform: rotate(180deg); }
+.help-version-body {
+  display: none;
+  padding: 14px 16px;
+  border-top: 1px solid #e8e8e8;
+  background: #fafcfe;
+}
+.help-version-block.open .help-version-body { display: block; }
+
+.help-section { margin-bottom: 14px; }
+.help-section:last-child { margin-bottom: 0; }
+.help-section-title {
+  font-size: 12px; font-weight: 600; color: #1890ff;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 5px;
+}
+.help-section-title::before {
+  content: ''; width: 3px; height: 12px;
+  background: #1890ff; border-radius: 2px; flex-shrink: 0;
+}
+.help-section p { font-size: 12px; color: #555; line-height: 1.9; margin: 0 0 5px; }
+.help-section ol, .help-section ul { padding-left: 20px; margin: 4px 0 0; }
+.help-section ol li, .help-section ul li { font-size: 12px; color: #555; line-height: 2; }
+.help-note {
+  background: #f0f5ff; border-left: 3px solid #91d5ff;
+  padding: 7px 10px; border-radius: 0 6px 6px 0;
+  font-size: 11px; color: #555; line-height: 1.8; margin-top: 6px;
+}
+.help-formula {
+  background: #f6ffed; border-left: 3px solid #52c41a;
+  padding: 7px 10px; border-radius: 0 6px 6px 0;
+  font-size: 12px; color: #389e0d; line-height: 1.8; margin-top: 6px;
+  font-family: 'Courier New', monospace;
+}
+.help-warn {
+  background: #fffbe6; border-left: 3px solid #faad14;
+  padding: 7px 10px; border-radius: 0 6px 6px 0;
+  font-size: 11px; color: #7c5500; line-height: 1.8; margin-top: 6px;
+}
+.htag {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 4px; margin-right: 4px; vertical-align: middle;
+}
+.htag.border { background: #fff7e6; color: #d46b08; border: 1px solid #ffd591; }
+.htag.err   { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+.htag.new   { background: #e6f7ff; color: #0050b3; border: 1px solid #91d5ff; }
+.htag.def   { background: #f6ffed; color: #237804; border: 1px solid #b7eb8f; }
+</style>
+
+<div class="help-fab" id="help-fab">
+  <div class="help-fab-icon">📋</div>
+  <div class="help-fab-text">需求说明</div>
+</div>
+
+<div class="help-panel-overlay" id="help-panel-overlay"></div>
+<div class="help-panel" id="help-panel">
+  <div class="help-panel-header">
+    <div class="help-panel-title">楼层抽奖管理 — 需求说明</div>
+    <button class="help-panel-close" id="help-panel-close">×</button>
+  </div>
+  <div class="help-panel-body">
+
+    <!-- v3.1.0 -->
+    <div class="help-version-block open">
+      <div class="help-version-hd is-latest">
+        <span class="help-version-num">v3.1.0</span>
+        <span class="help-version-date">2026-05-18</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+
+        <div class="help-section">
+          <div class="help-section-title">本次变更</div>
+          <p>楼层抽奖新增/编辑页新增「发奖方式」字段，支持<strong>自动发奖</strong>模式；列表页同步新增该字段列。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">背景 &amp; 目标</div>
+          <p>当前活动截止后全部依赖人工介入发奖，效率低、易漏发、时效性差。自动发奖模式由系统在截止时刻自动完成抽取和发奖，降低运营人力成本。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">字段定义</div>
+          <ol>
+            <li><strong>影响位置：</strong>新增页 / 编辑页 / 列表页 <span class="htag new">NEW</span></li>
+            <li><strong>字段类型：</strong>单选</li>
+            <li><strong>选项：</strong>
+              <ul>
+                <li>人工审核 <span class="htag def">默认</span> — 沿用现有流程，运营手动操作发奖</li>
+                <li>自动发奖 — 系统在活动截止时刻自动执行抽取 + 发奖</li>
+              </ul>
+            </li>
+            <li><strong>列表展示：</strong>新增「发奖方式」列，用标签区分两种模式</li>
+          </ol>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">自动发奖触发逻辑</div>
+          <ol>
+            <li>触发时机：活动截止时间到达，由定时调度任务触发</li>
+            <li>参与范围：截止时刻前已达标（满足楼层条件）的玩家</li>
+            <li>操作：从达标玩家中随机抽取，按中奖人数 N 发放</li>
+          </ol>
+          <div class="help-formula">设中奖人数 = N，已达标人数 = M<br>实际发奖人数 = min(N, M)</div>
+          <div class="help-warn">⚠️ 若 N &gt; M，只发放 M 个，剩余名额不补发，活动正常结束。</div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">临界 &amp; 异常场景</div>
+          <ol>
+            <li><span class="htag border">边界</span> <strong>M = 0（无人达标）：</strong>发奖人数为 0，活动置「已结束·无中奖」，不报错不重试</li>
+            <li><span class="htag border">边界</span> <strong>N = 0（中奖人数为 0）：</strong>前端校验拦截；绕过写入时，调度检测 N≤0 跳过发奖并记录日志</li>
+            <li><span class="htag border">边界</span> <strong>N ≤ M（达标人数充足）：</strong>N &lt; M 时随机抽取 N 人；N = M 时全部达标玩家均中奖；均属正常发放</li>
+            <li><span class="htag border">边界</span> <strong>截止时刻并发写入：</strong>以截止时刻前已落库的达标记录为准，之后的提交不参与本次抽取</li>
+            <li><span class="htag border">边界</span> <strong>活动进行中修改发奖方式：</strong>允许在未进入发奖流程前修改，变更立即生效；进入发奖流程后锁定</li>
+            <li><span class="htag border">边界</span> <strong>活动截止时间被提前：</strong>调度任务以最新截止时间重新调度，旧任务取消</li>
+          </ol>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">验收标准</div>
+          <ol>
+            <li>新增/编辑页有「发奖方式」字段，默认「人工审核」，可切换</li>
+            <li>列表页有「发奖方式」列，正确展示两种标签</li>
+            <li>选自动发奖 + 活动截止后，系统自动抽取 min(N,M) 名玩家发奖</li>
+            <li>M=0 时活动正常结束，不报错</li>
+            <li>N&gt;M 时仅发 M 个，不补发</li>
+            <li>重复触发不重复发奖</li>
+            <li>已发奖后发奖方式字段不可编辑</li>
+          </ol>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  var helpFab     = document.getElementById('help-fab');
+  var helpPanel   = document.getElementById('help-panel');
+  var helpOverlay = document.getElementById('help-panel-overlay');
+
+  function closeHelpPanel() {
+    helpPanel.classList.remove('open');
+    helpOverlay.classList.remove('open');
+  }
+  function openHelpPanel() {
+    helpPanel.classList.add('open');
+    helpOverlay.classList.add('open');
+  }
+  function toggleHelpPanel() {
+    helpPanel.classList.contains('open') ? closeHelpPanel() : openHelpPanel();
+  }
+
+  document.getElementById('help-panel-close').addEventListener('click', closeHelpPanel);
+  helpOverlay.addEventListener('click', closeHelpPanel);
+
+  helpPanel.querySelectorAll('.help-version-hd').forEach(function (hd) {
+    hd.addEventListener('click', function () {
+      hd.closest('.help-version-block').classList.toggle('open');
+    });
+  });
+
+  // 拖拽逻辑
+  var isDragging = false, dragOffX = 0, dragOffY = 0;
+  helpFab.addEventListener('mousedown', function (e) {
+    isDragging = false;
+    var rect = helpFab.getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+
+    function onMove(e) {
+      isDragging = true;
+      helpFab.classList.add('dragging');
+      var x = Math.min(Math.max(0, e.clientX - dragOffX), window.innerWidth  - helpFab.offsetWidth);
+      var y = Math.min(Math.max(0, e.clientY - dragOffY), window.innerHeight - helpFab.offsetHeight);
+      helpFab.style.left   = x + 'px';
+      helpFab.style.top    = y + 'px';
+      helpFab.style.right  = 'auto';
+      helpFab.style.bottom = 'auto';
+    }
+    function onUp() {
+      helpFab.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      if (!isDragging) toggleHelpPanel();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+    e.preventDefault();
+  });
+})();
 </script>
 
 </body>
