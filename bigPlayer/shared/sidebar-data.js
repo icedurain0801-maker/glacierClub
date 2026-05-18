@@ -165,6 +165,18 @@ const SIDEBAR_DATA = [
                 href: 'admin/community/GuideGroupManage.html'
               }
             ]
+          },
+          {
+            type: 'dir',
+            label: '楼层抽奖管理',
+            children: [
+              {
+                type: 'item',
+                label: '楼层抽奖',
+                version: 'v3.1.0',
+                href: 'admin/community/FloorLotteryManage.html'
+              }
+            ]
           }
         ]
       },
