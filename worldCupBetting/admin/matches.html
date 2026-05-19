@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>赛程管理 · WC2026 管理</title>
+<link rel="stylesheet" href="_admin.css"/>
+</head>
+<body>
+<div id="nav"></div>
+<div class="container">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div class="page-title" style="margin-bottom:0">赛程管理</div>
+    <button class="btn btn-primary" onclick="openCreateModal()">+ 新建赛程</button>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <input type="date" id="filterDate" placeholder="按日期"/>
+      <select id="filterStage">
+        <option value="">全部阶段</option>
+        <option value="group">小组赛</option>
+        <option value="r32">R32</option>
+        <option value="r16">R16</option>
+        <option value="qf">8强</option>
+        <option value="sf">4强</option>
+        <option value="final">决赛</option>
+      </select>
+      <select id="filterStatus">
+        <option value="">全部状态</option>
+        <option value="pending">待开赛</option>
+        <option value="finished">已结算</option>
+        <option value="cancelled">已取消</option>
+      </select>
+      <button class="btn btn-outline" onclick="loadMatches(1)">搜索</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>日期/时间</th><th>阶段</th><th>主队</th><th>比分</th><th>客队</th><th>赔率(胜/平/负)</th><th>状态</th><th>操作</th></tr>
+      </thead>
+      <tbody id="matchTable"></tbody>
+    </table>
+    <div id="matchPager"></div>
+  </div>
+</div>
+
+<!-- 录入比分弹窗 -->
+<div class="modal-overlay" id="resultModal">
+  <div class="modal">
+    <h2 id="resultTitle">录入比分</h2>
+    <div style="display:flex;gap:16px">
+      <div class="form-row" style="flex:1">
+        <label id="team1Label">主队</label>
+        <input type="number" id="score1" min="0" max="30" placeholder="0"/>
+      </div>
+      <div style="display:flex;align-items:center;padding-top:22px;font-size:18px;font-weight:800">:</div>
+      <div class="form-row" style="flex:1">
+        <label id="team2Label">客队</label>
+        <input type="number" id="score2" min="0" max="30" placeholder="0"/>
+      </div>
+    </div>
+    <div class="msg" id="resultMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('resultModal')">取消</button>
+      <button class="btn btn-success" onclick="submitResult()">确认结算</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新建赛程弹窗 -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal" style="width:480px">
+    <h2>新建赛程</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row" style="grid-column:1/-1"><label>开赛时间</label><input type="datetime-local" id="c-kickoff"/></div>
+      <div class="form-row"><label>主队代码</label><input id="c-t1code" placeholder="BRA"/></div>
+      <div class="form-row"><label>主队名</label><input id="c-t1name" placeholder="巴西"/></div>
+      <div class="form-row"><label>客队代码</label><input id="c-t2code" placeholder="MAR"/></div>
+      <div class="form-row"><label>客队名</label><input id="c-t2name" placeholder="摩洛哥"/></div>
+      <div class="form-row"><label>赔率·胜</label><input type="number" step="0.01" id="c-win" value="2.00"/></div>
+      <div class="form-row"><label>赔率·平</label><input type="number" step="0.01" id="c-draw" value="3.20"/></div>
+      <div class="form-row"><label>赔率·负</label><input type="number" step="0.01" id="c-lose" value="2.00"/></div>
+      <div class="form-row"><label>阶段</label>
+        <select id="c-stage"><option value="group">小组赛</option><option value="r32">R32</option><option value="r16">R16</option><option value="qf">8强</option><option value="sf">4强</option><option value="final">决赛</option></select>
+      </div>
+      <div class="form-row"><label>小组（可选）</label><input id="c-group" placeholder="A"/></div>
+      <div class="form-row" style="grid-column:1/-1"><label>场馆（可选）</label><input id="c-venue"/></div>
+    </div>
+    <div class="msg" id="createMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('createModal')">取消</button>
+      <button class="btn btn-primary" onclick="submitCreate()">创建</button>
+    </div>
+  </div>
+</div>
+
+<script src="_layout.js"></script>
+<script>
+requireAdmin();
+injectNav('matches');
+
+let currentMatchId = null;
+let currentPage = 1;
+
+async function loadMatches(page = 1) {
+  currentPage = page;
+  const date   = document.getElementById('filterDate').value;
+  const stage  = document.getElementById('filterStage').value;
+  const status = document.getElementById('filterStatus').value;
+  const params = new URLSearchParams({ page });
+  if (date)   params.set('date', date);
+  if (stage)  params.set('stage', stage);
+  if (status) params.set('status', status);
+
+  try {
+    const data = await apiFetch('/admin/matches?' + params);
+    const tbody = document.getElementById('matchTable');
+    tbody.innerHTML = data.data.map(m => `
+      <tr>
+        <td style="color:#6B7E9E;font-size:12px">${m.id}</td>
+        <td style="font-size:12px">${m.match_date}<br/><span style="color:#6B7E9E">${m.kickoff_at?m.kickoff_at.slice(11,16):''}</span></td>
+        <td><span style="font-size:12px;color:#6B7E9E">${m.stage}${m.group_name?'·'+m.group_name:''}</span></td>
+        <td><b>${m.team1_name}</b></td>
+        <td style="text-align:center;font-weight:700">${m.status==='finished'?`${m.score1}:${m.score2}`:'vs'}</td>
+        <td><b>${m.team2_name}</b></td>
+        <td style="font-size:12px;color:#6B7E9E">${m.odds_win} / ${m.odds_draw} / ${m.odds_lose}</td>
+        <td><span class="tag tag-${m.status}">${{pending:'待开赛',finished:'已结算',cancelled:'已取消'}[m.status]||m.status}</span></td>
+        <td>
+          ${m.status==='pending'?`<button class="btn btn-success btn-sm" onclick="openResult(${m.id},'${m.team1_name}','${m.team2_name}')">录入比分</button> `:``}
+          ${m.status==='pending'?`<button class="btn btn-danger btn-sm" onclick="cancelMatch(${m.id})">取消</button>`:''}
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="9" style="text-align:center;color:#6B7E9E;padding:20px">暂无数据</td></tr>';
+
+    renderPager(document.getElementById('matchPager'), data.total, page, data.limit, loadMatches);
+  } catch(e) {
+    alert(e.message);
+  }
+}
+
+function openResult(id, t1, t2) {
+  currentMatchId = id;
+  document.getElementById('resultTitle').textContent = `录入比分：${t1} vs ${t2}`;
+  document.getElementById('team1Label').textContent = t1;
+  document.getElementById('team2Label').textContent = t2;
+  document.getElementById('score1').value = '';
+  document.getElementById('score2').value = '';
+  document.getElementById('resultMsg').textContent = '';
+  document.getElementById('resultMsg').className = 'msg';
+  document.getElementById('resultModal').classList.add('open');
+}
+
+async function submitResult() {
+  const s1 = parseInt(document.getElementById('score1').value);
+  const s2 = parseInt(document.getElementById('score2').value);
+  if (isNaN(s1) || isNaN(s2)) { showMsg('resultMsg', '请输入有效比分', 'error'); return; }
+  try {
+    const data = await apiFetch(`/admin/matches/${currentMatchId}/result`, {
+      method: 'POST', body: { score1: s1, score2: s2 }
+    });
+    showMsg('resultMsg', `结算完成，共处理 ${data.picks_settled} 笔投注`, 'success');
+    setTimeout(() => { closeModal('resultModal'); loadMatches(currentPage); }, 1200);
+  } catch(e) { showMsg('resultMsg', e.message, 'error'); }
+}
+
+async function cancelMatch(id) {
+  if (!confirm('确认取消该场比赛？所有投注将退还积分。')) return;
+  try {
+    const data = await apiFetch(`/admin/matches/${id}/cancel`, { method: 'POST', body: {} });
+    alert(`已取消，退还 ${data.refunded} 笔投注`);
+    loadMatches(currentPage);
+  } catch(e) { alert(e.message); }
+}
+
+function openCreateModal() {
+  document.getElementById('createMsg').textContent = '';
+  document.getElementById('createModal').classList.add('open');
+}
+
+async function submitCreate() {
+  const body = {
+    kickoff_at: document.getElementById('c-kickoff').value,
+    team1_code: document.getElementById('c-t1code').value,
+    team1_name: document.getElementById('c-t1name').value,
+    team2_code: document.getElementById('c-t2code').value,
+    team2_name: document.getElementById('c-t2name').value,
+    odds_win:   parseFloat(document.getElementById('c-win').value),
+    odds_draw:  parseFloat(document.getElementById('c-draw').value),
+    odds_lose:  parseFloat(document.getElementById('c-lose').value),
+    stage:      document.getElementById('c-stage').value,
+    group_name: document.getElementById('c-group').value || null,
+    venue:      document.getElementById('c-venue').value || null,
+    match_date: document.getElementById('c-kickoff').value.slice(0, 10),
+  };
+  try {
+    await apiFetch('/admin/matches', { method: 'POST', body });
+    showMsg('createMsg', '创建成功', 'success');
+    setTimeout(() => { closeModal('createModal'); loadMatches(1); }, 800);
+  } catch(e) { showMsg('createMsg', e.message, 'error'); }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg ' + type;
+}
+
+loadMatches(1);
+</script>
+</body>
+</html>
