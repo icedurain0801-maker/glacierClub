@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>数据看板 · WC2026 管理</title>
+<link rel="stylesheet" href="_admin.css"/>
+</head>
+<body>
+<div id="nav"></div>
+<div class="container">
+  <div class="page-title">数据看板</div>
+
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="num" id="s-users">—</div><div class="label">注册用户</div></div>
+    <div class="stat-card"><div class="num" id="s-active">—</div><div class="label">今日活跃</div></div>
+    <div class="stat-card"><div class="num" id="s-picks">—</div><div class="label">今日投注笔数</div></div>
+    <div class="stat-card"><div class="num" id="s-pending">—</div><div class="label">待结算投注</div></div>
+    <div class="stat-card"><div class="num" id="s-matches">—</div><div class="label">待开赛场次</div></div>
+    <div class="stat-card"><div class="num" id="s-pts">—</div><div class="label">今日积分消耗</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">今日待结算赛程</div>
+    <table>
+      <thead><tr><th>场次</th><th>时间</th><th>主队</th><th>比分</th><th>客队</th><th>状态</th></tr></thead>
+      <tbody id="todayMatches"></tbody>
+    </table>
+  </div>
+</div>
+<script src="_layout.js"></script>
+<script>
+requireAdmin();
+injectNav('dashboard');
+
+async function load() {
+  try {
+    const d = await apiFetch('/admin/stats/dashboard');
+    document.getElementById('s-users').textContent   = d.total_users;
+    document.getElementById('s-active').textContent  = d.active_today;
+    document.getElementById('s-picks').textContent   = d.today_picks;
+    document.getElementById('s-pending').textContent = d.pending_picks;
+    document.getElementById('s-matches').textContent = d.pending_matches;
+    document.getElementById('s-pts').textContent     = d.total_points_bet_today;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const matches = await apiFetch(`/admin/matches?date=${today}&limit=30&page=1`);
+    const tbody = document.getElementById('todayMatches');
+    if (!matches.data.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6B7E9E;padding:20px">今日无赛程</td></tr>';
+      return;
+    }
+    tbody.innerHTML = matches.data.map(m => `
+      <tr>
+        <td style="color:#6B7E9E;font-size:12px">#${m.id}</td>
+        <td>${m.kickoff_at ? m.kickoff_at.slice(11,16) : '—'}</td>
+        <td><b>${m.team1_name}</b></td>
+        <td style="text-align:center;font-weight:700">
+          ${m.status==='finished' ? `${m.score1} : ${m.score2}` : 'vs'}
+        </td>
+        <td><b>${m.team2_name}</b></td>
+        <td><span class="tag tag-${m.status}">${{pending:'待开赛',finished:'已结算',cancelled:'已取消'}[m.status]||m.status}</span></td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    console.error(e);
+  }
+}
+load();
+</script>
+</body>
+</html>
