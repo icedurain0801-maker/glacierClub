@@ -1004,7 +1004,7 @@ tbody tr:hover { background: #fafeff; }
             <input type="number" class="form-input short" id="e-cycle-winners" min="1" placeholder="请输入人数">
             <span style="font-size:13px; color:#595959; margin-left:6px;">人</span>
           </div>
-          <div class="form-hint-text" style="margin-top:6px;">周期内限制获奖的总人数</div>
+          <div class="form-hint-text" style="margin-top:6px;">每个周期从达标玩家中随机抽取，最多发放该人数</div>
         </div>
       </div>
     </div>
@@ -2178,7 +2178,7 @@ tbody tr:hover { background: #fafeff; }
               <tr>
                 <td>开奖人数 / <strong>周期总数</strong></td>
                 <td>单次=数字<br>周期=单选+数字 <span class="htag new">UPD</span></td><td><span class="req">*</span>是</td><td>全部</td>
-                <td>单次活动：直接输入开奖人数（≥ 1）。<br>周期活动：label 联动为「周期总数」，可选 <code>不限</code>（默认）或 <code>周期限制</code>；选「周期限制」时出现输入框，限制每个周期获奖总人数。</td>
+                <td>单次活动：直接输入开奖人数（≥ 1）。<br>周期活动：label 联动为「周期总数」，可选 <code>不限</code>（默认）或 <code>周期限制</code>；选「周期限制」时出现输入框，每个周期从达标玩家中<strong>随机</strong>抽取，最多发放该人数。</td>
               </tr>
               <tr>
                 <td><strong>发奖方式</strong> <span class="htag new">NEW</span></td>
@@ -2265,7 +2265,7 @@ tbody tr:hover { background: #fafeff; }
               <div class="help-flow-no">3</div>
               <div class="help-flow-body">
                 <div class="help-flow-title">配置开奖人数 / 周期总数</div>
-                <div class="help-flow-desc">单次活动：直接输入开奖人数（≥ 1）。周期活动下默认<strong>不限</strong>，选「周期限制」时填入数字，作为<strong>每个周期</strong>获奖总人数上限。</div>
+                <div class="help-flow-desc">单次活动：直接输入开奖人数（≥ 1）。周期活动下默认<strong>不限</strong>，选「周期限制」时填入数字，每个周期从达标玩家中<strong>随机</strong>抽取，最多发放该人数。</div>
               </div>
             </div>
             <div class="help-flow-step">
@@ -2384,7 +2384,7 @@ tbody tr:hover { background: #fafeff; }
           <ol>
             <li>新增页默认「单次活动 + 人工审核」，与历史交互一致</li>
             <li>切到周期活动：截止时间隐藏、活动时段/周期徽标显示，开奖人数 label 联动「周期总数」，<strong>发奖方式字段整行隐藏</strong></li>
-            <li>周期活动「周期总数」默认「不限」，选「周期限制」时出现人数输入框；提示文字：「周期内限制获奖的总人数」</li>
+            <li>周期活动「周期总数」默认「不限」，选「周期限制」时出现人数输入框；每个周期随机抽取达标玩家，最多发放该人数；提示文字：「每个周期从达标玩家中随机抽取，最多发放该人数」</li>
             <li>周期活动：保存时发奖方式固定为 <code>自动发奖</code>；详情页和列表页该字段展示「自动发奖」</li>
             <li>周期活动：显示 <code>M&lt;N 不补发</code> 提示</li>
             <li>评论关键词 + 周期 + 精准/模糊：显示「匹配类型」单选，默认「统一」</li>
