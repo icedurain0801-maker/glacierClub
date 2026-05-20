@@ -2431,14 +2431,17 @@ tbody tr:hover { background: #fafeff; }
   });
 
   // 拖拽逻辑
-  var isDragging = false, dragOffX = 0, dragOffY = 0;
+  var isDragging = false, dragOffX = 0, dragOffY = 0, startX = 0, startY = 0;
   helpFab.addEventListener('mousedown', function (e) {
     isDragging = false;
     var rect = helpFab.getBoundingClientRect();
     dragOffX = e.clientX - rect.left;
     dragOffY = e.clientY - rect.top;
+    startX = e.clientX;
+    startY = e.clientY;
 
     function onMove(e) {
+      if (!isDragging && Math.abs(e.clientX - startX) < 5 && Math.abs(e.clientY - startY) < 5) return;
       isDragging = true;
       helpFab.classList.add('dragging');
       var x = Math.min(Math.max(0, e.clientX - dragOffX), window.innerWidth  - helpFab.offsetWidth);
