@@ -207,6 +207,11 @@ tbody tr:hover { background: #fafeff; }
 .name-reward-badge.manual { color: #fa8c16; border: 1px solid #fa8c16; }
 .name-reward-badge.auto   { color: #52c41a; border: 1px solid #52c41a; }
 
+/* 发放奖励时间 - 周期说明 */
+.reward-time-cell { line-height: 1.6; }
+.reward-time-range { font-size: 13px; color: #262626; }
+.reward-time-cycle { font-size: 11px; color: #8c8c8c; margin-top: 1px; }
+
 /* 操作按钮 */
 .op-btn {
   background: none; border: none;
@@ -1056,6 +1061,7 @@ tbody tr:hover { background: #fafeff; }
           <label class="checkbox-item"><input type="checkbox" id="cond-collect" value="收藏创作"> 收藏创作</label>
           <label class="checkbox-item"><input type="checkbox" id="cond-vote" value="投票创作"> 投票创作</label>
         </div>
+        <div class="form-hint-text info" id="cond-cycle-hint" style="display:none; margin-top:6px;">周期活动：参与条件以周期为维度重置，玩家每到一个新的周期需重新达成条件。</div>
 
         <!-- 关注 子字段 -->
         <div class="cond-sub" id="sub-follow">
@@ -1263,14 +1269,23 @@ tbody tr:hover { background: #fafeff; }
   // ── Mock 数据：楼层抽奖列表 ──
   const MOCK_LIST = [
     { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  activityType: '单次', rewardMode: '人工审核', reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
-    { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', cycleStart: '2024-11-01', cycleEnd: '2024-11-29', extra: ['复制','删除','记录'] },
     { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1147, name: '明察秋毫找内鬼第二期',  status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-12 20:08:19', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-12 20:08:12', rewardTime: '2024-11-13 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1147, name: '明察秋毫找内鬼第二期',  status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-12 20:08:19', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-12 20:08:12', rewardTime: '2024-11-13 00:00:00', cycleStart: '2024-10-14', cycleEnd: '2024-11-14', extra: ['复制','删除','记录'] },
     { enabled: true,  id: 1143, name: '万圣节特别活动',        status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-07 10:02:43', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-07 10:02:37', rewardTime: '2024-11-08 00:00:00', extra: ['复制','删除','记录'] },
     { enabled: true,  id: 1128, name: '【位面遗玩社】能量补给站', status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-09-23 18:42:35', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-09-23 18:42:26', rewardTime: '2024-09-24 00:00:00', extra: ['复制','删除','记录'] },
-    { enabled: true,  id: 1111, name: '【话题互动】说一个含"火"的成语', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-07-23 17:00:27', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-07-23 17:00:18', rewardTime: '2024-07-24 00:00:00', extra: ['复制','删除','记录'] },
+    { enabled: true,  id: 1111, name: '【话题互动】说一个含"火"的成语', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-07-23 17:00:27', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-07-23 17:00:18', rewardTime: '2024-07-24 00:00:00', cycleStart: '2024-07-01', cycleEnd: '2024-07-31', extra: ['复制','删除','记录'] },
     { enabled: true,  id: 1104, name: '发奖扣111',              status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-06-12 11:28:31', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-06-12 11:28:23', rewardTime: '2024-06-13 00:00:00', extra: ['复制','删除','记录'] },
   ];
+
+  function formatRewardTime(r) {
+    if (r.activityType !== '周期') return r.rewardTime;
+    const range = (r.cycleStart && r.cycleEnd) ? `${r.cycleStart} 至 ${r.cycleEnd}` : '';
+    return `<div class="reward-time-cell">
+      ${range ? `<div class="reward-time-range">${range}</div>` : ''}
+      <div class="reward-time-cycle">每个周期 24:00 自动发放</div>
+    </div>`;
+  }
 
   function renderListTable() {
     const tbody = document.getElementById('list-tbody');
@@ -1291,7 +1306,7 @@ tbody tr:hover { background: #fafeff; }
         <td>${r.reviewNote}</td>
         <td>${r.applicant}</td>
         <td>${r.applyTime}</td>
-        <td>${r.rewardTime}</td>
+        <td>${formatRewardTime(r)}</td>
         <td>${r.extra.map(t => {
           const cls = t === '删除' ? 'op-btn danger' : 'op-btn';
           if (t === '编辑')   return `<button class="${cls}" onclick="openEdit(${r.id})">${t}</button>`;
@@ -1390,7 +1405,7 @@ tbody tr:hover { background: #fafeff; }
   // ── 列表 Tab 切换 ──
   const MOCK_AUDIT = [
     { id: 1136, name: '你最喜欢和期待的超能皮肤风格', status: '待审核', statusCls: 'status-pending', activityType: '单次', rewardMode: '人工审核', applicant: '黄梦琪', applyTime: '2024-10-23 16:51:59', rewardTime: '2024-10-24 00:00:00' },
-    { id: 1094, name: '超能知识竞赛-谷雨节气',        status: '待审核', statusCls: 'status-pending', activityType: '周期', rewardMode: '自动发奖', applicant: '黄梦琪', applyTime: '2024-04-24 15:00:51', rewardTime: '2024-04-25 00:00:00' },
+    { id: 1094, name: '超能知识竞赛-谷雨节气',        status: '待审核', statusCls: 'status-pending', activityType: '周期', rewardMode: '自动发奖', applicant: '黄梦琪', applyTime: '2024-04-24 15:00:51', rewardTime: '2024-04-25 00:00:00', cycleStart: '2024-04-20', cycleEnd: '2024-04-30' },
   ];
 
   function renderAuditTable() {
@@ -1404,7 +1419,7 @@ tbody tr:hover { background: #fafeff; }
         <td>${r.activityType}活动</td>
         <td>${r.applicant}</td>
         <td>${r.applyTime}</td>
-        <td>${r.rewardTime}</td>
+        <td>${formatRewardTime(r)}</td>
         <td>
           <button class="op-btn" onclick="openEdit(${r.id})">编辑</button>
           <button class="op-btn danger">删除</button>
@@ -1614,6 +1629,9 @@ tbody tr:hover { background: #fafeff; }
         b.classList.toggle('active', b.dataset.mode === '自动发奖');
       });
     }
+
+    // 参与条件周期重置提示
+    document.getElementById('cond-cycle-hint').style.display = isCycle ? '' : 'none';
 
     // 周期关键词模式行（仅勾选评论关键词时可见，由 refreshCommentSub 控制）
     refreshCycleKwMode();
@@ -2168,6 +2186,11 @@ tbody tr:hover { background: #fafeff; }
                 <td><code>人工审核</code>（默认）/ <code>自动发奖</code>；<strong>周期活动不展示该字段，固定为自动发奖</strong></td>
               </tr>
               <tr>
+                <td><strong>参与条件</strong></td>
+                <td>多选</td><td><span class="req">*</span>是</td><td>全部</td>
+                <td>关注 / 评论关键词 / 点赞创作 / 收藏创作 / 投票创作。<br><strong>周期活动：参与条件以周期为维度重置</strong>，玩家每到一个新的周期需重新达成条件；表单下方显示提示说明。</td>
+              </tr>
+              <tr>
                 <td><strong>活动说明</strong> <span class="htag new">NEW</span></td>
                 <td>多行文本</td><td>否</td><td>全部</td>
                 <td>≤ 200 字，前端字符计数</td>
@@ -2370,6 +2393,7 @@ tbody tr:hover { background: #fafeff; }
             <li>新建成功后编辑：活动类型、活动时间、周期总数、按周期配置评论关键词均不可修改</li>
             <li>列表页活动类型 / 发奖方式列展示正确，老数据兼容</li>
             <li>编辑已开奖活动：活动类型 / 发奖方式不可改</li>
+            <li>周期活动：参与条件区域下方显示「参与条件以周期为维度重置」蓝色提示；切回单次活动后提示消失</li>
           </ol>
         </div>
 
