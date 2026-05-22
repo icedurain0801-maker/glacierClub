@@ -168,6 +168,7 @@ tbody tr:hover { background: #fafeff; }
 .status-running  { color: #52c41a; font-weight: 500; }
 .status-finished { color: #1890ff; font-weight: 500; }
 .status-pending  { color: #fa8c16; font-weight: 500; }
+.status-upcoming { color: #595959; font-weight: 500; }
 .status-reject   { color: #ff4d4f; font-weight: 500; }
 .status-confirmed{ color: #52c41a; font-weight: 500; }
 
@@ -1268,6 +1269,8 @@ tbody tr:hover { background: #fafeff; }
 
   // ── Mock 数据：楼层抽奖列表 ──
   const MOCK_LIST = [
+    { enabled: true,  id: 1160, name: '周期签到送好礼第一期',     status: '未开始', statusCls: 'status-upcoming',  activityType: '周期', rewardMode: '自动发奖', reviewer: '梁仓',   reviewTime: '2026-05-20 10:00:00', reviewNote: '通过', applicant: '梁仓',   applyTime: '2026-05-19 14:30:00', rewardTime: '2026-05-25 00:00:00', cycleStart: '2026-05-25', cycleEnd: '2026-06-01', extra: ['编辑','复制','删除'] },
+    { enabled: false, id: 1158, name: '编辑被拒示例 - 端午活动',   status: '已拒绝', statusCls: 'status-reject',   activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2026-05-18 16:42:00', reviewNote: '奖品名称需调整',  applicant: '黄梦琪', applyTime: '2026-05-18 16:30:00', rewardTime: '2026-05-22 00:00:00', extra: ['重新编辑','删除'] },
     { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  activityType: '单次', rewardMode: '人工审核', reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
     { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', cycleStart: '2024-11-01', cycleEnd: '2024-11-29', extra: ['复制','删除','记录'] },
     { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
