@@ -2467,6 +2467,244 @@ tbody tr:hover { background: #fafeff; }
         </div>
 
         <div class="help-section">
+          <div class="help-section-title">背景 &amp; 目标</div>
+          <p>原楼层抽奖仅支持"一次性开奖"，无法承载连续 N 天打卡型运营玩法（如签到抽奖、每周话题抽奖）。本次扩展为"单次 + 周期"双形态，并通过周期级关键词配置，让运营可以按时间维度更换抽奖参与门槛。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">字段定义 · 基础信息</div>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>字段</th><th>类型</th><th>必填</th><th>适用</th><th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>活动类型</strong> <span class="htag new">NEW</span></td>
+                <td>单选</td><td><span class="req">*</span>是</td><td>全部</td>
+                <td><code>单次活动</code>（默认）/ <code>周期活动</code>，创建后不可修改</td>
+              </tr>
+              <tr>
+                <td>活动截止时间</td>
+                <td>日期+时间</td><td><span class="req">*</span>是</td><td>单次</td>
+                <td>到点触发一次性开奖</td>
+              </tr>
+              <tr>
+                <td><strong>活动时段</strong> <span class="htag new">NEW</span></td>
+                <td>日期区间</td><td><span class="req">*</span>是</td><td>周期</td>
+                <td>开始日 ~ 结束日，系统按"天"自动切分为 N 个周期</td>
+              </tr>
+              <tr>
+                <td><strong>发奖时间</strong> <span class="htag new">NEW</span></td>
+                <td>系统规则</td><td>否</td><td>周期</td>
+                <td>每个周期的 <code>24:00</code> 自动发奖，前端不提供单独配置项。</td>
+              </tr>
+              <tr>
+                <td>开奖人数 / <strong>周期总数</strong></td>
+                <td>单次=数字<br>周期=单选+数字 <span class="htag new">UPD</span></td><td><span class="req">*</span>是</td><td>全部</td>
+                <td>单次活动：直接输入开奖人数（≥ 1）。<br>周期活动：label 联动为「周期总数」，可选 <code>不限</code>（默认）或 <code>周期限制</code>；选「周期限制」时出现输入框，每个周期从达标玩家中<strong>随机</strong>抽取，最多发放该人数。</td>
+              </tr>
+              <tr>
+                <td><strong>发奖方式</strong> <span class="htag new">NEW</span></td>
+                <td>单选</td><td><span class="req">*</span>是</td><td>仅单次</td>
+                <td><code>人工审核</code>（默认）/ <code>自动发奖</code>；<strong>周期活动不展示该字段，固定为自动发奖</strong></td>
+              </tr>
+              <tr>
+                <td><strong>参与条件</strong></td>
+                <td>多选</td><td><span class="req">*</span>是</td><td>全部</td>
+                <td>关注 / 评论关键词 / 点赞创作 / 收藏创作 / 投票创作。<br><strong>周期活动：参与条件以周期为维度重置</strong>，玩家每到一个新的周期需重新达成条件；表单下方显示提示说明。</td>
+              </tr>
+              <tr>
+                <td><strong>活动说明</strong> <span class="htag new">NEW</span></td>
+                <td>多行文本</td><td>否</td><td>全部</td>
+                <td>≤ 200 字，前端字符计数</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">字段定义 · 评论关键词联动</div>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>字段</th><th>类型</th><th>必填</th><th>显示条件</th><th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>匹配类型</strong> <span class="htag new">NEW</span></td>
+                <td>单选</td><td><span class="req">*</span>是</td>
+                <td>周期活动 + 勾选评论关键词 + 匹配关键词 ≠ 不限</td>
+                <td><code>统一</code>（默认）/ <code>按周期配置</code></td>
+              </tr>
+              <tr>
+                <td><strong>周期关键词表格</strong> <span class="htag new">NEW</span></td>
+                <td>表格</td><td><span class="req">*</span>是</td>
+                <td>周期活动 + 按周期配置</td>
+                <td>两列：周期（系统生成不可改）/ 关键词（每行 ≥ 1 个 tag）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">字段联动总表</div>
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>活动类型</th><th>评论关键词</th><th>匹配关键词</th><th>匹配类型</th><th>关键词输入形态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>单次</td><td>未勾选</td><td>—</td><td>隐藏</td><td>—</td></tr>
+              <tr><td>单次</td><td>勾选</td><td>不限</td><td>隐藏</td><td>隐藏</td></tr>
+              <tr><td>单次</td><td>勾选</td><td>精准 / 模糊</td><td>隐藏</td><td>tag 输入</td></tr>
+              <tr><td>周期</td><td>未勾选</td><td>—</td><td>隐藏</td><td>—</td></tr>
+              <tr><td>周期</td><td>勾选</td><td>不限</td><td>隐藏</td><td>隐藏</td></tr>
+              <tr><td>周期</td><td>勾选</td><td>精准 / 模糊</td><td><strong>显示</strong></td><td>统一→tag；按周期→表格</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">运营配置时序流程</div>
+          <div class="help-flow">
+            <div class="help-flow-step">
+              <div class="help-flow-no">1</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">选择活动类型</div>
+                <div class="help-flow-desc">默认「单次活动」。切换至「周期活动」后，截止时间字段隐藏，活动时段 / 周期徽标显示，开奖人数 label 变为「周期总数」。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no branch">2</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">填写时间字段</div>
+                <div class="help-flow-desc">单次：填写截止日期与时间。<br>周期：填写活动时段（开始/结束日期），系统实时计算并显示 <code>共 X 天 · X 个周期</code> 徽标；每个周期的 <code>24:00</code> 自动发奖。</div>
+                <div class="help-flow-branch">⚠ 新建时修改活动时段会触发周期重算，按周期配置的关键词将清空，前端二次确认；新建成功后活动时间不可修改。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no">3</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">配置开奖人数 / 周期总数</div>
+                <div class="help-flow-desc">单次活动：直接输入开奖人数（≥ 1）。周期活动下默认<strong>不限</strong>，选「周期限制」时填入数字，每个周期从达标玩家中<strong>随机</strong>抽取，最多发放该人数。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no">4</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">选择发奖方式</div>
+                <div class="help-flow-desc"><strong>仅单次活动</strong>需选择，默认「人工审核」。<strong>周期活动不展示该字段，系统固定为自动发奖</strong>，并显示 <code>M&lt;N 不补发</code> 提示文案。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no">5</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">填写活动说明</div>
+                <div class="help-flow-desc">可选，≤ 200 字。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no branch">6</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">配置参与条件 · 评论关键词</div>
+                <div class="help-flow-desc">勾选「评论关键词」后选择匹配方式：
+                  <ul style="margin:4px 0 0; padding-left:18px;">
+                    <li><code>不限</code>：不需关键词，匹配类型与输入区整行隐藏</li>
+                    <li><code>精准 / 模糊</code> + 单次：直接 tag 输入</li>
+                    <li><code>精准 / 模糊</code> + 周期：出现「匹配类型」单选，默认<code>统一</code>（tag 输入）；切到<code>按周期配置</code>展开表格，按周期逐行录入 tag</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no end">7</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">校验保存</div>
+                <div class="help-flow-desc">前端按异常场景规则校验全部字段，通过后落库。活动类型与发奖方式入库后受相应锁定规则约束。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">周期活动 · 开奖触发时序</div>
+          <div class="help-flow">
+            <div class="help-flow-step">
+              <div class="help-flow-no">1</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">到达周期开奖时刻</div>
+                <div class="help-flow-desc">调度任务按"周期日 + 24:00"触发自动发奖，逐周期独立计算，互不影响。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no">2</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">圈定本期达标用户</div>
+                <div class="help-flow-desc">取本周期内满足参与条件的玩家（按周期配置时按该周期关键词匹配）。设达标人数 = M，开奖人数 = N。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no branch">3</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">系统自动发奖</div>
+                <div class="help-flow-desc">周期活动固定走<strong>自动发奖</strong>：系统从达标玩家中随机抽取 min(N,M) 人，立即发奖，无需运营介入。</div>
+                <div class="help-flow-branch">M = 0 → 本期流标，不消耗道具库存；M &lt; N → 实发 M 人，剩余名额不补发。</div>
+              </div>
+            </div>
+            <div class="help-flow-step">
+              <div class="help-flow-no end">4</div>
+              <div class="help-flow-body">
+                <div class="help-flow-title">结算本期 &amp; 等待下一周期</div>
+                <div class="help-flow-desc">写入开奖记录，标记本期状态。最后一个周期开奖完成后整个活动结束。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">异常场景规则</div>
+          <table class="help-table">
+            <thead>
+              <tr><th>分类</th><th>场景</th><th>处理</th></tr>
+            </thead>
+            <tbody>
+              <tr><td rowspan="6"><span class="htag err">校验</span></td><td>活动类型未选</td><td>提交拦截：<code>请选择活动类型</code></td></tr>
+              <tr><td>周期活动 · 开始日 ≥ 结束日</td><td><code>结束日期必须晚于开始日期</code></td></tr>
+              <tr><td>周期活动 · 开始日早于今天</td><td><code>活动开始日期不可早于今天</code></td></tr>
+              <tr><td>周期总数 = 0</td><td><code>当前活动时段无有效周期</code></td></tr>
+              <tr><td>周期总数选「周期限制」但未填数字</td><td><code>请输入周期内获奖总人数</code></td></tr>
+              <tr><td>统一模式关键词为空</td><td><code>请至少添加 1 个关键词</code></td></tr>
+              <tr><td>按周期配置任一周期关键词为空</td><td><code>周期 X 的关键词未填写</code>，定位高亮该行</td></tr>
+              <tr><td rowspan="8"><span class="htag border">运行</span></td><td>已创建活动改活动类型</td><td>禁止，字段置灰，hover 提示<code>活动类型创建后不可修改</code></td></tr>
+              <tr><td>已创建活动改活动时间</td><td>禁止，字段置灰，hover 提示<code>活动时间创建后不可修改</code></td></tr>
+              <tr><td>已创建活动改周期总数</td><td>禁止，字段置灰，hover 提示<code>周期总数创建后不可修改</code></td></tr>
+              <tr><td>已创建活动改按周期配置评论关键词</td><td>禁止，字段置灰，hover 提示<code>按周期配置评论关键词创建后不可修改</code></td></tr>
+              <tr><td>单次活动 · 已进入发奖流程改发奖方式</td><td>禁止，字段置灰</td></tr>
+              <tr><td>周期活动 · 表单提交时发奖方式</td><td>系统固定为 <code>自动发奖</code>，前端不展示该字段；接口接收非 <code>自动发奖</code> 值时直接覆盖</td></tr>
+              <tr><td>已创建活动切换匹配类型</td><td>禁止，字段及单选项全量置灰，避免影响按周期配置评论关键词</td></tr>
+              <tr><td>重新生成周期导致关键词丢失</td><td>弹窗：<code>检测到周期发生变化，旧关键词将被清空</code></td></tr>
+              <tr><td rowspan="3"><span class="htag border">开奖</span></td><td>自动发奖 · M &lt; N</td><td>实发 M 人，剩余名额不补发，记录标注「名额未满」</td></tr>
+              <tr><td>自动发奖 · M = 0</td><td>当期流标，不消耗道具库存</td></tr>
+              <tr><td>关键词大小写 / 全半角</td><td>统一忽略大小写、全半角归一化；emoji 保留原样</td></tr>
+              <tr><td><span class="htag def">兼容</span></td><td>历史无活动类型 / 发奖方式数据</td><td>活动类型回填 <code>单次活动</code>，发奖方式回填 <code>人工审核</code>（仅单次活动）</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">列表页变更</div>
+          <ul>
+            <li><strong>「发奖方式」列改为「活动类型」列</strong> <span class="htag new">NEW</span>：以正文文本展示「单次活动」/「周期活动」，<strong>不加描边标签</strong></li>
+            <li><strong>活动名称后追加发奖方式徽标</strong> <span class="htag new">NEW</span>：描边标签紧贴名称右侧，「人工审核」橙色描边、「自动发奖」绿色描边；周期活动统一为「自动发奖」</li>
+            <li>其余列保持不变</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
           <div class="help-section-title">验收清单</div>
           <ol>
             <li>关开关「关」时，进行中的周期活动后台仍按时开奖并发送私聊链接</li>
