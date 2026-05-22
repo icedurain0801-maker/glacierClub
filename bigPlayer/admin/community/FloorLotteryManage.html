@@ -1343,7 +1343,7 @@ tbody tr:hover { background: #fafeff; }
   // ── Mock 数据：楼层抽奖列表 ──
   const MOCK_LIST = [
     { enabled: true,  id: 1160, name: '周期签到送好礼第一期',     status: '未开始', statusCls: 'status-upcoming',  activityType: '周期', rewardMode: '自动发奖', reviewer: '梁仓',   reviewTime: '2026-05-20 10:00:00', reviewNote: '通过', applicant: '梁仓',   applyTime: '2026-05-19 14:30:00', rewardTime: '2026-05-25 00:00:00', cycleStart: '2026-05-25', cycleEnd: '2026-06-01', extra: ['编辑','复制','删除'] },
-    { enabled: false, id: 1158, name: '编辑被拒示例 - 端午活动',   status: '已拒绝', statusCls: 'status-reject',   activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2026-05-18 16:42:00', reviewNote: '奖品名称需调整',  applicant: '黄梦琪', applyTime: '2026-05-18 16:30:00', rewardTime: '2026-05-22 00:00:00', extra: ['重新编辑','删除'] },
+    { enabled: false, id: 1158, name: '编辑被拒示例 - 端午活动',   status: '已拒绝', statusCls: 'status-reject',   activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2026-05-18 16:42:00', reviewNote: '奖品名称需调整',  applicant: '黄梦琪', applyTime: '2026-05-18 16:30:00', rewardTime: '2026-05-22 00:00:00', extra: ['编辑','删除'] },
     { enabled: true,  id: 1120, name: '测试',                  status: '进行中', statusCls: 'status-running',  activityType: '单次', rewardMode: '人工审核', reviewer: '梁仓',   reviewTime: '2024-09-06 14:37:04', reviewNote: '通过', applicant: '梁仓',   applyTime: '2024-09-06 14:36:27', rewardTime: '2024-09-07 00:00:00', extra: ['奖励发放','编辑','复制','删除'] },
     { enabled: true,  id: 1154, name: '还原拼图顺序挑战第7期', status: '已结束', statusCls: 'status-finished', activityType: '周期', rewardMode: '自动发奖', reviewer: '黄梦琪', reviewTime: '2024-11-28 18:14:01', reviewNote: 'tg',   applicant: '黄梦琪', applyTime: '2024-11-28 18:13:48', rewardTime: '2024-11-29 00:00:00', cycleStart: '2024-11-01', cycleEnd: '2024-11-29', extra: ['复制','删除','记录'] },
     { enabled: true,  id: 1150, name: '爱拼才会赢第三期',      status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '人工审核', reviewer: '黄梦琪', reviewTime: '2024-11-20 17:18:00', reviewNote: '通过', applicant: '黄梦琪', applyTime: '2024-11-20 17:16:48', rewardTime: '2024-11-21 00:00:00', extra: ['复制','删除','记录'] },
@@ -1371,7 +1371,7 @@ tbody tr:hover { background: #fafeff; }
       case '已结束':
         return ['复制', '记录', '删除'];
       case '已拒绝':
-        return ['重新编辑', '删除'];
+        return ['编辑', '删除'];
       default:
         return [];
     }
@@ -1449,7 +1449,7 @@ tbody tr:hover { background: #fafeff; }
         <td>${formatRewardTime(r)}</td>
         <td>${getRowButtons(r).map(t => {
           const cls = t === '删除' ? 'op-btn danger' : 'op-btn';
-          if (t === '编辑' || t === '重新编辑') return `<button class="${cls}" onclick="openEdit(${r.id})">${t}</button>`;
+          if (t === '编辑') return `<button class="${cls}" onclick="openEdit(${r.id})">${t}</button>`;
           if (t === '记录') return `<button class="${cls}" onclick="showView('record')">${t}</button>`;
           if (t === '删除') return `<button class="${cls}" onclick="confirmDelete(${r.id})">${t}</button>`;
           return `<button class="${cls}">${t}</button>`;
@@ -1518,8 +1518,7 @@ tbody tr:hover { background: #fafeff; }
     const r = MOCK_LIST.find(x => x.id === id);
     if (!r) return;
     editingId = id;
-    document.getElementById('edit-tab-title').textContent =
-      r.status === '已拒绝' ? '重新编辑抽奖' : '编辑抽奖';
+    document.getElementById('edit-tab-title').textContent = '编辑抽奖';
     document.getElementById('e-name').value = r.name;
     showView('edit');
     applyEditLock(true);
@@ -2372,7 +2371,7 @@ tbody tr:hover { background: #fafeff; }
               <tr><td>进行中 · 单次活动</td><td>C 端下线暂停</td><td>新配置覆盖，重新上线</td><td>状态变为「已拒绝」，保持下线</td></tr>
               <tr><td>进行中 · 周期活动</td><td colspan="3"><strong>不展示编辑按钮</strong>（如需调整请等待结束或直接删除重建）</td></tr>
               <tr><td>已结束</td><td>不展示编辑按钮</td><td>—</td><td>—</td></tr>
-              <tr><td>已拒绝</td><td>显示「重新编辑」按钮，可再次提交</td><td>状态恢复（按活动时间判断回到未开始 / 进行中 / 已结束）</td><td>继续保持「已拒绝」</td></tr>
+              <tr><td>已拒绝</td><td>显示「编辑」按钮，可再次提交</td><td>状态恢复（按活动时间判断回到未开始 / 进行中 / 已结束）</td><td>继续保持「已拒绝」</td></tr>
             </tbody>
           </table>
           <div class="help-note">为避免「编辑期间到点周期是否发奖」的歧义，进行中的周期活动直接禁用编辑入口。</div>
@@ -2427,7 +2426,7 @@ tbody tr:hover { background: #fafeff; }
             <div class="help-flow-step">
               <div class="help-flow-no">1</div>
               <div class="help-flow-body">
-                <div class="help-flow-title">运营点击编辑 / 重新编辑</div>
+                <div class="help-flow-title">运营点击编辑</div>
                 <div class="help-flow-desc">进入编辑视图，仅活动名称、活动奖品、活动说明 3 项可改，其余字段全部置灰只读。<br><strong style="color:#fa8c16;">⚠ 进行中的周期活动不展示编辑按钮</strong>，如需调整请等待活动结束或删除重建。</div>
               </div>
             </div>
@@ -2442,7 +2441,7 @@ tbody tr:hover { background: #fafeff; }
               <div class="help-flow-no branch">3</div>
               <div class="help-flow-body">
                 <div class="help-flow-title">审核结果（单次活动）</div>
-                <div class="help-flow-desc"><strong>通过：</strong>新配置覆盖，活动重新上线（受开关控制）。<br><strong>被拒：</strong>状态变为「已拒绝」，保持下线；列表出现「重新编辑」按钮，可继续修改后再次提交。</div>
+                <div class="help-flow-desc"><strong>通过：</strong>新配置覆盖，活动重新上线（受开关控制）。<br><strong>被拒：</strong>状态变为「已拒绝」，保持下线；列表「编辑」按钮仍可继续点击修改后再次提交。</div>
               </div>
             </div>
           </div>
@@ -2457,7 +2456,7 @@ tbody tr:hover { background: #fafeff; }
               <tr><td>未开始</td><td>已审核未到开始日</td><td>编辑、复制、删除</td></tr>
               <tr><td>进行中</td><td>活动运行中</td><td><strong>单次：</strong>（人工审核）奖励发放、编辑、复制、删除；（自动发奖）编辑、复制、删除<br><strong>周期：</strong>复制、删除（<strong style="color:#fa8c16;">无编辑按钮</strong>）</td></tr>
               <tr><td>已结束</td><td>结束日已过</td><td>复制、记录、删除</td></tr>
-              <tr><td>已拒绝 <span class="htag new">NEW</span></td><td>编辑被拒，处于下线状态（仅单次活动）</td><td>重新编辑、删除</td></tr>
+              <tr><td>已拒绝 <span class="htag new">NEW</span></td><td>编辑被拒，处于下线状态（仅单次活动）</td><td>编辑、删除</td></tr>
             </tbody>
           </table>
         </div>
@@ -2720,7 +2719,7 @@ tbody tr:hover { background: #fafeff; }
             <li>编辑期间错过的周期不补发、不顺延结束日、记录中不留占位</li>
             <li>编辑审核通过后，新配置仅覆盖未开奖期，已开奖期保留旧奖品/旧条件</li>
             <li>编辑活动名称后，已发出去的私聊链接展示最新名称</li>
-            <li>编辑审核被拒，活动状态显示「已拒绝」并保持下线，列表页出现「重新编辑」按钮</li>
+            <li>编辑审核被拒，活动状态显示「已拒绝」并保持下线，列表页「编辑」按钮可继续点击修改后再次提交</li>
             <li>已结束的活动不展示编辑按钮</li>
             <li>任意状态下都可点击删除，弹窗二次确认</li>
             <li>删除后活动从列表消失，不可恢复</li>
