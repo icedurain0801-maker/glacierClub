@@ -758,11 +758,67 @@ tbody tr:hover { background: #fafeff; }
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ── 通用确认弹窗 ── */
+.modal-mask {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 2000;
+  align-items: center; justify-content: center;
+}
+.modal-mask.show { display: flex; }
+.modal-dialog {
+  background: #fff;
+  border-radius: 6px;
+  width: 360px;
+  padding: 20px 24px 18px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+}
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.modal-title::before {
+  content: '!';
+  display: inline-flex;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #faad14;
+  color: #fff;
+  font-size: 12px;
+  align-items: center; justify-content: center;
+}
+.modal-body { font-size: 13px; color: #595959; line-height: 1.7; margin-bottom: 20px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+.modal-btn {
+  height: 30px; padding: 0 16px;
+  border-radius: 4px; font-size: 13px;
+  border: none; cursor: pointer;
+}
+.modal-btn.cancel { background: #fff; color: #595959; border: 1px solid #d9d9d9; }
+.modal-btn.cancel:hover { border-color: #1890ff; color: #1890ff; }
+.modal-btn.confirm { background: #ff4d4f; color: #fff; }
+.modal-btn.confirm:hover { background: #ff7875; }
 </style>
 </head>
 <body>
 <nav id="sidebar" class="sidebar"></nav>
 <div class="toast" id="page-toast"></div>
+
+<div class="modal-mask" id="confirm-modal">
+  <div class="modal-dialog">
+    <div class="modal-title" id="confirm-title">确定删除？</div>
+    <div class="modal-body" id="confirm-body">确定删除活动「」吗？</div>
+    <div class="modal-footer">
+      <button class="modal-btn cancel" id="confirm-cancel">取消</button>
+      <button class="modal-btn confirm" id="confirm-ok">确定删除</button>
+    </div>
+  </div>
+</div>
 
 <div class="admin-main" id="admin-main">
 
@@ -1299,6 +1355,36 @@ tbody tr:hover { background: #fafeff; }
         return [];
     }
   }
+
+  let pendingDeleteId = null;
+
+  function confirmDelete(id) {
+    const r = MOCK_LIST.find(x => x.id === id);
+    if (!r) return;
+    pendingDeleteId = id;
+    document.getElementById('confirm-body').textContent = `确定删除活动「${r.name}」吗？`;
+    document.getElementById('confirm-modal').classList.add('show');
+  }
+
+  function closeConfirm() {
+    pendingDeleteId = null;
+    document.getElementById('confirm-modal').classList.remove('show');
+  }
+
+  function doDelete() {
+    if (pendingDeleteId == null) return closeConfirm();
+    const idx = MOCK_LIST.findIndex(x => x.id === pendingDeleteId);
+    if (idx >= 0) MOCK_LIST.splice(idx, 1);
+    closeConfirm();
+    renderListTable();
+    showToast('已删除');
+  }
+
+  document.getElementById('confirm-cancel').addEventListener('click', closeConfirm);
+  document.getElementById('confirm-ok').addEventListener('click', doDelete);
+  document.getElementById('confirm-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeConfirm();
+  });
 
   function formatRewardTime(r) {
     if (r.activityType !== '周期') return r.rewardTime;
