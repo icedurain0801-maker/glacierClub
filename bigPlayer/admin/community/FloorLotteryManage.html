@@ -1375,6 +1375,17 @@ tbody tr:hover { background: #fafeff; }
 
   let pendingDeleteId = null;
 
+  function toggleEnabled(id, checked) {
+    const r = MOCK_LIST.find(x => x.id === id);
+    if (!r) return;
+    r.enabled = checked;
+    if (checked) {
+      showToast('已恢复 C 端入口');
+    } else {
+      showToast('已隐藏 C 端入口，后台仍正常运行');
+    }
+  }
+
   function confirmDelete(id) {
     const r = MOCK_LIST.find(x => x.id === id);
     if (!r) return;
@@ -1418,7 +1429,7 @@ tbody tr:hover { background: #fafeff; }
       <tr>
         <td>
           <label class="toggle-switch">
-            <input type="checkbox" ${r.enabled ? 'checked' : ''}>
+            <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="toggleEnabled(${r.id}, this.checked)">
             <span class="toggle-track"></span>
           </label>
         </td>
