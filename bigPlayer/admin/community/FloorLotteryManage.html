@@ -1281,6 +1281,25 @@ tbody tr:hover { background: #fafeff; }
     { enabled: true,  id: 1104, name: '发奖扣111',              status: '已结束', statusCls: 'status-finished', activityType: '单次', rewardMode: '自动发奖', reviewer: '杨梓源', reviewTime: '2024-06-12 11:28:31', reviewNote: '通过', applicant: '杨梓源', applyTime: '2024-06-12 11:28:23', rewardTime: '2024-06-13 00:00:00', extra: ['复制','删除','记录'] },
   ];
 
+  function getRowButtons(r) {
+    switch (r.status) {
+      case '待审核':
+        return ['编辑', '删除'];
+      case '未开始':
+        return ['编辑', '复制', '删除'];
+      case '进行中':
+        return r.rewardMode === '人工审核'
+          ? ['奖励发放', '编辑', '复制', '记录', '删除']
+          : ['编辑', '复制', '记录', '删除'];
+      case '已结束':
+        return ['复制', '记录', '删除'];
+      case '已拒绝':
+        return ['重新编辑', '删除'];
+      default:
+        return [];
+    }
+  }
+
   function formatRewardTime(r) {
     if (r.activityType !== '周期') return r.rewardTime;
     const range = (r.cycleStart && r.cycleEnd) ? `${r.cycleStart} 至 ${r.cycleEnd}` : '';
@@ -1310,10 +1329,11 @@ tbody tr:hover { background: #fafeff; }
         <td>${r.applicant}</td>
         <td>${r.applyTime}</td>
         <td>${formatRewardTime(r)}</td>
-        <td>${r.extra.map(t => {
+        <td>${getRowButtons(r).map(t => {
           const cls = t === '删除' ? 'op-btn danger' : 'op-btn';
-          if (t === '编辑')   return `<button class="${cls}" onclick="openEdit(${r.id})">${t}</button>`;
-          if (t === '记录')   return `<button class="${cls}" onclick="showView('record')">${t}</button>`;
+          if (t === '编辑' || t === '重新编辑') return `<button class="${cls}" onclick="openEdit(${r.id})">${t}</button>`;
+          if (t === '记录') return `<button class="${cls}" onclick="showView('record')">${t}</button>`;
+          if (t === '删除') return `<button class="${cls}" onclick="confirmDelete(${r.id})">${t}</button>`;
           return `<button class="${cls}">${t}</button>`;
         }).join(' ')}</td>
       </tr>
