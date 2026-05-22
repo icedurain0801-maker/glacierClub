@@ -803,6 +803,23 @@ tbody tr:hover { background: #fafeff; }
 .modal-btn.cancel:hover { border-color: #1890ff; color: #1890ff; }
 .modal-btn.confirm { background: #ff4d4f; color: #fff; }
 .modal-btn.confirm:hover { background: #ff7875; }
+
+/* ── 编辑模式：字段锁定 ── */
+.field-locked .form-input,
+.field-locked .form-select,
+.field-locked .form-textarea,
+.field-locked input[type="date"],
+.field-locked input[type="number"] {
+  background: #f5f5f5 !important;
+  color: #8c8c8c !important;
+  cursor: not-allowed !important;
+}
+.field-locked .radio-group { opacity: 0.55; pointer-events: none; }
+.field-locked .checkbox-group { opacity: 0.55; pointer-events: none; }
+.field-locked .btn-inline { opacity: 0.55; pointer-events: none; }
+.field-locked .kw-tag-rm,
+.field-locked .keyword-tag-remove,
+.field-locked .prize-tag-remove { display: none; }
 </style>
 </head>
 <body>
@@ -1463,13 +1480,21 @@ tbody tr:hover { background: #fafeff; }
   renderRecordTable();
 
   // ── 视图切换 ──
+  let editingId = null;
   function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const map = { list: 'view-list', edit: 'view-edit', record: 'view-record' };
     document.getElementById(map[name]).classList.add('active');
     if (name === 'list') {
       document.getElementById('edit-tab-title').textContent = '新增抽奖';
+      editingId = null;
       resetEditForm();
+      applyEditLock(false);
+    } else if (name === 'edit') {
+      if (editingId == null) {
+        document.getElementById('edit-tab-title').textContent = '新增抽奖';
+        applyEditLock(false);
+      }
     }
     window.scrollTo(0, 0);
   }
@@ -1477,9 +1502,29 @@ tbody tr:hover { background: #fafeff; }
   function openEdit(id) {
     const r = MOCK_LIST.find(x => x.id === id);
     if (!r) return;
-    document.getElementById('edit-tab-title').textContent = '编辑抽奖';
+    editingId = id;
+    document.getElementById('edit-tab-title').textContent =
+      r.status === '已拒绝' ? '重新编辑抽奖' : '编辑抽奖';
     document.getElementById('e-name').value = r.name;
     showView('edit');
+    applyEditLock(true);
+  }
+
+  // 锁定字段范围：除"活动名称/活动奖品/活动说明"以外全部锁定
+  const LOCKED_LABEL_TEXT = [
+    '关联作者', '活动类型', '活动时间', '活动截止时间',
+    '开奖人数', '周期总数', '发奖方式', '参与条件',
+    '楼层抽奖规则'
+  ];
+
+  function applyEditLock(locked) {
+    document.querySelectorAll('#view-edit .form-row').forEach(row => {
+      const label = row.querySelector('.form-label');
+      if (!label) return;
+      const txt = label.textContent.replace(/\s|：|\*/g, '');
+      const shouldLock = locked && LOCKED_LABEL_TEXT.some(k => txt.includes(k));
+      row.classList.toggle('field-locked', shouldLock);
+    });
   }
 
   function resetEditForm() {
