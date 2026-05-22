@@ -974,6 +974,83 @@
   }
   .char-bind-strip__bind-link .material-symbols-outlined { font-size: 16px; }
 
+  /* ── 顶部 Hero 背景图（所有版本：覆盖 status bar + 顶栏 + Tab，到 Tab 下沿渐变到白底）── */
+  .simple-hero-bg{
+    display:block;
+    position:absolute;
+    left:0; right:0; top:0;
+    height:var(--hero-h, 155px);
+    z-index:0;
+    pointer-events:none;
+    background-image:url('https://q1-operation-bulletin-sz.oss-cn-shenzhen.aliyuncs.com/CLUB/2026/04/24/1777003605222b8eb3d61-f99b-4e82-882f-b4914d4dcff5.png');
+    background-size:cover;
+    background-position:center 35%;
+    filter:saturate(0.55) brightness(0.92);
+  }
+  /* APP 版多了角色绑定条，hero 高度加 ~64px */
+  body[data-variant="app"]{ --hero-h:219px; }
+  .simple-hero-bg::after{
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg,
+      rgba(20,30,45,0.42) 0%,
+      rgba(20,30,45,0.30) 35%,
+      rgba(247,249,251,0.65) 58%,
+      rgba(247,249,251,0.92) 75%,
+      var(--background) 100%);
+  }
+  /* 底部 12px 实色，确保与下方内容区无缝衔接 */
+  .simple-hero-bg::before{
+    content:''; position:absolute; left:0; right:0; bottom:-1px;
+    height:18px;
+    background:linear-gradient(180deg, rgba(247,249,251,0) 0%, var(--background) 100%);
+    z-index:1;
+  }
+  /* 让 status bar / sticky header 透出背景图 */
+  .status-bar{ position:relative; z-index:1; background:transparent; }
+  .sticky-header{ background:transparent !important; }
+  /* status bar 文字 / 图标反白 + 阴影提升对比 */
+  .status-bar .text-on-surface,
+  .status-bar span{
+    color:#fff !important; text-shadow:0 1px 3px rgba(0,0,0,0.45);
+  }
+  .status-bar svg [stroke="var(--on-surface)"]{ stroke:#fff !important; }
+  .status-bar svg [fill="var(--on-surface)"]{ fill:#fff !important; }
+  /* Logo 顶栏（menu/search 图标 + X-Hero）反白 */
+  .sticky-header .flex.items-center.justify-between .material-symbols-outlined.text-on-surface{
+    color:#fff !important; text-shadow:0 1px 4px rgba(0,0,0,0.4);
+  }
+  .sticky-header span.font-headline[style*="--primary"]{
+    color:#fff !important; text-shadow:0 1px 4px rgba(0,0,0,0.45);
+  }
+  .sticky-header span.font-headline[style*="--primary"] span[style*="primary-dim"]{
+    color:#e6f3ff !important;
+  }
+  /* Tab 文字保留默认深色（背景渐变到此处已接近白色，无需反白） */
+
+  /* APP 版：角色绑定条改为半透明玻璃，融入背景图 */
+  body[data-variant="app"] .char-bind-strip{
+    background:rgba(255,255,255,0.20) !important;
+    backdrop-filter:blur(14px) saturate(1.2);
+    -webkit-backdrop-filter:blur(14px) saturate(1.2);
+    border:1px solid rgba(255,255,255,0.28);
+  }
+  body[data-variant="app"] .char-bind-strip__avatar{
+    border-color:rgba(255,255,255,0.6) !important;
+  }
+  body[data-variant="app"] .char-bind-strip__name{
+    color:#fff !important; text-shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+  body[data-variant="app"] .char-bind-strip__sub{
+    color:rgba(255,255,255,0.92) !important; opacity:1;
+  }
+  body[data-variant="app"] .char-bind-strip__switch{
+    color:#fff !important; border-color:rgba(255,255,255,0.5) !important;
+  }
+  body[data-variant="app"] .char-bind-strip__launch{
+    background:#fff !important; color:var(--primary) !important;
+  }
+  body[data-variant="app"] .char-bind-strip__glow{ display:none; }
+
   .theme-toggle{position:fixed;top:24px;right:24px;z-index:9999;width:44px;height:44px;border:0;border-radius:50%;background:var(--surface-container-lowest);color:var(--primary);box-shadow:0 4px 16px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s,background .15s,color .15s;}
   .theme-toggle:hover{transform:scale(1.08);}
   .theme-toggle .material-symbols-outlined{font-size:22px;}
@@ -1160,6 +1237,9 @@
 
 <div class="phone-shell">
 
+  <!-- Hero background (only in simple variant) -->
+  <div class="simple-hero-bg" aria-hidden="true"></div>
+
   <!-- Dynamic Island -->
   <div class="dynamic-island"></div>
 
@@ -1168,7 +1248,7 @@
   <div id="drawer" class="drawer">
     <!-- Header / profile -->
     <div class="drawer-header" id="drawer-header">
-      <div class="drawer-header__bg" id="drawer-bg" style="background-image:url('https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2025/12/30/1767084148075c709f857-caef-4537-8e60-d59cf8948d49.png');"></div>
+      <div class="drawer-header__bg" id="drawer-bg" style="background-image:url('https://q1-operation-bulletin-sz.oss-cn-shenzhen.aliyuncs.com/CLUB/2026/04/24/1777003605222b8eb3d61-f99b-4e82-882f-b4914d4dcff5.png');"></div>
       <div class="drawer-header__mask"></div>
       <button class="drawer-combo-btn" onclick="closeDrawer()" aria-label="Combo Sections" title="Combo Sections">
         <span class="material-symbols-outlined">dashboard_customize</span>
@@ -1227,7 +1307,7 @@
   </div>
 
   <!-- Status bar -->
-  <div class="flex items-center justify-between px-6 pt-4" style="height:54px;">
+  <div class="status-bar flex items-center justify-between px-6 pt-4" style="height:54px;">
     <span class="text-[15px] font-semibold tracking-tight text-on-surface">9:41</span>
     <div class="flex items-center gap-1.5">
       <!-- Signal bars -->
@@ -1243,7 +1323,7 @@
   <div class="no-scrollbar overflow-y-auto overflow-x-hidden" style="flex:1; min-height:0;">
 
     <!-- ── Top bar + Tab nav (unified sticky, no gap) ── -->
-    <div class="sticky top-0 z-20 bg-background">
+    <div class="sticky-header sticky top-0 z-20 bg-background">
       <div class="flex items-center justify-between px-4 pt-2 pb-1">
         <div class="flex items-center gap-2">
           <button onclick="openDrawer()" class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container">
@@ -2453,7 +2533,7 @@
       name: 'X-HERO',
       server: 'F2P Server 38',
       lv: 'Lv.85 · 6,200 XP',
-      bg: 'https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2025/12/30/1767084148075c709f857-caef-4537-8e60-d59cf8948d49.png',
+      bg: 'https://q1-operation-bulletin-sz.oss-cn-shenzhen.aliyuncs.com/CLUB/2026/04/24/1777003605222b8eb3d61-f99b-4e82-882f-b4914d4dcff5.png',
       thumb: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg',
       topbarTitle: 'X-<span style="color:var(--primary-dim);">Hero</span>',
     },
