@@ -2324,7 +2324,7 @@ tbody tr:hover { background: #fafeff; }
             </thead>
             <tbody>
               <tr><td><strong>关开关</strong></td><td>临时藏入口</td><td>无</td><td>唯一闸门：决定帖子入口显隐</td></tr>
-              <tr><td><strong>编辑</strong></td><td>撤回审核 + 配置变更</td><td>提交期间停跑，通过后续跑</td><td>编辑期间整体下线</td></tr>
+              <tr><td><strong>编辑</strong></td><td>撤回审核 + 配置变更<br><span style="color:#fa8c16;">（仅单次活动可用）</span></td><td>提交期间停跑，通过后续跑</td><td>编辑期间整体下线</td></tr>
               <tr><td><strong>删除</strong></td><td>数据归档</td><td>停跑（已开奖记录/链接仍可用）</td><td>列表/帖子消失</td></tr>
             </tbody>
           </table>
@@ -2418,7 +2418,7 @@ tbody tr:hover { background: #fafeff; }
               <tr><td>已开奖记录</td><td>不影响</td><td>不影响</td><td><strong>一并删除</strong></td></tr>
               <tr><td>私聊领奖链接</td><td>不影响</td><td>不影响</td><td>保留可领</td></tr>
               <tr><td>可恢复性</td><td>随时切换</td><td>审核通过即恢复</td><td>不可恢复</td></tr>
-              <tr><td>触发审核</td><td>否</td><td>是</td><td>否</td></tr>
+              <tr><td>触发审核</td><td>否</td><td>单次活动：是<br>周期活动：无编辑入口</td><td>否</td></tr>
             </tbody>
           </table>
 
@@ -2428,22 +2428,21 @@ tbody tr:hover { background: #fafeff; }
               <div class="help-flow-no">1</div>
               <div class="help-flow-body">
                 <div class="help-flow-title">运营点击编辑 / 重新编辑</div>
-                <div class="help-flow-desc">进入编辑视图，仅活动名称、活动奖品、活动说明 3 项可改，其余字段全部置灰只读。</div>
+                <div class="help-flow-desc">进入编辑视图，仅活动名称、活动奖品、活动说明 3 项可改，其余字段全部置灰只读。<br><strong style="color:#fa8c16;">⚠ 进行中的周期活动不展示编辑按钮</strong>，如需调整请等待活动结束或删除重建。</div>
               </div>
             </div>
             <div class="help-flow-step">
               <div class="help-flow-no">2</div>
               <div class="help-flow-body">
-                <div class="help-flow-title">提交审核</div>
-                <div class="help-flow-desc">活动状态变为「待审核」，C 端整体下线暂停，后台停止开奖。</div>
-                <div class="help-flow-branch">⚠ 编辑期间到点的周期跳过，不补发、不顺延结束日、记录不留占位。</div>
+                <div class="help-flow-title">提交审核（仅单次活动会触发）</div>
+                <div class="help-flow-desc"><strong>单次活动：</strong>提交后活动状态变为「待审核」，重新进入审核列表，C 端整体下线暂停。<br><strong>周期活动：</strong>无编辑入口，故不会重新进入审核流程。</div>
               </div>
             </div>
             <div class="help-flow-step">
               <div class="help-flow-no branch">3</div>
               <div class="help-flow-body">
-                <div class="help-flow-title">审核结果</div>
-                <div class="help-flow-desc"><strong>通过：</strong>新配置覆盖未开奖期，已开奖期保留旧奖品 / 旧条件；活动重新上线（受开关控制）。<br><strong>被拒：</strong>状态变为「已拒绝」，保持下线；列表出现「重新编辑」按钮，可继续修改后再次提交。</div>
+                <div class="help-flow-title">审核结果（单次活动）</div>
+                <div class="help-flow-desc"><strong>通过：</strong>新配置覆盖，活动重新上线（受开关控制）。<br><strong>被拒：</strong>状态变为「已拒绝」，保持下线；列表出现「重新编辑」按钮，可继续修改后再次提交。</div>
               </div>
             </div>
           </div>
@@ -2454,11 +2453,11 @@ tbody tr:hover { background: #fafeff; }
           <table class="help-table">
             <thead><tr><th>状态</th><th>含义</th><th>操作按钮</th></tr></thead>
             <tbody>
-              <tr><td>待审核</td><td>新建/编辑后等待审核</td><td>编辑、删除</td></tr>
+              <tr><td>待审核</td><td>新建/编辑后等待审核（仅单次活动 或 新建周期活动）</td><td>编辑、删除</td></tr>
               <tr><td>未开始</td><td>已审核未到开始日</td><td>编辑、复制、删除</td></tr>
-              <tr><td>进行中</td><td>活动运行中</td><td>（人工审核）奖励发放、编辑、复制、删除<br>（自动发奖）编辑、复制、删除</td></tr>
+              <tr><td>进行中</td><td>活动运行中</td><td><strong>单次：</strong>（人工审核）奖励发放、编辑、复制、删除；（自动发奖）编辑、复制、删除<br><strong>周期：</strong>复制、删除（<strong style="color:#fa8c16;">无编辑按钮</strong>）</td></tr>
               <tr><td>已结束</td><td>结束日已过</td><td>复制、记录、删除</td></tr>
-              <tr><td>已拒绝 <span class="htag new">NEW</span></td><td>编辑被拒，处于下线状态</td><td>重新编辑、删除</td></tr>
+              <tr><td>已拒绝 <span class="htag new">NEW</span></td><td>编辑被拒，处于下线状态（仅单次活动）</td><td>重新编辑、删除</td></tr>
             </tbody>
           </table>
         </div>
