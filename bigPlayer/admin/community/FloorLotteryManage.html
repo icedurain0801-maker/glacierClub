@@ -2302,8 +2302,14 @@ tbody tr:hover { background: #fafeff; }
       <div class="help-version-body">
 
         <div class="help-section">
-          <div class="help-section-title">本次变更</div>
-          <p>明确「关开关」「编辑」「删除」三大运营操作的状态机与作用域，新增「已拒绝」状态及「重新编辑」入口，编辑模式下大量字段置灰只读，删除增加二次确认弹窗。</p>
+          <div class="help-section-title">本次需求范围</div>
+          <ol>
+            <li>楼层抽奖新增「活动类型」字段，拆分为「单次活动 / 周期活动」；周期活动支持活动时段、周期总数、活动说明配置，并固定使用自动发奖。</li>
+            <li>单次活动新增「发奖方式」字段（人工审核 / 自动发奖）。</li>
+            <li>评论关键词在「周期活动 + 精准/模糊匹配」下新增「匹配类型」字段（统一 / 按周期配置），支持按周期下发不同关键词表格。</li>
+            <li>列表页「发奖方式」列改为「活动类型」列，活动名称后追加发奖方式描边徽标。</li>
+          </ol>
+          <p style="margin-top:8px;">除以上字段和列表展示变化外，存量字段、原有列表内容、筛选项与记录页字段不在本次需求中重复说明。下文重点细化「关开关 / 编辑 / 删除」三大运营操作的异常场景。</p>
         </div>
 
         <div class="help-section">
@@ -2322,9 +2328,27 @@ tbody tr:hover { background: #fafeff; }
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">编辑 · 可改字段</div>
+          <div class="help-section-title">异常场景汇总（关开关 / 编辑 / 删除）</div>
+
+          <p style="font-size:12px;color:#555;line-height:1.9;margin:6px 0 4px;"><strong style="color:#1890ff;">① 关开关 · 异常场景</strong></p>
           <table class="help-table">
-            <thead><tr><th>可编辑</th><th>锁定（置灰只读）</th></tr></thead>
+            <thead>
+              <tr><th>活动状态</th><th>关 → 行为</th><th>开 → 行为</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>待审核</td><td>入口隐藏</td><td>入口恢复</td><td>关开关与审核状态完全独立，互不影响</td></tr>
+              <tr><td>未开始</td><td>入口隐藏；后台仍按原计划到点开始</td><td>入口恢复</td><td>关开关期间到了活动开始日 → 后台仍判定活动开始，按计划运行；C 端入口始终不显示</td></tr>
+              <tr><td>进行中（单次）</td><td>入口隐藏；后台照常跑、照常开奖</td><td>入口恢复</td><td>关开关期间到了截止时间 → 正常开奖，正常发私聊链接</td></tr>
+              <tr><td>进行中（周期）</td><td>入口隐藏；后台照常跑、每期到点正常发奖</td><td>入口恢复</td><td><strong>不存在"跳期"</strong>：周期活动跑到第 4 期时关开关 → 第 4 期及之后所有周期照常自动发奖，玩家通过私聊链接领奖</td></tr>
+              <tr><td>已结束</td><td>入口隐藏（仅影响入口可见性）</td><td>入口恢复</td><td>不阻止操作开关</td></tr>
+              <tr><td>已拒绝</td><td>入口隐藏（被拒活动本身不对外，意义有限）</td><td>入口恢复</td><td>不做特殊限制</td></tr>
+            </tbody>
+          </table>
+          <div class="help-warn">关键差异：「关」仅作用于 C 端入口可见性，后台调度任务、开奖判定、私聊发奖链接全部不受影响。</div>
+
+          <p style="font-size:12px;color:#555;line-height:1.9;margin:14px 0 4px;"><strong style="color:#1890ff;">② 编辑 · 可改字段</strong></p>
+          <table class="help-table">
+            <thead><tr><th>可编辑（3 项）</th><th>锁定（置灰只读）</th></tr></thead>
             <tbody>
               <tr>
                 <td>活动名称<br>活动奖品<br>活动说明</td>
@@ -2332,16 +2356,73 @@ tbody tr:hover { background: #fafeff; }
               </tr>
             </tbody>
           </table>
-        </div>
+          <div class="help-note">锁定原因：周期活动依赖时间/条件/关键词等强一致性配置，中途修改会破坏已发奖期与未发奖期之间的连续性。仅文案与奖品（仅影响未开奖期）允许调整。</div>
 
-        <div class="help-section">
-          <div class="help-section-title">编辑流程</div>
+          <p style="font-size:12px;color:#555;line-height:1.9;margin:14px 0 4px;"><strong style="color:#1890ff;">③ 编辑 · 异常场景</strong></p>
+          <table class="help-table">
+            <thead>
+              <tr><th>活动状态</th><th>编辑提交后</th><th>期间到点的周期</th><th>审核通过</th><th>审核被拒</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>未开始</td><td>C 端下线暂停</td><td>（未到期）</td><td>新配置覆盖，按原排期上线</td><td>状态变为「已拒绝」，保持下线</td></tr>
+              <tr><td>进行中 · 已跑 N 期</td><td>C 端下线暂停；后台停跑</td><td><strong>跳过不补发</strong>，不顺延结束日，记录不留占位</td><td>新配置覆盖未开奖期；已开奖期保留旧配置 / 旧奖品</td><td>状态变为「已拒绝」，保持下线</td></tr>
+              <tr><td>已结束</td><td>不展示编辑按钮</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr><td>已拒绝</td><td>显示「重新编辑」按钮，可再次提交</td><td>—</td><td>状态恢复（按活动时间判断回到未开始 / 进行中 / 已结束）</td><td>继续保持「已拒绝」</td></tr>
+            </tbody>
+          </table>
+
+          <p style="font-size:12px;color:#555;line-height:1.9;margin:14px 0 4px;"><strong style="color:#1890ff;">④ 编辑 · 期间 vs 通过后行为对照</strong></p>
+          <table class="help-table">
+            <thead><tr><th>维度</th><th>编辑期间</th><th>审核通过后</th></tr></thead>
+            <tbody>
+              <tr><td>C 端帖子入口</td><td>隐藏</td><td>受开关控制</td></tr>
+              <tr><td>私聊已发的领奖链接</td><td>仍可领</td><td>仍可领</td></tr>
+              <tr><td>后台周期开奖</td><td>停跑：到点的周期跳过</td><td>未开奖期按新配置开奖</td></tr>
+              <tr><td>活动名称生效</td><td>—</td><td>即时生效，含所有已发出去的私聊链接</td></tr>
+              <tr><td>活动奖品生效</td><td>—</td><td>仅未开奖期使用新奖品；已开奖期保留旧奖品</td></tr>
+              <tr><td>活动说明生效</td><td>—</td><td>即时生效</td></tr>
+            </tbody>
+          </table>
+
+          <p style="font-size:12px;color:#555;line-height:1.9;margin:14px 0 4px;"><strong style="color:#1890ff;">⑤ 删除 · 异常场景</strong></p>
+          <table class="help-table">
+            <thead><tr><th>维度</th><th>规则</th></tr></thead>
+            <tbody>
+              <tr><td>适用状态</td><td>任意状态都可删（待审核 / 未开始 / 进行中 / 已结束 / 已拒绝）</td></tr>
+              <tr><td>权限</td><td>有楼层抽奖管理权限的运营都可删，不区分申请人</td></tr>
+              <tr><td>二次确认</td><td>弹窗：「确定删除活动「XXX」吗？」+ 取消 / 确定删除</td></tr>
+              <tr><td>活动列表</td><td>删除后从列表消失</td></tr>
+              <tr><td>帖子内活动入口</td><td>隐藏</td></tr>
+              <tr><td>后台调度任务</td><td>停跑（不再有新的开奖、不再发新链接）</td></tr>
+              <tr><td>已开奖记录</td><td>保留可查（「抽奖记录」页）</td></tr>
+              <tr><td>私聊已发的领奖链接</td><td>保留可领，中奖用户体验不受影响</td></tr>
+              <tr><td>删除待审核中的编辑变更</td><td>直接删除活动；正在审核的编辑请求作废</td></tr>
+              <tr><td>可恢复性</td><td>不可恢复</td></tr>
+            </tbody>
+          </table>
+
+          <p style="font-size:12px;color:#555;line-height:1.9;margin:14px 0 4px;"><strong style="color:#1890ff;">⑥ 三操作影响对照速查</strong></p>
+          <table class="help-table">
+            <thead>
+              <tr><th>维度</th><th>关开关</th><th>编辑</th><th>删除</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>C 端入口</td><td>隐藏 / 显示</td><td>编辑期间隐藏，通过后恢复</td><td>永久隐藏</td></tr>
+              <tr><td>后台开奖</td><td>不影响</td><td>停跑直到审核通过</td><td>停跑</td></tr>
+              <tr><td>已开奖记录</td><td>不影响</td><td>不影响</td><td>保留可查</td></tr>
+              <tr><td>私聊领奖链接</td><td>不影响</td><td>不影响</td><td>保留可领</td></tr>
+              <tr><td>可恢复性</td><td>随时切换</td><td>审核通过即恢复</td><td>不可恢复</td></tr>
+              <tr><td>触发审核</td><td>否</td><td>是</td><td>否</td></tr>
+            </tbody>
+          </table>
+
+          <p style="font-size:12px;color:#555;line-height:1.9;margin:14px 0 4px;"><strong style="color:#1890ff;">⑦ 编辑操作流程</strong></p>
           <div class="help-flow">
             <div class="help-flow-step">
               <div class="help-flow-no">1</div>
               <div class="help-flow-body">
-                <div class="help-flow-title">运营点击编辑/重新编辑</div>
-                <div class="help-flow-desc">进入编辑视图，仅 3 项字段可改，其余置灰。</div>
+                <div class="help-flow-title">运营点击编辑 / 重新编辑</div>
+                <div class="help-flow-desc">进入编辑视图，仅活动名称、活动奖品、活动说明 3 项可改，其余字段全部置灰只读。</div>
               </div>
             </div>
             <div class="help-flow-step">
@@ -2356,37 +2437,10 @@ tbody tr:hover { background: #fafeff; }
               <div class="help-flow-no branch">3</div>
               <div class="help-flow-body">
                 <div class="help-flow-title">审核结果</div>
-                <div class="help-flow-desc"><strong>通过：</strong>新配置覆盖未开奖期，已开奖期保留旧奖品/旧条件；活动重新上线（受开关控制）。<br><strong>被拒：</strong>状态变为「已拒绝」，保持下线；列表出现「重新编辑」按钮。</div>
+                <div class="help-flow-desc"><strong>通过：</strong>新配置覆盖未开奖期，已开奖期保留旧奖品 / 旧条件；活动重新上线（受开关控制）。<br><strong>被拒：</strong>状态变为「已拒绝」，保持下线；列表出现「重新编辑」按钮，可继续修改后再次提交。</div>
               </div>
             </div>
           </div>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">关开关</div>
-          <table class="help-table">
-            <thead><tr><th>操作</th><th>后台</th><th>C 端</th></tr></thead>
-            <tbody>
-              <tr><td>开 → 关</td><td>完全无影响：到时开始、到期开奖、私聊发奖链接全部照常</td><td>帖子入口立即隐藏</td></tr>
-              <tr><td>关 → 开</td><td>无影响</td><td>帖子入口立即恢复</td></tr>
-            </tbody>
-          </table>
-          <div class="help-warn">关开关「关」期间到了活动开始日 / 到了周期 24:00 → 后台仍按计划运行；C 端入口始终不显示。</div>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">删除</div>
-          <table class="help-table">
-            <thead><tr><th>维度</th><th>规则</th></tr></thead>
-            <tbody>
-              <tr><td>适用状态</td><td>任意状态都可删（待审核/未开始/进行中/已结束/已拒绝）</td></tr>
-              <tr><td>权限</td><td>有楼层抽奖管理权限的运营都可删，不区分申请人</td></tr>
-              <tr><td>二次确认</td><td>弹窗：「确定删除活动「XXX」吗？」+ 取消 / 确定删除</td></tr>
-              <tr><td>已开奖记录</td><td>保留可查（「抽奖记录」页）</td></tr>
-              <tr><td>私聊领奖链接</td><td>保留可领</td></tr>
-              <tr><td>可恢复性</td><td>不可恢复</td></tr>
-            </tbody>
-          </table>
         </div>
 
         <div class="help-section">
