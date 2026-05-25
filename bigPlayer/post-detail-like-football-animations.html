@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post Detail Like Football Animations</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #0061a4;
+    --primary-2: #4493f8;
+    --ink: #2a3439;
+    --muted: #566166;
+    --line: #d9e3ea;
+    --surface: #ffffff;
+    --soft: #f7f9fb;
+    --field: #2f9e5b;
+    --orange: #ff7043;
+    --ball-url: url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.22)),
+      radial-gradient(circle at 15% 8%, rgba(68,147,248,.18), transparent 32%),
+      #eef3f7;
+    color: var(--ink);
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .page {
+    max-width: 1420px;
+    margin: 0 auto;
+    padding: 34px 28px 46px;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-family: Manrope, Inter, sans-serif;
+    font-size: clamp(24px, 3vw, 34px);
+    line-height: 1.08;
+    font-weight: 900;
+    letter-spacing: 0;
+  }
+
+  .intro {
+    margin: 0;
+    max-width: 760px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .asset-note {
+    margin-top: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 1px solid rgba(0,97,164,.14);
+    border-radius: 8px;
+    background: rgba(255,255,255,.7);
+    color: #245a78;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .asset-note .football-mini,
+  .football,
+  .button-ball {
+    background-image: var(--ball-url);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  .football-mini {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+  }
+
+  .replay-all {
+    flex: 0 0 auto;
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(26,45,60,.07);
+  }
+  .replay-all:hover { border-color: var(--primary); color: var(--primary); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  @media (max-width: 1100px) {
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 720px) {
+    .page { padding: 24px 14px 36px; }
+    .topbar { align-items: flex-start; flex-direction: column; }
+    .grid { grid-template-columns: 1fr; }
+    .replay-all { width: 100%; }
+  }
+
+  .variant {
+    background: var(--surface);
+    border: 1px solid rgba(31,55,70,.08);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(31,55,70,.08);
+    overflow: hidden;
+  }
+
+  .variant-head {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid #edf2f6;
+  }
+
+  .label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    background: rgba(0,97,164,.09);
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .04em;
+  }
+
+  .tempo {
+    color: #7b8790;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .variant h2 {
+    margin: 0 0 6px;
+    font-family: Manrope, Inter, sans-serif;
+    font-size: 17px;
+    font-weight: 900;
+    letter-spacing: 0;
+  }
+
+  .variant p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+    min-height: 38px;
+  }
+
+  .stage {
+    position: relative;
+    height: 284px;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, #fbfdff 0%, #edf3f7 72%, rgba(47,158,91,.18) 100%);
+  }
+
+  .stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(0,97,164,.055) 1px, transparent 1px);
+    background-size: 12px 12px;
+    pointer-events: none;
+  }
+
+  .mini-post {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 42px;
+    padding: 0 10px;
+    border: 1px solid rgba(31,55,70,.08);
+    border-radius: 8px;
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(10px);
+  }
+
+  .avatar {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0061a4, #54b6ff);
+  }
+
+  .post-lines { flex: 1; min-width: 0; }
+  .post-lines i {
+    display: block;
+    height: 6px;
+    border-radius: 4px;
+    background: #dce6ed;
+    margin: 4px 0;
+  }
+  .post-lines i:first-child { width: 52%; background: #c7d6df; }
+  .post-lines i:last-child { width: 78%; }
+
+  .goal {
+    position: absolute;
+    right: 24px;
+    top: 78px;
+    width: 88px;
+    height: 62px;
+    border: 3px solid #2a3439;
+    border-bottom: none;
+    border-radius: 7px 7px 0 0;
+    background:
+      linear-gradient(45deg, rgba(42,52,57,.34) 1px, transparent 1px),
+      linear-gradient(-45deg, rgba(42,52,57,.34) 1px, transparent 1px),
+      rgba(255,255,255,.62);
+    background-size: 9px 9px;
+    transform-origin: center bottom;
+    z-index: 3;
+  }
+
+  .variant.is-playing .goal {
+    animation: goal-shake .46s cubic-bezier(.2, 1.2, .35, 1) .78s both;
+  }
+  .variant.v5.is-playing .goal { animation-delay: .5s; }
+  .variant.v6.is-playing .goal { animation-delay: .92s; }
+
+  @keyframes goal-shake {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    24% { transform: scale(1.08, 1.16); filter: brightness(1.16); }
+    55% { transform: scale(.97, .94); }
+    78% { transform: scale(1.02, 1.03); }
+  }
+
+  .goal-flash {
+    position: absolute;
+    right: 43px;
+    top: 86px;
+    width: 52px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,218,93,.92), rgba(255,218,93,0) 68%);
+    opacity: 0;
+    z-index: 4;
+  }
+  .variant.is-playing .goal-flash { animation: flash .5s ease-out .78s both; }
+  .variant.v5.is-playing .goal-flash { animation-delay: .5s; }
+  .variant.v6.is-playing .goal-flash { animation-delay: .92s; }
+  @keyframes flash {
+    0% { opacity: 0; transform: scale(.55); }
+    36% { opacity: 1; transform: scale(1.3); }
+    100% { opacity: 0; transform: scale(1.8); }
+  }
+
+  .like-row {
+    position: absolute;
+    left: 50%;
+    bottom: 17px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transform: translateX(-50%);
+    z-index: 8;
+  }
+
+  .like-btn {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1.5px solid #ffb89a;
+    background: linear-gradient(135deg, #fff5f0 0%, #ffe4d6 100%);
+    color: #ff7043;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 3px 10px rgba(255,112,67,.18);
+    transition: border-color .22s, background .22s, box-shadow .22s, transform .22s;
+  }
+
+  .like-btn:hover { transform: translateY(-1px); }
+  .like-icon {
+    position: relative;
+    z-index: 2;
+    width: 28px;
+    height: 28px;
+    transition: opacity .18s, transform .22s;
+  }
+  .like-icon path { fill: #ff7043; }
+
+  .button-ball {
+    position: absolute;
+    inset: -12px;
+    z-index: 1;
+    border-radius: 50%;
+    opacity: 0;
+    background-size: cover;
+    transform: scale(.22) rotate(-80deg);
+    transform-origin: center;
+    transition: opacity .22s, transform .34s cubic-bezier(.34, 1.56, .64, 1);
+  }
+
+  .like-btn.liked {
+    background: #fff;
+    border-color: transparent;
+    box-shadow: 0 0 0 5px rgba(0,97,164,.12), 0 8px 18px rgba(0,97,164,.18);
+  }
+  .variant.is-playing .like-btn.liked {
+    animation: button-full-pop .42s cubic-bezier(.34, 1.56, .64, 1) .06s both;
+  }
+  .like-btn.liked .like-icon {
+    opacity: 0;
+    transform: scale(.6) rotate(-18deg);
+  }
+  .like-btn.liked .button-ball {
+    opacity: 1;
+    transform: scale(1.06) rotate(0deg);
+  }
+  @keyframes button-full-pop {
+    0%, 100% { transform: scale(1); }
+    42% { transform: scale(1.08); }
+  }
+
+  .count {
+    min-width: 38px;
+    color: var(--ink);
+    font-weight: 900;
+    font-size: 14px;
+    text-align: center;
+  }
+  .variant.is-playing .count { animation: count-pop .45s cubic-bezier(.34, 1.56, .64, 1) .2s both; }
+  @keyframes count-pop {
+    0%, 100% { transform: scale(1); color: var(--ink); }
+    42% { transform: scale(1.2); color: var(--primary); }
+  }
+
+  .football.flyer {
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    left: var(--sx);
+    top: var(--sy);
+    margin-left: -19px;
+    margin-top: -19px;
+    z-index: 12;
+    opacity: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 7px 9px rgba(30,45,60,.26));
+    will-change: transform, opacity;
+  }
+
+  .variant.v1 .football.flyer { animation: button-juggle 1.18s cubic-bezier(.34, 0, .2, 1) forwards; }
+  .variant.v2 .football.flyer { animation: side-hop 1.08s cubic-bezier(.34, 0, .22, 1) forwards; }
+  .variant.v3 .football.flyer { animation: button-rebound 1.12s cubic-bezier(.34, 0, .22, 1) forwards; }
+  .variant.v4 .football.flyer { animation: shot-bounce 1.18s cubic-bezier(.35, 0, .4, 1) forwards; }
+  .variant.v5 .football.flyer { animation: shot-power .68s cubic-bezier(.22, 0, .28, 1) forwards; }
+  .variant.v6 .football.flyer { animation: shot-lob 1.24s cubic-bezier(.42, 0, .5, 1) forwards; }
+
+  @keyframes button-juggle {
+    0% { opacity: 0; transform: translate(0, 0) scale(.46) rotate(-70deg); }
+    8% { opacity: 1; }
+    24% { transform: translate(8px, -92px) scale(.92) rotate(155deg); }
+    42% { transform: translate(-5px, -16px) scale(.84, .72) rotate(315deg); }
+    60% { transform: translate(6px, -66px) scale(.86) rotate(480deg); }
+    82% { opacity: 1; transform: translate(0, -4px) scale(1.08, .88) rotate(650deg); }
+    100% { opacity: 0; transform: translate(0, 0) scale(1.38) rotate(720deg); }
+  }
+
+  @keyframes side-hop {
+    0% { opacity: 0; transform: translate(0, 0) scale(.5) rotate(-60deg); }
+    8% { opacity: 1; }
+    26% { transform: translate(52px, -48px) scale(.86) rotate(175deg); }
+    48% { transform: translate(104px, -10px) scale(.78, .7) rotate(330deg); }
+    66% { transform: translate(48px, -56px) scale(.88) rotate(510deg); }
+    86% { opacity: 1; transform: translate(0, -7px) scale(1.08, .88) rotate(680deg); }
+    100% { opacity: 0; transform: translate(0, 0) scale(1.34) rotate(730deg); }
+  }
+
+  @keyframes button-rebound {
+    0% { opacity: 0; transform: translate(0, 0) scale(.48) rotate(-40deg); }
+    7% { opacity: 1; }
+    22% { transform: translate(28px, -76px) scale(.9) rotate(170deg); }
+    43% { transform: translate(68px, -24px) scale(.76, .68) rotate(330deg); }
+    62% { transform: translate(30px, -58px) scale(.86) rotate(500deg); }
+    80% { transform: translate(4px, -12px) scale(1.02, .82) rotate(650deg); }
+    100% { opacity: 0; transform: translate(0, 0) scale(1.36) rotate(720deg); }
+  }
+
+  @keyframes shot-direct {
+    0% { opacity: 0; transform: translate(0,0) scale(.54) rotate(-90deg); }
+    8% { opacity: 1; }
+    74% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(.9) rotate(620deg); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.42) rotate(760deg); }
+  }
+
+  @keyframes shot-curve {
+    0% { opacity: 0; transform: translate(0,0) scale(.58) rotate(-120deg); }
+    8% { opacity: 1; }
+    36% { transform: translate(var(--m1x), var(--m1y)) scale(.78) rotate(260deg); }
+    72% { opacity: 1; transform: translate(var(--m2x), var(--m2y)) scale(1.05) rotate(610deg); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.45) rotate(780deg); }
+  }
+
+  @keyframes shot-pass {
+    0% { opacity: 0; transform: translate(0,0) scale(.56) rotate(-40deg); }
+    8% { opacity: 1; }
+    28% { transform: translate(var(--p1x), var(--p1y)) scale(.84) rotate(210deg); }
+    48% { transform: translate(var(--p2x), var(--p2y)) scale(.7) rotate(365deg); }
+    78% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(.92) rotate(690deg); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.42) rotate(790deg); }
+  }
+
+  @keyframes shot-bounce {
+    0% { opacity: 0; transform: translate(0,0) scale(.58) rotate(-80deg); }
+    8% { opacity: 1; }
+    28% { transform: translate(var(--b1x), var(--b1y)) scale(.8) rotate(230deg); }
+    48% { transform: translate(var(--b2x), var(--b2y)) scale(.72) rotate(410deg); }
+    72% { opacity: 1; transform: translate(var(--b3x), var(--b3y)) scale(.92) rotate(630deg); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.42) rotate(820deg); }
+  }
+
+  @keyframes shot-power {
+    0% { opacity: 0; transform: translate(0,0) scale(.5) rotate(-120deg); }
+    8% { opacity: 1; transform: translate(0,0) scale(.9) rotate(-40deg); }
+    70% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.08) rotate(760deg); filter: blur(.2px) drop-shadow(0 8px 12px rgba(30,45,60,.28)); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.48) rotate(920deg); }
+  }
+
+  @keyframes shot-lob {
+    0% { opacity: 0; transform: translate(0,0) scale(.56) rotate(-80deg); }
+    7% { opacity: 1; }
+    35% { transform: translate(var(--l1x), var(--l1y)) scale(.74) rotate(240deg); }
+    64% { transform: translate(var(--l2x), var(--l2y)) scale(.86) rotate(500deg); }
+    86% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(.96) rotate(760deg); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.44) rotate(850deg); }
+  }
+
+  .goal-word {
+    position: absolute;
+    right: 20px;
+    top: 42px;
+    z-index: 6;
+    font-family: Manrope, Inter, sans-serif;
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--primary);
+    letter-spacing: 0;
+    opacity: 0;
+    transform: translateY(7px) scale(.86);
+  }
+  .variant.is-playing .goal-word { animation: goal-word .7s cubic-bezier(.34,1.56,.64,1) .78s both; }
+  .variant.v5.is-playing .goal-word { animation-delay: .48s; }
+  .variant.v6.is-playing .goal-word { animation-delay: .92s; }
+  @keyframes goal-word {
+    0% { opacity: 0; transform: translateY(8px) scale(.82); }
+    28% { opacity: 1; transform: translateY(0) scale(1.08); }
+    100% { opacity: 0; transform: translateY(-8px) scale(.96); }
+  }
+
+  .speed-lines,
+  .curve-arc,
+  .pass-dot,
+  .bounce-mark,
+  .crowd-wave,
+  .confetti {
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .speed-lines {
+    left: 78px;
+    top: 166px;
+    width: 150px;
+    height: 2px;
+    opacity: 0;
+    background: linear-gradient(90deg, rgba(0,97,164,0), rgba(0,97,164,.6), rgba(0,97,164,0));
+    transform: rotate(-21deg);
+    z-index: 5;
+  }
+  .v5.is-playing .speed-lines { animation: speed-lines .46s ease-out .15s both; }
+  @keyframes speed-lines {
+    0% { opacity: 0; transform: translateX(-22px) rotate(-21deg) scaleX(.6); }
+    35% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(55px) rotate(-21deg) scaleX(1.3); }
+  }
+
+  .curve-arc {
+    left: 82px;
+    top: 92px;
+    width: 210px;
+    height: 96px;
+    border-top: 2px dashed rgba(0,97,164,.36);
+    border-radius: 60% 50% 0 0;
+    opacity: 0;
+    transform: rotate(-12deg);
+  }
+  .variant.v2 .curve-arc {
+    left: 50px;
+    top: 166px;
+    width: 168px;
+    height: 68px;
+    transform: rotate(-8deg);
+  }
+  .v2.is-playing .curve-arc { animation: draw-arc .82s ease-out .08s both; }
+  @keyframes draw-arc {
+    0% { opacity: 0; clip-path: inset(0 100% 0 0); }
+    25% { opacity: 1; }
+    100% { opacity: 0; clip-path: inset(0 0 0 0); }
+  }
+
+  .pass-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary-2);
+    box-shadow: 0 0 0 7px rgba(68,147,248,.12);
+    opacity: 0;
+    z-index: 4;
+  }
+  .pass-dot.one { left: 40%; top: 61%; }
+  .pass-dot.two { left: 58%; top: 49%; }
+  .variant.v3 .pass-dot.one { left: 96px; top: 198px; }
+  .variant.v3 .pass-dot.two { left: 134px; top: 164px; }
+  .v3.is-playing .pass-dot.one { animation: dot-pop .35s ease-out .26s both; }
+  .v3.is-playing .pass-dot.two { animation: dot-pop .35s ease-out .46s both; }
+  @keyframes dot-pop {
+    0% { opacity: 0; transform: scale(.4); }
+    45% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.35); }
+  }
+
+  .bounce-mark {
+    left: 50%;
+    bottom: 44px;
+    width: 42px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(42,52,57,.15);
+    opacity: 0;
+    transform: translateX(-50%) scale(.6);
+  }
+  .variant.v1 .bounce-mark,
+  .variant.v3 .bounce-mark {
+    left: 50px;
+    bottom: 38px;
+    width: 58px;
+    height: 10px;
+  }
+  .v1.is-playing .bounce-mark { animation: button-shadow 1.04s ease-out .06s both; }
+  .v3.is-playing .bounce-mark { animation: button-shadow 1.02s ease-out .1s both; }
+  .v4.is-playing .bounce-mark { animation: bounce-shadow .52s ease-out .45s both; }
+  @keyframes button-shadow {
+    0%, 100% { opacity: 0; transform: translateX(-50%) scale(.45); }
+    18% { opacity: .42; transform: translateX(-50%) scale(.82); }
+    38% { opacity: .14; transform: translateX(-50%) scale(.48); }
+    58% { opacity: .34; transform: translateX(-50%) scale(.72); }
+    82% { opacity: .2; transform: translateX(-50%) scale(.55); }
+  }
+  @keyframes bounce-shadow {
+    0%, 100% { opacity: 0; transform: translateX(-50%) scale(.6); }
+    45% { opacity: 1; transform: translateX(-50%) scale(1); }
+  }
+
+  .crowd-wave {
+    left: 22px;
+    right: 22px;
+    bottom: 78px;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    height: 20px;
+    opacity: 0;
+    z-index: 2;
+  }
+  .crowd-wave span {
+    width: 5px;
+    height: 10px;
+    border-radius: 4px 4px 0 0;
+    background: rgba(0,97,164,.28);
+    transform-origin: center bottom;
+  }
+  .v6.is-playing .crowd-wave { opacity: 1; }
+  .v6.is-playing .crowd-wave span { animation: wave .68s ease-out both; }
+  .crowd-wave span:nth-child(2) { animation-delay: .05s; }
+  .crowd-wave span:nth-child(3) { animation-delay: .1s; }
+  .crowd-wave span:nth-child(4) { animation-delay: .15s; }
+  .crowd-wave span:nth-child(5) { animation-delay: .2s; }
+  .crowd-wave span:nth-child(6) { animation-delay: .25s; }
+  .crowd-wave span:nth-child(7) { animation-delay: .3s; }
+  @keyframes wave {
+    0%, 100% { transform: scaleY(.7); opacity: .3; }
+    45% { transform: scaleY(1.9); opacity: .9; }
+  }
+
+  .confetti {
+    right: 54px;
+    top: 72px;
+    width: 76px;
+    height: 60px;
+    opacity: 0;
+    z-index: 7;
+  }
+  .confetti span {
+    position: absolute;
+    width: 5px;
+    height: 10px;
+    border-radius: 2px;
+    background: #ff7043;
+  }
+  .confetti span:nth-child(1) { left: 6px; top: 20px; background: #0061a4; }
+  .confetti span:nth-child(2) { left: 25px; top: 4px; background: #2f9e5b; }
+  .confetti span:nth-child(3) { left: 45px; top: 24px; background: #ff7043; }
+  .confetti span:nth-child(4) { left: 63px; top: 10px; background: #ffd45d; }
+  .variant.is-playing .confetti { animation: confetti .78s ease-out .8s both; }
+  .variant.v5.is-playing .confetti { animation-delay: .5s; }
+  .variant.v6.is-playing .confetti { animation-delay: .94s; }
+  @keyframes confetti {
+    0% { opacity: 0; transform: scale(.6) translateY(6px); }
+    18% { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.15) translateY(-18px); }
+  }
+
+  .variant.no-goal .goal,
+  .variant.no-goal .goal-flash,
+  .variant.no-goal .goal-word,
+  .variant.no-goal .confetti {
+    opacity: 0;
+  }
+  .variant.no-goal.is-playing .goal,
+  .variant.no-goal.is-playing .goal-flash,
+  .variant.no-goal.is-playing .goal-word,
+  .variant.no-goal.is-playing .confetti {
+    animation: none;
+  }
+
+  .card-footer {
+    padding: 12px 16px 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid #edf2f6;
+    color: #60707a;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .pick {
+    margin-left: auto;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 5px 9px;
+    background: #fff;
+    color: var(--primary);
+    font-weight: 900;
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="topbar">
+    <div>
+      <h1>Post Detail Like Button: 6 Football Animation Options</h1>
+      <p class="intro">临时动画选择页。每张卡片都模拟帖子详情页的点赞区域，点击点赞按钮即可预览对应的足球动效；确认后再把选中的方案写入 <strong>post-detail-en.html</strong>。</p>
+      <div class="asset-note"><span class="football-mini"></span> 足球素材使用指定 PNG 远程资源</div>
+    </div>
+    <button class="replay-all" type="button" id="replayAll">Replay all</button>
+  </div>
+
+  <section class="grid">
+    <article class="variant v1 no-goal" data-title="Button Keep-Up">
+      <div class="variant-head">
+        <div class="label-row"><span class="tag">01</span><span class="tempo">1.18s / bounce</span></div>
+        <h2>Button Keep-Up</h2>
+        <p>足球从点赞按钮上方颠起两次，最后落回按钮并铺满高亮态，不再走射门入网。</p>
+      </div>
+      <div class="stage">
+        <div class="mini-post"><span class="avatar"></span><span class="post-lines"><i></i><i></i></span></div>
+        <span class="bounce-mark"></span>
+        <div class="goal"></div><div class="goal-flash"></div><div class="goal-word">GOAL</div>
+        <div class="confetti"><span></span><span></span><span></span><span></span></div>
+        <div class="like-row"><button class="like-btn" type="button"><svg class="like-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/></svg><span class="button-ball"></span></button><span class="count">515</span></div>
+      </div>
+      <div class="card-footer"><span>In-place football bounce</span><span class="pick">Candidate A</span></div>
+    </article>
+
+    <article class="variant v2 no-goal" data-title="Side Hop">
+      <div class="variant-head">
+        <div class="label-row"><span class="tag">02</span><span class="tempo">1.08s / playful</span></div>
+        <h2>Side Hop</h2>
+        <p>足球从按钮向右弹跳再回弹，重点是跳动和回落，适合更轻松的点赞反馈。</p>
+      </div>
+      <div class="stage">
+        <div class="mini-post"><span class="avatar"></span><span class="post-lines"><i></i><i></i></span></div>
+        <div class="curve-arc"></div>
+        <div class="goal"></div><div class="goal-flash"></div><div class="goal-word">GOAL</div>
+        <div class="confetti"><span></span><span></span><span></span><span></span></div>
+        <div class="like-row"><button class="like-btn" type="button"><svg class="like-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/></svg><span class="button-ball"></span></button><span class="count">515</span></div>
+      </div>
+      <div class="card-footer"><span>Side-to-side bounce</span><span class="pick">Candidate B</span></div>
+    </article>
+
+    <article class="variant v3 no-goal" data-title="Button Rebound">
+      <div class="variant-head">
+        <div class="label-row"><span class="tag">03</span><span class="tempo">1.12s / elastic</span></div>
+        <h2>Button Rebound</h2>
+        <p>足球从按钮弹出，经过两次回弹后吸回按钮，高亮时足球几乎铺满整个圆形按钮。</p>
+      </div>
+      <div class="stage">
+        <div class="mini-post"><span class="avatar"></span><span class="post-lines"><i></i><i></i></span></div>
+        <span class="pass-dot one"></span><span class="pass-dot two"></span>
+        <span class="bounce-mark"></span>
+        <div class="goal"></div><div class="goal-flash"></div><div class="goal-word">GOAL</div>
+        <div class="confetti"><span></span><span></span><span></span><span></span></div>
+        <div class="like-row"><button class="like-btn" type="button"><svg class="like-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/></svg><span class="button-ball"></span></button><span class="count">515</span></div>
+      </div>
+      <div class="card-footer"><span>Elastic return to button</span><span class="pick">Candidate C</span></div>
+    </article>
+
+    <article class="variant v4" data-title="Ground Bounce Shot">
+      <div class="variant-head">
+        <div class="label-row"><span class="tag">04</span><span class="tempo">1.18s / physical</span></div>
+        <h2>Ground Bounce Shot</h2>
+        <p>保留射门结果，但路径先贴地弹起再入网，是跳动和进球结合的一版。</p>
+      </div>
+      <div class="stage">
+        <div class="mini-post"><span class="avatar"></span><span class="post-lines"><i></i><i></i></span></div>
+        <span class="bounce-mark"></span>
+        <div class="goal"></div><div class="goal-flash"></div><div class="goal-word">GOAL</div>
+        <div class="confetti"><span></span><span></span><span></span><span></span></div>
+        <div class="like-row"><button class="like-btn" type="button"><svg class="like-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/></svg><span class="button-ball"></span></button><span class="count">515</span></div>
+      </div>
+      <div class="card-footer"><span>Bounce and settle</span><span class="pick">Candidate D</span></div>
+    </article>
+
+    <article class="variant v5" data-title="Power Shot">
+      <div class="variant-head">
+        <div class="label-row"><span class="tag">05</span><span class="tempo">0.68s / punchy</span></div>
+        <h2>Power Shot</h2>
+        <p>最快的一版。点击后像重炮射门，适合需要强反馈但时间很短的场景。</p>
+      </div>
+      <div class="stage">
+        <div class="mini-post"><span class="avatar"></span><span class="post-lines"><i></i><i></i></span></div>
+        <span class="speed-lines"></span>
+        <div class="goal"></div><div class="goal-flash"></div><div class="goal-word">GOAL</div>
+        <div class="confetti"><span></span><span></span><span></span><span></span></div>
+        <div class="like-row"><button class="like-btn" type="button"><svg class="like-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/></svg><span class="button-ball"></span></button><span class="count">515</span></div>
+      </div>
+      <div class="card-footer"><span>Shortest duration</span><span class="pick">Candidate E</span></div>
+    </article>
+
+    <article class="variant v6" data-title="Stadium Lob">
+      <div class="variant-head">
+        <div class="label-row"><span class="tag">06</span><span class="tempo">1.24s / celebratory</span></div>
+        <h2>Stadium Lob</h2>
+        <p>高抛入网，底部有看台波浪反馈。最有仪式感，但动效时间最长。</p>
+      </div>
+      <div class="stage">
+        <div class="mini-post"><span class="avatar"></span><span class="post-lines"><i></i><i></i></span></div>
+        <div class="crowd-wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="goal"></div><div class="goal-flash"></div><div class="goal-word">GOAL</div>
+        <div class="confetti"><span></span><span></span><span></span><span></span></div>
+        <div class="like-row"><button class="like-btn" type="button"><svg class="like-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/></svg><span class="button-ball"></span></button><span class="count">515</span></div>
+      </div>
+      <div class="card-footer"><span>Celebration moment</span><span class="pick">Candidate F</span></div>
+    </article>
+  </section>
+</main>
+
+<script>
+(function () {
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.variant'));
+  var timers = new WeakMap();
+
+  function centerWithin(stage, el) {
+    var s = stage.getBoundingClientRect();
+    var r = el.getBoundingClientRect();
+    return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 };
+  }
+
+  function setMotionVars(card, flyer, start, end) {
+    var dx = end.x - start.x;
+    var dy = end.y - start.y;
+    var vars = {
+      '--sx': start.x + 'px',
+      '--sy': start.y + 'px',
+      '--dx': dx + 'px',
+      '--dy': dy + 'px',
+      '--m1x': dx * 0.34 + 'px',
+      '--m1y': dy * 0.18 - 58 + 'px',
+      '--m2x': dx * 0.72 + 'px',
+      '--m2y': dy * 0.72 - 46 + 'px',
+      '--p1x': dx * 0.33 + 'px',
+      '--p1y': dy * 0.92 + 8 + 'px',
+      '--p2x': dx * 0.58 + 'px',
+      '--p2y': dy * 0.58 - 2 + 'px',
+      '--b1x': dx * 0.24 + 'px',
+      '--b1y': dy * 0.46 - 26 + 'px',
+      '--b2x': dx * 0.48 + 'px',
+      '--b2y': dy * 1.18 + 30 + 'px',
+      '--b3x': dx * 0.76 + 'px',
+      '--b3y': dy * 0.78 - 8 + 'px',
+      '--l1x': dx * 0.30 + 'px',
+      '--l1y': dy * 0.12 - 96 + 'px',
+      '--l2x': dx * 0.62 + 'px',
+      '--l2y': dy * 0.22 - 118 + 'px'
+    };
+    Object.keys(vars).forEach(function (name) {
+      flyer.style.setProperty(name, vars[name]);
+    });
+  }
+
+  function clearCard(card) {
+    var oldTimer = timers.get(card);
+    if (oldTimer) window.clearTimeout(oldTimer);
+    card.classList.remove('is-playing');
+    var oldFlyer = card.querySelector('.football.flyer');
+    if (oldFlyer) oldFlyer.remove();
+  }
+
+  function play(card) {
+    clearCard(card);
+
+    var stage = card.querySelector('.stage');
+    var button = card.querySelector('.like-btn');
+    var goal = card.querySelector('.goal');
+    var count = card.querySelector('.count');
+    var start = centerWithin(stage, button);
+    var end = centerWithin(stage, goal);
+    end.x -= 6;
+    end.y += 8;
+
+    var flyer = document.createElement('span');
+    flyer.className = 'football flyer';
+    setMotionVars(card, flyer, start, end);
+    stage.appendChild(flyer);
+
+    button.classList.add('liked');
+    count.textContent = '516';
+
+    requestAnimationFrame(function () {
+      card.classList.add('is-playing');
+    });
+
+    timers.set(card, window.setTimeout(function () {
+      card.classList.remove('is-playing');
+      if (flyer.parentNode) flyer.remove();
+    }, 1800));
+  }
+
+  cards.forEach(function (card) {
+    var button = card.querySelector('.like-btn');
+    button.addEventListener('click', function () {
+      play(card);
+    });
+  });
+
+  document.getElementById('replayAll').addEventListener('click', function () {
+    cards.forEach(function (card, index) {
+      window.setTimeout(function () { play(card); }, index * 130);
+    });
+  });
+
+  window.__playVariant = function (index) {
+    var card = cards[index - 1];
+    if (card) play(card);
+  };
+})();
+</script>
+</body>
+</html>
