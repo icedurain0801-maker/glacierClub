@@ -102,7 +102,9 @@
     --overlay-cover-weak:rgba(10,15,20,0.30);
     --divider-soft:#e8edf0;
     --device-bezel-dark:#1a1a1a;
-    --like-color:#ff4757;
+    --like-color:var(--primary);
+    --football-like-ball:url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
+    --home-hero-bg:url("https://q1-operation-bulletin-sz.oss-cn-shenzhen.aliyuncs.com/CLUB/2026/04/24/1777003605222b8eb3d61-f99b-4e82-882f-b4914d4dcff5.png");
 }
   [data-theme="dark"]{
     --bg-body:#1a1f26;
@@ -155,7 +157,7 @@
     --overlay-cover-weak:rgba(0,0,0,0.40);
     --divider-soft:#21262d;
     --device-bezel-dark:#000;
-    --like-color:#ff6b7d;
+    --like-color:var(--primary);
 }
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -318,39 +320,73 @@
     cursor: pointer; position: relative;
     user-select: none; -webkit-tap-highlight-color: transparent;
     transition: color 0.2s;
+    overflow: visible;
+  }
+  .like-btn::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    background-image: var(--football-like-ball);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 3px 4px rgba(30,45,60,.24));
+    transform: translateY(-50%) scale(.22) rotate(-90deg);
+    transition: opacity .14s, transform .32s cubic-bezier(.34,1.56,.64,1);
   }
   .like-btn .like-icon {
-    transition: color 0.2s, transform 0.25s cubic-bezier(.34,1.56,.64,1);
+    transition: color 0.2s, opacity .16s, transform 0.25s cubic-bezier(.34,1.56,.64,1);
     display: inline-block;
   }
   .like-btn.liked { color: var(--like-color) !important; }
-  .like-btn.liked .like-icon { color: var(--like-color) !important; }
+  .like-btn.liked::before {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.04) rotate(0deg);
+  }
+  .like-btn.liked .like-icon {
+    color: var(--like-color) !important;
+    opacity: 0;
+    transform: scale(.5) rotate(-18deg);
+  }
   .like-btn.liked svg.like-icon path { stroke: var(--like-color) !important; fill: var(--like-color) !important; }
   .like-btn.liked .like-icon.ms-icon {
     font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
   }
   .like-btn.bump .like-icon { animation: like-bump 0.45s cubic-bezier(.34,1.56,.64,1); }
+  .like-btn.liked.bump::before { animation: football-like-pop .62s cubic-bezier(.2,.9,.24,1) both; }
   @keyframes like-bump {
     0%   { transform: scale(1); }
     35%  { transform: scale(1.4); }
     65%  { transform: scale(0.92); }
     100% { transform: scale(1); }
   }
+  @keyframes football-like-pop {
+    0%   { opacity: 0; transform: translateY(-50%) scale(.2) rotate(-90deg); }
+    24%  { opacity: 1; transform: translateY(-50%) scale(1.28) rotate(180deg); }
+    52%  { opacity: 1; transform: translateY(-50%) scale(.88) rotate(300deg); }
+    100% { opacity: 1; transform: translateY(-50%) scale(1.04) rotate(360deg); }
+  }
   .like-pop {
     position: absolute;
-    left: 50%; top: -2px;
-    transform: translateX(-50%);
+    left: calc(100% + 2px); top: 50%;
+    transform: translate(-3px, -50%) scale(0.82);
     font-size: 13px; font-weight: 800; color: var(--like-color);
     pointer-events: none;
     opacity: 0;
     animation: like-pop-up 0.9s ease-out forwards;
-    text-shadow: 0 1px 3px rgba(255,71,87,0.25);
+    text-shadow: 0 1px 3px rgba(0,97,164,0.25);
     white-space: nowrap;
   }
   @keyframes like-pop-up {
-    0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
-    25%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1); }
-    100% { opacity: 0; transform: translate(-50%, -28px) scale(1); }
+    0%   { opacity: 0; transform: translate(-3px, -50%) scale(0.82); }
+    25%  { opacity: 1; transform: translate(0, -50%) scale(1.08); }
+    100% { opacity: 0; transform: translate(12px, -50%) scale(0.96); }
   }
   .post-card__avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
   .post-card__lv {
@@ -982,7 +1018,7 @@
     height:var(--hero-h, 155px);
     z-index:0;
     pointer-events:none;
-    background-image:url('https://q1-operation-bulletin-sz.oss-cn-shenzhen.aliyuncs.com/CLUB/2026/04/24/1777003605222b8eb3d61-f99b-4e82-882f-b4914d4dcff5.png');
+    background-image:var(--home-hero-bg);
     background-size:cover;
     background-position:center 35%;
     filter:saturate(0.55) brightness(0.92);
@@ -1005,9 +1041,39 @@
     background:linear-gradient(180deg, rgba(247,249,251,0) 0%, var(--background) 100%);
     z-index:1;
   }
-  /* 让 status bar / sticky header 透出背景图 */
+  /* 让 status bar 透出 .simple-hero-bg；sticky-header 自己挂一份同尺寸 hero 图，
+     位置上移 54px（status-bar 高度）以与 .simple-hero-bg 接续，
+     这样滚动时下方 carousel 不会从透明 header 后透出（穿模），且两份图视觉无缝。 */
   .status-bar{ position:relative; z-index:1; background:transparent; }
-  .sticky-header{ background:transparent !important; }
+  .sticky-header{
+    background:transparent !important;
+    isolation:isolate;       /* 把 ::before/::after 的 z:-1 锁在 header 自身内 */
+  }
+  .sticky-header::before{
+    content:''; position:absolute;
+    left:0; right:0;
+    top:-54px;               /* 上推 status-bar 高度，使 cover 计算与 .simple-hero-bg 一致 */
+    height:var(--hero-h, 155px);
+    background-image:var(--home-hero-bg);
+    background-size:cover;
+    background-position:center 35%;
+    background-repeat:no-repeat;
+    filter:saturate(0.55) brightness(0.92);
+    z-index:-1; pointer-events:none;
+  }
+  .sticky-header::after{
+    content:''; position:absolute;
+    left:0; right:0;
+    top:-54px;
+    height:var(--hero-h, 155px);
+    background:linear-gradient(180deg,
+      rgba(20,30,45,0.42) 0%,
+      rgba(20,30,45,0.30) 35%,
+      rgba(247,249,251,0.65) 58%,
+      rgba(247,249,251,0.92) 75%,
+      var(--background) 100%);
+    z-index:-1; pointer-events:none;
+  }
   /* status bar 文字 / 图标反白 + 阴影提升对比 */
   .status-bar .text-on-surface,
   .status-bar span{
@@ -2608,6 +2674,7 @@
     const c = COMMUNITIES.find(x => x.id === id);
 
     /* update drawer header */
+    document.body.style.setProperty('--home-hero-bg', `url('${c.bg}')`);
     document.getElementById('drawer-bg').style.backgroundImage = `url('${c.bg}')`;
     document.getElementById('drawer-community-name').textContent = c.name;
     document.getElementById('drawer-username').textContent = c.server;
@@ -3179,6 +3246,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSpecPan
 
 <!-- ══ Like button toggle ══ -->
 <script>
+function formatLikeCount(n) {
+  if (n >= 1000) {
+    return (n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k';
+  }
+  return String(n);
+}
 function toggleLike(ev, el) {
   ev.stopPropagation();
   var liked = el.classList.toggle('liked');
@@ -3198,35 +3271,39 @@ function toggleLike(ev, el) {
     n = Math.max(0, n - 1);
   }
   el.setAttribute('data-count', n);
-  if (countEl) countEl.textContent = n;
+  if (countEl) countEl.textContent = formatLikeCount(n);
 }
 // Auto-wrap thumb_up icons in post-cards as like buttons
 (function(){
+  function prepareLikeRow(row) {
+    var icon = row.querySelector('.material-symbols-outlined');
+    if (!icon || icon.textContent.trim() !== 'thumb_up') return;
+    if (row.classList.contains('like-btn')) return;
+    var txt = row.textContent.replace('thumb_up','').trim();
+    var n = parseInt(txt.replace(/[^\d.]/g,''), 10) || 0;
+    row.classList.add('like-btn');
+    row.setAttribute('data-count', n);
+    row.setAttribute('onclick', 'toggleLike(event,this)');
+    icon.classList.add('like-icon','ms-icon');
+    var nodes = row.childNodes;
+    for (var i=0;i<nodes.length;i++){
+      var nd = nodes[i];
+      if (nd.nodeType===3 && nd.textContent.trim()){
+        var span = document.createElement('span');
+        span.className = 'like-count';
+        span.textContent = nd.textContent.trim();
+        row.replaceChild(span, nd);
+        break;
+      }
+    }
+  }
   document.querySelectorAll('.post-card').forEach(function(card){
     var rows = card.querySelectorAll('.flex.gap-4 > .flex.items-center');
     rows.forEach(function(row){
-      var icon = row.querySelector('.material-symbols-outlined');
-      if (!icon || icon.textContent.trim() !== 'thumb_up') return;
-      if (row.classList.contains('like-btn')) return;
-      var txt = row.textContent.replace('thumb_up','').trim();
-      var n = parseInt(txt.replace(/[^\d.]/g,''), 10) || 0;
-      row.classList.add('like-btn');
-      row.setAttribute('data-count', n);
-      row.setAttribute('onclick', 'toggleLike(event,this)');
-      icon.classList.add('like-icon','ms-icon');
-      var nodes = row.childNodes;
-      for (var i=0;i<nodes.length;i++){
-        var nd = nodes[i];
-        if (nd.nodeType===3 && nd.textContent.trim()){
-          var span = document.createElement('span');
-          span.className = 'like-count';
-          span.textContent = nd.textContent.trim();
-          row.replaceChild(span, nd);
-          break;
-        }
-      }
+      prepareLikeRow(row);
     });
   });
+  document.querySelectorAll('.m-card__likes, .m-card__qlikes').forEach(prepareLikeRow);
 })();
 </script>
 <!-- ══ /Like button ══ -->

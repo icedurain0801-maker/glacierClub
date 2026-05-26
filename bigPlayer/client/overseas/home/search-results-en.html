@@ -37,6 +37,7 @@ tailwind.config = {
   :root{
     --on-surface-variant:#566166;
     --primary:#0061a4;
+    --football-like-ball:url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
     --secondary-container:#cbe6ff;
     --on-secondary-container:#0a5780;
     --surface-container-low:#f0f4f7;
@@ -338,6 +339,79 @@ tailwind.config = {
   }
   .card-stats-item { display: flex; align-items: center; gap: 6px; }
   .card-stats-item .material-symbols-outlined { font-size: 18px; }
+  .card-like-btn {
+    position: relative;
+    cursor: pointer;
+    overflow: visible;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .18s, transform .18s;
+  }
+  .card-like-btn::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    z-index: 2;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    background-image: var(--football-like-ball);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 3px 4px rgba(30,45,60,.24));
+    transform: translateY(-50%) scale(.22) rotate(-90deg);
+    transition: opacity .14s, transform .32s cubic-bezier(.34,1.56,.64,1);
+  }
+  .card-like-btn .material-symbols-outlined {
+    position: relative;
+    z-index: 1;
+    transition: opacity .16s, transform .26s cubic-bezier(.34,1.56,.64,1), color .18s;
+  }
+  .card-like-btn:active { transform: scale(.96); }
+  .card-like-btn.is-liked { color: var(--primary); }
+  .card-like-btn.is-liked::before {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.04) rotate(0deg);
+  }
+  .card-like-btn.is-liked .material-symbols-outlined {
+    color: var(--primary);
+    opacity: 0;
+    transform: scale(.5) rotate(-18deg);
+    font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+  }
+  .card-like-btn.is-playing::before {
+    animation: card-football-like-pop .62s cubic-bezier(.2,.9,.24,1) both;
+  }
+  .card-like-pop {
+    position: absolute;
+    left: calc(100% + 2px);
+    top: 50%;
+    z-index: 3;
+    transform: translate(-3px, -50%) scale(.82);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--primary);
+    pointer-events: none;
+    opacity: 0;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0,97,164,.25);
+    animation: card-like-pop-up .9s ease-out forwards;
+  }
+  @keyframes card-like-pop-up {
+    0%   { opacity: 0; transform: translate(-3px,-50%) scale(.82); }
+    25%  { opacity: 1; transform: translate(0,-50%) scale(1.08); }
+    100% { opacity: 0; transform: translate(12px,-50%) scale(.96); }
+  }
+  @keyframes card-football-like-pop {
+    0%   { opacity: 0; transform: translateY(-50%) scale(.2) rotate(-90deg); }
+    24%  { opacity: 1; transform: translateY(-50%) scale(1.28) rotate(180deg); }
+    52%  { opacity: 1; transform: translateY(-50%) scale(.88) rotate(300deg); }
+    100% { opacity: 1; transform: translateY(-50%) scale(1.04) rotate(360deg); }
+  }
 
   /* Follow button */
   .follow-btn {
@@ -596,7 +670,7 @@ function postCardHTML(post) {
       </div>
       <div class="card-body"><p>${post.text}</p>${imageHTML}</div>
       <div class="card-stats">
-        <div class="card-stats-item"><span class="material-symbols-outlined">thumb_up</span><span>${post.likes}</span></div>
+        <div class="card-stats-item card-like-btn" role="button" tabindex="0" data-count="${post.likes}" onclick="toggleSearchResultLike(event,this)" onkeydown="handleSearchResultLikeKey(event,this)"><span class="material-symbols-outlined">thumb_up</span><span class="card-like-count">${post.likes}</span></div>
         <div class="card-stats-item"><span class="material-symbols-outlined">chat_bubble</span><span>${post.comments}</span></div>
         <div class="card-stats-item"><span class="material-symbols-outlined">share</span><span>Share</span></div>
       </div>
@@ -626,6 +700,44 @@ function userStripHTML() {
       <span class="strip-name">${u.username}</span>
     </div>`).join('');
   return `<div class="section-title">Related Users</div><div class="user-strip">${items}</div>`;
+}
+
+function spawnSearchResultLikePlusOne(el) {
+  const pop = document.createElement('span');
+  pop.className = 'card-like-pop';
+  pop.textContent = '+1';
+  el.appendChild(pop);
+  window.setTimeout(() => {
+    if (pop.parentNode) pop.parentNode.removeChild(pop);
+  }, 950);
+}
+
+function toggleSearchResultLike(ev, el) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const liked = !el.classList.contains('is-liked');
+  let count = parseInt(el.getAttribute('data-count') || '0', 10) || 0;
+  count = liked ? count + 1 : Math.max(0, count - 1);
+  if (el._searchLikeTimer) window.clearTimeout(el._searchLikeTimer);
+  el.classList.toggle('is-liked', liked);
+  el.setAttribute('data-count', count);
+  const countEl = el.querySelector('.card-like-count');
+  if (countEl) countEl.textContent = count;
+  if (liked) {
+    el.classList.remove('is-playing');
+    void el.offsetWidth;
+    el.classList.add('is-playing');
+    spawnSearchResultLikePlusOne(el);
+    el._searchLikeTimer = window.setTimeout(() => {
+      el.classList.remove('is-playing');
+    }, 720);
+  } else {
+    el.classList.remove('is-playing');
+  }
+}
+
+function handleSearchResultLikeKey(ev, el) {
+  if (ev.key === 'Enter' || ev.key === ' ') toggleSearchResultLike(ev, el);
 }
 
 function renderAll() {

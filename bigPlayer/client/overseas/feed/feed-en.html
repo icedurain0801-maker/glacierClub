@@ -26,6 +26,7 @@
   --text-muted:#566166;
   --text-faint:#a9b4b9;
   --text-faint-2:#8a9ba3;
+  --football-like-ball:url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
     --error:#e53935;
     --state-success:#2e7d32;
     --state-online:#4caf50;
@@ -195,6 +196,31 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
 .stat-row{display:flex;gap:16px;}
 .stat-item{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-faint);font-family:Inter;}
 .stat-item .material-symbols-outlined{font-size:15px;color:var(--text-faint);}
+
+.feed-football-like{position:relative;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:color .18s,transform .18s;}
+.feed-football-like:active{transform:scale(.96);}
+.feed-football-like::before{content:"";position:absolute;left:0;top:50%;z-index:2;width:15px;height:15px;border-radius:50%;opacity:0;pointer-events:none;background-image:var(--football-like-ball);background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 3px 4px rgba(30,45,60,.24));transform:translateY(-50%) scale(.22) rotate(-90deg);transition:opacity .14s,transform .32s cubic-bezier(.34,1.56,.64,1);}
+.feed-football-like__icon{position:relative;z-index:1;transition:opacity .16s,transform .26s cubic-bezier(.34,1.56,.64,1);}
+.feed-football-like-count{position:relative;z-index:1;white-space:nowrap;transition:color .18s;}
+.feed-football-like.is-liked{color:var(--primary);}
+.feed-football-like.is-liked::before{opacity:1;transform:translateY(-50%) scale(1.04) rotate(0deg);}
+.feed-football-like.is-liked .feed-football-like__icon{opacity:0;transform:scale(.5) rotate(-18deg);}
+.feed-football-like.is-playing::before{animation:feed-football-like-pop .62s cubic-bezier(.2,.9,.24,1) both;}
+.m-card__likes.feed-football-like::before{left:9px;width:13px;height:13px;}
+.m-card__likes.feed-football-like.is-liked{color:#fff;}
+.m-card__qlikes.feed-football-like::before{width:13px;height:13px;}
+.feed-like-pop{position:absolute;left:calc(100% + 2px);top:50%;z-index:3;transform:translate(-3px,-50%) scale(.82);font-size:12px;font-weight:800;color:var(--primary);pointer-events:none;opacity:0;white-space:nowrap;text-shadow:0 1px 3px rgba(0,97,164,.25);animation:feed-like-pop-up .9s ease-out forwards;}
+@keyframes feed-football-like-pop{
+  0%{opacity:0;transform:translateY(-50%) scale(.2) rotate(-90deg);}
+  24%{opacity:1;transform:translateY(-50%) scale(1.28) rotate(180deg);}
+  52%{opacity:1;transform:translateY(-50%) scale(.88) rotate(300deg);}
+  100%{opacity:1;transform:translateY(-50%) scale(1.04) rotate(360deg);}
+}
+@keyframes feed-like-pop-up{
+  0%{opacity:0;transform:translate(-3px,-50%) scale(.82);}
+  25%{opacity:1;transform:translate(0,-50%) scale(1.08);}
+  100%{opacity:0;transform:translate(12px,-50%) scale(.96);}
+}
 
 /* bottom nav */
 .bnav{height:82px;background:var(--bg-bnav);backdrop-filter:blur(14px);
@@ -632,6 +658,102 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
       bMason.setAttribute('aria-pressed','false');
     }
   }
+
+  function parseFeedLikeCount(text) {
+    var raw = (text || '').replace(/thumb_up/g, '').trim().toLowerCase();
+    var match = raw.match(/[\d.]+/);
+    if (!match) return 0;
+    var value = parseFloat(match[0]) || 0;
+    if (raw.indexOf('k') !== -1) value *= 1000;
+    return Math.round(value);
+  }
+
+  function formatFeedLikeCount(value) {
+    if (value >= 1000) {
+      return (value / 1000).toFixed(value < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k';
+    }
+    return String(value);
+  }
+
+  function setFeedFootballLikeState(el, liked, options) {
+    if (!el) return;
+    options = options || {};
+    if (el._feedLikeTimer) window.clearTimeout(el._feedLikeTimer);
+    el.classList.toggle('is-liked', !!liked);
+    if (typeof options.count !== 'undefined') {
+      el.setAttribute('data-count', options.count);
+      var countEl = el.querySelector('.feed-football-like-count');
+      if (countEl) countEl.textContent = formatFeedLikeCount(options.count);
+    }
+    if (options.play && liked) {
+      el.classList.remove('is-playing');
+      void el.offsetWidth;
+      el.classList.add('is-playing');
+      spawnFeedFootballLikePlusOne(el);
+      el._feedLikeTimer = window.setTimeout(function(){ el.classList.remove('is-playing'); }, 720);
+    } else {
+      el.classList.remove('is-playing');
+    }
+  }
+
+  function spawnFeedFootballLikePlusOne(el) {
+    var pop = document.createElement('span');
+    pop.className = 'feed-like-pop';
+    pop.textContent = '+1';
+    el.appendChild(pop);
+    window.setTimeout(function(){
+      if (pop.parentNode) pop.parentNode.removeChild(pop);
+    }, 950);
+  }
+
+  function toggleFeedFootballLike(ev, el) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    var liked = !el.classList.contains('is-liked');
+    var countEl = el.querySelector('.feed-football-like-count');
+    var n = parseInt(el.getAttribute('data-count') || (countEl ? countEl.textContent : '0'), 10) || 0;
+    n = liked ? n + 1 : Math.max(0, n - 1);
+    setFeedFootballLikeState(el, liked, { count: n, play: liked });
+  }
+
+  function prepareFeedFootballLike(el) {
+    if (el.dataset.feedLikeReady === '1') return;
+    var icon = el.querySelector('.material-symbols-outlined');
+    if (!icon || icon.textContent.trim() !== 'thumb_up') return;
+    var count = parseFeedLikeCount(el.textContent);
+    var countEl = el.querySelector('.feed-football-like-count');
+    if (!countEl) {
+      var nodes = Array.prototype.slice.call(el.childNodes);
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        if (node.nodeType === 3 && node.textContent.trim()) {
+          countEl = document.createElement('span');
+          countEl.className = 'feed-football-like-count';
+          countEl.textContent = formatFeedLikeCount(count);
+          el.replaceChild(countEl, node);
+          break;
+        }
+      }
+    }
+    if (!countEl) {
+      countEl = document.createElement('span');
+      countEl.className = 'feed-football-like-count';
+      countEl.textContent = formatFeedLikeCount(count);
+      el.appendChild(countEl);
+    }
+    icon.classList.add('feed-football-like__icon');
+    el.classList.add('feed-football-like');
+    el.setAttribute('data-count', count);
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.dataset.feedLikeReady = '1';
+    el.addEventListener('click', function(ev){ toggleFeedFootballLike(ev, el); });
+    el.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter' || ev.key === ' ') toggleFeedFootballLike(ev, el);
+    });
+  }
+
+  document.querySelectorAll('.stat-item, .m-card__likes, .m-card__qlikes').forEach(prepareFeedFootballLike);
 </script>
 
 
