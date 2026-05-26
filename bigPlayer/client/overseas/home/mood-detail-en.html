@@ -295,6 +295,258 @@
   }
   #likeBtn { position: relative; }
 
+  .football-like-btn {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    cursor: pointer;
+    overflow: hidden;
+    background: linear-gradient(135deg,#fff5f0 0%,#ffe4d6 100%);
+    border: 1.5px solid #ffb89a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 2px 8px rgba(255,107,72,0.18);
+    transition: background 0.3s, border-color 0.3s, box-shadow 0.3s, transform 0.22s;
+  }
+  .football-like-btn:hover { transform: translateY(-1px); }
+  .football-like-btn #likeIcon {
+    position: relative;
+    z-index: 2;
+    transition: opacity 0.18s, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .football-like-ball {
+    position: absolute;
+    inset: -12px;
+    z-index: 1;
+    border-radius: 50%;
+    opacity: 0;
+    background-image: var(--football-like-ball);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transform: scale(.22) rotate(-80deg);
+    transform-origin: center;
+    transition: opacity .22s, transform .34s cubic-bezier(.34,1.56,.64,1);
+    pointer-events: none;
+  }
+  .football-like-stage {
+    position: relative;
+    overflow: visible;
+  }
+  .football-like-row {
+    position: relative;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .football-like-btn.is-shooting,
+  .football-like-stage.is-playing .football-like-btn.is-liked {
+    animation: football-like-button-pop .42s cubic-bezier(.34,1.56,.64,1) .06s both;
+  }
+  .football-like-btn.is-liked {
+    background: #fff;
+    border-color: transparent;
+    box-shadow: 0 0 0 5px rgba(0,97,164,.12), 0 8px 18px rgba(0,97,164,.18);
+  }
+  .football-like-btn.is-liked #likeIcon {
+    opacity: 0;
+    transform: scale(.6) rotate(-18deg) !important;
+  }
+  .football-like-btn.is-liked .football-like-ball {
+    opacity: 1;
+    transform: scale(1.06) rotate(0deg);
+  }
+  .football-like-btn.is-classic-liked {
+    background: linear-gradient(135deg,#e8f4ff 0%,#d1e9ff 100%);
+    border-color: #7ab8f5;
+    box-shadow: 0 2px 12px var(--like-glow);
+  }
+  @keyframes football-like-button-pop {
+    0%, 100% { transform: scale(1); }
+    42% { transform: scale(1.08); }
+  }
+
+  .football-stage-goal {
+    position: absolute;
+    right: 8px;
+    top: -56px;
+    z-index: 3;
+    width: 88px;
+    height: 62px;
+    border: 3px solid #2a3439;
+    border-bottom: none;
+    border-radius: 7px 7px 0 0;
+    background:
+      linear-gradient(45deg, rgba(42,52,57,.34) 1px, transparent 1px),
+      linear-gradient(-45deg, rgba(42,52,57,.34) 1px, transparent 1px),
+      rgba(255,255,255,.62);
+    background-size: 9px 9px;
+    opacity: 0;
+    pointer-events: none;
+    transform-origin: center bottom;
+  }
+  .football-like-stage.is-playing .football-stage-goal {
+    opacity: 1;
+    animation: football-stage-goal-shake .46s cubic-bezier(.2,1.2,.35,1) .5s both;
+  }
+  .football-stage-goal-flash {
+    position: absolute;
+    right: 27px;
+    top: -48px;
+    z-index: 4;
+    width: 52px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,218,93,.92), rgba(255,218,93,0) 68%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .football-like-stage.is-playing .football-stage-goal-flash {
+    animation: football-stage-flash .5s ease-out .5s both;
+  }
+  .football-stage-goal-word {
+    position: absolute;
+    right: 4px;
+    top: -86px;
+    z-index: 6;
+    font-family: 'Manrope','Inter',sans-serif;
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--primary);
+    letter-spacing: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(7px) scale(.86);
+  }
+  .football-like-stage.is-playing .football-stage-goal-word {
+    animation: football-stage-goal-word .7s cubic-bezier(.34,1.56,.64,1) .48s both;
+  }
+  .football-stage-ball {
+    position: absolute;
+    left: var(--sx);
+    top: var(--sy);
+    z-index: 12;
+    width: 38px;
+    height: 38px;
+    margin-left: -19px;
+    margin-top: -19px;
+    opacity: 0;
+    pointer-events: none;
+    background-image: var(--football-like-ball);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 7px 9px rgba(30,45,60,.26));
+    will-change: transform, opacity;
+    animation: football-stage-shot-power .68s cubic-bezier(.22,0,.28,1) forwards;
+  }
+  .football-stage-confetti {
+    position: absolute;
+    right: 38px;
+    top: -62px;
+    z-index: 7;
+    width: 76px;
+    height: 60px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .football-stage-confetti span {
+    position: absolute;
+    width: 5px;
+    height: 10px;
+    border-radius: 2px;
+    background: #ff7043;
+  }
+  .football-stage-confetti span:nth-child(1) { left: 6px; top: 20px; background: #0061a4; }
+  .football-stage-confetti span:nth-child(2) { left: 25px; top: 4px; background: #2f9e5b; }
+  .football-stage-confetti span:nth-child(3) { left: 45px; top: 24px; background: #ff7043; }
+  .football-stage-confetti span:nth-child(4) { left: 63px; top: 10px; background: #ffd45d; }
+  .football-like-stage.is-playing .football-stage-confetti {
+    animation: football-stage-confetti .78s ease-out .5s both;
+  }
+  .football-like-stage.is-playing #likeCount {
+    animation: football-stage-count-pop .45s cubic-bezier(.34,1.56,.64,1) .2s both;
+  }
+  @keyframes football-stage-shot-power {
+    0% { opacity: 0; transform: translate(0,0) scale(.5) rotate(-120deg); }
+    8% { opacity: 1; transform: translate(0,0) scale(.9) rotate(-40deg); }
+    70% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.08) rotate(760deg); filter: blur(.2px) drop-shadow(0 8px 12px rgba(30,45,60,.28)); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.48) rotate(920deg); }
+  }
+  @keyframes football-stage-goal-shake {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    24% { transform: scale(1.08,1.16); filter: brightness(1.16); }
+    55% { transform: scale(.97,.94); }
+    78% { transform: scale(1.02,1.03); }
+  }
+  @keyframes football-stage-flash {
+    0% { opacity: 0; transform: scale(.55); }
+    36% { opacity: 1; transform: scale(1.3); }
+    100% { opacity: 0; transform: scale(1.8); }
+  }
+  @keyframes football-stage-goal-word {
+    0% { opacity: 0; transform: translateY(8px) scale(.82); }
+    28% { opacity: 1; transform: translateY(0) scale(1.08); }
+    100% { opacity: 0; transform: translateY(-8px) scale(.96); }
+  }
+  @keyframes football-stage-confetti {
+    0% { opacity: 0; transform: scale(.6) translateY(6px); }
+    18% { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.15) translateY(-18px); }
+  }
+  @keyframes football-stage-count-pop {
+    0%, 100% { transform: scale(1); color: var(--on-surface); }
+    42% { transform: scale(1.2); color: var(--primary); }
+  }
+
+  .like-effect-tabs {
+    position: fixed;
+    top: 118px;
+    left: calc(50% + 230px);
+    z-index: 9997;
+    width: 136px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--surface-container-high);
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(0,0,0,.12);
+  }
+  .like-effect-tab {
+    width: 100%;
+    height: 30px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--on-surface-variant);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background .18s, color .18s, border-color .18s, box-shadow .18s;
+  }
+  .like-effect-tab.is-active {
+    background: var(--primary-container);
+    border-color: rgba(0,97,164,.18);
+    color: var(--primary);
+    box-shadow: 0 3px 10px rgba(0,97,164,.10);
+  }
+  @media (max-width: 760px) {
+    .like-effect-tabs {
+      top: 16px;
+      right: 16px;
+      left: auto;
+    }
+  }
+
   /* ── Phone shell ── */
   .phone-shell {
     width: 375px;
@@ -361,6 +613,11 @@
   <span class="material-symbols-outlined icon-dark">dark_mode</span>
   <span class="material-symbols-outlined icon-light">light_mode</span>
 </button>
+
+<div class="like-effect-tabs" role="tablist" aria-label="Like animation mode">
+  <button id="effectTabClassic" class="like-effect-tab" type="button" role="tab" aria-selected="false" onclick="setLikeEffectMode('classic')">Original</button>
+  <button id="effectTabFootball" class="like-effect-tab is-active" type="button" role="tab" aria-selected="true" onclick="setLikeEffectMode('football')">Football</button>
+</div>
 
 <div class="phone-shell">
 
@@ -498,14 +755,21 @@
     </div>
 
     <!-- Interaction area -->
-    <section class="flex flex-col items-center justify-center py-8 gap-2 border-b border-surface-variant/20 mx-6">
-      <button id="likeBtn" onclick="handleLike(event,this)" style="width:64px;height:64px;border-radius:50%;cursor:pointer;background:linear-gradient(135deg,#fff5f0 0%,#ffe4d6 100%);border:1.5px solid #ffb89a;display:flex;align-items:center;justify-content:center;outline:none;-webkit-tap-highlight-color:transparent;box-shadow:0 2px 8px rgba(255,107,72,0.18);transition:background 0.3s,box-shadow 0.3s;">
-        <svg id="likeIcon" viewBox="0 0 24 24" style="width:28px;height:28px;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);">
-          <path id="thumbOff" fill="#ff7043" style="transition:opacity 0.2s;" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/>
-          <path id="thumbOn"  fill="var(--thumb-on)" opacity="0" style="transition:opacity 0.2s;" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/>
-        </svg>
-      </button>
-      <span id="likeCount" class="text-sm font-bold text-on-surface" style="transition:color 0.3s;">515</span>
+    <section id="footballLikeStage" class="football-like-stage flex flex-col items-center justify-center py-8 gap-2 border-b border-surface-variant/20 mx-6">
+      <span class="football-stage-goal" aria-hidden="true"></span>
+      <span class="football-stage-goal-flash" aria-hidden="true"></span>
+      <span class="football-stage-goal-word" aria-hidden="true">GOAL</span>
+      <span class="football-stage-confetti" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      <div class="football-like-row">
+        <button id="likeBtn" class="football-like-btn" onclick="handleLike(event,this)" type="button">
+          <svg id="likeIcon" viewBox="0 0 24 24" style="width:28px;height:28px;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);">
+            <path id="thumbOff" fill="#ff7043" style="transition:opacity 0.2s;" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/>
+            <path id="thumbOn"  fill="var(--thumb-on)" opacity="0" style="transition:opacity 0.2s;" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/>
+          </svg>
+          <span class="football-like-ball" aria-hidden="true"></span>
+        </button>
+        <span id="likeCount" class="text-sm font-bold text-on-surface" style="transition:color 0.3s;">515</span>
+      </div>
     </section>
 
     <!-- Confetti SVG -->
@@ -514,6 +778,9 @@
     <script>
     (function(){
       var liked=false, count=515;
+      var likeSettleTimer=null;
+      var footballStageTimer=null;
+      var likeEffectMode='football';
       var COLORS=['#ff3b3b','#ff6b00','#ffcc00','#00c853','#00bcd4','#4d96ff','#c77dff','#ff4d94','#a8ff3e','#ff9e00','#f72585','#80ffdb'];
       var TAU=Math.PI*2;
       function rand(a,b){ return a+Math.random()*(b-a); }
@@ -522,36 +789,79 @@
       function easeInQ(t){ return t*t; }
       function readVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
+      function resetLikeState(){
+        var btn=document.getElementById('likeBtn');
+        var counter=document.getElementById('likeCount');
+        if(likeSettleTimer) window.clearTimeout(likeSettleTimer);
+        liked=false;
+        count=515;
+        clearFootballPowerShot();
+        btn.classList.remove('is-liked');
+        btn.classList.remove('is-shooting');
+        btn.classList.remove('is-classic-liked');
+        document.getElementById('thumbOff').style.opacity='1';
+        document.getElementById('thumbOn').style.opacity='0';
+        document.getElementById('likeIcon').style.transform='scale(1)';
+        counter.style.color='';
+        counter.textContent=count;
+        var barCount=document.getElementById('barLikeCount');
+        if(barCount){ barCount.style.color=''; barCount.textContent=count; }
+        setMiniFootballLikeState(document.getElementById('barLikeControl'),false,{count:count});
+      }
+
+      window.setLikeEffectMode=function(mode){
+        likeEffectMode=mode==='classic'?'classic':'football';
+        document.getElementById('effectTabClassic').classList.toggle('is-active',likeEffectMode==='classic');
+        document.getElementById('effectTabFootball').classList.toggle('is-active',likeEffectMode==='football');
+        document.getElementById('effectTabClassic').setAttribute('aria-selected',likeEffectMode==='classic'?'true':'false');
+        document.getElementById('effectTabFootball').setAttribute('aria-selected',likeEffectMode==='football'?'true':'false');
+        resetLikeState();
+      };
+
       window.handleLike=function(ev,source){
         if(ev) ev.stopPropagation();
         var btn=document.getElementById('likeBtn');
         var counter=document.getElementById('likeCount');
         var primary=readVar('--primary')||'#0061a4';
-        var glow=readVar('--like-glow')||'rgba(0,97,164,0.2)';
         if(!liked){
           liked=true; count++;
           var rect=btn.getBoundingClientRect(); var ox=rect.left+rect.width/2; var oy=rect.top+rect.height/2;
+          var stage=document.getElementById('footballLikeStage');
+          if(likeSettleTimer) window.clearTimeout(likeSettleTimer);
+          btn.classList.remove('is-liked');
+          btn.classList.remove('is-classic-liked');
+          btn.classList.add('is-shooting');
           document.getElementById('thumbOff').style.opacity='0';
           document.getElementById('thumbOn').style.opacity='1';
           document.getElementById('likeIcon').style.transform='scale(1.18) rotate(-10deg)';
-          btn.style.background='linear-gradient(135deg,#e8f4ff 0%,#d1e9ff 100%)';
-          btn.style.borderColor='#7ab8f5'; btn.style.boxShadow='0 2px 12px '+glow;
           counter.style.color=primary;
-          var barIcon=document.getElementById('barLikeIcon'); var barCount=document.getElementById('barLikeCount');
-          if(barIcon){ barIcon.style.color=primary; barIcon.style.fontVariationSettings="'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24"; }
+          var barCount=document.getElementById('barLikeCount');
           if(barCount){ barCount.style.color=primary; }
-          fireRipple(ox,oy); fireConfetti(ox,oy);
-          if(source&&source.id==='likeBtn') spawnMiniFootballLikePlusOne(btn);
+          if(likeEffectMode==='football'){
+            fireFootballPowerShot(stage,btn);
+            likeSettleTimer=window.setTimeout(function(){
+              btn.classList.remove('is-shooting');
+              btn.classList.add('is-liked');
+            },120);
+          } else {
+            clearFootballPowerShot();
+            btn.classList.remove('is-shooting');
+            btn.classList.add('is-classic-liked');
+            fireRipple(ox,oy);
+            fireConfetti(ox,oy);
+          }
         } else {
           liked=false; count--;
+          if(likeSettleTimer) window.clearTimeout(likeSettleTimer);
+          btn.classList.remove('is-liked');
+          btn.classList.remove('is-shooting');
+          btn.classList.remove('is-classic-liked');
+          clearFootballPowerShot();
           document.getElementById('thumbOff').style.opacity='1';
           document.getElementById('thumbOn').style.opacity='0';
           document.getElementById('likeIcon').style.transform='scale(1)';
-          btn.style.background='linear-gradient(135deg,#fff5f0 0%,#ffe4d6 100%)';
-          btn.style.borderColor='#ffb89a'; btn.style.boxShadow='0 2px 8px rgba(255,107,72,0.18)';
           counter.style.color='';
-          var barIcon=document.getElementById('barLikeIcon'); var barCount=document.getElementById('barLikeCount');
-          if(barIcon){ barIcon.style.color=''; barIcon.style.fontVariationSettings="'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24"; }
+          var barCount=document.getElementById('barLikeCount');
           if(barCount){ barCount.style.color=''; }
         }
         counter.textContent=count;
@@ -560,6 +870,55 @@
         var barLikeControl=document.getElementById('barLikeControl');
         setMiniFootballLikeState(barLikeControl,liked,{count:count,play:liked&&source===barLikeControl});
       };
+
+      function centerWithin(stage,el){
+        var s=stage.getBoundingClientRect();
+        var r=el.getBoundingClientRect();
+        return {x:r.left-s.left+r.width/2,y:r.top-s.top+r.height/2};
+      }
+
+      function setFootballMotionVars(flyer,start,end){
+        var dx=end.x-start.x;
+        var dy=end.y-start.y;
+        flyer.style.setProperty('--sx',start.x+'px');
+        flyer.style.setProperty('--sy',start.y+'px');
+        flyer.style.setProperty('--dx',dx+'px');
+        flyer.style.setProperty('--dy',dy+'px');
+      }
+
+      function clearFootballPowerShot(){
+        var stage=document.getElementById('footballLikeStage');
+        if(footballStageTimer) window.clearTimeout(footballStageTimer);
+        footballStageTimer=null;
+        if(stage){
+          stage.classList.remove('is-playing');
+          var oldFlyer=stage.querySelector('.football-stage-ball');
+          if(oldFlyer) oldFlyer.remove();
+        }
+      }
+
+      function fireFootballPowerShot(stage,button){
+        if(!stage) return;
+        clearFootballPowerShot();
+        var goal=stage.querySelector('.football-stage-goal');
+        if(!goal) return;
+        var start=centerWithin(stage,button);
+        var end=centerWithin(stage,goal);
+        end.x-=6;
+        end.y+=8;
+        var flyer=document.createElement('span');
+        flyer.className='football-stage-ball';
+        setFootballMotionVars(flyer,start,end);
+        stage.appendChild(flyer);
+        requestAnimationFrame(function(){
+          stage.classList.add('is-playing');
+        });
+        footballStageTimer=window.setTimeout(function(){
+          stage.classList.remove('is-playing');
+          if(flyer.parentNode) flyer.remove();
+          footballStageTimer=null;
+        },1800);
+      }
 
       function fireRipple(ox,oy){
         var svg=document.getElementById('confettiSVG');
