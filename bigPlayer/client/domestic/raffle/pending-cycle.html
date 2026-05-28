@@ -1,0 +1,990 @@
+  <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抽奖未开奖 · 周期活动 · 3方案对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
+<style>
+  :root {
+    --primary: #0061a4;
+    --primary-deep: #00548f;
+    --primary-pastel: #d1e4ff;
+    --primary-soft: #f0f4f7;
+    --ink: #2a3439;
+    --ink-soft: #566166;
+    --ink-mute: #a9b4b9;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --divider: #e1e9ee;
+    --section-tint: #f7f9fb;
+    --warn: #b88000;
+    --danger: #e53935;
+    --success: #2e7d32;
+    --on-surface-variant:#566166;
+    --primary-en:#0061a4;
+    --primary-dim:#005590;
+    --primary-container:#d1e4ff;
+    --on-primary-container:#00548f;
+    --surface-container-low:#f0f4f7;
+    --surface-container-lowest:#ffffff;
+    --on-surface:#2a3439;
+    --background-en:#f7f9fb;
+    --header-bg:rgba(255,255,255,0.70);
+  }
+  html, body {
+    margin: 0; padding: 0; min-height: 100vh;
+    background: #eef2f5;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    box-sizing: border-box;
+  }
+  .page-head { text-align:center; padding: 28px 16px 4px; }
+  .page-head h1 {
+    margin:0 0 6px; font-family: Manrope; font-weight: 800;
+    font-size: 18px; color: var(--ink); letter-spacing: 1px;
+  }
+  .page-head p {
+    margin:0; font-size: 12px; color: var(--ink-soft);
+  }
+  .variants {
+    display: flex; gap: 28px; justify-content: center; flex-wrap: wrap;
+    padding: 24px 16px 64px;
+  }
+  .variant-col {
+    display:flex; flex-direction: column; align-items: center;
+  }
+  .variant-title {
+    font-family: Manrope; font-weight: 800; font-size: 14px;
+    color: var(--ink); margin-bottom: 4px; letter-spacing: 0.5px;
+  }
+  .variant-tag {
+    font-size: 11px; color: var(--primary); font-weight: 700;
+    background: var(--primary-pastel); border-radius: 999px;
+    padding: 3px 10px; margin-bottom: 10px;
+  }
+  .variant-desc {
+    width: 360px; font-size: 11px; color: var(--ink-soft);
+    text-align: center; line-height: 1.55; margin-bottom: 14px;
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>抽奖详情 · 未开奖 · 全场景对比</h1>
+  <p>方案 B（Hero + Chip）下的 5 种参与条件组合：1 个单次活动 + 4 个周期活动</p>
+</div>
+<div id="root"></div>
+
+<script type="text/babel">
+/* ============== 共用：iPhone 边框 ============== */
+function IosFrame({ children, width = 360, height = 760 }) {
+  return (
+    <div style={{
+      display: 'inline-block', padding: 8, background: '#000', borderRadius: 50,
+      boxShadow: '0 0 0 2px #1f2937, 0 12px 40px rgba(15,23,42,0.18)',
+    }}>
+      <div style={{
+        position: 'relative', borderRadius: 42, overflow: 'hidden',
+        background: 'var(--background-en)', width, height,
+      }}>
+        <div className="no-scrollbar" style={{
+          position: 'absolute', inset: 0, overflowY: 'auto',
+        }}>{children}</div>
+        <div style={{
+          position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+          width: 96, height: 30, background: '#000', borderRadius: 999, zIndex: 30,
+        }} />
+        <div style={{
+          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+          width: 110, height: 4, background: 'rgba(0,0,0,0.45)',
+          borderRadius: 999, zIndex: 50, pointerEvents: 'none',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+/* ============== 共用：状态栏 + Nav ============== */
+function ShellHead({ title }) {
+  return (
+    <>
+      <div className="flex items-center justify-between px-6 pt-4" style={{ height: 54 }}>
+        <span className="text-[15px] font-semibold tracking-tight" style={{color:'var(--ink)'}}>9:41</span>
+        <div className="flex items-center gap-1.5" style={{color:'var(--ink)'}}>
+          <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="10" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="currentColor"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="currentColor" strokeWidth="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="currentColor"/></svg>
+        </div>
+      </div>
+      <header className="backdrop-blur-2xl flex items-center px-4 py-3"
+        style={{ background: 'var(--header-bg)' }}>
+        <span className="material-symbols-outlined" style={{ width:28, color:'var(--ink)' }}>arrow_back</span>
+        <span className="flex-1 text-center font-bold"
+          style={{ color:'var(--ink)', fontFamily:'Manrope', fontSize:16 }}>{title}</span>
+        <div style={{ width:28 }}/>
+      </header>
+    </>
+  );
+}
+
+/* ============== 共用：发起人/帖子卡（紧凑版） ============== */
+function PostCard() {
+  return (
+    <section className="mx-4 mt-3 rounded-lg p-3 border"
+      style={{ background:'var(--surface)', borderColor:'var(--divider)' }}>
+      <div className="flex items-center gap-2.5 mb-2.5">
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #e8a87c, #c0392b)',
+        }} />
+        <div className="flex-1">
+          <div className="flex items-center gap-1">
+            <span style={{fontSize:13, fontWeight:700, color:'var(--ink)'}}>远征2</span>
+            <svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 2l2.5 2.5L18 4l1 3.5L22 9l-1.5 3L22 15l-3 1.5L18 20l-3.5-.5L12 22l-2.5-2.5L6 20l-1-3.5L2 15l1.5-3L2 9l3-1.5L6 4l3.5.5z" fill="var(--primary)"/><path d="M8 12l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" fill="none"/></svg>
+          </div>
+        </div>
+      </div>
+      <div style={{fontSize:14, fontWeight:700, color:'var(--ink)', lineHeight:1.4}}>
+        远征2 七日打卡抽奖
+      </div>
+    </section>
+  );
+}
+
+/* ============== 共用：奖品摘要（带"周期活动"标签） ============== */
+function PrizeSummary({ isSingle }) {
+  const rows = isSingle ? [
+    ['开奖人数', '10 人'],
+    ['活动截止', '2024-02-05'],
+  ] : [
+    ['周期总数', '7 天 · 每天一期'],
+    ['每期人数', '随机抽取 3 人'],
+    ['活动时段', '2024-02-01 ~ 02-07'],
+  ];
+  const desc = '活动相关问题均与本公司无关，所有奖品由活动主办方负责发放与售后；如有违规行为，主办方有权取消其参与资格。';
+  return (
+    <section className="mx-4 mt-3 rounded-lg p-4 border"
+      style={{ background:'var(--surface)', borderColor:'var(--divider)' }}>
+      <div className="flex items-center justify-between pb-3 mb-3"
+        style={{borderBottom:'1.5px dashed var(--primary-pastel)'}}>
+        <div className="flex items-center gap-3">
+          <div style={{
+            width:40, height:40, borderRadius:12,
+            background:'linear-gradient(135deg,var(--primary),var(--primary-deep))',
+            display:'grid', placeItems:'center',
+          }}>
+            <span className="material-symbols-outlined" style={{color:'#fff', fontSize:22}}>card_giftcard</span>
+          </div>
+          <div>
+            <div style={{fontSize:11, color:'var(--ink-mute)'}}>{isSingle?'本期奖品':'每期奖品'}</div>
+            <div style={{fontFamily:'Manrope', fontWeight:800, fontSize:15, color:'var(--ink)'}}>抱枕 × 1</div>
+          </div>
+        </div>
+        <span style={{
+          fontSize:10, fontWeight:800,
+          color: isSingle ? 'var(--primary)' : '#722ed1',
+          background: isSingle ? 'var(--primary-pastel)' : '#f9f0ff',
+          borderRadius:999, padding:'4px 10px',
+          fontFamily:'Manrope',
+        }}>{isSingle?'单次活动':'周期活动'}</span>
+      </div>
+      {rows.map(([k,v]) => (
+        <div key={k} className="flex gap-3 mb-1.5" style={{fontSize:12.5}}>
+          <span style={{width:64, color:'var(--ink-mute)'}}>{k}</span>
+          <span style={{color:'var(--ink)', flex:1}}>{v}</span>
+        </div>
+      ))}
+      {/* 活动说明：最多 5 行 */}
+      <div className="flex gap-3" style={{fontSize:12.5, marginTop:1}}>
+        <span style={{width:64, color:'var(--ink-mute)', flexShrink:0}}>活动说明</span>
+        <span style={{
+          color:'var(--ink)', flex:1, lineHeight:1.6,
+          display:'-webkit-box', WebkitLineClamp:5, WebkitBoxOrient:'vertical',
+          overflow:'hidden',
+        }}>{desc}</span>
+      </div>
+    </section>
+  );
+}
+
+/* ============== 周期数据（共享） ============== */
+/* 中奖名单：Day1 少（2 人）演示常规态；Day2 多（12 人）演示滚动态 */
+const WINNERS_D1 = ['季娜宇', '放养岛小天使'];
+const WINNERS_D2 = [
+  '武帝无敌', '冷月如霜', '青衫渡', '风行者', '夜雨听枫',
+  '一剑封喉', '雪落无声', '半世繁华', '南柯一梦', '紫陌红尘',
+  '清风明月', '醉里挑灯',
+];
+const CYCLES = [
+  { idx:1, date:'02-01', wd:'周四', kws:['#远征2开年'],                                  state:'past',    winners: WINNERS_D1 },
+  { idx:2, date:'02-02', wd:'周五', kws:['#新职业首发','#冰雪节','#签到打卡','#年度盛典'], state:'past',    winners: WINNERS_D2 },
+  { idx:3, date:'02-03', wd:'周六', kws:['#国战开打','#远征2牛逼'],                        state:'past',    winners: WINNERS_D1 },
+  { idx:4, date:'02-04', wd:'周日', kws:['#新副本','#红装','#公会战'],                     state:'past',    winners: WINNERS_D2 },
+  { idx:5, date:'02-05', wd:'周一', kws:['#天梯赛','#周年庆'],                            state:'current', winners: [] },
+  { idx:6, date:'02-06', wd:'周二', kws:null,         state:'future',  winners: [] },
+  { idx:7, date:'02-07', wd:'周三', kws:null,         state:'future',  winners: [] },
+];
+
+/* ============== 头像渐变（按名字稳定挑色） ============== */
+const AVATAR_GRADS = [
+  'linear-gradient(135deg,#a29bfe,#6c5ce7)',
+  'linear-gradient(135deg,#fbbf24,#f59e0b)',
+  'linear-gradient(135deg,#fda085,#f6d365)',
+  'linear-gradient(135deg,#84fab0,#8fd3f4)',
+  'linear-gradient(135deg,#e8a87c,#c0392b)',
+  'linear-gradient(135deg,#7ab8f5,#0061a4)',
+];
+const gradFor = (name) => {
+  let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR_GRADS[h % AVATAR_GRADS.length];
+};
+
+/* =====================================================
+   方案 A · 时间线
+   ===================================================== */
+function VariantA() {
+  return (
+    <div style={{ background:'var(--background-en)', minHeight:'100%' }}>
+      <ShellHead title="抽奖详情"/>
+      <PostCard/>
+      <PrizeSummary/>
+
+      {/* 周期时间线 */}
+      <section className="mx-4 mt-3 rounded-lg p-4 border"
+        style={{ background:'var(--surface)', borderColor:'var(--divider)' }}>
+        <div className="flex items-baseline justify-between mb-3">
+          <span style={{fontFamily:'Manrope', fontWeight:800, fontSize:14, color:'var(--ink)'}}>
+            周期进度
+          </span>
+          <span style={{fontSize:11, color:'var(--ink-mute)'}}>第 3 / 7 期</span>
+        </div>
+
+        <div style={{position:'relative', paddingLeft:24}}>
+          {/* 竖线 */}
+          <div style={{
+            position:'absolute', left:7, top:6, bottom:6, width:2,
+            background:'linear-gradient(to bottom, var(--primary) 0%, var(--primary) 33%, var(--divider) 33%)',
+          }}/>
+          {CYCLES.map(c => {
+            const isCur = c.state==='current';
+            const isPast= c.state==='past';
+            const isFut = c.state==='future';
+            return (
+              <div key={c.idx} style={{position:'relative', marginBottom: isCur?14:10}}>
+                {/* 节点圆点 */}
+                <div style={{
+                  position:'absolute', left:-22, top: isCur?6:4,
+                  width: isCur?16:12, height: isCur?16:12, borderRadius:'50%',
+                  background: isCur?'var(--primary)' : isPast?'var(--primary)':'#fff',
+                  border: isFut?'2px solid var(--ink-mute)':'2px solid #fff',
+                  boxShadow: isCur?'0 0 0 4px rgba(0,97,164,0.18)':'none',
+                }}/>
+                {isCur ? (
+                  /* 当前周期：放大卡 */
+                  <div style={{
+                    background:'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)',
+                    color:'#fff', borderRadius:14, padding:'12px 14px',
+                    boxShadow:'0 6px 20px rgba(0,97,164,0.25)',
+                  }}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span style={{fontFamily:'Manrope', fontWeight:800, fontSize:14}}>
+                        第 {c.idx} 期 · 进行中
+                      </span>
+                      <span style={{fontSize:10, fontWeight:700, opacity:0.9}}>{c.date} {c.wd}</span>
+                    </div>
+                    <div style={{fontSize:11, opacity:0.85, marginBottom:6}}>
+                      本期评论关键词{c.kws.length > 1 ? ` · 任选 1 条` : ''}
+                    </div>
+                    <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
+                      {c.kws.map(k => (
+                        <span key={k} style={{
+                          background:'rgba(255,255,255,0.18)', borderRadius:8,
+                          padding:'6px 10px', fontWeight:700, fontSize:13,
+                          fontFamily:'Manrope',
+                        }}>{k}</span>
+                      ))}
+                    </div>
+                    <div style={{fontSize:11, opacity:0.85, marginTop:8,
+                      display:'flex', alignItems:'center', gap:4}}>
+                      <span className="material-symbols-outlined" style={{fontSize:14}}>schedule</span>
+                      今晚 24:00 自动开奖
+                    </div>
+                  </div>
+                ) : isPast ? (
+                  /* 已结束 */
+                  <div style={{
+                    background:'var(--surface-container-low)', borderRadius:10,
+                    padding:'8px 12px',
+                  }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span style={{fontFamily:'Manrope', fontWeight:700, fontSize:12.5, color:'var(--ink)'}}>
+                          第 {c.idx} 期
+                        </span>
+                        <span style={{fontSize:10.5, color:'var(--ink-mute)', marginLeft:6}}>
+                          {c.date} {c.wd}
+                        </span>
+                      </div>
+                      <span style={{fontSize:10, color:'var(--success)', fontWeight:700}}>已开奖</span>
+                    </div>
+                    <div style={{
+                      marginTop:4, fontSize:11.5, color:'var(--ink-soft)',
+                      display:'flex', flexWrap:'wrap', gap:'2px 6px', alignItems:'center',
+                    }}>
+                      <span>关键词：</span>
+                      {c.kws.map((k,i) => (
+                        <span key={k} style={{color:'var(--primary)', fontWeight:600}}>
+                          {k}{i < c.kws.length - 1 ? '、' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* 未到 */
+                  <div style={{
+                    background:'transparent', borderRadius:10,
+                    padding:'6px 12px', border:'1px dashed var(--divider)',
+                  }}>
+                    <div className="flex items-center justify-between">
+                      <span style={{fontFamily:'Manrope', fontWeight:600, fontSize:12.5, color:'var(--ink-mute)'}}>
+                        第 {c.idx} 期 · {c.date} {c.wd}
+                      </span>
+                      <span className="flex items-center gap-1" style={{fontSize:10, color:'var(--ink-mute)'}}>
+                        <span className="material-symbols-outlined" style={{fontSize:12}}>lock</span>
+                        未开始
+                      </span>
+                    </div>
+                    <div style={{fontSize:11, color:'var(--ink-mute)', marginTop:2}}>
+                      关键词将于当日公布
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <div style={{height:24}}/>
+    </div>
+  );
+}
+
+/* ============== 历史周期 Chip（含可折叠中奖名单） ============== */
+function PastCycleChip({ cycle, hideKeyword }) {
+  // expanded: false | 'winners' | 'kws'
+  const [expanded, setExpanded] = React.useState(false);
+  const winners = cycle.winners || [];
+  const showFew = winners.slice(0, 3);
+  const isExpanded = expanded === 'winners' || expanded === 'kws';
+  return (
+    <div style={{
+      flexShrink:0,
+      width: isExpanded ? 220 : 168,
+      background:'var(--surface)', border:'1px solid var(--divider)',
+      borderRadius:12, padding:'10px 12px',
+      transition:'width 0.25s ease',
+      display:'flex', flexDirection:'column',
+    }}>
+      {/* 头部：期数 + 状态 */}
+      <div className="flex items-center justify-between">
+        <span style={{fontFamily:'Manrope', fontWeight:700, fontSize:12, color:'var(--ink)'}}>
+          第 {cycle.idx} 期
+        </span>
+        <span style={{fontSize:10, color:'var(--success)', fontWeight:700}}>已开奖</span>
+      </div>
+      <div style={{fontSize:10.5, color:'var(--ink-mute)', marginTop:2}}>{cycle.date} {cycle.wd}</div>
+
+      {/* 关键词（仅"按周期配置"模式才显示）
+          - 0~1 个：单 chip 占满
+          - 2 个：两行堆叠
+          - 3+ 个：默认显示 2 行 + "+N" 入口，点击切到关键词模式展开全部 */}
+      {!hideKeyword && cycle.kws && cycle.kws.length > 0 && (() => {
+        const kws = cycle.kws;
+        const isMulti = kws.length > 1;
+        const showAllKws = expanded === 'kws';
+        const visible = showAllKws || kws.length <= 2 ? kws : kws.slice(0, 2);
+        const restCount = kws.length - visible.length;
+
+        const KwChip = ({ text }) => (
+          <div style={{
+            padding:'4px 8px',
+            background:'var(--primary-soft)', borderRadius:6,
+            fontSize:11, fontWeight:600, color:'var(--primary)',
+            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+            maxWidth:'100%',
+          }}>{text}</div>
+        );
+
+        return (
+          <div style={{marginTop:8, display:'flex', flexDirection:'column', gap:4}}>
+            {isMulti && (
+              <div style={{
+                fontSize:9.5, color:'var(--ink-mute)', fontWeight:600,
+                letterSpacing:0.3,
+              }}>关键词 · {kws.length} 条（任选 1）</div>
+            )}
+            {visible.map(k => <KwChip key={k} text={k}/>)}
+            {restCount > 0 && (
+              <div
+                onClick={(e) => { e.stopPropagation(); setExpanded('kws'); }}
+                style={{
+                  fontSize:10.5, color:'var(--primary)', fontWeight:700,
+                  cursor:'pointer', padding:'2px 4px',
+                }}>+{restCount} 条…</div>
+            )}
+            {showAllKws && (
+              <div
+                onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
+                style={{
+                  fontSize:10.5, color:'var(--ink-mute)', fontWeight:600,
+                  cursor:'pointer', padding:'2px 4px',
+                }}>收起关键词</div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 中奖名单切换条 */}
+      <div
+        onClick={() => setExpanded(e => e === 'winners' ? false : 'winners')}
+        style={{
+          marginTop:10, paddingTop:8, borderTop:'1px dashed var(--divider)',
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          cursor:'pointer',
+        }}>
+        <div className="flex items-center gap-1">
+          {/* 头像堆叠预览（仅折叠态显示） */}
+          {expanded !== 'winners' && (
+            <div style={{display:'flex', marginRight:4}}>
+              {showFew.map((n, i) => (
+                <div key={n} style={{
+                  width:18, height:18, borderRadius:'50%',
+                  background: gradFor(n),
+                  border:'1.5px solid #fff',
+                  marginLeft: i===0?0:-6,
+                }}/>
+              ))}
+            </div>
+          )}
+          <span style={{fontSize:10.5, color:'var(--ink-soft)', fontWeight:600}}>
+            {expanded === 'winners' ? '收起' : `${winners.length} 人中奖`}
+          </span>
+        </div>
+        <span className="material-symbols-outlined"
+          style={{
+            fontSize:16, color:'var(--ink-mute)',
+            transform: expanded === 'winners' ? 'rotate(180deg)' : 'rotate(0)',
+            transition:'transform 0.2s',
+          }}>expand_more</span>
+      </div>
+
+      {/* 展开的名单（可滚动） */}
+      {expanded === 'winners' && (
+        <div className="no-scrollbar" style={{
+          marginTop:8, maxHeight:160, overflowY:'auto',
+          display:'flex', flexDirection:'column', gap:6,
+        }}>
+          {winners.map(name => (
+            <div key={name} style={{
+              display:'flex', alignItems:'center', gap:8,
+              padding:'5px 6px', borderRadius:8,
+              background:'var(--surface-container-low)',
+            }}>
+              <div style={{
+                width:22, height:22, borderRadius:'50%',
+                background: gradFor(name), flexShrink:0,
+                border:'1.5px solid #fff',
+              }}/>
+              <span style={{
+                fontFamily:'Manrope', fontSize:11.5, fontWeight:600,
+                color:'var(--ink)', flex:1,
+                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+              }}>{name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============== 参与条件卡（统一不变的部分） ============== */
+function ConditionsCard({ conds, hasCycleKw, currentKw }) {
+  // conds: { follow, likePost, favPost, votePost, commentKw } 都是 boolean
+  // hasCycleKw: 评论关键词是否是"按周期配置"模式（true 表示要点回 Hero 看）
+  // currentKw: 统一模式下的关键词文本（仅 hasCycleKw=false 时有意义）
+  const items = [];
+  if (conds.follow)   items.push({ icon:'person_add',     label:'关注 @远征2', sub:'整个活动期间' });
+  if (conds.likePost) items.push({ icon:'thumb_up',       label:'点赞本帖',     sub:'整个活动期间' });
+  if (conds.favPost)  items.push({ icon:'star',           label:'收藏本帖',     sub:'整个活动期间' });
+  if (conds.votePost) items.push({ icon:'how_to_vote',    label:'投票本帖',     sub:'整个活动期间' });
+  if (conds.commentKw) {
+    if (hasCycleKw) {
+      items.push({
+        icon:'chat',
+        label:'评论 本期关键词',
+        sub:'每个周期不同 · 见顶部',
+        highlight:true,
+      });
+    } else {
+      items.push({
+        icon:'chat',
+        label:`评论 ${currentKw || '#指定关键词'}`,
+        sub:'整个活动期间',
+      });
+    }
+  }
+  if (!items.length) return null;
+
+  return (
+    <section className="mx-4 mt-3 rounded-lg p-4 border"
+      style={{ background:'var(--surface)', borderColor:'var(--divider)' }}>
+      <div className="flex items-baseline justify-between mb-3">
+        <span style={{fontFamily:'Manrope', fontWeight:800, fontSize:14, color:'var(--ink)'}}>
+          参与条件
+        </span>
+        <span style={{fontSize:10.5, color:'var(--ink-mute)'}}>需全部完成</span>
+      </div>
+      <div style={{display:'flex', flexDirection:'column', gap:8}}>
+        {items.map((it, i) => (
+          <div key={i} style={{
+            display:'flex', alignItems:'center', gap:10,
+            padding:'8px 10px', borderRadius:10,
+            background: it.highlight ? 'var(--primary-soft)' : 'var(--surface-container-low)',
+            border: it.highlight ? '1px solid var(--primary-pastel)' : '1px solid transparent',
+          }}>
+            <div style={{
+              width:30, height:30, borderRadius:9, flexShrink:0,
+              background: it.highlight ? 'var(--primary)' : 'rgba(0,97,164,0.10)',
+              display:'grid', placeItems:'center',
+            }}>
+              <span className="material-symbols-outlined" style={{
+                fontSize:17, color: it.highlight ? '#fff' : 'var(--primary)',
+              }}>{it.icon}</span>
+            </div>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{
+                fontFamily:'Manrope', fontWeight:700, fontSize:13,
+                color: it.highlight ? 'var(--primary-deep)' : 'var(--ink)',
+              }}>{it.label}</div>
+              <div style={{fontSize:10.5, color:'var(--ink-mute)', marginTop:1}}>{it.sub}</div>
+            </div>
+            {it.highlight && (
+              <span style={{
+                fontSize:10, fontWeight:700, color:'var(--primary)',
+                background:'#fff', borderRadius:999, padding:'3px 8px',
+              }}>本期</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* =====================================================
+   方案 B · 当期 Hero + 历史 Chip
+   ===================================================== */
+function VariantB({ scenario = 'cycleKw' }) {
+  /* scenario:
+     'cycleKw'        - 评论关键词按周期配置（Hero 显示当期关键词 + 参与条件卡）
+     'cycleKw+more'   - 上面 + 还勾选了关注/点赞/收藏
+     'uniformKw'      - 评论关键词统一（Hero 退化为倒计时卡，关键词写在参与条件里）
+     'noKw'           - 没勾评论关键词，只有关注+点赞（Hero 退化为倒计时卡）
+  */
+  const hasCycleKw = scenario === 'cycleKw' || scenario === 'cycleKw+more';
+  const conds = {
+    follow:   scenario === 'cycleKw+more' || scenario === 'uniformKw' || scenario === 'noKw',
+    likePost: scenario === 'cycleKw+more' || scenario === 'uniformKw' || scenario === 'noKw',
+    favPost:  scenario === 'cycleKw+more',
+    votePost: false,
+    commentKw: scenario !== 'noKw',
+  };
+  const past = CYCLES.filter(c => c.state==='past');
+  const cur  = CYCLES.find(c => c.state==='current');
+  const futureCount = CYCLES.filter(c => c.state==='future').length;
+
+  return (
+    <div style={{ background:'var(--background-en)', minHeight:'100%' }}>
+      <ShellHead title="抽奖详情"/>
+
+      {/* HERO 当期大卡 */}
+      {hasCycleKw ? (
+        <section className="mx-4 mt-3 rounded-lg overflow-hidden"
+          style={{
+            background:'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)',
+            padding:'16px 18px 18px', color:'#fff',
+            boxShadow:'0 8px 24px rgba(0,97,164,0.28)',
+            position:'relative',
+          }}>
+          <div style={{
+            position:'absolute', top:-30, right:-30, width:140, height:140,
+            background:'radial-gradient(circle, rgba(255,255,255,0.18), transparent 70%)',
+          }}/>
+          <div style={{position:'relative'}}>
+            <div className="flex items-center justify-between mb-1">
+              <span style={{
+                fontSize:10, fontWeight:800, background:'rgba(255,255,255,0.20)',
+                padding:'3px 9px', borderRadius:999, fontFamily:'Manrope',
+              }}>第 {cur.idx} / 7 期 · 进行中</span>
+              <span style={{fontSize:11, opacity:0.9}}>{cur.date} {cur.wd}</span>
+            </div>
+            <div style={{fontSize:11, opacity:0.85, marginTop:10, marginBottom:6}}>
+              {cur.kws.length > 1
+                ? `评论以下任一关键词即可参与今日抽奖 · ${cur.kws.length} 选 1`
+                : '评论这个关键词即可参与今日抽奖'}
+            </div>
+            <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+              {cur.kws.map(k => (
+                <span key={k} style={{
+                  fontFamily:'Manrope', fontWeight:900, lineHeight:1.1,
+                  fontSize: cur.kws.length > 1 ? 18 : 28,
+                  letterSpacing:0.5,
+                  background: cur.kws.length > 1 ? 'rgba(255,255,255,0.18)' : 'transparent',
+                  borderRadius: cur.kws.length > 1 ? 10 : 0,
+                  padding: cur.kws.length > 1 ? '6px 12px' : 0,
+                }}>{k}</span>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5" style={{marginTop:14, fontSize:11.5}}>
+              <span className="material-symbols-outlined" style={{fontSize:15}}>schedule</span>
+              <span>今晚 <strong>24:00</strong> 开奖 · 随机抽 3 人</span>
+            </div>
+          </div>
+        </section>
+      ) : (
+        /* Hero 退化版：无周期关键词时只显示当期状态/倒计时 */
+        <section className="mx-4 mt-3 rounded-lg overflow-hidden"
+          style={{
+            background:'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)',
+            padding:'14px 16px', color:'#fff',
+            boxShadow:'0 6px 18px rgba(0,97,164,0.22)',
+            position:'relative',
+          }}>
+          <div style={{
+            position:'absolute', top:-30, right:-30, width:120, height:120,
+            background:'radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%)',
+          }}/>
+          <div style={{position:'relative', display:'flex', alignItems:'center', gap:12}}>
+            <div style={{
+              width:44, height:44, borderRadius:12,
+              background:'rgba(255,255,255,0.20)',
+              display:'grid', placeItems:'center', flexShrink:0,
+            }}>
+              <span className="material-symbols-outlined" style={{color:'#fff', fontSize:24}}>schedule</span>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10.5, opacity:0.85}}>第 {cur.idx} / 7 期 · 进行中</div>
+              <div style={{fontFamily:'Manrope', fontWeight:900, fontSize:17, marginTop:2}}>
+                今晚 24:00 开奖
+              </div>
+              <div style={{fontSize:10.5, opacity:0.85, marginTop:3}}>
+                {cur.date} {cur.wd} · 随机抽 3 人
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <PostCard/>
+      <PrizeSummary/>
+
+      {/* 参与条件 */}
+      <ConditionsCard
+        conds={conds}
+        hasCycleKw={hasCycleKw}
+        currentKw={scenario === 'uniformKw' ? '#远征2牛逼' : null}
+      />
+
+      {/* 历史周期 chip 横滑 */}
+      <section className="mx-4 mt-3">
+        <div className="flex items-baseline justify-between mb-2 px-1">
+          <span style={{fontFamily:'Manrope', fontWeight:800, fontSize:14, color:'var(--ink)'}}>
+            历史周期
+          </span>
+          <span style={{fontSize:11, color:'var(--ink-mute)'}}>
+            已开奖 {past.length} 期 · 还剩 {futureCount} 期
+          </span>
+        </div>
+        <div style={{position:'relative'}}>
+          <div className="no-scrollbar" style={{
+            display:'flex', gap:10, overflowX:'auto', paddingBottom:6,
+            alignItems:'flex-start',
+            scrollSnapType: past.length > 2 ? 'x mandatory' : 'none',
+          }}>
+            {past.map(c => (
+              <div key={c.idx} style={{ scrollSnapAlign: 'start', flexShrink: 0 }}>
+                <PastCycleChip cycle={c} hideKeyword={!hasCycleKw}/>
+              </div>
+            ))}
+          </div>
+          {/* 超过 2 期时右侧渐隐提示可横滑 */}
+          {past.length > 2 && (
+            <div style={{
+              position:'absolute', right:0, top:0, bottom:6, width:32,
+              background:'linear-gradient(to right, transparent, var(--background-en) 80%)',
+              pointerEvents:'none',
+            }}/>
+          )}
+        </div>
+        {past.length > 2 && (
+          <div style={{
+            display:'flex', alignItems:'center', justifyContent:'center', gap:4,
+            fontSize:10.5, color:'var(--ink-mute)', marginTop:4,
+          }}>
+            <span className="material-symbols-outlined" style={{fontSize:13}}>swipe</span>
+            左右滑动查看 {past.length} 期
+          </div>
+        )}
+        {hasCycleKw && (
+          <div style={{
+            fontSize:11, color:'var(--ink-mute)', textAlign:'center',
+            marginTop:6, padding:'6px 8px',
+          }}>
+            后续 {futureCount} 期关键词将在当日公布
+          </div>
+        )}
+      </section>
+
+      <div style={{height:24}}/>
+    </div>
+  );
+}
+
+/* =====================================================
+   方案 C · 日历网格 + 折叠手风琴
+   ===================================================== */
+function VariantC() {
+  const [open, setOpen] = React.useState(3); // 默认展开当前期
+  const cur = CYCLES.find(c => c.state==='current');
+
+  return (
+    <div style={{ background:'var(--background-en)', minHeight:'100%' }}>
+      <ShellHead title="抽奖详情"/>
+      <PostCard/>
+      <PrizeSummary/>
+
+      {/* 7格日历 */}
+      <section className="mx-4 mt-3 rounded-lg p-4 border"
+        style={{ background:'var(--surface)', borderColor:'var(--divider)' }}>
+        <div className="flex items-baseline justify-between mb-3">
+          <span style={{fontFamily:'Manrope', fontWeight:800, fontSize:14, color:'var(--ink)'}}>
+            活动周期
+          </span>
+          <span style={{fontSize:11, color:'var(--ink-mute)'}}>点击查看每期详情</span>
+        </div>
+        <div style={{
+          display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:6,
+        }}>
+          {CYCLES.map(c => {
+            const isCur = c.state==='current';
+            const isPast= c.state==='past';
+            const active = open === c.idx;
+            return (
+              <div key={c.idx}
+                onClick={() => setOpen(active ? 0 : c.idx)}
+                style={{
+                  cursor:'pointer',
+                  background: isCur?'var(--primary)' : isPast?'var(--primary-pastel)':'var(--surface-container-low)',
+                  color: isCur?'#fff' : isPast?'var(--primary-deep)':'var(--ink-mute)',
+                  border: active?'2px solid var(--primary-deep)':'2px solid transparent',
+                  borderRadius:10, padding:'8px 4px', textAlign:'center',
+                  fontFamily:'Manrope',
+                  boxShadow: isCur?'0 4px 10px rgba(0,97,164,0.30)':'none',
+              }}>
+                <div style={{fontSize:9, fontWeight:600, opacity:0.85}}>{c.wd.slice(1)}</div>
+                <div style={{fontSize:14, fontWeight:800, lineHeight:1.1, marginTop:2}}>
+                  {c.date.split('-')[1]}
+                </div>
+                <div style={{fontSize:8, fontWeight:700, marginTop:3, opacity:0.85}}>
+                  {isCur?'进行中': isPast?'已开奖':'未开始'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 手风琴展开区 */}
+        {open > 0 && (() => {
+          const c = CYCLES.find(x => x.idx===open);
+          if (!c) return null;
+          const isCur = c.state==='current';
+          const isPast= c.state==='past';
+          return (
+            <div style={{
+              marginTop:14, padding:'12px 14px', borderRadius:12,
+              background: isCur?'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)':'var(--surface-container-low)',
+              color: isCur?'#fff':'var(--ink)',
+              boxShadow: isCur?'0 4px 14px rgba(0,97,164,0.22)':'none',
+            }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span style={{fontFamily:'Manrope', fontWeight:800, fontSize:13}}>
+                  第 {c.idx} 期 · {c.date} {c.wd}
+                </span>
+                <span style={{
+                  fontSize:10, fontWeight:700,
+                  background: isCur?'rgba(255,255,255,0.22)':isPast?'#e6f7e6':'#f0f0f0',
+                  color: isCur?'#fff':isPast?'var(--success)':'var(--ink-mute)',
+                  padding:'2px 8px', borderRadius:999,
+                }}>
+                  {isCur?'今晚 24:00 开奖':isPast?'已开奖':'未开始'}
+                </span>
+              </div>
+              {c.kws && c.kws.length > 0 ? (
+                <>
+                  <div style={{fontSize:11, opacity: isCur?0.85:0.7, marginBottom:6}}>
+                    本期评论关键词{c.kws.length > 1 ? ` · ${c.kws.length} 选 1` : ''}
+                  </div>
+                  <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
+                    {c.kws.map(k => (
+                      <span key={k} style={{
+                        background: isCur?'rgba(255,255,255,0.20)':'var(--primary-pastel)',
+                        color: isCur?'#fff':'var(--primary-deep)',
+                        padding:'5px 10px', borderRadius:8,
+                        fontFamily:'Manrope', fontWeight:700, fontSize:13,
+                      }}>{k}</span>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-1.5" style={{
+                  fontSize:12, color:'var(--ink-mute)', padding:'8px 0',
+                }}>
+                  <span className="material-symbols-outlined" style={{fontSize:16}}>lock_clock</span>
+                  关键词将于 {c.date} 当日公布
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </section>
+
+      <div style={{height:24}}/>
+    </div>
+  );
+}
+
+/* =====================================================
+   单次活动 · 未开奖
+   ===================================================== */
+function VariantSingle({ scenario = 'kw+follow' }) {
+  /* scenario:
+     'kw+follow'  - 关注 + 评论关键词（典型）
+     'noKw'       - 只关注 + 点赞，没勾评论关键词
+  */
+  const conds = {
+    follow:    true,
+    likePost:  scenario === 'noKw',
+    favPost:   false,
+    votePost:  false,
+    commentKw: scenario !== 'noKw',
+  };
+  return (
+    <div style={{ background:'var(--background-en)', minHeight:'100%' }}>
+      <ShellHead title="抽奖详情"/>
+
+      {/* HERO 单次倒计时卡 */}
+      <section className="mx-4 mt-3 rounded-lg overflow-hidden"
+        style={{
+          background:'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)',
+          padding:'14px 16px', color:'#fff',
+          boxShadow:'0 6px 18px rgba(0,97,164,0.22)',
+          position:'relative',
+        }}>
+        <div style={{
+          position:'absolute', top:-30, right:-30, width:120, height:120,
+          background:'radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%)',
+        }}/>
+        <div style={{position:'relative', display:'flex', alignItems:'center', gap:12}}>
+          <div style={{
+            width:44, height:44, borderRadius:12,
+            background:'rgba(255,255,255,0.20)',
+            display:'grid', placeItems:'center', flexShrink:0,
+          }}>
+            <span className="material-symbols-outlined" style={{color:'#fff', fontSize:24}}>schedule</span>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10.5, opacity:0.85}}>活动进行中</div>
+            <div style={{fontFamily:'Manrope', fontWeight:900, fontSize:17, marginTop:2}}>
+              将于 02-05 开奖
+            </div>
+            <div style={{fontSize:10.5, opacity:0.85, marginTop:3}}>
+              开奖人数 10 人
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <PostCard/>
+      <PrizeSummary isSingle/>
+
+      {/* 参与条件（单次：关键词作为统一条件） */}
+      <ConditionsCard
+        conds={conds}
+        hasCycleKw={false}
+        currentKw="#远征2牛逼"
+      />
+
+      <div style={{height:24}}/>
+    </div>
+  );
+}
+
+/* ============== 渲染 4 个场景 ============== */
+function App() {
+  const scenarios = [
+    {
+      Comp: VariantSingle, props: { scenario:'kw+follow' },
+      tag:'单次', title:'单次活动 · 关注 + 关键词',
+      desc:'活动类型「单次」的常规组合：一个开奖日 + 一组统一参与条件。',
+    },
+    {
+      Comp: VariantB, props: { scenario:'cycleKw' },
+      tag:'周期', title:'按周期关键词（纯）',
+      desc:'最纯粹的周期玩法：Hero 显示当期关键词，条件卡只有一条「评论本期关键词」并标"本期"。',
+    },
+    {
+      Comp: VariantB, props: { scenario:'cycleKw+more' },
+      tag:'周期', title:'按周期关键词 + 关注/点赞/收藏',
+      desc:'Hero 仍是当期关键词；条件卡列出全部 4 条，按周期那条高亮"本期"，其他三条为统一条件。',
+    },
+    {
+      Comp: VariantB, props: { scenario:'uniformKw' },
+      tag:'周期', title:'评论关键词「统一」+ 关注/点赞',
+      desc:'后台选了"统一"模式：Hero 退化为倒计时卡；统一关键词在所有周期相同，历史 chip 不再重复显示关键词。',
+    },
+    {
+      Comp: VariantB, props: { scenario:'noKw' },
+      tag:'周期', title:'没勾评论关键词',
+      desc:'Hero 退化为倒计时卡；条件卡只列关注/点赞；历史 chip 也不显示关键词。',
+    },
+  ];
+  return (
+    <div className="variants">
+      {scenarios.map((s, i) => (
+        <div className="variant-col" key={i}>
+          <div className="variant-tag">{s.tag}</div>
+          <div className="variant-title">{s.title}</div>
+          <div className="variant-desc">{s.desc}</div>
+          <IosFrame><s.Comp {...s.props}/></IosFrame>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

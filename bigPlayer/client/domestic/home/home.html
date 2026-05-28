@@ -49,6 +49,25 @@
   }
 </script>
 <style>
+  :root {
+    --on-surface-variant: #566166;
+    --secondary-container: #cbe6ff;
+    --primary: #0061a4;
+    --primary-dim: #005590;
+    --surface-container-low: #f0f4f7;
+    --surface-variant: #d9e4ea;
+    --outline: #717c82;
+    --surface-container: #e8eff3;
+    --on-secondary-container: #0a5780;
+    --surface-container-lowest: #ffffff;
+    --surface-container-highest: #d9e4ea;
+    --on-primary: #f5f8ff;
+    --outline-variant: #a9b4b9;
+    --surface-container-high: #e1e9ee;
+    --on-surface: #2a3439;
+    --background: #f7f9fb;
+    --home-hero-bg: url("https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2025/12/30/1767084148075c709f857-caef-4537-8e60-d59cf8948d49.png");
+  }
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
@@ -634,11 +653,373 @@
     100% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.25), 0 0 0 0 rgba(255,255,255,0); }
   }
   .tutorial-spotlight.pulse { animation: tut-pulse 1.8s infinite; }
+
+  /* ── Variant Switcher（网页 / 小程序 切换） ── */
+  .variant-switcher {
+    position: fixed; top: 24px; right: 24px; z-index: 9999;
+    display: inline-flex; background: var(--surface-container-lowest);
+    border-radius: 999px; padding: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  .variant-switcher button {
+    border: none; background: transparent;
+    font-family: Inter, sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--on-surface-variant);
+    border-radius: 999px; padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .variant-switcher button.active {
+    background: var(--primary); color: #fff;
+  }
+  .variant-switcher button:not(.active):hover {
+    color: var(--on-surface);
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     小程序版「登录」弹窗（Hero 横条按钮卡片）
+     ════════════════════════════════════════════════════════════════ */
+  .lg-mask {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 400;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .lg-mask.open { opacity: 1; pointer-events: auto; }
+  .lg-modal {
+    position: absolute; z-index: 401;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.28s, transform 0.32s cubic-bezier(.34,1.2,.4,1);
+  }
+  .lg-mask.open .lg-modal { opacity: 1; pointer-events: auto; }
+  .lg-close-x {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(0,0,0,0.08);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; border: none; color: var(--on-surface);
+  }
+  .lg-close-x .material-symbols-outlined { font-size: 18px; }
+
+  .lg-m6 {
+    top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.95);
+    width: 320px;
+    background: var(--surface-container-lowest);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  }
+  .lg-mask.open .lg-m6 { transform: translate(-50%, -50%) scale(1); }
+  .lg-m6__hero {
+    height: 130px; position: relative;
+    background: linear-gradient(135deg, #0a5780 0%, #0061a4 55%, #2498f5 100%);
+    overflow: hidden;
+  }
+  .lg-m6__hero::before {
+    content: ""; position: absolute; inset: 0;
+    background: url("https://operation-repository-sgp.oss-accelerate.aliyuncs.com/CLUB/2025/12/30/1767084148075c709f857-caef-4537-8e60-d59cf8948d49.png") center/cover;
+    opacity: 0.5; mix-blend-mode: screen;
+  }
+  .lg-m6__hero::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.45) 100%);
+  }
+  .lg-m6__close {
+    position: absolute; top: 10px; right: 10px; z-index: 2;
+    background: rgba(255,255,255,0.22); color: #fff;
+    backdrop-filter: blur(8px);
+  }
+  .lg-m6__hero-text { position: absolute; left: 18px; bottom: 14px; z-index: 1; color: #fff; }
+  .lg-m6__hero-text h2 { font-family: Manrope; font-size: 18px; font-weight: 800; line-height: 1.2; }
+  .lg-m6__hero-text p { font-size: 11.5px; opacity: 0.88; margin-top: 2px; }
+  .lg-m6__body { padding: 18px 18px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .lg-m6__bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-radius: 12px;
+    border: 1.5px solid var(--surface-variant);
+    background: var(--surface-container-lowest);
+    cursor: pointer;
+    transition: background .15s, border-color .15s, transform .12s;
+  }
+  .lg-m6__bar:active { transform: scale(0.99); }
+  .lg-m6__bar--primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .lg-m6__bar-left { display: flex; align-items: center; gap: 10px; }
+  .lg-m6__bar-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-container-low); color: var(--primary);
+  }
+  .lg-m6__bar-icon .material-symbols-outlined { font-size: 18px; }
+  .lg-m6__bar-icon--wechat { background: #fff; }
+  .lg-m6__bar--primary .lg-m6__bar-icon { background: rgba(255,255,255,0.22); color: var(--on-primary); }
+  .lg-m6__bar-name { font-size: 14px; font-weight: 700; color: var(--on-surface); font-family: Manrope; }
+  .lg-m6__bar--primary .lg-m6__bar-name { color: var(--on-primary); }
+  .lg-m6__bar-chev { color: var(--outline-variant); }
+  .lg-m6__bar--primary .lg-m6__bar-chev { color: rgba(255,255,255,0.7); }
+  .lg-m6__bar-chev .material-symbols-outlined { font-size: 20px; }
+
+  /* ════════════════════════════════════════════════════════════════
+     小程序版「微信授权」底部弹层
+     ════════════════════════════════════════════════════════════════ */
+  .wx-mask {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 460;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .wx-mask.open { opacity: 1; pointer-events: auto; }
+  .wx-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: #ededed;
+    border-radius: 14px 14px 0 0;
+    padding: 16px 16px 20px;
+    transform: translateY(100%);
+    transition: transform 0.32s cubic-bezier(.34,1.1,.5,1);
+    z-index: 461;
+  }
+  .wx-mask.open .wx-sheet { transform: translateY(0); }
+  .wx-sheet__head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .wx-sheet__logo {
+    width: 26px; height: 26px; border-radius: 4px;
+    background: #07c160;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 13px; flex-shrink: 0;
+    font-family: Manrope;
+  }
+  .wx-sheet__app { font-size: 13px; font-weight: 700; color: #1a1a1a; }
+  .wx-sheet__app .wx-apply { font-size: 13px; font-weight: 400; color: #555; margin-left: 4px; }
+  .wx-sheet__title { font-size: 15px; font-weight: 700; color: #1a1a1a; margin-bottom: 12px; }
+  .wx-sheet__user {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 8px; background: transparent; margin-bottom: 14px;
+  }
+  .wx-sheet__avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .wx-sheet__nick {
+    flex: 1; min-width: 0;
+    font-size: 14px; color: #1a1a1a; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .wx-sheet__check { color: #07c160; flex-shrink: 0; }
+  .wx-sheet__check .material-symbols-outlined { font-size: 22px; }
+  .wx-sheet__switch {
+    background: none; border: none; cursor: pointer;
+    padding: 0; margin-bottom: 16px;
+    font-size: 13px; color: #1a6ed1;
+  }
+  .wx-sheet__actions { display: flex; gap: 12px; }
+  .wx-sheet__btn {
+    flex: 1; height: 42px; border-radius: 6px;
+    border: none; cursor: pointer;
+    font-size: 15px; font-weight: 500;
+  }
+  .wx-sheet__btn--reject { background: #e6e6e6; color: #1a1a1a; }
+  .wx-sheet__btn--allow { background: #07c160; color: #fff; }
+
+  /* ════════════════════════════════════════════════════════════════
+     小程序版「角色验证登录」全屏页
+     ════════════════════════════════════════════════════════════════ */
+  .rv-page {
+    position: absolute; inset: 0;
+    background: var(--surface-container-lowest);
+    z-index: 450;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .rv-page.open { transform: translateX(0); }
+  .rv-back {
+    position: absolute; top: 14px; left: 14px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #2a3439; color: #fff;
+    border: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
+  .rv-back .material-symbols-outlined { font-size: 22px; }
+  .rv-body {
+    padding: 96px 24px 32px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .rv-title {
+    text-align: center;
+    font-family: Manrope, sans-serif;
+    font-size: 22px; font-weight: 800;
+    color: var(--primary);
+    margin-bottom: 14px;
+  }
+  .rv-field {
+    position: relative;
+    display: flex; align-items: center;
+    background: var(--surface-container-low);
+    border-radius: 14px;
+    padding: 0 14px;
+    height: 52px;
+  }
+  .rv-field input {
+    flex: 1;
+    border: none; outline: none; background: transparent;
+    font-size: 14px; color: var(--on-surface);
+    font-family: Inter, sans-serif;
+  }
+  .rv-field input::placeholder { color: #a4adb2; }
+  .rv-info {
+    display: none;
+    padding: 4px 4px 0;
+    color: var(--primary);
+    font-family: Manrope, sans-serif;
+    font-size: 13px; font-weight: 700;
+    margin-top: -8px;
+  }
+  .rv-info.show { display: block; }
+  .rv-info--error { color: #c0392b; }
+  .rv-getcode {
+    border: none;
+    background: #e1e9ee;
+    color: #a4adb2;
+    font-family: Manrope, sans-serif;
+    font-size: 12px; font-weight: 700;
+    padding: 8px 12px; border-radius: 8px;
+    cursor: not-allowed;
+    white-space: nowrap;
+    transition: background 0.18s, color 0.18s;
+  }
+  .rv-getcode.active {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    cursor: pointer;
+  }
+  .rv-getcode:disabled { opacity: 0.55; cursor: not-allowed; }
+  .rv-submit {
+    position: relative;
+    margin-top: 6px;
+    height: 50px;
+    border: none; border-radius: 14px;
+    background: #b7d6f3; color: #fff;
+    font-family: Manrope, sans-serif;
+    font-size: 15px; font-weight: 800;
+    cursor: pointer;
+    transition: background 0.18s;
+  }
+  .rv-submit.active { background: var(--primary); }
+
+  /* 小程序版 - 顶部「登录」入口（放在 topbar 右侧，替代头像） */
+  .lg-mini-login-cta {
+    position: absolute; top: 62px; right: 14px;
+    z-index: 250;
+    padding: 6px 16px; height: 32px;
+    background: var(--primary); color: #fff;
+    border: none; border-radius: 999px;
+    font-size: 12.5px; font-weight: 700; font-family: Manrope;
+    box-shadow: 0 4px 12px rgba(0,97,164,0.32);
+    cursor: pointer;
+    display: none;
+    align-items: center; gap: 5px;
+  }
+  .lg-mini-login-cta .material-symbols-outlined { font-size: 15px; }
+  body[data-active-variant="miniprogram"] .lg-mini-login-cta { display: inline-flex; }
+  /* 小程序版：隐藏顶部头像与搜索按钮 */
+  body[data-active-variant="miniprogram"] #topbar-avatar,
+  body[data-active-variant="miniprogram"] #topbar-search { display: none !important; }
+
+  /* ════════════════════════════════════════════════════════════════
+     顶部 Hero 背景图（覆盖 status bar + 顶栏 + Tab，渐变到白底）
+     网页版 & 小程序版都显示
+     ════════════════════════════════════════════════════════════════ */
+  :root { --hero-h: 155px; }
+  .simple-hero-bg {
+    display: block;
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: var(--hero-h, 155px);
+    z-index: 0;
+    pointer-events: none;
+    background-image: var(--home-hero-bg);
+    background-size: cover;
+    background-position: center 35%;
+    filter: saturate(0.55) brightness(0.92);
+  }
+  .simple-hero-bg::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg,
+      rgba(20,30,45,0.42) 0%,
+      rgba(20,30,45,0.30) 35%,
+      rgba(247,249,251,0.65) 58%,
+      rgba(247,249,251,0.92) 75%,
+      var(--background) 100%);
+  }
+  .simple-hero-bg::before {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 18px;
+    background: linear-gradient(180deg, rgba(247,249,251,0) 0%, var(--background) 100%);
+    z-index: 1;
+  }
+  /* status bar 透出 hero；sticky-header 自挂同尺寸 hero 接续滚动时不穿模 */
+  #status-bar { position: relative; z-index: 1; background: transparent !important; }
+  .sticky-header {
+    background: transparent !important;
+    isolation: isolate;
+  }
+  .sticky-header::before {
+    content: ''; position: absolute;
+    left: 0; right: 0; top: -54px;
+    height: var(--hero-h, 155px);
+    background-image: var(--home-hero-bg);
+    background-size: cover;
+    background-position: center 35%;
+    background-repeat: no-repeat;
+    filter: saturate(0.55) brightness(0.92);
+    z-index: -1; pointer-events: none;
+  }
+  .sticky-header::after {
+    content: ''; position: absolute;
+    left: 0; right: 0; top: -54px;
+    height: var(--hero-h, 155px);
+    background: linear-gradient(180deg,
+      rgba(20,30,45,0.42) 0%,
+      rgba(20,30,45,0.30) 35%,
+      rgba(247,249,251,0.65) 58%,
+      rgba(247,249,251,0.92) 75%,
+      var(--background) 100%);
+    z-index: -1; pointer-events: none;
+  }
+  /* status bar 文字 / 图标反白 */
+  #status-bar span { color: #fff !important; text-shadow: 0 1px 3px rgba(0,0,0,0.45); }
+  #status-bar svg rect[fill="#2a3439"],
+  #status-bar svg path[fill="#2a3439"] { fill: #fff !important; }
+  #status-bar svg path[stroke="#2a3439"] { stroke: #fff !important; }
+  #status-bar svg rect[stroke="#2a3439"] { stroke: #fff !important; }
+  /* Logo 顶栏（菜单图标 + 玄域英雄）反白 */
+  .sticky-header .material-symbols-outlined.text-on-surface {
+    color: #fff !important; text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .sticky-header span.font-headline {
+    color: #fff !important; text-shadow: 0 1px 4px rgba(0,0,0,0.45);
+  }
+  .sticky-header span.font-headline span {
+    color: #e6f3ff !important;
+  }
 </style>
 </head>
-<body class="bg-[#e8e8e8] flex justify-center items-start py-10 min-h-screen">
+<body class="bg-[#e8e8e8] flex justify-center items-start py-10 min-h-screen" data-active-variant="web">
+
+<div class="variant-switcher" id="variantSwitcher">
+  <button data-variant="web" class="active" onclick="setVariant('web')">网页版</button>
+  <button data-variant="miniprogram" onclick="setVariant('miniprogram')">小程序版</button>
+</div>
 
 <div class="phone-shell">
+
+  <!-- Hero background (only in miniprogram variant) -->
+  <div class="simple-hero-bg" aria-hidden="true"></div>
 
   <!-- Dynamic Island -->
   <div class="dynamic-island"></div>
@@ -704,7 +1085,7 @@
   </div>
 
   <!-- Status bar -->
-  <div class="flex items-center justify-between px-6 pt-4" style="height:54px;">
+  <div id="status-bar" class="flex items-center justify-between px-6 pt-4" style="height:54px;">
     <span class="text-[15px] font-semibold tracking-tight text-on-surface">9:41</span>
     <div class="flex items-center gap-1.5">
       <!-- Signal bars -->
@@ -720,7 +1101,7 @@
   <div class="no-scrollbar overflow-y-auto overflow-x-hidden" style="flex:1; min-height:0;">
 
     <!-- ── Top bar + Tab nav (unified sticky, no gap) ── -->
-    <div class="sticky top-0 z-20 bg-[#f7f9fb]">
+    <div class="sticky-header sticky top-0 z-20 bg-[#f7f9fb]">
       <div class="flex items-center justify-between px-4 pt-2 pb-1">
         <div class="flex items-center gap-2">
           <button onclick="openDrawer()" class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container">
@@ -729,10 +1110,10 @@
           <span class="font-headline text-[24px] font-extrabold italic tracking-tight" style="color:#0061a4;">玄域<span style="color:#005590;">英雄</span></span>
         </div>
         <div class="flex items-center gap-3">
-          <button class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container" onclick="location.href='search-en.html'">
+          <button id="topbar-search" class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container" onclick="location.href='search-en.html'">
             <span class="material-symbols-outlined text-on-surface" style="font-size:22px;">search</span>
           </button>
-          <button class="w-8 h-8 rounded-full overflow-hidden border-0 bg-surface-container flex-shrink-0">
+          <button id="topbar-avatar" class="w-8 h-8 rounded-full overflow-hidden border-0 bg-surface-container flex-shrink-0">
             <img src="https://opsoss.q1.com/club/avatar/2023/01/06/1672984017367_069a1712-8db1-486b-9639-52e5a2bf3d59.jpg" class="w-full h-full object-cover" alt="头像">
           </button>
         </div>
@@ -1534,7 +1915,96 @@
     </div>
   </div>
 
+  <!-- ══════════════ 小程序版「登录」弹窗 ══════════════ -->
+  <div class="lg-mask" id="lg-mask" onclick="closeLogin(event)">
+    <div class="lg-modal lg-m6" onclick="event.stopPropagation()">
+      <div class="lg-m6__hero">
+        <button class="lg-close-x lg-m6__close" onclick="closeLogin()"><span class="material-symbols-outlined">close</span></button>
+        <div class="lg-m6__hero-text">
+          <h2>请选择登录方式</h2>
+          <p>加入大玩家社区，与全球玩家同行</p>
+        </div>
+      </div>
+      <div class="lg-m6__body">
+        <button class="lg-m6__bar lg-m6__bar--primary" onclick="loginAction('password')">
+          <span class="lg-m6__bar-left">
+            <span class="lg-m6__bar-icon"><span class="material-symbols-outlined">person</span></span>
+            <span class="lg-m6__bar-name">账号密码登录</span>
+          </span>
+          <span class="lg-m6__bar-chev"><span class="material-symbols-outlined">chevron_right</span></span>
+        </button>
+        <button class="lg-m6__bar" onclick="loginAction('wechat')">
+          <span class="lg-m6__bar-left">
+            <span class="lg-m6__bar-icon lg-m6__bar-icon--wechat">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <path fill="#07c160" d="M8.691 2C4.443 2 1 4.93 1 8.547c0 1.99 1.038 3.77 2.69 4.995a.51.51 0 0 1 .206.539l-.397 1.487c-.026.097.084.18.17.128l1.964-1.155a.79.79 0 0 1 .621-.087 9.6 9.6 0 0 0 2.437.317c.155 0 .308-.005.46-.014a5.4 5.4 0 0 1-.221-1.514c0-3.246 3.105-5.876 6.937-5.876.183 0 .363.007.541.02C15.13 4.137 12.13 2 8.691 2zM5.785 7.879a1.13 1.13 0 1 1 0-2.262 1.13 1.13 0 0 1 0 2.262zm5.812 0a1.13 1.13 0 1 1 0-2.262 1.13 1.13 0 0 1 0 2.262z"/>
+                <path fill="#07c160" d="M23 13.013c0-3.042-2.93-5.516-6.547-5.516s-6.546 2.474-6.546 5.516 2.929 5.516 6.546 5.516a8 8 0 0 0 1.99-.249.65.65 0 0 1 .51.07l1.6.94c.07.043.16-.025.135-.106l-.323-1.21a.42.42 0 0 1 .17-.443C22.155 16.486 23 14.838 23 13.013zm-8.668-.79a.93.93 0 1 1 0-1.86.93.93 0 0 1 0 1.86zm4.26 0a.93.93 0 1 1 0-1.86.93.93 0 0 1 0 1.86z"/>
+              </svg>
+            </span>
+            <span class="lg-m6__bar-name">微信登录</span>
+          </span>
+          <span class="lg-m6__bar-chev"><span class="material-symbols-outlined">chevron_right</span></span>
+        </button>
+        <button class="lg-m6__bar" onclick="loginAction('role')">
+          <span class="lg-m6__bar-left">
+            <span class="lg-m6__bar-icon"><span class="material-symbols-outlined">sports_esports</span></span>
+            <span class="lg-m6__bar-name">角色验证登录</span>
+          </span>
+          <span class="lg-m6__bar-chev"><span class="material-symbols-outlined">chevron_right</span></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ 小程序版「微信授权」底部弹层 ══════════════ -->
+  <div class="wx-mask" id="wx-mask" onclick="closeWxAuth(event)">
+    <div class="wx-sheet" onclick="event.stopPropagation()">
+      <div class="wx-sheet__head">
+        <span class="wx-sheet__logo">玄</span>
+        <span class="wx-sheet__app">玄域英雄 <span class="wx-apply">申请</span></span>
+      </div>
+      <div class="wx-sheet__title">你的微信头像、昵称、地区和性别信息</div>
+      <div class="wx-sheet__user">
+        <img class="wx-sheet__avatar" src="https://opsoss.q1.com/club/images/2026/05/16/1778963230478_e7b71d3c-6824-44e4-b78b-aeae8a0c6dee_84920.png" alt="">
+        <span class="wx-sheet__nick">Wenxin</span>
+        <span class="wx-sheet__check"><span class="material-symbols-outlined">check_circle</span></span>
+      </div>
+      <button class="wx-sheet__switch" onclick="event.stopPropagation()">使用其他头像和昵称</button>
+      <div class="wx-sheet__actions">
+        <button class="wx-sheet__btn wx-sheet__btn--reject" onclick="closeWxAuth()">拒绝</button>
+        <button class="wx-sheet__btn wx-sheet__btn--allow" onclick="wxAuthAllow()">允许</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ 小程序版「角色验证登录」全屏页 ══════════════ -->
+  <div class="rv-page" id="rv-page">
+    <button class="rv-back" onclick="closeRoleVerify()" aria-label="返回">
+      <span class="material-symbols-outlined">chevron_left</span>
+    </button>
+    <div class="rv-body">
+      <div class="rv-title">角色验证登录</div>
+      <div class="rv-field">
+        <input id="rv-role-id" type="text" placeholder="请输入角色ID" autocomplete="off" onblur="rvVerifyRoleId()">
+      </div>
+      <div class="rv-info" id="rv-info"></div>
+      <div class="rv-field">
+        <input id="rv-code" type="text" placeholder="请输入验证码" autocomplete="off" maxlength="6">
+        <button class="rv-getcode" id="rv-getcode" onclick="rvSendCode()">获取验证码</button>
+      </div>
+      <button class="rv-submit" id="rv-submit" onclick="rvSubmit()">
+        验证并登录
+      </button>
+    </div>
+  </div>
+
 </div><!-- /phone-shell -->
+
+<!-- ══════════════ 小程序版「登录」入口（手机壳外） ══════════════ -->
+<button class="lg-mini-login-cta" onclick="openLogin()">
+  <span class="material-symbols-outlined">login</span>
+  登录
+</button>
 
 <script>
   /* ── Community data ── */
@@ -1911,6 +2381,147 @@ function togglePostMenu() {
   render();
   startTimer();
 })();
+
+  /* ── Variant Switcher（网页 / 小程序） ── */
+  function setVariant(variant) {
+    if (!['web', 'miniprogram'].includes(variant)) variant = 'web';
+    document.body.setAttribute('data-active-variant', variant);
+    document.querySelectorAll('#variantSwitcher button').forEach(b => {
+      b.classList.toggle('active', b.dataset.variant === variant);
+    });
+    try { localStorage.setItem('home-cn-variant', variant); } catch (e) {}
+  }
+  (function initVariant() {
+    let saved = 'web';
+    try { saved = localStorage.getItem('home-cn-variant') || 'web'; } catch (e) {}
+    setVariant(saved);
+  })();
+
+  /* ── 小程序版 · 登录弹窗 ── */
+  function openLogin() {
+    document.getElementById('lg-mask').classList.add('open');
+  }
+  function closeLogin(e) {
+    if (e && e.currentTarget !== e.target) return;
+    document.getElementById('lg-mask').classList.remove('open');
+  }
+  function loginAction(method) {
+    if (method === 'role') {
+      closeLogin();
+      openRoleVerify();
+      return;
+    }
+    if (method === 'wechat') {
+      openWxAuth();
+      return;
+    }
+    const labels = { password: '账号密码' };
+    alert(`使用${labels[method] || method}登录中…`);
+  }
+
+  /* ── 小程序版 · 微信授权底部弹层 ── */
+  function openWxAuth() {
+    document.getElementById('wx-mask').classList.add('open');
+  }
+  function closeWxAuth(e) {
+    if (e && e.currentTarget !== e.target) return;
+    document.getElementById('wx-mask').classList.remove('open');
+  }
+  function wxAuthAllow() {
+    closeWxAuth();
+    closeLogin();
+    alert('微信授权成功，登录中…');
+  }
+
+  /* ── 小程序版 · 角色验证登录页 ── */
+  const RV_MOCK_ROLES = {
+    '88888888': { name: '屠龙者', server: '零氪服38区' },
+    '12345678': { name: '凤凰', server: '联盟服12区' },
+    '10086':    { name: '夜狼', server: '精英服5区' },
+    '66666':    { name: '铁拳', server: 'PK服7区'  },
+  };
+  let _rvVerifiedRole = null;
+  let _rvCodeTimer = null;
+
+  function openRoleVerify() {
+    document.getElementById('rv-page').classList.add('open');
+  }
+  function closeRoleVerify() {
+    document.getElementById('rv-page').classList.remove('open');
+    rvReset();
+  }
+  function rvReset() {
+    document.getElementById('rv-role-id').value = '';
+    document.getElementById('rv-code').value = '';
+    const info = document.getElementById('rv-info');
+    info.classList.remove('show', 'rv-info--error');
+    info.textContent = '';
+    document.getElementById('rv-submit').classList.remove('active');
+    _rvVerifiedRole = null;
+    if (_rvCodeTimer) { clearInterval(_rvCodeTimer); _rvCodeTimer = null; }
+    const btn = document.getElementById('rv-getcode');
+    btn.disabled = true; btn.textContent = '获取验证码';
+    btn.classList.remove('active');
+  }
+  function rvLookupRole(id) {
+    if (RV_MOCK_ROLES[id]) return RV_MOCK_ROLES[id];
+    if (/^\d{4,}$/.test(id)) {
+      return { name: '玩家_' + id.slice(-4), server: '零氪服38区' };
+    }
+    return null;
+  }
+  function rvVerifyRoleId() {
+    const id = document.getElementById('rv-role-id').value.trim();
+    const info = document.getElementById('rv-info');
+    const btn = document.getElementById('rv-getcode');
+    if (!id) {
+      info.classList.remove('show', 'rv-info--error');
+      info.textContent = '';
+      btn.disabled = true; btn.classList.remove('active');
+      _rvVerifiedRole = null;
+      return;
+    }
+    const role = rvLookupRole(id);
+    if (!role) {
+      info.classList.add('show', 'rv-info--error');
+      info.textContent = '未找到该角色ID，请检查后重试';
+      btn.disabled = true; btn.classList.remove('active');
+      _rvVerifiedRole = null;
+      document.getElementById('rv-submit').classList.remove('active');
+      return;
+    }
+    info.classList.remove('rv-info--error');
+    info.classList.add('show');
+    info.textContent = `${id} - ${role.name} - ${role.server}`;
+    btn.disabled = false; btn.classList.add('active');
+    _rvVerifiedRole = { id, ...role };
+  }
+  function rvSendCode() {
+    if (!_rvVerifiedRole) return;
+    const btn = document.getElementById('rv-getcode');
+    let n = 60;
+    btn.disabled = true;
+    btn.classList.remove('active');
+    btn.textContent = `${n}s 后重发`;
+    _rvCodeTimer = setInterval(() => {
+      n--;
+      if (n <= 0) {
+        clearInterval(_rvCodeTimer); _rvCodeTimer = null;
+        btn.disabled = false; btn.classList.add('active');
+        btn.textContent = '重新获取';
+      } else {
+        btn.textContent = `${n}s 后重发`;
+      }
+    }, 1000);
+    document.getElementById('rv-submit').classList.add('active');
+  }
+  function rvSubmit() {
+    const code = document.getElementById('rv-code').value.trim();
+    if (!_rvVerifiedRole) { alert('请先输入并校验角色ID'); return; }
+    if (!code) { alert('请输入验证码'); return; }
+    alert(`登录成功！\n角色：${_rvVerifiedRole.name}（${_rvVerifiedRole.id}）\n区服：${_rvVerifiedRole.server}`);
+    closeRoleVerify();
+  }
 </script>
 <style>
 @keyframes enPostJellyIn {
