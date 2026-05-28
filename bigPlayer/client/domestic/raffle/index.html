@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抽奖活动 · 原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-surface-variant": "var(--on-surface-variant)",
+          "secondary-container": "var(--secondary-container)",
+          "primary": "var(--primary-en)",
+          "primary-dim": "var(--primary-dim)",
+          "surface-container-low": "var(--surface-container-low)",
+          "surface-variant": "var(--surface-variant)",
+          "outline": "var(--outline)",
+          "surface-container": "var(--surface-container)",
+          "on-secondary-container": "var(--on-secondary-container)",
+          "surface-container-lowest": "var(--surface-container-lowest)",
+          "surface-container-highest": "var(--surface-container-highest)",
+          "on-primary": "var(--on-primary)",
+          "outline-variant": "var(--outline-variant)",
+          "surface-container-high": "var(--surface-container-high)",
+          "on-surface": "var(--on-surface)",
+          "background": "var(--background-en)",
+          "inverse-primary": "var(--inverse-primary)",
+          "surface": "var(--surface-en)",
+          "surface-tint": "var(--surface-tint)",
+          "primary-container": "var(--primary-container)",
+          "on-primary-container": "var(--on-primary-container)"
+        },
+        borderRadius: {
+          DEFAULT: "1rem",
+          lg: "2rem",
+          xl: "3rem",
+          full: "9999px"
+        },
+        fontFamily: {
+          headline: ["Manrope"],
+          body: ["Inter"],
+          label: ["Inter"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  :root {
+    /* raffle 自有 token（与 post-detail-en 对齐） */
+    --primary: #0061a4;
+    --primary-deep: #00548f;
+    --primary-pastel: #d1e4ff;
+    --primary-soft: #f0f4f7;
+    --ink: #2a3439;
+    --ink-soft: #566166;
+    --ink-mute: #a9b4b9;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --divider: #e1e9ee;
+    --section-tint: #f7f9fb;
+    --warn: #b88000;
+    --danger: #e53935;
+    --success: #2e7d32;
+
+    /* post-detail-en 同款 token（首屏专用） */
+    --on-surface-variant:#566166;
+    --secondary-container:#cbe6ff;
+    --primary-en:#0061a4;
+    --primary-dim:#005590;
+    --surface-container-low:#f0f4f7;
+    --surface-variant:#d9e4ea;
+    --outline:#717c82;
+    --surface-container:#e8eff3;
+    --on-secondary-container:#0a5780;
+    --surface-container-lowest:#ffffff;
+    --surface-container-highest:#d9e4ea;
+    --on-primary:#f5f8ff;
+    --outline-variant:#a9b4b9;
+    --surface-container-high:#e1e9ee;
+    --on-surface:#2a3439;
+    --background-en:#f7f9fb;
+    --inverse-primary:#2498f5;
+    --surface-en:#f7f9fb;
+    --surface-tint:#0061a4;
+    --primary-container:#d1e4ff;
+    --on-primary-container:#00548f;
+    --thumb-on:#0061a4;
+    --like-glow:rgba(0,97,164,0.2);
+    --status-icon:#2a3439;
+    --post-title-color:#000000;
+    --header-bg:rgba(255,255,255,0.70);
+    --footer-bg:#ffffff;
+    --avatar-ring:#ffffff;
+  }
+  html, body {
+    margin: 0; padding: 0; min-height: 100vh;
+    background: #ffffff;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column;
+    align-items: center; padding: 32px 16px 48px;
+    box-sizing: border-box;
+  }
+  .page-title {
+    color: var(--ink); font-size: 13px; text-align: center;
+    letter-spacing: 0.2em; margin-bottom: 6px;
+    font-family: 'Manrope'; font-weight: 700;
+  }
+  .page-sub {
+    color: var(--ink-mute); font-size: 11px; text-align: center;
+    margin-bottom: 20px; letter-spacing: 0.05em;
+  }
+  .screen-switcher {
+    display: flex; gap: 6px; margin-bottom: 24px; flex-wrap: wrap;
+    justify-content: center; background: var(--section-tint);
+    padding: 6px; border-radius: 999px;
+    border: 1px solid var(--divider);
+  }
+  .screen-tab {
+    padding: 7px 14px; border-radius: 999px; font-size: 12px;
+    color: var(--ink-soft); cursor: pointer; border: 1px solid transparent;
+    transition: all 0.2s; font-family: 'Manrope'; font-weight: 600;
+  }
+  .screen-tab:hover { color: var(--ink); background: rgba(59,130,246,0.08); }
+  .screen-tab.active {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+
+  /* ── post-detail-en 同款样式（首屏专用） ── */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .pd-sb-icons{ color: var(--status-icon); }
+  .pd-online-dot { border-color: var(--avatar-ring); }
+  .pd-post-title { color: var(--post-title-color); }
+  .pd-follow-btn { transition: all .2s cubic-bezier(.34,1.56,.64,1); }
+  .pd-follow-btn.followed { background: rgba(42,52,57,.12) !important; color: #8a9499 !important; }
+</style>
+</head>
+<body>
+<div class="page-title">远征2年度抽奖活动 · 5 屏原型</div>
+<div class="page-sub">小红书风 · 蓝白配色 · 单页状态切换</div>
+<div id="root"></div>
+
+<script type="text/babel">
+
+/* =====================================================
+   IosFrame
+   ===================================================== */
+function IosFrame({ children, width = 340, height = 720, surface = '#f5f7fb', bare = false }) {
+  return (
+    <div style={{
+      display: 'inline-block', padding: 8, background: '#000', borderRadius: 50,
+      boxShadow: '0 0 0 2px #1f2937, 0 12px 40px rgba(15,23,42,0.18)',
+    }}>
+      <div style={{
+        position: 'relative', borderRadius: 42, overflow: 'hidden',
+        background: surface, width, height,
+      }}>
+        {!bare && (
+          <>
+            {/* Status bar */}
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, height: 44,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0 24px', zIndex: 40, pointerEvents: 'none',
+              fontFamily: 'Manrope', fontSize: 14, fontWeight: 700,
+            }}>
+              <span style={{ color: 'var(--ink)' }}>9:41</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)', letterSpacing: 1 }}>●●● ▮</span>
+            </div>
+            {/* Dynamic Island */}
+            <div style={{
+              position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+              width: 96, height: 30, background: '#000', borderRadius: 999, zIndex: 30,
+            }} />
+          </>
+        )}
+        {/* Content */}
+        <div className="no-scrollbar" style={{
+          position: 'absolute', inset: 0, paddingTop: bare ? 0 : 44,
+          overflowY: bare ? 'hidden' : 'auto',
+        }}>
+          {bare ? <div style={{ height: '100%' }}>{children}</div> : children}
+        </div>
+        {/* Dynamic Island for bare mode (画面要在岛下方) */}
+        {bare && (
+          <div style={{
+            position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+            width: 96, height: 30, background: '#000', borderRadius: 999, zIndex: 30,
+          }} />
+        )}
+        {/* Home indicator */}
+        <div style={{
+          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+          width: 110, height: 4, background: 'rgba(0,0,0,0.45)',
+          borderRadius: 999, zIndex: 50, pointerEvents: 'none',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   Icons
+   ===================================================== */
+function IconChevronLeft({ size = 22, color = 'var(--ink)' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M15 18l-6-6 6-6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconChevronDown({ size = 16, color = 'var(--ink-mute)' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M6 9l6 6 6-6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconArrowRight({ size = 14, color = '#fff' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M9 6l6 6-6 6" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconGift({ size = 18, color = '#fff' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="8" width="18" height="4" rx="1" stroke={color} strokeWidth="1.8"/>
+      <path d="M5 12v8a1 1 0 001 1h12a1 1 0 001-1v-8" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+      <path d="M12 8v13" stroke={color} strokeWidth="1.8"/>
+      <path d="M12 8s-2-4-5-4-2 4 5 4z" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/>
+      <path d="M12 8s2-4 5-4 2 4-5 4z" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconCheck({ size = 12, color = '#fff' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M5 12l5 5L20 7" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconHeart({ size = 18, color = 'var(--ink-mute)', filled = false }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'}>
+      <path d="M12 20s-7-4.5-9.5-9C1 7 4 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 3 0 6 3 4.5 7-2.5 4.5-9.5 9-9.5 9z"
+        stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconComment({ size = 18, color = 'var(--ink-mute)' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M21 12a8 8 0 01-12 6.93L4 20l1.07-5A8 8 0 1121 12z"
+        stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconMore({ size = 18, color = 'var(--ink-mute)' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="5" cy="12" r="1.5" fill={color}/>
+      <circle cx="12" cy="12" r="1.5" fill={color}/>
+      <circle cx="19" cy="12" r="1.5" fill={color}/>
+    </svg>
+  );
+}
+function IconBadgeOfficial({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 2l2.5 2.5L18 4l1 3.5L22 9l-1.5 3L22 15l-3 1.5L18 20l-3.5-.5L12 22l-2.5-2.5L6 20l-1-3.5L2 15l1.5-3L2 9l3-1.5L6 4l3.5.5z"
+        fill="var(--primary)" stroke="#fff" strokeWidth="0.8"/>
+      <path d="M8 12l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  );
+}
+
+/* =====================================================
+   Shared: 印章
+   ===================================================== */
+function Stamp({ text1, text2, color = 'var(--primary)', size = 110, rotate = -8 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" style={{ transform: `rotate(${rotate}deg)`, display: 'block', margin: '0 auto' }}>
+      <defs>
+        <filter id={`stamp-blur-${text1}`}><feGaussianBlur stdDeviation="0.3"/></filter>
+      </defs>
+      <g filter={`url(#stamp-blur-${text1})`} opacity="0.92">
+        <circle cx="60" cy="60" r="54" stroke={color} strokeWidth="3" fill="none"/>
+        <circle cx="60" cy="60" r="47" stroke={color} strokeWidth="1" fill="none" opacity="0.55"/>
+        {[0, 72, 144, 216, 288].map((deg, i) => {
+          const rad = (deg - 90) * Math.PI / 180;
+          const x = 60 + Math.cos(rad) * 38;
+          const y = 60 + Math.sin(rad) * 38;
+          return <text key={i} x={x} y={y + 3} fontSize="9" fill={color}
+            textAnchor="middle" opacity="0.75" fontFamily="Manrope" fontWeight="900">★</text>;
+        })}
+        <text x="60" y="56" fontSize="17" fontWeight="900" fill={color}
+          textAnchor="middle" letterSpacing="3" fontFamily="Manrope">{text1}</text>
+        <text x="60" y="78" fontSize="17" fontWeight="900" fill={color}
+          textAnchor="middle" letterSpacing="3" fontFamily="Manrope">{text2}</text>
+      </g>
+    </svg>
+  );
+}
+
+/* =====================================================
+   Shared: NavBar (post-detail-en 同款)
+   ===================================================== */
+function NavBar({ title, onBack, right }) {
+  return (
+    <header className="backdrop-blur-2xl flex items-center px-4 py-3 z-50"
+      style={{ flexShrink: 0, background: 'var(--header-bg)' }}>
+      <span
+        onClick={onBack}
+        className="material-symbols-outlined text-on-surface cursor-pointer flex-shrink-0"
+        style={{ width: 28 }}>
+        arrow_back
+      </span>
+      <span className="flex-1 text-center font-bold text-on-surface"
+        style={{ fontFamily: 'Manrope', fontSize: 16 }}>
+        {title}
+      </span>
+      <div style={{ width: 28, display: 'flex', justifyContent: 'flex-end' }}>
+        {right}
+      </div>
+    </header>
+  );
+}
+
+/* =====================================================
+   Shared: DetailShell — 详情屏统一外壳（状态栏 + 顶部 nav）
+   ===================================================== */
+function DetailShell({ title, onBack, children, footer }) {
+  return (
+    <div className="flex flex-col" style={{ height: '100%', background: 'var(--background-en)' }}>
+      {/* Status bar */}
+      <div className="flex items-center justify-between px-6 pt-4" style={{ height: 54, flexShrink: 0 }}>
+        <span className="text-[15px] font-semibold tracking-tight text-on-surface">9:41</span>
+        <div className="pd-sb-icons flex items-center gap-1.5">
+          <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="10" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="currentColor"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="currentColor" strokeWidth="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="currentColor"/></svg>
+        </div>
+      </div>
+
+      <NavBar title={title} onBack={onBack}/>
+
+      <div className="no-scrollbar flex-1" style={{ minHeight: 0, overflowY: 'auto' }}>
+        {children}
+        <div style={{ height: 16 }}/>
+      </div>
+
+      {footer}
+    </div>
+  );
+}
+
+/* =====================================================
+   Shared: PostCard（活动主体 — post-detail-en 风格）
+   ===================================================== */
+function PostCard() {
+  return (
+    <section className="px-6 py-4">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-full flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #e8a87c, #c0392b)' }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-on-surface truncate">远征2</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
+              style={{ background: 'rgba(0,97,164,0.10)', color: 'var(--primary-en)' }}>官方</span>
+          </div>
+          <div className="text-[10px] text-on-surface-variant mt-0.5">01-16 15:55</div>
+        </div>
+      </div>
+
+      <div className="pd-post-title font-bold tracking-wide text-xl mb-2"
+        style={{ fontFamily: 'Manrope, sans-serif' }}>
+        🎉 远征2年度抽奖活动
+      </div>
+      <p className="text-[13px] leading-relaxed text-on-surface mb-3">
+        关注作者、点赞帖子，并评论带上
+        <span style={{ color: 'var(--primary-en)', fontWeight: 700 }}> #远征2牛逼 </span>
+        关键词即可参与 2 月 5 日抽奖
+      </p>
+
+      <div className="rounded-lg overflow-hidden bg-surface-container"
+        style={{ aspectRatio: '16/9' }}>
+        <div className="w-full h-full flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg, #e1e9ee 0%, #d9e4ea 100%)' }}>
+          <svg width="56" height="44" viewBox="0 0 24 20" fill="none">
+            <rect x="2" y="2" width="20" height="16" rx="2" stroke="#a9b4b9" strokeWidth="1.2"/>
+            <path d="M2 14l5-4 4 3 5-5 6 6" stroke="#a9b4b9" strokeWidth="1.2" strokeLinejoin="round"/>
+            <circle cx="8" cy="7" r="1.5" stroke="#a9b4b9" strokeWidth="1.2"/>
+          </svg>
+        </div>
+      </div>
+
+      <div className="mt-3 flex">
+        <span className="text-xs font-bold px-4 py-1.5 rounded-full"
+          style={{ background: 'var(--primary-container)', color: 'var(--on-primary-container)' }}>
+          #远征2牛逼
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/* =====================================================
+   Shared: PrizeInfoCard — post-detail-en 同款卡片语言
+   ===================================================== */
+function PrizeInfoCard({ status }) {
+  const statusConfig = {
+    pending: {
+      text: '未开奖',
+      style: { color: '#b88000', background: '#ffedd5' },
+    },
+    drawn: {
+      text: '已开奖',
+      style: { color: 'var(--on-secondary-container)', background: 'var(--secondary-container)' },
+    },
+  };
+  const s = statusConfig[status];
+
+  return (
+    <section className="mx-6 mb-4 rounded-lg overflow-hidden"
+      style={{ background: 'var(--surface-container-lowest)', boxShadow: '0 1px 6px rgba(42,52,57,0.07)' }}>
+      <div className="flex items-center justify-between px-4 py-3"
+        style={{ borderBottom: '1px dashed var(--surface-variant)' }}>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{
+              width: 40, height: 40,
+              background: 'linear-gradient(135deg, var(--primary-en), var(--primary-dim))',
+            }}>
+            <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: 22 }}>card_giftcard</span>
+          </div>
+          <div>
+            <div className="text-[10px] text-on-surface-variant">本期奖品</div>
+            <div className="text-[15px] font-bold text-on-surface" style={{ fontFamily: 'Manrope' }}>抱枕 × 1</div>
+          </div>
+        </div>
+        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+          style={{ ...s.style, fontFamily: 'Manrope' }}>
+          {s.text}
+        </span>
+      </div>
+
+      <div className="px-4 py-3 space-y-2.5">
+        {[
+          ['中奖人数', '10 人'],
+          ['参与条件', '点赞创作、关注 @mlekkj & @马克菠萝'],
+          ['活动截止', '2024-02-05'],
+          ['活动说明', '活动相关问题均与本公司无关，活动相关问题均与本公司无关'],
+        ].map(([label, val]) => (
+          <div key={label} className="flex gap-3 text-[13px]">
+            <span className="flex-shrink-0 text-on-surface-variant" style={{ width: 64 }}>{label}</span>
+            <span className="flex-1 text-on-surface" style={{ lineHeight: 1.6 }}>{val}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* =====================================================
+   Shared: WinnerList — post-detail-en 同款评论行风格
+   ===================================================== */
+function WinnerList() {
+  const winners = [
+    { name: '季娜宇',         lv: 'LV6', color: 'linear-gradient(135deg, #a29bfe, #6c5ce7)' },
+    { name: '放养岛小天使',   lv: 'LV4', color: 'linear-gradient(135deg, #fbbf24, #f59e0b)' },
+  ];
+  return (
+    <section className="mx-6 mb-4 rounded-lg"
+      style={{ background: 'var(--surface-container-lowest)', boxShadow: '0 1px 6px rgba(42,52,57,0.07)' }}>
+      <div className="flex items-baseline gap-2 px-4 pt-3 pb-2">
+        <span className="text-base font-bold text-on-surface" style={{ fontFamily: 'Manrope' }}>中奖名单</span>
+        <span className="text-[12px] text-on-surface-variant">共 {winners.length} 人</span>
+      </div>
+      <div className="px-2 pb-2">
+        {winners.map((u, i) => (
+          <div key={u.name}
+            className="flex items-center gap-3 px-2 py-2.5 rounded-md"
+            style={{ borderTop: i === 0 ? 'none' : '1px solid var(--surface-variant)' }}>
+            <div className="relative flex-shrink-0">
+              <div className="w-10 h-10 rounded-full" style={{ background: u.color }} />
+              <div className="absolute -right-0.5 -bottom-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                style={{ background: 'var(--primary-en)', border: '2px solid #fff' }}>
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold text-on-surface truncate">{u.name}</span>
+                <span className="text-[9px] font-bold" style={{ color: 'var(--primary-dim)' }}>{u.lv}</span>
+              </div>
+              <div className="text-[10px] text-on-surface-variant mt-0.5">已中奖 · 等待发货</div>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: 18 }}>chevron_right</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* =====================================================
+   屏 1 · 帖子详情页（入口） — 抄 post-detail-en.html
+   ===================================================== */
+function ScreenPost({ navigate }) {
+  const [liked, setLiked] = React.useState(false);
+  const [followed, setFollowed] = React.useState(false);
+  const [count, setCount] = React.useState(13215);
+
+  const onLike = () => {
+    setLiked(!liked);
+    setCount(c => liked ? c - 1 : c + 1);
+  };
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%', background: 'var(--background-en)', position: 'relative' }}>
+      {/* Status bar */}
+      <div className="flex items-center justify-between px-6 pt-4" style={{ height: 54, flexShrink: 0 }}>
+        <span className="text-[15px] font-semibold tracking-tight text-on-surface">9:41</span>
+        <div className="pd-sb-icons flex items-center gap-1.5">
+          <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="10" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="currentColor"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="currentColor" strokeWidth="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="currentColor"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="currentColor"/></svg>
+        </div>
+      </div>
+
+      {/* Header */}
+      <header className="backdrop-blur-2xl flex justify-between items-center px-4 py-3 z-50"
+        style={{ flexShrink: 0, background: 'var(--header-bg)' }}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className="material-symbols-outlined text-on-surface cursor-pointer flex-shrink-0">arrow_back</span>
+          <div className="relative flex-shrink-0">
+            <div className="w-10 h-10 rounded-full"
+              style={{ background: 'linear-gradient(135deg, #e8a87c, #c0392b)' }} />
+            <div className="pd-online-dot absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 rounded-full"
+              style={{ background: 'var(--primary-en)' }}></div>
+          </div>
+          <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold text-on-surface truncate">远征2</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
+                style={{ background: 'rgba(0,97,164,0.10)', color: 'var(--primary-en)' }}>官方</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-on-surface-variant flex-shrink-0">01-16 15:55</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+          <button
+            onClick={() => setFollowed(f => !f)}
+            className={`pd-follow-btn px-3 py-1.5 rounded-full text-xs font-bold ${followed ? 'followed' : ''}`}
+            style={{ background: 'var(--secondary-container)', color: 'var(--on-secondary-container)' }}>
+            {followed ? '✓ 已关注' : '+ 关注'}
+          </button>
+          <span className="material-symbols-outlined text-on-surface cursor-pointer">more_horiz</span>
+        </div>
+      </header>
+
+      {/* Scrollable content */}
+      <div className="no-scrollbar flex-1" style={{ minHeight: 0, overflowY: 'auto' }}>
+
+        {/* Post title + body */}
+        <section className="px-6 mb-4 pt-4">
+          <div className="rounded-lg mb-3">
+            <span className="pd-post-title font-bold tracking-wide text-2xl"
+              style={{ fontFamily: 'Manrope, sans-serif' }}>
+              🎉 远征2年度抽奖活动
+            </span>
+          </div>
+          <p className="text-[15px] leading-relaxed text-on-surface font-medium mb-5">
+            关注作者、点赞帖子，并评论带上
+            <span style={{ color: 'var(--primary-en)', fontWeight: 700 }}> #远征2牛逼 </span>
+            关键词即可参与 2 月 5 日抽奖，抽 2 个抱枕！
+          </p>
+          <div className="relative rounded-lg overflow-hidden shadow-sm bg-surface-container"
+            style={{ aspectRatio: '4/3' }}>
+            <div style={{
+              width: '100%', height: '100%',
+              background: 'linear-gradient(135deg, #e1e9ee 0%, #d9e4ea 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="80" height="64" viewBox="0 0 24 20" fill="none">
+                <rect x="2" y="2" width="20" height="16" rx="2" stroke="#a9b4b9" strokeWidth="1.2"/>
+                <path d="M2 14l5-4 4 3 5-5 6 6" stroke="#a9b4b9" strokeWidth="1.2" strokeLinejoin="round"/>
+                <circle cx="8" cy="7" r="1.5" stroke="#a9b4b9" strokeWidth="1.2"/>
+              </svg>
+            </div>
+          </div>
+          <div className="mt-3 flex">
+            <span className="text-xs font-bold px-4 py-1.5 rounded-full"
+              style={{ background: 'var(--primary-container)', color: 'var(--on-primary-container)' }}>
+              #远征2牛逼
+            </span>
+          </div>
+        </section>
+
+        {/* 抽奖入口卡片 — 抄 post-detail-en 的样式语言 */}
+        <section className="px-6 mb-4">
+          <div
+            onClick={() => navigate('detail-pending')}
+            className="rounded-lg overflow-hidden cursor-pointer"
+            style={{
+              background: 'linear-gradient(135deg, var(--primary-en) 0%, var(--primary-dim) 100%)',
+              boxShadow: '0 6px 20px rgba(0,97,164,0.25)',
+              padding: '14px 16px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              position: 'relative',
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: -30, right: -20, width: 100, height: 100,
+              background: 'radial-gradient(circle, rgba(255,255,255,0.18), transparent 70%)',
+              pointerEvents: 'none',
+            }}/>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: 'rgba(255,255,255,0.18)', display: 'grid', placeItems: 'center',
+              flexShrink: 0,
+            }}>
+              <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: 24 }}>card_giftcard</span>
+            </div>
+            <div style={{ flex: 1, color: '#fff', position: 'relative' }}>
+              <div style={{ fontFamily: 'Manrope', fontSize: 12, opacity: 0.85 }}>本期奖品</div>
+              <div style={{ fontFamily: 'Manrope', fontSize: 16, fontWeight: 800, marginTop: 2 }}>
+                抱枕 × 1 · 共 10 名
+              </div>
+            </div>
+            <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: 22 }}>chevron_right</span>
+          </div>
+        </section>
+
+        {/* Interaction area — 抄原版的点赞按钮 */}
+        <section className="flex flex-col items-center justify-center py-6 gap-2 mx-6"
+          style={{ borderBottom: '1px solid rgba(217,228,234,0.4)' }}>
+          <button
+            onClick={onLike}
+            style={{
+              width: 64, height: 64, borderRadius: '50%', cursor: 'pointer',
+              background: liked
+                ? 'linear-gradient(135deg,#e8f4ff 0%,#d1e9ff 100%)'
+                : 'linear-gradient(135deg,#fff5f0 0%,#ffe4d6 100%)',
+              border: liked ? '1.5px solid #7ab8f5' : '1.5px solid #ffb89a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              outline: 'none',
+              boxShadow: liked
+                ? '0 2px 12px rgba(0,97,164,0.20)'
+                : '0 2px 8px rgba(255,107,72,0.18)',
+              transition: 'background 0.3s, box-shadow 0.3s',
+            }}>
+            <svg viewBox="0 0 24 24" style={{
+              width: 28, height: 28,
+              transform: liked ? 'scale(1.18) rotate(-10deg)' : 'scale(1)',
+              transition: 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+            }}>
+              <path
+                fill={liked ? 'var(--thumb-on)' : '#ff7043'}
+                d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/>
+            </svg>
+          </button>
+          <span className="text-sm font-bold text-on-surface"
+            style={{ color: liked ? 'var(--primary-en)' : undefined, transition: 'color 0.3s' }}>
+            {count.toLocaleString()}
+          </span>
+        </section>
+
+        {/* Comments section — 抄原版结构 */}
+        <section className="px-6 py-5">
+          <div className="flex justify-between items-center mb-3 pb-3"
+            style={{ borderBottom: '1px solid rgba(217,228,234,0.4)' }}>
+            <h2 className="text-lg font-bold text-on-surface" style={{ fontFamily: 'Manrope, sans-serif' }}>全部评论</h2>
+            <button style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px', borderRadius: 999, border: 'none',
+              background: 'transparent', fontSize: 12, fontWeight: 600,
+              color: 'var(--on-surface-variant)', cursor: 'pointer',
+            }}>
+              默认
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>expand_more</span>
+            </button>
+          </div>
+
+          {/* Comment 1 */}
+          <div className="flex gap-3">
+            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)' }} />
+            <div className="flex-1 pb-4" style={{ borderBottom: '1px solid rgba(217,228,234,0.25)' }}>
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-xs font-bold text-on-surface">哈哈哈哈</span>
+                <span className="text-[9px] font-bold" style={{ color: 'var(--primary-dim)' }}>LV6</span>
+                <span className="text-[10px] text-on-surface-variant ml-2">01-17 15:55</span>
+                <span className="material-symbols-outlined text-lg cursor-pointer text-on-surface-variant ml-auto">more_vert</span>
+              </div>
+              <div className="flex justify-between items-center mb-3">
+                <p className="text-sm text-on-surface">远征2牛逼！！我要抽抱枕！</p>
+                <span className="text-[10px] font-medium text-on-surface-variant">10F</span>
+              </div>
+              <div className="bg-surface-container-low rounded p-3 mb-3 text-xs space-y-2">
+                <p>
+                  <span style={{ color: 'var(--primary-en)', fontWeight: 600 }}>watermelon</span>
+                  ：新职业确实有点意思啊
+                </p>
+                <p>
+                  <span style={{ color: 'var(--primary-en)', fontWeight: 600 }}>齐缕琳琳</span>
+                  ：国战是好玩了！
+                </p>
+                <p>
+                  <span style={{ color: 'var(--primary-en)', fontWeight: 600 }}>watermelon</span>
+                  &nbsp;回复&nbsp;
+                  <span style={{ color: 'var(--primary-en)', fontWeight: 600 }}>齐缕琳琳</span>
+                  ：这个国战的装备好难爆啊。
+                </p>
+                <div className="pt-1">
+                  <a className="font-bold flex items-center gap-0.5"
+                    style={{ color: 'var(--primary-en)' }}>
+                    共 9 条回复
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>chevron_right</span>
+                  </a>
+                </div>
+              </div>
+              <div className="flex justify-end gap-6 text-on-surface-variant">
+                <div className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-lg">chat_bubble</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-lg">thumb_up</span>
+                  <span className="text-xs">187</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div style={{ height: 16 }}/>
+      </div>
+
+      {/* Bottom Input Bar */}
+      <footer className="border-t shadow-lg px-3 py-1.5 flex z-50 items-center flex-shrink-0"
+        style={{ background: 'var(--footer-bg)', borderColor: 'rgba(217,228,234,0.4)', paddingBottom: 14 }}>
+        <div className="flex items-center w-full gap-3 px-1">
+          <div className="flex-1 flex items-center bg-surface-container rounded-full px-3 py-1.5 gap-2 text-on-surface-variant min-w-0">
+            <span className="material-symbols-outlined text-lg flex-shrink-0">edit</span>
+            <span className="text-sm flex-1 truncate">添加评论...</span>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className="material-symbols-outlined text-lg cursor-pointer">mood</span>
+              <span className="material-symbols-outlined text-lg cursor-pointer">image</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 pl-2 text-on-surface-variant flex-shrink-0">
+            <div className="flex flex-col items-center cursor-pointer" onClick={onLike}>
+              <span className="material-symbols-outlined text-2xl"
+                style={{ color: liked ? 'var(--primary-en)' : undefined }}>thumb_up</span>
+              <span className="text-[10px] font-bold"
+                style={{ color: liked ? 'var(--primary-en)' : undefined }}>
+                {count > 999 ? Math.floor(count/1000) + 'k' : count}
+              </span>
+            </div>
+            <div className="flex flex-col items-center cursor-pointer">
+              <span className="material-symbols-outlined text-2xl">star</span>
+              <span className="text-[10px] font-bold">收藏</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+/* =====================================================
+   屏 2 · 抽奖详情 · 未开奖（参与中）
+   ===================================================== */
+function ScreenDetailPending({ navigate }) {
+  return (
+    <DetailShell title="抽奖详情" onBack={() => navigate('post')}>
+      {/* 状态提示 banner */}
+      <section className="mx-6 mt-3 mb-4 rounded-lg flex items-center gap-3 px-4 py-3"
+        style={{ background: '#ffedd5', border: '1px solid rgba(184,128,0,0.18)' }}>
+        <div className="rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.7)' }}>
+          <span className="material-symbols-outlined" style={{ color: '#b88000', fontSize: 22 }}>schedule</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-bold" style={{ color: '#b88000' }}>活动进行中</div>
+          <div className="text-[11px] mt-0.5" style={{ color: 'var(--on-surface-variant)' }}>
+            将于 2024-02-05 开奖，请耐心等待
+          </div>
+        </div>
+      </section>
+
+      <PostCard/>
+      <PrizeInfoCard status="pending"/>
+
+      {/* 我的参与状态 */}
+      <section className="mx-6 mb-4 rounded-lg px-4 py-3"
+        style={{ background: 'var(--surface-container-lowest)', boxShadow: '0 1px 6px rgba(42,52,57,0.07)' }}>
+        <div className="text-base font-bold text-on-surface mb-2" style={{ fontFamily: 'Manrope' }}>我的参与</div>
+        <div className="space-y-2">
+          {[
+            ['已关注作者', true],
+            ['已点赞帖子', true],
+            ['已评论关键词', false],
+          ].map(([txt, ok]) => (
+            <div key={txt} className="flex items-center gap-2 text-[13px]">
+              <span className="material-symbols-outlined" style={{
+                fontSize: 18,
+                color: ok ? 'var(--state-success, #2e7d32)' : 'var(--on-surface-variant)',
+              }}>
+                {ok ? 'check_circle' : 'radio_button_unchecked'}
+              </span>
+              <span style={{ color: ok ? 'var(--on-surface)' : 'var(--on-surface-variant)' }}>{txt}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </DetailShell>
+  );
+}
+
+/* =====================================================
+   屏 3 · 抽奖详情 · 未中奖
+   ===================================================== */
+function ScreenDetailLost({ navigate }) {
+  return (
+    <DetailShell title="抽奖详情" onBack={() => navigate('post')}>
+      {/* HERO 未中奖印章 */}
+      <section className="mx-6 mt-3 mb-4 rounded-lg overflow-hidden text-center"
+        style={{
+          background: 'var(--surface-container-lowest)',
+          padding: '24px 18px 22px',
+          boxShadow: '0 1px 6px rgba(42,52,57,0.07)',
+          position: 'relative',
+        }}>
+        <Stamp text1="未抽" text2="未中" color="var(--outline)" size={108} rotate={-9}/>
+        <div className="font-bold text-on-surface mt-1 tracking-wide"
+          style={{ fontFamily: 'Manrope', fontSize: 18 }}>
+          很遗憾，差一点点运气～
+        </div>
+        <div className="text-[12px] mt-2" style={{ color: 'var(--on-surface-variant)', lineHeight: 1.6 }}>
+          感谢参与本期活动<br/>下次再来试试运气吧
+        </div>
+      </section>
+
+      <PostCard/>
+      <PrizeInfoCard status="drawn"/>
+      <WinnerList/>
+    </DetailShell>
+  );
+}
+
+/* =====================================================
+   屏 4 · 抽奖详情 · 已中奖
+   ===================================================== */
+function ScreenDetailWon({ navigate }) {
+  return (
+    <DetailShell title="抽奖详情" onBack={() => navigate('post')}>
+      {/* HERO 中奖印章 + CTA */}
+      <section className="mx-6 mt-3 mb-4 rounded-lg overflow-hidden text-center"
+        style={{
+          background: 'var(--surface-container-lowest)',
+          padding: '24px 18px 22px',
+          boxShadow: '0 1px 6px rgba(42,52,57,0.07)',
+          position: 'relative',
+        }}>
+        {/* 装饰光晕 */}
+        <div style={{
+          position: 'absolute', top: -40, left: '50%', transform: 'translateX(-50%)',
+          width: 200, height: 100,
+          background: 'radial-gradient(ellipse, rgba(0,97,164,0.12), transparent 70%)',
+          pointerEvents: 'none',
+        }}/>
+        <div style={{ position: 'relative' }}>
+          <Stamp text1="恭喜" text2="中奖" color="var(--primary-en)" size={112}/>
+          <div className="font-bold text-on-surface mt-1 tracking-wide"
+            style={{ fontFamily: 'Manrope', fontSize: 19 }}>
+            恭喜你抽中啦 🎈
+          </div>
+          <div className="text-[12px] mt-2 mb-4" style={{ color: 'var(--on-surface-variant)', lineHeight: 1.6 }}>
+            填写收货信息后<br/>抱枕将寄到家门口～
+          </div>
+          <button
+            onClick={() => navigate('address')}
+            className="inline-flex items-center gap-1.5 rounded-full font-bold cursor-pointer"
+            style={{
+              background: 'var(--primary-en)', color: '#fff',
+              fontFamily: 'Manrope', fontSize: 14,
+              border: 'none', padding: '11px 28px',
+              boxShadow: '0 6px 18px rgba(0,97,164,0.30)',
+            }}>
+            前往确认收货信息
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
+          </button>
+        </div>
+      </section>
+
+      <PostCard/>
+      <PrizeInfoCard status="drawn"/>
+      <WinnerList/>
+    </DetailShell>
+  );
+}
+
+/* =====================================================
+   屏 5 · 角色信息确认
+   ===================================================== */
+function ScreenAddress({ navigate }) {
+  const [confirmed, setConfirmed] = React.useState(false);
+  return (
+    <DetailShell title="角色信息确认" onBack={() => navigate('detail-won')}>
+      {/* 奖品信息小卡片 */}
+      <section className="mx-6 mt-3 mb-4 rounded-lg px-4 py-3 flex items-center gap-3"
+        style={{ background: 'var(--surface-container-lowest)', boxShadow: '0 1px 6px rgba(42,52,57,0.07)' }}>
+        <div className="rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{
+            width: 40, height: 40,
+            background: 'linear-gradient(135deg, var(--primary-en), var(--primary-dim))',
+          }}>
+          <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: 22 }}>card_giftcard</span>
+        </div>
+        <div className="flex-1">
+          <div className="text-[10px]" style={{ color: 'var(--on-surface-variant)' }}>你获得的奖品</div>
+          <div className="text-[15px] font-bold text-on-surface" style={{ fontFamily: 'Manrope' }}>
+            抱枕 × 1
+          </div>
+        </div>
+      </section>
+
+      {/* 角色选择 */}
+      <section className="mx-6 mb-4 rounded-lg px-4 py-4"
+        style={{ background: 'var(--surface-container-lowest)', boxShadow: '0 1px 6px rgba(42,52,57,0.07)' }}>
+        <div className="flex items-center mb-3">
+          <span className="text-[14px] font-bold text-on-surface" style={{ fontFamily: 'Manrope' }}>
+            接受角色
+          </span>
+          <span className="ml-1" style={{ color: 'var(--error)' }}>*</span>
+        </div>
+
+        <div className="rounded-lg px-4 py-3 flex items-center cursor-pointer"
+          style={{
+            background: 'var(--surface-container-low)',
+            border: '1px solid var(--surface-variant)',
+          }}>
+          <div className="flex-1">
+            <div className="text-[15px] font-bold text-on-surface" style={{ fontFamily: 'Manrope' }}>
+              武帝无敌
+            </div>
+            <div className="text-[11px] mt-0.5" style={{ color: 'var(--on-surface-variant)' }}>
+              斗罗一区
+            </div>
+          </div>
+          <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)' }}>expand_more</span>
+        </div>
+
+        {/* hint */}
+        <div className="rounded-lg px-3 py-2.5 flex items-start gap-2 mt-4"
+          style={{ background: 'var(--surface-container-low)' }}>
+          <span className="material-symbols-outlined flex-shrink-0"
+            style={{ color: 'var(--primary-en)', fontSize: 18, marginTop: 1 }}>info</span>
+          <div className="text-[12px]" style={{ color: 'var(--on-surface-variant)', lineHeight: 1.65 }}>
+            请仔细确认角色信息，确认后将自动到账并寄送奖品。
+          </div>
+        </div>
+      </section>
+
+      {/* 提交按钮 */}
+      <section className="mx-6 mb-4">
+        <button
+          onClick={() => { setConfirmed(true); setTimeout(() => navigate('post'), 1200); }}
+          className="w-full rounded-full font-bold cursor-pointer"
+          style={{
+            background: confirmed ? 'var(--state-success, #2e7d32)' : 'var(--primary-en)',
+            color: '#fff', fontFamily: 'Manrope', fontSize: 15,
+            border: 'none', padding: '13px 0', letterSpacing: 2,
+            boxShadow: '0 6px 18px rgba(0,97,164,0.25)',
+            transition: 'background 0.2s',
+          }}>
+          {confirmed ? '✓ 已提交' : '确 定'}
+        </button>
+      </section>
+    </DetailShell>
+  );
+}
+
+/* =====================================================
+   App + Screen switcher
+   ===================================================== */
+const SCREENS = [
+  { id: 'post',              label: '帖子详情',     Comp: ScreenPost },
+  { id: 'detail-pending',    label: '未开奖',       Comp: ScreenDetailPending },
+  { id: 'detail-lost',       label: '未中奖',       Comp: ScreenDetailLost },
+  { id: 'detail-won',        label: '已中奖',       Comp: ScreenDetailWon },
+  { id: 'address',           label: '角色确认',     Comp: ScreenAddress },
+];
+
+function App() {
+  const [current, setCurrent] = React.useState('post');
+  const ScreenComp = SCREENS.find(s => s.id === current).Comp;
+
+  return (
+    <div>
+      <div className="screen-switcher">
+        {SCREENS.map(s => (
+          <div
+            key={s.id}
+            className={`screen-tab ${current === s.id ? 'active' : ''}`}
+            onClick={() => setCurrent(s.id)}
+          >{s.label}</div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <IosFrame width={340} height={720} surface="var(--bg)" bare={true}>
+          <ScreenComp navigate={setCurrent} />
+        </IosFrame>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
