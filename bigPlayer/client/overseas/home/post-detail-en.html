@@ -96,6 +96,7 @@
     --football-like-ball:url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
     --counter-active:#0061a4;
     --bar-active:#0061a4;
+    --save-active:#e54864;
     --error:#e53935;
     --state-success:#2e7d32;
     --state-online:#4caf50;
@@ -161,6 +162,7 @@
     --thumb-on:#4493f8;
     --counter-active:#4493f8;
     --bar-active:#4493f8;
+    --save-active:#ff6b86;
     --error:#f87171;
     --state-success:#4caf50;
     --state-online:#4caf50;
@@ -457,6 +459,15 @@
     opacity: 0;
     transform: scale(.5) rotate(-18deg);
   }
+  .mini-football-like.is-classic-liked::before {
+    opacity: 0;
+  }
+  .mini-football-like.is-classic-liked .mini-football-like__icon {
+    opacity: 1;
+    transform: none;
+    color: var(--primary);
+    font-variation-settings: 'FILL' 1, 'wght' 650, 'GRAD' 0, 'opsz' 24;
+  }
   .mini-football-like.is-playing::before {
     animation: mini-football-like-pop .62s cubic-bezier(.2,.9,.24,1) both;
   }
@@ -479,11 +490,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 1px;
-    min-width: 28px;
-    min-height: 40px;
+    justify-content: flex-start;
+    gap: 0;
+    min-width: 24px;
+    min-height: 47px;
     font-weight: 700;
+    line-height: 1.5;
+  }
+  .mini-football-like--stack .mini-football-like__icon {
+    line-height: 32px;
+  }
+  .mini-football-like--stack .mini-football-like-count {
+    line-height: 15px;
   }
   .mini-football-like--stack::before {
     left: 50%;
@@ -497,6 +515,93 @@
   }
   .mini-football-like--stack.is-playing::before {
     animation: mini-football-like-pop-stack .62s cubic-bezier(.2,.9,.24,1) both;
+  }
+  .bar-action {
+    position: relative;
+    overflow: visible;
+  }
+  .bar-action.is-bar-action-playing .mini-football-like__icon,
+  .bar-action.is-bar-action-playing .bar-save-icon {
+    animation: bar-action-soft-bounce .62s cubic-bezier(.22,1.35,.34,1) both;
+  }
+  .bar-action.is-bar-action-playing .mini-football-like-count,
+  .bar-action.is-bar-action-playing .bar-save-label {
+    animation: bar-action-label-bounce .62s cubic-bezier(.22,1.35,.34,1) both;
+  }
+  .bar-save-control {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    min-width: 24px;
+    min-height: 47px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--on-surface-variant);
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.5;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .18s, transform .18s;
+  }
+  .bar-save-control:active { transform: scale(.96); }
+  .bar-save-icon {
+    position: relative;
+    z-index: 1;
+    line-height: 32px;
+    transition: transform .18s ease, color .18s ease, font-variation-settings .18s ease;
+  }
+  .bar-save-label {
+    position: relative;
+    z-index: 1;
+    line-height: 15px;
+    transition: color .18s ease, transform .18s ease;
+  }
+  .bar-save-control.is-saved {
+    color: var(--save-active);
+  }
+  .bar-save-control.is-saved .bar-save-icon {
+    font-variation-settings: 'FILL' 1, 'wght' 650, 'GRAD' 0, 'opsz' 24;
+  }
+  .bar-action-burst {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    z-index: 4;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+  .bar-action-particle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0;
+    transform: translate(-50%, -50%);
+    animation: bar-action-particle-pop .58s ease-out forwards;
+  }
+  .bar-action-float {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    z-index: 5;
+    color: currentColor;
+    font-size: 12px;
+    font-weight: 900;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    text-shadow: 0 2px 8px rgba(0,0,0,.14);
+    animation: bar-action-float-up .74s ease-out forwards;
   }
   @keyframes mini-football-like-pop {
     0%   { opacity: 0; transform: translateY(-50%) scale(.2) rotate(-90deg); }
@@ -514,6 +619,27 @@
     0%   { opacity: 0; transform: translate(-3px,-50%) scale(.82); }
     25%  { opacity: 1; transform: translate(0,-50%) scale(1.08); }
     100% { opacity: 0; transform: translate(12px,-50%) scale(.96); }
+  }
+  @keyframes bar-action-soft-bounce {
+    0% { transform: translateY(0) scale(.84); }
+    30% { transform: translateY(-7px) scale(1.18); }
+    58% { transform: translateY(1px) scale(.98); }
+    78% { transform: translateY(-2px) scale(1.04); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  @keyframes bar-action-label-bounce {
+    0%, 100% { transform: translateY(0); }
+    42% { transform: translateY(1px); }
+  }
+  @keyframes bar-action-particle-pop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+    16% { opacity: 1; }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(.85); }
+  }
+  @keyframes bar-action-float-up {
+    0% { opacity: 0; transform: translate(-50%, 3px) scale(.86); }
+    18% { opacity: 1; transform: translate(-50%, -3px) scale(1.08); }
+    100% { opacity: 0; transform: translate(-50%, -24px) scale(.98); }
   }
   .like-effect-tabs {
     position: fixed;
@@ -734,8 +860,11 @@
     function setMiniFootballLikeState(el, liked, options){
       if(!el) return;
       options=options||{};
+      var classicMode=options.mode==='classic';
       if(el._miniLikeTimer) window.clearTimeout(el._miniLikeTimer);
+      if(!liked) clearBarActionFeedback(el);
       el.classList.toggle('is-liked',!!liked);
+      el.classList.toggle('is-classic-liked',!!liked&&classicMode);
       if(typeof options.count!=='undefined'){
         el.setAttribute('data-count',options.count);
         var countEl=el.querySelector('.mini-football-like-count');
@@ -744,12 +873,46 @@
       if(options.play&&liked){
         el.classList.remove('is-playing');
         void el.offsetWidth;
-        el.classList.add('is-playing');
-        spawnMiniFootballLikePlusOne(el);
+        if(!classicMode) el.classList.add('is-playing');
+        if(el.classList.contains('mini-football-like--stack')){
+          playBarActionFeedback(el,'+1',true);
+        } else {
+          spawnMiniFootballLikePlusOne(el);
+        }
         el._miniLikeTimer=window.setTimeout(function(){ el.classList.remove('is-playing'); },720);
       } else {
         el.classList.remove('is-playing');
       }
+    }
+    function clearBarActionFeedback(el){
+      if(!el) return;
+      if(el._barActionTimer) window.clearTimeout(el._barActionTimer);
+      el.classList.remove('is-bar-action-playing');
+      el.querySelectorAll('.bar-action-float,.bar-action-burst').forEach(function(node){ node.remove(); });
+    }
+    function playBarActionFeedback(el,text,withParticles){
+      if(!el) return;
+      clearBarActionFeedback(el);
+      el.classList.add('is-bar-action-playing');
+      var pop=document.createElement('span');
+      pop.className='bar-action-float';
+      pop.textContent=text;
+      el.appendChild(pop);
+      if(withParticles){
+        var burst=document.createElement('span');
+        burst.className='bar-action-burst';
+        var points=[[-15,-9],[-7,-17],[8,-16],[16,-7],[12,10],[-12,10]];
+        points.forEach(function(point,index){
+          var dot=document.createElement('span');
+          dot.className='bar-action-particle';
+          dot.style.setProperty('--x',point[0]+'px');
+          dot.style.setProperty('--y',point[1]+'px');
+          dot.style.animationDelay=(index*18)+'ms';
+          burst.appendChild(dot);
+        });
+        el.appendChild(burst);
+      }
+      el._barActionTimer=window.setTimeout(function(){ clearBarActionFeedback(el); },820);
     }
     function spawnMiniFootballLikePlusOne(el){
       var pop=document.createElement('span');
@@ -769,7 +932,7 @@
       setMiniFootballLikeState(el,liked,{count:n,play:liked});
     }
     (function(){
-      var liked=false, count=515;
+      var liked=false, saved=false, count=515;
       var likeSettleTimer=null;
       var footballStageTimer=null;
       var likeEffectMode='football';
@@ -799,7 +962,7 @@
         counter.textContent=count;
         var barCount=document.getElementById('barLikeCount');
         if(barCount){ barCount.style.color=''; barCount.textContent=count; }
-        setMiniFootballLikeState(document.getElementById('barLikeControl'),false,{count:count});
+        setMiniFootballLikeState(document.getElementById('barLikeControl'),false,{count:count,mode:likeEffectMode});
       }
 
       window.setLikeEffectMode=function(mode){
@@ -861,7 +1024,21 @@
         var barCount=document.getElementById('barLikeCount');
         if(barCount) barCount.textContent=count;
         var barLikeControl=document.getElementById('barLikeControl');
-        setMiniFootballLikeState(barLikeControl,liked,{count:count,play:liked&&source===barLikeControl});
+        setMiniFootballLikeState(barLikeControl,liked,{count:count,play:liked&&source===barLikeControl,mode:likeEffectMode});
+      };
+
+      window.handleSave=function(ev,source){
+        if(ev) ev.stopPropagation();
+        var saveControl=source||document.getElementById('barSaveControl');
+        if(!saveControl) return;
+        saved=!saved;
+        saveControl.classList.toggle('is-saved',saved);
+        saveControl.setAttribute('aria-pressed',saved?'true':'false');
+        if(saved){
+          playBarActionFeedback(saveControl,'Saved',true);
+        } else {
+          clearBarActionFeedback(saveControl);
+        }
       };
 
       function centerWithin(stage,el){
@@ -1120,14 +1297,14 @@
           <span class="material-symbols-outlined text-2xl">chat_bubble</span>
           <span class="text-[10px] font-bold">12</span>
         </div>
-        <button id="barLikeControl" class="mini-football-like mini-football-like--stack" type="button" data-count="515" onclick="handleLike(event,this)">
+        <button id="barLikeControl" class="bar-action mini-football-like mini-football-like--stack" type="button" data-count="515" onclick="handleLike(event,this)">
           <span id="barLikeIcon" class="mini-football-like__icon material-symbols-outlined text-2xl">thumb_up</span>
           <span id="barLikeCount" class="mini-football-like-count text-[10px] font-bold">515</span>
         </button>
-        <div class="flex flex-col items-center cursor-pointer">
-          <span class="material-symbols-outlined text-2xl">star</span>
-          <span class="text-[10px] font-bold">Save</span>
-        </div>
+        <button id="barSaveControl" class="bar-action bar-save-control" type="button" aria-pressed="false" onclick="handleSave(event,this)">
+          <span id="barSaveIcon" class="bar-save-icon material-symbols-outlined text-2xl">star</span>
+          <span class="bar-save-label text-[10px] font-bold">Save</span>
+        </button>
       </div>
     </div>
   </footer>
