@@ -894,10 +894,12 @@
       if(!el) return;
       clearBarActionFeedback(el);
       el.classList.add('is-bar-action-playing');
-      var pop=document.createElement('span');
-      pop.className='bar-action-float';
-      pop.textContent=text;
-      el.appendChild(pop);
+      if(text){
+        var pop=document.createElement('span');
+        pop.className='bar-action-float';
+        pop.textContent=text;
+        el.appendChild(pop);
+      }
       if(withParticles){
         var burst=document.createElement('span');
         burst.className='bar-action-burst';
@@ -1035,7 +1037,7 @@
         saveControl.classList.toggle('is-saved',saved);
         saveControl.setAttribute('aria-pressed',saved?'true':'false');
         if(saved){
-          playBarActionFeedback(saveControl,'Saved',true);
+          playBarActionFeedback(saveControl,'',true);
         } else {
           clearBarActionFeedback(saveControl);
         }
