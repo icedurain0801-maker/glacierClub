@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>消息通知 · 大玩家</title>
-<link rel="stylesheet" href="../../shared/sidebar.css">
+<link rel="stylesheet" href="../../../shared/sidebar.css">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -163,7 +163,7 @@ tailwind.config = {
 </head>
 <body class="bg-[#f0f4f8] font-body text-on-surface flex justify-center items-start">
 
-<nav id="sidebar" class="sidebar hidden"></nav>
+<nav id="sidebar" class="sidebar"></nav>
 
 <div class="phone-shell my-5 rounded-lg shadow-[2px_0_16px_rgba(0,0,0,0.10)] overflow-hidden bg-surface sticky top-5 self-start">
 <div class="phone-inner bg-surface">
@@ -885,6 +885,14 @@ function toggleLike(btn) {
 
 // 初始化赞列表
 renderLikesList('like');
+</script>
+<script src="../../../shared/sidebar-data.js"></script>
+<script src="../../../shared/sidebar.js"></script>
+<script>
+  initSidebar({
+    root: '../../..',
+    currentHref: 'client/domestic/home/notifications.html'
+  });
 </script>
 </body>
 </html>
