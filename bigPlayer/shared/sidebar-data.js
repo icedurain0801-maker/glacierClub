@@ -34,13 +34,7 @@ const SIDEBAR_DATA = [
           {
             type: 'item',
             label: '首页',
-            href: 'client-new/home_src.html'
-          },
-          {
-            type: 'item',
-            label: '搜索结果页',
-            version: 'v1.0.0',
-            href: 'client/home/search-results.html'
+            href: 'client/domestic/home/home.html'
           }
         ]
       },
@@ -66,48 +60,48 @@ const SIDEBAR_DATA = [
                 type: 'dir',
                 label: '徽章墙',
                 version: 'v3.0.9',
-                href: 'client-new/badge_src.html',
+                href: 'client/domestic/profile/badge.html',
                 children: [
                   {
                     type: 'item',
                     label: '徽章墙',
                     version: 'v3.0.9',
-                    href: 'client-new/badge_src.html',
+                    href: 'client/domestic/profile/badge.html',
                     screenId: 's1'
                   },
                   {
                     type: 'item',
                     label: '我的徽章',
                     version: 'v3.0.9',
-                    href: 'client-new/badge_src.html',
+                    href: 'client/domestic/profile/badge.html',
                     screenId: 's2'
                   },
                   {
                     type: 'item',
                     label: '设置徽章展示',
                     version: 'v3.0.9',
-                    href: 'client-new/badge_src.html',
+                    href: 'client/domestic/profile/badge.html',
                     screenId: 's3'
                   },
                   {
                     type: 'item',
                     label: '徽章详情',
                     version: 'v3.0.9',
-                    href: 'client-new/badge_src.html',
+                    href: 'client/domestic/profile/badge.html',
                     screenId: 's4'
                   },
                   {
                     type: 'item',
                     label: '徽章获得通知',
                     version: 'v3.0.9',
-                    href: 'client-new/badge_src.html',
+                    href: 'client/domestic/profile/badge.html',
                     screenId: 's5'
                   },
                   {
                     type: 'item',
                     label: '角色信息确认',
                     version: 'v3.0.9',
-                    href: 'client-new/badge_src.html',
+                    href: 'client/domestic/profile/badge.html',
                     screenId: 's6'
                   }
                 ]
@@ -193,7 +187,14 @@ const SIDEBAR_DATA = [
       {
         type: 'dir',
         label: '数据分析',
-        children: []
+        children: [
+          {
+            type: 'item',
+            label: '用户数据分析',
+            version: 'v3.1.1',
+            href: 'admin/analytics/UserDataAnalysis.html'
+          }
+        ]
       },
       {
         type: 'dir',
