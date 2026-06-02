@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDK 登录 · 弹性第三方排版</title>
+<!--
+  Design Canvas · 3 variants × 3 channel counts (1/2/3)
+  ─────────────────────────────────────────────────────
+  · 同一种排版思路要适配 1~3 个第三方
+  · 1 个时不空，3 个时不挤
+  · 横向：3 种排版思路；纵向：1/2/3 个渠道
+-->
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
+<style>
+  html, body {
+    margin: 0; padding: 0; min-height: 100vh;
+    background: radial-gradient(ellipse at center, #1a1f2e 0%, #06070d 70%);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 24px 16px 48px;
+    box-sizing: border-box;
+  }
+  .canvas-title {
+    color: #d8e4ff; font-size: 14px; text-align: center;
+    letter-spacing: 0.2em; margin-bottom: 8px; opacity: 0.8;
+  }
+  .canvas-sub {
+    color: #6c7488; font-size: 11px; text-align: center;
+    margin-bottom: 28px; letter-spacing: 0.05em;
+  }
+  /* 横向：3 个方案；纵向：1/2/3 渠道；两轮分两组渲染 */
+  .matrix {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 28px 24px;
+    justify-content: center;
+    align-items: start;
+    margin-bottom: 40px;
+  }
+  .round-title {
+    color: #e8eeff;
+    font-size: 13px;
+    text-align: center;
+    letter-spacing: 0.15em;
+    margin: 12px 0 18px;
+    opacity: 0.6;
+  }
+  .round-title::before, .round-title::after {
+    content: '─────';
+    margin: 0 14px;
+    opacity: 0.4;
+  }
+  .col-title {
+    color: #f0f4ff; font-size: 14px; text-align: center;
+    font-weight: 500; letter-spacing: 0.04em;
+    grid-row: 1;
+  }
+  .col-title small {
+    display: block; color: #6c7488; font-size: 11px;
+    margin-top: 4px; font-weight: 400; letter-spacing: 0;
+  }
+  .row-label {
+    color: #a8b3cc; font-size: 11px; text-align: center;
+    margin-bottom: 8px; letter-spacing: 0.1em;
+  }
+  .cell { display: flex; flex-direction: column; align-items: center; }
+</style>
+</head>
+<body>
+<div class="canvas-title">SDK 登录 · 弹性第三方排版（6 方案全对比）</div>
+<div class="canvas-sub">A/B/C 第一轮 · D/E/F 第二轮 · 每个方案 ×（1/2/3）渠道</div>
+<div id="root"></div>
+
+<script type="text/babel">
+
+/* ============ IosFrame ============ */
+const iosFrameStyles = {
+  wrapper: {
+    display: 'inline-block', padding: 8, background: '#000', borderRadius: 44,
+    boxShadow: '0 0 0 2px #1f2937, 0 16px 50px rgba(0,0,0,0.45)',
+  },
+  screen: { position: 'relative', borderRadius: 36, overflow: 'hidden', background: '#000' },
+  homeIndicator: {
+    position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+    width: 110, height: 4, background: 'rgba(255,255,255,0.55)',
+    borderRadius: 999, zIndex: 50,
+  },
+};
+function IosFrame({ children, width = 320, height = 580 }) {
+  return (
+    <div style={iosFrameStyles.wrapper}>
+      <div style={{ ...iosFrameStyles.screen, width, height }}>
+        <div style={{ position: 'absolute', inset: 0 }}>{children}</div>
+        <div style={iosFrameStyles.homeIndicator} />
+      </div>
+    </div>
+  );
+}
+
+const tokens = {
+  modalBg: '#fff', modalRadius: 6,
+  modalShadow: '0 14px 36px rgba(0,0,0,.32)',
+  ink: '#222', inkSoft: '#4a4a4a',
+  supportBlue: '#0e9df4',
+  legal: 'rgba(229,215,196,.6)',
+  ageGold: '#d6b86a', ageText: '#78d5ff', ageSub: '#f2d486',
+};
+
+/* ============ 渠道库（按需取前 N 个） ============ */
+const ALL_PROVIDERS = [
+  { id: 'wechat', name: '微信',   color: '#44b96b' },
+  { id: 'qq',     name: 'QQ',     color: '#1296db' },
+  { id: 'taptap', name: 'TapTap', color: '#04baa6' },
+];
+
+/* ============ 渠道图标 SVG ============ */
+function ProviderGlyph({ id, size = 22, color = '#fff' }) {
+  if (id === 'wechat') return (
+    <svg width={size} height={size * 0.85} viewBox="0 0 42 36" fill="none">
+      <ellipse cx="16" cy="14" rx="13" ry="10" fill={color}/>
+      <path d="M6 22 L4 27 L9 24 Z" fill={color}/>
+      <circle cx="12" cy="12" r="1.5" fill="#44b96b"/>
+      <circle cx="20" cy="12" r="1.5" fill="#44b96b"/>
+      <ellipse cx="28" cy="22" rx="11" ry="8.5" fill={color}/>
+      <path d="M35 28 L37 32 L33 30 Z" fill={color}/>
+      <circle cx="24" cy="20" r="1.2" fill="#44b96b"/>
+      <circle cx="31" cy="20" r="1.2" fill="#44b96b"/>
+    </svg>
+  );
+  if (id === 'qq') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M12 2C7.5 2 5.4 5.5 5.4 8.5c0 1.6.6 3 1.4 4-.4 1.4-1.2 2.6-1.6 3.2-.3.5.1.9.6.7l2.8-1c1 .5 2.2.8 3.4.8s2.4-.3 3.4-.8l2.8 1c.5.2.9-.2.6-.7-.4-.6-1.2-1.8-1.6-3.2.8-1 1.4-2.4 1.4-4C18.6 5.5 16.5 2 12 2zm-2.6 6.5c.5 0 .9.5.9 1.1s-.4 1.1-.9 1.1c-.5 0-.9-.5-.9-1.1s.4-1.1.9-1.1zm5.2 0c.5 0 .9.5.9 1.1s-.4 1.1-.9 1.1c-.5 0-.9-.5-.9-1.1s.4-1.1.9-1.1z"/>
+    </svg>
+  );
+  if (id === 'taptap') return (
+    <svg width={size} height={size} viewBox="0 0 40 40">
+      <g fill={color}>
+        {/* 左眼 */}
+        <ellipse cx="14" cy="18" rx="5" ry="6"/>
+        <ellipse cx="14" cy="20" rx="2.4" ry="2.8" fill="#fff"/>
+        {/* 右眼 */}
+        <ellipse cx="26" cy="18" rx="5" ry="6"/>
+        <ellipse cx="26" cy="20" rx="2.4" ry="2.8" fill="#fff"/>
+        {/* 微笑 */}
+        <path d="M12 28 Q 20 33 28 28" stroke={color} strokeWidth="2.4" fill="none" strokeLinecap="round"/>
+      </g>
+    </svg>
+  );
+  return null;
+}
+
+/* ============ 共用元素 ============ */
+function GameBg() {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
+      background: `
+        radial-gradient(ellipse 80% 55% at 50% 18%, #1b3554 0%, transparent 60%),
+        radial-gradient(ellipse 70% 55% at 50% 52%, #3b2068 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 50% 80%, #1d2d5c 0%, transparent 60%),
+        linear-gradient(180deg, #0b1730 0%, #142342 36%, #101633 68%, #071124 100%)
+      `,
+    }}>
+      <div style={{
+        position: 'absolute', left: '50%', top: '32%',
+        transform: 'translate(-50%, -50%)',
+        width: 170, height: 290,
+        background: `
+          radial-gradient(ellipse 60% 25% at 50% 20%, rgba(126,246,234,.5), transparent 70%),
+          radial-gradient(ellipse 70% 50% at 50% 45%, rgba(178,88,210,.4), transparent 70%),
+          radial-gradient(ellipse 80% 50% at 50% 75%, rgba(60,40,140,.5), transparent 70%)
+        `,
+        filter: 'blur(24px)', opacity: .8,
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: `
+          linear-gradient(180deg, rgba(2,8,18,.22), rgba(2,8,18,.06) 44%, rgba(2,8,18,.78)),
+          radial-gradient(ellipse at center, transparent 38%, rgba(3,8,20,.7) 100%)
+        `,
+      }} />
+    </div>
+  );
+}
+
+function Feedback() {
+  return (
+    <div style={{
+      position: 'absolute', top: 22, left: 11, zIndex: 4,
+      color: 'rgba(220,240,255,.95)', fontSize: 11, lineHeight: 1.1,
+      textShadow: '0 2px 8px rgba(0,0,0,.5)',
+    }}>
+      <div style={{
+        width: 16, height: 14, marginBottom: 3,
+        border: '2px solid rgba(220,244,255,.98)', borderRadius: 3,
+        position: 'relative', boxShadow: '0 0 8px rgba(50,196,255,.55)',
+      }}>
+        <span style={{
+          position: 'absolute', left: 3, bottom: -5,
+          borderWidth: '5px 4px 0 0', borderStyle: 'solid',
+          borderColor: 'rgba(220,244,255,.98) transparent transparent transparent',
+          width: 0, height: 0, display: 'block',
+        }} />
+      </div>
+      <div>反馈</div>
+    </div>
+  );
+}
+
+function AgeBadge() {
+  return (
+    <div style={{
+      position: 'absolute', top: 18, right: 14, zIndex: 4,
+      width: 32, height: 40,
+      border: `2px solid ${tokens.ageGold}`, borderRadius: 3,
+      background: 'linear-gradient(180deg, rgba(20,46,82,.72), rgba(8,20,42,.78))',
+      color: tokens.ageText, fontWeight: 800, fontSize: 12, lineHeight: '14px',
+      textAlign: 'center', paddingTop: 1, boxShadow: '0 0 0 1px rgba(0,0,0,.4)',
+    }}>
+      12+
+      <span style={{ display: 'block', color: tokens.ageSub, fontSize: 6, lineHeight: '8px', fontWeight: 700, marginTop: 1 }}>CAIPA</span>
+      <span style={{ display: 'block', color: tokens.ageSub, fontSize: 6, lineHeight: '8px', fontWeight: 700, marginTop: 1 }}>适龄提示</span>
+    </div>
+  );
+}
+
+function CloseBtn() {
+  return (
+    <button aria-label="关闭" style={{
+      position: 'absolute', top: 8, right: 12,
+      width: 22, height: 22, background: 'transparent', border: 0, cursor: 'pointer',
+    }}>
+      {[45, -45].map(deg => (
+        <span key={deg} style={{
+          position: 'absolute', left: 10, top: 0, width: 2, height: 22,
+          background: '#9a9a9a', borderRadius: 2, transform: `rotate(${deg}deg)`, display: 'block',
+        }} />
+      ))}
+    </button>
+  );
+}
+
+function Agreement() {
+  const [agreed, setAgreed] = React.useState(false);
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', gap: 4,
+      position: 'absolute', left: 6, right: 4, bottom: 12,
+      color: tokens.inkSoft, fontSize: 10, lineHeight: '14px', whiteSpace: 'nowrap',
+    }}>
+      <span onClick={() => setAgreed(!agreed)} style={{
+        width: 12, height: 12, border: '1px solid #9aa1a9', borderRadius: 1,
+        flex: '0 0 auto', marginTop: 1, display: 'grid', placeItems: 'center',
+        cursor: 'pointer',
+        background: agreed ? tokens.supportBlue : 'transparent',
+        borderColor: agreed ? tokens.supportBlue : '#9aa1a9',
+      }}>
+        {agreed && <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
+          <path d="M2 6.5L5 9L10 3.5" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>}
+      </span>
+      <span>已阅读并同意
+        <a style={{ color: '#333' }}>《用户协议》</a>
+        <a style={{ color: '#333' }}>《隐私政策》</a>
+      </span>
+    </div>
+  );
+}
+
+function SupportCorner() {
+  return (
+    <div style={{
+      position: 'absolute', right: 0, bottom: 0, width: 34, height: 32,
+      background: `linear-gradient(135deg, transparent 0 49%, ${tokens.supportBlue} 50% 100%)`,
+      borderBottomRightRadius: tokens.modalRadius, cursor: 'pointer',
+    }}>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+           style={{ position: 'absolute', right: 3, bottom: 2 }}>
+        <path d="M5 12a7 7 0 0 1 14 0" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+        <path d="M4 12v4a2 2 0 0 0 2 2h1v-7H6a2 2 0 0 0-2 2Z" fill="#fff"/>
+        <path d="M20 12v4a2 2 0 0 1-2 2h-1v-7h1a2 2 0 0 1 2 2Z" fill="#fff"/>
+        <path d="M14 20h2.5A2.5 2.5 0 0 0 19 17.5" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    </div>
+  );
+}
+
+function LegalText() {
+  return (
+    <div style={{
+      position: 'absolute', left: 14, right: 14, bottom: 8, zIndex: 4,
+      color: tokens.legal, fontSize: 8, lineHeight: '12px', textAlign: 'center',
+      textShadow: '0 1px 3px rgba(0,0,0,.6)',
+    }}>
+      <p>抵制不良游戏&nbsp;&nbsp;拒绝盗版游戏&nbsp;&nbsp;注意自我保护</p>
+      <p>适度游戏益脑&nbsp;&nbsp;沉迷游戏伤身&nbsp;&nbsp;合理安排时间</p>
+      <p>批准文号：国新出审[2021]811号</p>
+    </div>
+  );
+}
+
+/* ============ 账号 / 手机 主入口（带 withAccount 时的核心） ============ */
+function AccountMethods() {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      margin: '4px 24px 22px',
+    }}>
+      <div style={{ textAlign: 'center', cursor: 'pointer' }}>
+        <div style={{
+          width: 44, height: 44, margin: '0 auto 8px',
+          border: '2px solid #168ed9', borderRadius: '50%',
+          color: '#168ed9', display: 'grid', placeItems: 'center',
+        }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.7"/>
+            <path d="M4.8 20c1.25-4.1 3.6-6.15 7.2-6.15S17.95 15.9 19.2 20"
+                  stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 13, color: '#222', fontWeight: 500 }}>账号</div>
+      </div>
+      <div style={{ textAlign: 'center', cursor: 'pointer' }}>
+        <div style={{
+          width: 36, height: 44, margin: '0 auto 8px',
+          border: '2px solid #168ed9', borderRadius: 8,
+          color: '#168ed9', display: 'grid', placeItems: 'center',
+        }}>
+          <svg width="18" height="22" viewBox="0 0 18 24" fill="none">
+            <rect x="4" y="2" width="10" height="20" rx="2" stroke="currentColor" strokeWidth="1.6"/>
+            <circle cx="9" cy="18.5" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 13, color: '#222', fontWeight: 500 }}>手机</div>
+      </div>
+    </div>
+  );
+}
+
+/* 第三方小图标条（withAccount 时统一退化形态） */
+function ThirdPartyDots({ providers }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 22,
+    }}>
+      {providers.map(p => (
+        <div key={p.id} style={{
+          width: 28, height: 28, borderRadius: '50%',
+          background: p.color, display: 'grid', placeItems: 'center',
+          cursor: 'pointer',
+        }}>
+          <ProviderGlyph id={p.id} size={15} color="#fff" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* 「第三方登录」分隔条（带 withAccount 时使用） */
+function ThirdPartyDivider() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      margin: '0 14px 12px', color: '#999', fontSize: 11,
+    }}>
+      <span style={{ height: 1, flex: 1, background: '#e5e5e5' }} />
+      第三方登录
+      <span style={{ height: 1, flex: 1, background: '#e5e5e5' }} />
+    </div>
+  );
+}
+
+/* ====================================================
+ * 方案 A · 主推按钮 + 次级图标
+ * 第 1 个 = 全宽主按钮（任何数量都不空）
+ * 第 2~3 个 = 下方圆圈次级按钮，自动居中分布
+ * 单个时也是一个完整的 CTA，不会显得空
+ * ==================================================== */
+function VariantA_PrimaryFallback({ providers, withAccount }) {
+  const [primary, ...rest] = providers;
+  const big = !withAccount;
+
+  if (withAccount) {
+    return (
+      <section style={{
+        position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+        background: tokens.modalBg, borderRadius: tokens.modalRadius,
+        boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+      }}>
+        <CloseBtn />
+        <AccountMethods />
+        <ThirdPartyDivider />
+        <div style={{
+          display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 22,
+        }}>
+          {providers.map(p => (
+            <div key={p.id} style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: p.color, display: 'grid', placeItems: 'center',
+              cursor: 'pointer',
+            }}>
+              <ProviderGlyph id={p.id} size={15} color="#fff" />
+            </div>
+          ))}
+        </div>
+        <Agreement />
+        <SupportCorner />
+      </section>
+    );
+  }
+
+  return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <div style={{
+        textAlign: 'center', color: '#666', fontSize: 11,
+        marginBottom: 14, letterSpacing: 1,
+      }}>欢迎登录</div>
+
+      <button style={{
+        width: '100%', height: 46, border: 0, borderRadius: 23,
+        background: primary.color, color: '#fff',
+        fontSize: 15, fontWeight: 500,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        cursor: 'pointer', marginBottom: rest.length > 0 ? 14 : 32,
+        boxShadow: `0 3px 10px ${primary.color}55`,
+      }}>
+        <ProviderGlyph id={primary.id} size={20} color="#fff" />
+        <span>{primary.name}一键登录</span>
+      </button>
+
+      {rest.length > 0 && (
+        <>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            margin: '0 0 12px', color: '#aaa', fontSize: 10, justifyContent: 'center',
+          }}>
+            <span style={{ height: 1, flex: 1, background: '#e5e5e5' }} />
+            其它登录方式
+            <span style={{ height: 1, flex: 1, background: '#e5e5e5' }} />
+          </div>
+          <div style={{
+            display: 'flex', justifyContent: 'center', gap: 22, marginBottom: 18,
+          }}>
+            {rest.map(p => (
+              <div key={p.id} style={{
+                width: 30, height: 30, borderRadius: '50%',
+                border: `1px solid ${p.color}`, display: 'grid', placeItems: 'center',
+                cursor: 'pointer',
+              }}>
+                <ProviderGlyph id={p.id} size={15} color={p.color} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+}
+
+/* ====================================================
+ * 方案 B · 全宽按钮列表
+ * 每个渠道都是全宽按钮，自上而下排列
+ * 1 个时只有一行；多个时变成清晰的列表
+ * 视觉权重均等、不分主次
+ * ==================================================== */
+function VariantB_StackedButtons({ providers, withAccount }) {
+  if (withAccount) return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <AccountMethods />
+      <ThirdPartyDivider />
+      <ThirdPartyDots providers={providers} />
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+  return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <div style={{
+        textAlign: 'center', color: '#666', fontSize: 11,
+        marginBottom: 16, letterSpacing: 1,
+      }}>第三方账号登录</div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 22, alignItems: 'center' }}>
+        {providers.map(p => (
+          <button key={p.id} style={{
+            height: 46,
+            border: 0, borderRadius: 4,
+            background: 'transparent', color: '#333',
+            display: 'inline-flex', alignItems: 'center', gap: 12,
+            padding: '0 8px', fontSize: 15, fontWeight: 500, cursor: 'pointer',
+          }}>
+            <span style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: p.color, display: 'grid', placeItems: 'center',
+            }}>
+              <ProviderGlyph id={p.id} size={18} color="#fff" />
+            </span>
+            <span>{p.name}登录</span>
+          </button>
+        ))}
+      </div>
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+}
+
+/* ====================================================
+ * 方案 C · 居中图标网格
+ * N 个圆形 icon 居中排列（gap 自适应）
+ * 1 个 → icon 加大成 hero；2~3 个 → 缩小并排
+ * 用尺寸差异保证 1 个时也有视觉重量
+ * ==================================================== */
+function VariantC_CenteredGrid({ providers, withAccount }) {
+  if (withAccount) return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <AccountMethods />
+      <ThirdPartyDivider />
+      <ThirdPartyDots providers={providers} />
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+  const isSingle = providers.length === 1;
+  const iconSize = isSingle ? 64 : 52;
+  const glyphSize = isSingle ? 32 : 26;
+  return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      {withAccount && <AccountMethods />}
+      <div style={{
+        textAlign: 'center', color: '#666', fontSize: 11,
+        marginBottom: isSingle ? 22 : 18, letterSpacing: 1,
+      }}>{isSingle ? `欢迎使用${providers[0].name}登录` : '选择登录方式'}</div>
+
+      <div style={{
+        display: 'flex', justifyContent: 'center',
+        gap: providers.length === 2 ? 36 : 24,
+        marginBottom: 24,
+      }}>
+        {providers.map(p => (
+          <div key={p.id} style={{ textAlign: 'center', cursor: 'pointer' }}>
+            <div style={{
+              width: iconSize, height: iconSize, borderRadius: '50%',
+              background: p.color, display: 'grid', placeItems: 'center',
+              margin: '0 auto 6px',
+              boxShadow: `0 3px 10px ${p.color}40`,
+            }}>
+              <ProviderGlyph id={p.id} size={glyphSize} color="#fff" />
+            </div>
+            <div style={{ fontSize: isSingle ? 12 : 11, color: '#555' }}>{p.name}</div>
+          </div>
+        ))}
+      </div>
+
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+}
+
+/* ====================================================
+ * 方案 D · 全宽彩色按钮列表
+ * 每个渠道都是带品牌色填充的胶囊按钮，垂直堆叠
+ * 视觉最重 · 转化导向 · 类似 Notion / Slack 登录
+ * ==================================================== */
+function VariantD_FullColorButtons({ providers, withAccount }) {
+  if (withAccount) return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <AccountMethods />
+      <ThirdPartyDivider />
+      <ThirdPartyDots providers={providers} />
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+  return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <div style={{
+        textAlign: 'center', color: '#666', fontSize: 11,
+        marginBottom: 16, letterSpacing: 1,
+      }}>选择登录方式</div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 22 }}>
+        {providers.map(p => (
+          <button key={p.id} style={{
+            width: '100%', height: 44,
+            border: 0, borderRadius: 22,
+            background: p.color, color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+            fontSize: 14, fontWeight: 500, cursor: 'pointer',
+            boxShadow: `0 2px 8px ${p.color}50`,
+          }}>
+            <ProviderGlyph id={p.id} size={18} color="#fff" />
+            <span>{p.name}登录</span>
+          </button>
+        ))}
+      </div>
+
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+}
+
+/* ====================================================
+ * 方案 E · 卡片网格
+ * 每个渠道是独立小卡片：上 icon + 下名字，带浅阴影
+ * 比 C 更有"可点击"暗示，比 D 更克制
+ * ==================================================== */
+function VariantE_CardGrid({ providers, withAccount }) {
+  if (withAccount) return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <AccountMethods />
+      <ThirdPartyDivider />
+      <ThirdPartyDots providers={providers} />
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+  const isSingle = providers.length === 1;
+  const big = true;
+  return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      {withAccount && <AccountMethods />}
+      <div style={{
+        textAlign: 'center', color: '#666', fontSize: 11,
+        marginBottom: 14, letterSpacing: 1,
+      }}>登录账号</div>
+
+      <div style={{
+        display: 'flex', justifyContent: 'center',
+        gap: big ? 12 : 10, marginBottom: 24,
+      }}>
+        {providers.map(p => (
+          <div key={p.id} style={{
+            flex: isSingle ? '0 0 60%' : 1,
+            maxWidth: big ? 110 : 90,
+            padding: big ? '18px 8px' : '12px 8px',
+            background: '#fff',
+            border: '1px solid #ececec',
+            borderRadius: 6,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: big ? 8 : 6,
+            cursor: 'pointer',
+          }}>
+            <div style={{
+              width: big ? 42 : 30, height: big ? 42 : 30, borderRadius: '50%',
+              background: p.color, display: 'grid', placeItems: 'center',
+            }}>
+              <ProviderGlyph id={p.id} size={big ? 22 : 16} color="#fff" />
+            </div>
+            <div style={{ fontSize: big ? 13 : 11, color: '#444' }}>{p.name}</div>
+          </div>
+        ))}
+      </div>
+
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+}
+
+/* ====================================================
+ * 方案 F · iOS 风极简文字链
+ * 仅 icon + 文字，不带任何容器/背景/描边
+ * 之间用浅色细分隔线
+ * 最克制 · 类似系统设置项
+ * ==================================================== */
+function VariantF_TextLinks({ providers, withAccount }) {
+  if (withAccount) return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <AccountMethods />
+      <ThirdPartyDivider />
+      <ThirdPartyDots providers={providers} />
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+  const big = true;
+  return (
+    <section style={{
+      position: 'absolute', left: 28, right: 28, top: 180, zIndex: 5,
+      background: tokens.modalBg, borderRadius: tokens.modalRadius,
+      boxShadow: tokens.modalShadow, padding: '26px 14px 0', minHeight: 220,
+    }}>
+      <CloseBtn />
+      <div style={{
+        textAlign: 'center', color: '#666', fontSize: 11,
+        marginBottom: 8, letterSpacing: 1,
+      }}>第三方账号登录</div>
+
+      <div style={{ marginBottom: 18 }}>
+        {providers.map((p, i) => (
+          <div key={p.id} style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: big ? '16px 6px' : '12px 6px',
+            borderTop: i === 0 ? 'none' : '1px solid #eee',
+            cursor: 'pointer',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: big ? 12 : 10 }}>
+              <span style={{
+                width: big ? 32 : 24, height: big ? 32 : 24, borderRadius: '50%',
+                background: p.color, display: 'grid', placeItems: 'center',
+              }}>
+                <ProviderGlyph id={p.id} size={big ? 17 : 13} color="#fff" />
+              </span>
+              <span style={{ fontSize: big ? 14 : 12, color: '#222' }}>{p.name}登录</span>
+            </div>
+            <svg width={big ? 12 : 10} height={big ? 12 : 10} viewBox="0 0 12 12" fill="none">
+              <path d="M4 2L8 6L4 10" stroke="#bbb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        ))}
+      </div>
+
+      <Agreement />
+      <SupportCorner />
+    </section>
+  );
+}
+
+/* ============ 屏幕容器 ============ */
+function Screen({ Variant, providers, withAccount }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0 }}>
+      <GameBg />
+      <Feedback />
+      <AgeBadge />
+      <Variant providers={providers} withAccount={withAccount} />
+      <LegalText />
+    </div>
+  );
+}
+
+/* ============ Matrix Canvas ============ */
+function App() {
+  const round1 = [
+    { label: 'A · 主推按钮 + 次级', sub: '第 1 个全宽 CTA · 余下次级', Comp: VariantA_PrimaryFallback },
+    { label: 'B · 文字+图标列表',  sub: '无底色 · 居中堆叠',          Comp: VariantB_StackedButtons },
+    { label: 'C · 居中图标网格',    sub: '1 个时图标加大 hero',        Comp: VariantC_CenteredGrid },
+  ];
+  const round2 = [
+    { label: 'D · 全宽彩色按钮', sub: '品牌色填充胶囊 · 最重',    Comp: VariantD_FullColorButtons },
+    { label: 'E · 卡片网格',     sub: '小卡片 + 浅阴影',           Comp: VariantE_CardGrid },
+    { label: 'F · iOS 风文字链', sub: '分隔线 + 右箭头 · 最克制', Comp: VariantF_TextLinks },
+  ];
+  const rowConfigs = [
+    { n: 1, withAccount: false, label: '1 个第三方' },
+    { n: 2, withAccount: false, label: '2 个第三方' },
+    { n: 3, withAccount: false, label: '3 个第三方' },
+    { n: 1, withAccount: true,  label: '账号+手机+1个' },
+    { n: 2, withAccount: true,  label: '账号+手机+2个' },
+    { n: 3, withAccount: true,  label: '账号+手机+3个' },
+  ];
+
+  const renderGroup = (variants, title) => (
+    <>
+      <div className="round-title">{title}</div>
+      <div className="matrix">
+        {variants.map(v => (
+          <div key={'title-' + v.label} className="col-title">
+            {v.label}<small>{v.sub}</small>
+          </div>
+        ))}
+        {rowConfigs.map(cfg => (
+          variants.map(v => (
+            <div key={v.label + '-' + cfg.label} className="cell">
+              <div className="row-label">{cfg.label}</div>
+              <IosFrame width={320} height={580}>
+                <Screen Variant={v.Comp}
+                        providers={ALL_PROVIDERS.slice(0, cfg.n)}
+                        withAccount={cfg.withAccount} />
+              </IosFrame>
+            </div>
+          ))
+        ))}
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {renderGroup(round1, '第一轮 · A / B / C')}
+      {renderGroup(round2, '第二轮 · D / E / F')}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
