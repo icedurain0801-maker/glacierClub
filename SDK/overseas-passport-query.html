@@ -414,6 +414,8 @@ button,input,select{font:inherit}
   align-items:center;
   justify-content:space-between;
 }
+select.ctrl{-webkit-appearance:none;appearance:none;outline:none;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,#c8ced6 50%),linear-gradient(135deg,#c8ced6 50%,transparent 50%);background-position:calc(100% - 14px) 13px,calc(100% - 9px) 13px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:28px}
+select.ctrl:focus{border-color:#168cff}
 .ctrl.platform-sel{min-width:298px}
 .ctrl.type-sel{min-width:150px;color:#5a6675}
 .ctrl.keyword{min-width:200px}
@@ -900,6 +902,7 @@ button,input,select{font:inherit}
             <label class="field">平台:<span class="ctrl platform-sel">国内冰川平台<span class="caret"></span></span></label>
             <span class="ctrl type-sel">冰川通行证…<span class="caret"></span></span>
             <span class="ctrl keyword"><span class="val">bc05904382</span><span class="clear">✕</span></span>
+            <label class="field">操作类型:<select class="ctrl short" style="min-width:120px"><option>不限</option><option>解绑</option><option>换绑</option></select></label>
             <button class="btn-query" type="button">查 询</button>
           </form>
 
@@ -981,6 +984,7 @@ button,input,select{font:inherit}
 
     <h3>1. 需求概述</h3>
     <p><strong>背景：</strong>运营人员在通行证查询的「通行证安全信息」Tab 中，需要对玩家的密保邮箱执行后台级解绑或换绑操作，用于处理玩家申诉场景（邮箱失效、误绑、账号安全风险等）。</p>
+    <p><strong>适用平台：</strong><span class="req-tag blue">国内冰川平台</span><span class="req-tag blue">海外冰川平台</span> 两个平台均支持该解绑和换绑功能，操作入口和交互流程一致。</p>
     <p><strong>用户对象：</strong>游戏运营后台 — 具有「玩家信息编辑」权限的运营/客服人员。</p>
 
     <h3>2. 入口与触发条件</h3>
