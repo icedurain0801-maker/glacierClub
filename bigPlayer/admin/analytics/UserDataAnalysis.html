@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户数据分析 - 大玩家后台</title>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f5f7fa;
+  min-height: 100vh;
+  display: flex;
+}
+.admin-main {
+  flex: 1;
+  min-height: 100vh;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* ── 页面卡片 ── */
+.page-card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+/* ── 筛选栏 ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #595959;
+}
+.filter-required { color: #ff4d4f; }
+.filter-select, .filter-input {
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #262626;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  min-width: 160px;
+}
+.filter-input { cursor: text; }
+.filter-select:focus, .filter-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+.filter-date-range { display: flex; align-items: center; gap: 6px; }
+.filter-date-range .filter-input { min-width: 140px; }
+.filter-day-range  { display: flex; align-items: center; gap: 6px; }
+.filter-day-range .filter-input { min-width: 130px; }
+.filter-tilde { color: #bfbfbf; font-size: 13px; }
+.btn-query {
+  height: 32px;
+  padding: 0 16px;
+  background: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-query:hover { background: #40a9ff; }
+
+/* ── 历史数据提示 ── */
+.client-tip {
+  display: none;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #614700;
+  line-height: 1.6;
+}
+.client-tip.show { display: block; }
+.client-tip b { color: #d48806; }
+
+/* ── 区块标题 ── */
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #262626;
+  padding: 16px 20px 10px;
+}
+
+/* ── 累计总数（去重）描述列表 ── */
+.summary-grid {
+  margin: 0 20px 20px;
+  border: 1px solid #e8e8e8;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  border-bottom: 1px solid #e8e8e8;
+}
+.summary-row:last-child { border-bottom: none; }
+/* 第二组行布局（3 个 label/值 = 6 列，但每列宽度允许撑开） */
+.summary-cell-label, .summary-cell-value {
+  padding: 12px 16px;
+  font-size: 13px;
+  border-right: 1px solid #e8e8e8;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.summary-cell-label {
+  background: #fafafa;
+  color: #595959;
+  font-weight: 500;
+}
+.summary-cell-value {
+  background: #fff;
+  color: #262626;
+}
+.summary-row > div:last-child { border-right: none; }
+
+/* 区块间距 */
+.summary-group-gap { height: 20px; }
+
+/* ── 表格区操作栏 ── */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 12px;
+}
+.toolbar-icons { display: flex; gap: 8px; margin-left: auto; }
+.toolbar-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  font-size: 14px; cursor: pointer; color: #595959;
+  background: #fff;
+}
+.toolbar-icon:hover { border-color: #1890ff; color: #1890ff; }
+
+/* ── 表格 ── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 2400px; /* 18 列，确保出现横向滚动 */
+}
+thead tr { background: #fafafa; }
+th {
+  padding: 12px;
+  text-align: center;
+  font-weight: 500;
+  color: #262626;
+  border-bottom: 1px solid #e8e8e8;
+  white-space: nowrap;
+}
+td {
+  padding: 14px 12px;
+  color: #595959;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: center;
+  white-space: nowrap;
+}
+tbody tr:hover { background: #fafeff; }
+
+/* ── 分页 ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 14px 20px;
+  font-size: 13px;
+  color: #595959;
+}
+.page-total { margin-right: 8px; }
+.page-btn {
+  min-width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  cursor: pointer; font-size: 13px; background: #fff;
+  padding: 0 6px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.page-btn:hover { border-color: #1890ff; color: #1890ff; }
+.page-btn.active { background: #1890ff; border-color: #1890ff; color: #fff; }
+.page-btn.disabled { color: #d9d9d9; cursor: not-allowed; border-color: #d9d9d9; }
+.page-size-select {
+  height: 28px;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 0 6px; font-size: 13px; outline: none;
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+<nav id="sidebar" class="sidebar"></nav>
+
+<div class="admin-main" id="admin-main">
+  <!-- 筛选栏 -->
+  <div class="page-card">
+    <div class="filter-bar">
+      <div class="filter-item">
+        <span><span class="filter-required">*</span> 所属版块：</span>
+        <select class="filter-select" id="filter-board">
+          <option value="圣魂纷争">圣魂纷争</option>
+          <option value="超能世界">超能世界</option>
+          <option value="天墙传说手游">天墙传说手游</option>
+          <option value="逍遥情缘">逍遥情缘</option>
+          <option value="太初界">太初界</option>
+          <option value="钓鱼世界">钓鱼世界</option>
+          <option value="泰坦降临">泰坦降临</option>
+          <option value="天墙传说">天墙传说</option>
+          <option value="择日飞仙">择日飞仙</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <span>社区类型：</span>
+        <select class="filter-select" id="filter-client">
+          <option value="">不限</option>
+          <option value="web">网页端</option>
+          <option value="mp">小程序端</option>
+          <option value="app">APP端</option>
+        </select>
+      </div>
+      <div class="filter-item filter-date-range">
+        <span>日期选择：</span>
+        <input type="date" class="filter-input" id="filter-date-begin" value="2026-05-26">
+        <span class="filter-tilde">→</span>
+        <input type="date" class="filter-input" id="filter-date-end" value="2026-05-28">
+      </div>
+      <div class="filter-item filter-day-range">
+        <input type="number" class="filter-input" id="filter-day-min" placeholder="最小创角天数" min="0">
+        <span class="filter-tilde">~</span>
+        <input type="number" class="filter-input" id="filter-day-max" placeholder="最大创角天数" min="0">
+      </div>
+      <button class="btn-query" id="btn-query">查 询</button>
+    </div>
+  </div>
+
+  <!-- 历史数据提示（仅在选择具体端类型后显示） -->
+  <div class="client-tip" id="client-tip">
+    <b>⚠ 历史数据未按端类型区分。</b>当前筛选条件「<span id="client-tip-name"></span>」仅统计本需求上线后新产生的数据；选择「不限」可查看全部历史数据。
+  </div>
+
+  <!-- 累计总数（去重） -->
+  <div class="page-card">
+    <div class="section-title">累计总数（去重）</div>
+
+    <!-- 第一组：9 项 -->
+    <div class="summary-grid" id="summary-grid-1"></div>
+    <!-- 第二组：8 项 -->
+    <div class="summary-grid" id="summary-grid-2" style="margin-top:-8px;margin-bottom:20px;"></div>
+  </div>
+
+  <!-- 按天统计总数 -->
+  <div class="page-card">
+    <div class="section-title">按天统计总数</div>
+    <div class="table-toolbar">
+      <div class="toolbar-icons">
+        <div class="toolbar-icon" title="导出">⤓</div>
+        <div class="toolbar-icon" title="列设置">⊟</div>
+        <div class="toolbar-icon" title="刷新">⚙</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr id="table-head"></tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span class="page-total">共3条</span>
+      <div class="page-btn disabled">‹</div>
+      <div class="page-btn active">1</div>
+      <div class="page-btn">›</div>
+      <select class="page-size-select">
+        <option>10条/页</option>
+        <option>20条/页</option>
+        <option>50条/页</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/sidebar.js"></script>
+<script>
+  initSidebar({
+    root: '../..',
+    currentHref: 'admin/analytics/UserDataAnalysis.html'
+  });
+
+  // ── 累计总数（去重）原始数据（"不限" 时使用） ──
+  const SUMMARY_GROUP_1_FULL = [
+    ['游戏活跃账号数',       8167],
+    ['社区访问次数',         7024],
+    ['社区访问账号数',       5120],
+    ['社区活跃账号数',       3173],
+    ['会员中心活跃账号数',   3109],
+    ['社区活跃率',          '61.97%'],
+    ['每日总新增用户数',     0],
+    ['每日总新增活跃数',     0],
+    ['每日总新增用户活跃率', '0%']
+  ];
+  const SUMMARY_GROUP_2_FULL = [
+    ['总发帖数（帖子）',       3],
+    ['总发帖数（动态）',       6],
+    ['总评论数',             178],
+    ['总点赞数',             203],
+    ['总发帖用户数（帖子）',   2],
+    ['总发帖用户数（动态）',   4],
+    ['总评论用户数',         114],
+    ['总点赞用户数',         46]
+  ];
+
+  // 选了具体端类型时，因历史数据未区分，全部归零
+  function zeroize(items) {
+    return items.map(([label, value]) => {
+      if (typeof value === 'string' && value.endsWith('%')) return [label, '0%'];
+      return [label, 0];
+    });
+  }
+
+  // 把 label/value 数组渲染为 3 列(每列含 label+value，共 6 列 grid)的网格
+  function renderSummary(containerId, items) {
+    const c = document.getElementById(containerId);
+    const cols = 4; // 每行 4 个 label/value 对
+    let html = '';
+    for (let i = 0; i < items.length; i += cols) {
+      const row = items.slice(i, i + cols);
+      // 末行不足填空白单元
+      while (row.length < cols) row.push(['', '']);
+      html += '<div class="summary-row">';
+      row.forEach(([label, value]) => {
+        html += `<div class="summary-cell-label">${label}</div>`;
+        html += `<div class="summary-cell-value">${value === '' ? '' : value}</div>`;
+      });
+      html += '</div>';
+    }
+    c.innerHTML = html;
+  }
+
+  renderSummary('summary-grid-1', SUMMARY_GROUP_1_FULL);
+  renderSummary('summary-grid-2', SUMMARY_GROUP_2_FULL);
+
+  // ── 按天统计总数：18 列 + 3 行 mock ──
+  const TABLE_COLUMNS = [
+    '日期',
+    '游戏活跃账号数',
+    '社区访问次数',
+    '社区访问账号数',
+    '社区活跃账号数',
+    '会员中心活跃账号数量',
+    '社区活跃率',
+    '每日总新增用户数',
+    '每日总新增活跃数',
+    '每日总新增用户活跃率',
+    '每日发帖数（帖子）',
+    '每日总发帖数（动态）',
+    '每日总评论数',
+    '每日总点赞数',
+    '每日总发帖用户数（帖子）',
+    '每日总发帖用户数（动态）',
+    '每日总评论用户数',
+    '每日总点赞用户数'
+  ];
+
+  const TABLE_ROWS_FULL = [
+    ['2026-05-28', 8167, 7025, 5120, 3173, 3109, '61.97%', 0, 0, '0%',     3, 6,  178, 203, 2, 4,  114, 46],
+    ['2026-05-27', 9014, 8944, 6146, 3768, 3659, '61.31%', 5, 2, '40%',    4, 12, 195, 307, 3, 7,  37,  65],
+    ['2026-05-26', 9184, 9043, 6219, 3835, 3715, '61.67%', 7, 2, '28.57%', 2, 13, 123, 322, 2, 12, 34,  70]
+  ];
+
+  // 选了具体端类型时表格全部数值归零（日期保留），同样因为历史数据未区分
+  function zeroizeRows(rows) {
+    return rows.map(row => row.map((cell, idx) => {
+      if (idx === 0) return cell; // 日期
+      if (typeof cell === 'string' && cell.endsWith('%')) return '0%';
+      return 0;
+    }));
+  }
+
+  function renderTable(rows) {
+    document.getElementById('table-head').innerHTML =
+      TABLE_COLUMNS.map(c => `<th>${c}</th>`).join('');
+    document.getElementById('table-body').innerHTML = rows.map(row =>
+      `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`
+    ).join('');
+  }
+
+  renderTable(TABLE_ROWS_FULL);
+
+  // ── 应用筛选（社区类型联动） ──
+  const CLIENT_NAME = { web: '网页端', mp: '小程序端', app: 'APP端' };
+  function applyFilter() {
+    const client = document.getElementById('filter-client').value;
+    const tip = document.getElementById('client-tip');
+    if (client) {
+      document.getElementById('client-tip-name').textContent = CLIENT_NAME[client];
+      tip.classList.add('show');
+      renderSummary('summary-grid-1', zeroize(SUMMARY_GROUP_1_FULL));
+      renderSummary('summary-grid-2', zeroize(SUMMARY_GROUP_2_FULL));
+      renderTable(zeroizeRows(TABLE_ROWS_FULL));
+    } else {
+      tip.classList.remove('show');
+      renderSummary('summary-grid-1', SUMMARY_GROUP_1_FULL);
+      renderSummary('summary-grid-2', SUMMARY_GROUP_2_FULL);
+      renderTable(TABLE_ROWS_FULL);
+    }
+  }
+
+  document.getElementById('btn-query').addEventListener('click', applyFilter);
+</script>
+
+<!-- ── 说明悬浮按钮 ── -->
+<style>
+.help-fab {
+  position: fixed;
+  right: 24px; bottom: 24px;
+  width: 120px; height: 120px;
+  background: linear-gradient(145deg, #1890ff 0%, #096dd9 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(24,144,255,0.45);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px; cursor: pointer; z-index: 900;
+  user-select: none;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.help-fab:hover { box-shadow: 0 6px 24px rgba(24,144,255,0.6); transform: translateY(-2px); }
+.help-fab:active { transform: translateY(0); }
+.help-fab.dragging { transition: none; box-shadow: 0 8px 28px rgba(24,144,255,0.5); }
+.help-fab-icon { font-size: 36px; line-height: 1; }
+.help-fab-text { font-size: 13px; color: #fff; font-weight: 500; letter-spacing: 0.5px; }
+
+.help-panel {
+  position: fixed;
+  top: 0; right: -480px;
+  width: 480px; height: 100vh;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  z-index: 950;
+  display: flex; flex-direction: column;
+  transition: right 0.3s cubic-bezier(.4,0,.2,1);
+}
+.help-panel.open { right: 0; }
+
+.help-panel-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 949;
+}
+.help-panel-overlay.open { display: block; }
+
+.help-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px; border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.help-panel-title {
+  font-size: 16px; font-weight: 600; color: #262626;
+  display: flex; align-items: center; gap: 8px;
+}
+.help-panel-title::before {
+  content: ''; width: 4px; height: 18px;
+  background: #1890ff; border-radius: 2px;
+}
+.help-panel-close {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f5f5f5;
+  font-size: 16px; color: #888; cursor: pointer; border: none;
+  transition: background 0.15s;
+}
+.help-panel-close:hover { background: #e0e0e0; color: #333; }
+
+.help-panel-body { flex: 1; overflow-y: auto; padding: 20px; }
+
+.help-version-block {
+  border: 1px solid #e8e8e8; border-radius: 8px;
+  margin-bottom: 12px; overflow: hidden;
+}
+.help-version-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer;
+  background: #fff; user-select: none;
+  transition: background 0.15s;
+}
+.help-version-hd:hover { background: #f0f7ff; }
+.help-version-hd.is-latest { background: #e6f7ff; }
+.help-version-num { font-size: 13px; font-weight: 700; color: #262626; }
+.help-version-date { font-size: 11px; color: #aaa; margin-left: 4px; }
+.help-version-badge {
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: #1890ff; border-radius: 8px; padding: 1px 7px; margin-left: 4px;
+}
+.help-version-arrow {
+  margin-left: auto; font-size: 11px; color: #bbb;
+  transition: transform 0.2s;
+}
+.help-version-block.open .help-version-arrow { transform: rotate(180deg); }
+.help-version-body {
+  display: none; padding: 14px 16px;
+  border-top: 1px solid #e8e8e8; background: #fafcfe;
+}
+.help-version-block.open .help-version-body { display: block; }
+
+.help-section { margin-bottom: 14px; }
+.help-section:last-child { margin-bottom: 0; }
+.help-section-title {
+  font-size: 12px; font-weight: 600; color: #1890ff;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 5px;
+}
+.help-section-title::before {
+  content: ''; width: 3px; height: 12px;
+  background: #1890ff; border-radius: 2px; flex-shrink: 0;
+}
+.help-section p  { font-size: 12px; color: #555; line-height: 1.9; }
+.help-section ul { padding-left: 16px; }
+.help-section ul li { font-size: 12px; color: #555; line-height: 2; }
+</style>
+
+<div class="help-fab" id="help-fab">
+  <div class="help-fab-icon">📊</div>
+  <div class="help-fab-text">需求说明</div>
+</div>
+
+<div class="help-panel-overlay" id="help-panel-overlay"></div>
+<div class="help-panel" id="help-panel">
+  <div class="help-panel-header">
+    <div class="help-panel-title">用户数据分析 — 需求说明</div>
+    <button class="help-panel-close" id="help-panel-close">×</button>
+  </div>
+  <div class="help-panel-body">
+
+    <div class="help-version-block open">
+      <div class="help-version-hd is-latest">
+        <span class="help-version-num">v3.1.1</span>
+        <span class="help-version-date">2026-05-28</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+
+        <div class="help-section">
+          <div class="help-section-title">本次变更</div>
+          <p>筛选栏「所属版块」之后新增「社区类型」单选下拉，默认「不限」，可选 网页端 / 小程序端 / APP端。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">筛选规则</div>
+          <ul>
+            <li><b>不限</b>：返回该版块全部历史数据，与上线前一致。</li>
+            <li><b>网页端 / 小程序端 / APP端</b>：累计总数与按天表格按所选端类型重新统计；因历史数据未按端类型区分，仅统计本需求上线后新产生的数据，老数据不进入统计。</li>
+            <li>选择具体端类型后，筛选栏下方显示黄色提示条说明上述规则；切回「不限」时提示条消失。</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const helpFab     = document.getElementById('help-fab');
+  const helpPanel   = document.getElementById('help-panel');
+  const helpOverlay = document.getElementById('help-panel-overlay');
+
+  function closeHelpPanel() {
+    helpPanel.classList.remove('open');
+    helpOverlay.classList.remove('open');
+  }
+  function openHelpPanel() {
+    helpPanel.classList.add('open');
+    helpOverlay.classList.add('open');
+  }
+  function toggleHelpPanel() {
+    const isOpen = helpPanel.classList.contains('open');
+    isOpen ? closeHelpPanel() : openHelpPanel();
+  }
+
+  document.getElementById('help-panel-close').addEventListener('click', closeHelpPanel);
+  helpOverlay.addEventListener('click', closeHelpPanel);
+
+  helpPanel.querySelectorAll('.help-version-hd').forEach(hd => {
+    hd.addEventListener('click', () => {
+      hd.closest('.help-version-block').classList.toggle('open');
+    });
+  });
+
+  // 拖拽
+  let isDragging = false, dragOffX = 0, dragOffY = 0;
+  helpFab.addEventListener('mousedown', e => {
+    isDragging = false;
+    const rect = helpFab.getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+
+    function onMove(e) {
+      isDragging = true;
+      helpFab.classList.add('dragging');
+      const x = Math.min(Math.max(0, e.clientX - dragOffX), window.innerWidth  - helpFab.offsetWidth);
+      const y = Math.min(Math.max(0, e.clientY - dragOffY), window.innerHeight - helpFab.offsetHeight);
+      helpFab.style.left   = x + 'px';
+      helpFab.style.top    = y + 'px';
+      helpFab.style.right  = 'auto';
+      helpFab.style.bottom = 'auto';
+    }
+
+    function onUp() {
+      helpFab.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      if (!isDragging) toggleHelpPanel();
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+    e.preventDefault();
+  });
+</script>
+</body>
+</html>
