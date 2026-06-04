@@ -296,7 +296,92 @@ body{
 .gc-add-ico .icon{width:18px;height:18px;}
 .gc-add-lbl{font-size:13px;font-weight:500;}
 
-/* PAGER */
+/* ── TAG FILTER DROPDOWN ── */
+.tag-filter-wrap{position:relative;}
+.tag-filter-trigger{
+  height:32px;padding:0 24px 0 10px;
+  border:1px solid var(--border);border-radius:4px;
+  background:white;font-size:13px;color:var(--ink-4);
+  cursor:pointer;display:flex;align-items:center;gap:5px;
+  min-width:80px;max-width:280px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 6px center;background-size:13px;
+  user-select:none;transition:border-color .12s;overflow:hidden;
+}
+.tag-filter-trigger:hover,.tag-filter-trigger.open{border-color:var(--brand);}
+.tag-filter-trigger.has-val{border-color:rgba(37,99,235,.4);}
+.tag-filter-placeholder{color:var(--ink-4);white-space:nowrap;flex-shrink:0;}
+.tag-filter-chips{display:flex;gap:4px;align-items:center;flex-shrink:1;overflow:hidden;}
+.tfc{
+  display:inline-flex;align-items:center;
+  height:20px;padding:0 6px;
+  background:var(--brand-soft);color:var(--brand);
+  border-radius:3px;font-size:11.5px;font-weight:500;
+  white-space:nowrap;flex-shrink:0;
+}
+.tfc-more{
+  display:inline-flex;align-items:center;
+  height:20px;padding:0 6px;
+  background:#f1f5f9;color:var(--ink-3);
+  border-radius:3px;font-size:11.5px;flex-shrink:0;
+}
+.tag-filter-dd{
+  position:absolute;top:36px;left:0;z-index:30;
+  background:white;border:1px solid var(--border);border-radius:6px;
+  box-shadow:0 4px 16px rgba(0,0,0,.1);
+  min-width:160px;display:none;overflow:hidden;
+}
+.tag-filter-dd.open{display:block;}
+.tag-filter-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;font-size:12.5px;cursor:pointer;
+  transition:background .1s;color:var(--ink-2);
+}
+.tag-filter-item:hover{background:var(--bg-2);}
+.tag-filter-item.checked{color:var(--brand);}
+.tag-filter-item input[type=checkbox]{accent-color:var(--brand);cursor:pointer;flex-shrink:0;}
+.tag-filter-empty{padding:12px;font-size:12.5px;color:var(--ink-4);text-align:center;}
+
+/* ── CARD TAG ROW ── */
+.gc-tags{
+  display:flex;flex-wrap:wrap;gap:4px;
+  padding:0 16px 10px;
+}
+.gc-tag{
+  display:inline-flex;align-items:center;gap:3px;
+  height:20px;padding:0 7px;
+  background:#f1f5f9;color:var(--ink-3);
+  border-radius:3px;font-size:11px;font-weight:500;
+}
+.gc-tag-hash{color:var(--ink-4);font-weight:700;}
+
+/* ── 需求说明侧边栏 ── */
+.req-fab{position:fixed;right:24px;bottom:28px;z-index:200;display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;background:#1e3a8a;color:white;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(30,58,138,.35);transition:background .15s,box-shadow .15s;user-select:none;}
+.req-fab:hover{background:#1e40af;box-shadow:0 6px 20px rgba(30,58,138,.45);}
+.req-fab svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.req-drawer{position:fixed;top:0;right:-420px;width:420px;height:100vh;z-index:300;background:white;border-left:1px solid #e5e9f0;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;transition:right .25s cubic-bezier(.4,0,.2,1);}
+.req-drawer.open{right:0;}
+.req-drawer-header{padding:18px 20px 14px;border-bottom:1px solid #e5e9f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.req-drawer-title{font-size:15px;font-weight:700;color:#0b1220;display:flex;align-items:center;gap:8px;}
+.req-drawer-title svg{width:16px;height:16px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.req-drawer-close{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#94a3b8;cursor:pointer;transition:background .12s;}
+.req-drawer-close:hover{background:#f1f5f9;color:#475569;}
+.req-drawer-close svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;}
+.req-drawer-body{flex:1;overflow-y:auto;padding:20px;}
+.req-drawer-body::-webkit-scrollbar{width:4px;}
+.req-drawer-body::-webkit-scrollbar-thumb{background:#e5e9f0;border-radius:2px;}
+.req-section{margin-bottom:22px;}
+.req-section:last-child{margin-bottom:0;}
+.req-section-title{font-size:13px;font-weight:700;color:#1f2937;margin-bottom:10px;padding-bottom:7px;border-bottom:2px solid #dbeafe;display:flex;align-items:center;gap:6px;}
+.req-badge{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:3px;font-size:10.5px;font-weight:700;letter-spacing:.04em;flex-shrink:0;}
+.req-badge.new{background:#dcfce7;color:#166534;}
+.req-badge.opt{background:#dbeafe;color:#1e3a8a;}
+.req-item{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px;color:#475569;line-height:1.6;}
+.req-item:last-child{border-bottom:none;}
+.req-dot{width:5px;height:5px;border-radius:50%;background:#2563eb;flex-shrink:0;margin-top:6px;}
+.req-overlay{position:fixed;inset:0;z-index:299;background:rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:opacity .25s;}
+.req-overlay.open{opacity:1;pointer-events:auto;}
+
 .pager{
   display:flex;align-items:center;gap:0;
   font-size:12.5px;color:var(--ink-3);
@@ -450,13 +535,6 @@ body{
         特殊方案
       </div>
     </div>
-    <div class="sb-section">
-      <div class="sb-section-label">记录</div>
-      <div class="nav-item">
-        <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-        操作日志
-      </div>
-    </div>
   </nav>
 
   <!-- MAIN -->
@@ -534,6 +612,16 @@ body{
           <option value="海南岚滨科技">海南岚滨科技</option>
           <option value="海南咬哟互娱网络科技">海南咬哟互娱</option>
         </select>
+        <!-- 标签多选 -->
+        <div class="tag-filter-wrap" id="tagFilterWrap">
+          <div class="tag-filter-trigger" id="tagFilterTrigger" onclick="toggleTagFilter()">
+            <span class="tag-filter-placeholder" id="tagFilterPlaceholder">标签</span>
+            <div class="tag-filter-chips" id="tagFilterChips"></div>
+          </div>
+          <div class="tag-filter-dd" id="tagFilterDd">
+            <div id="tagFilterList"></div>
+          </div>
+        </div>
         <button class="btn primary" onclick="applyFilter()">
           <span class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>查询
         </button>
@@ -636,15 +724,15 @@ const ALL_CHANNELS = [
 ];
 
 const RAW_DATA = [
-  {id:1,name:'官方包组A',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['116','152','21071002','2107888','2107261'],time:'2026-04-23 17:10',by:'周满',test:false},
-  {id:2,name:'测试渠道组',bound:'no',sdk:'iOS',entity:'海南岚滨科技',channels:['2','21071001'],time:'2026-04-02 10:39',by:'周满',test:true},
-  {id:3,name:'广告联盟组',bound:'no',sdk:'安卓',entity:'海南咬哟互娱网络科技',channels:['2107343','2107261','21074123'],time:'2026-04-01 18:28',by:'周满',test:false},
-  {id:4,name:'商务合作组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['2107620'],time:'2023-04-19 16:38',by:'周满',test:false},
-  {id:5,name:'品质内网测试组',bound:'no',sdk:'安卓',entity:'海南岚滨科技',channels:['21074123','2107999','2107261'],time:'2026-04-01 18:28',by:'周满',test:true},
-  {id:6,name:'腾讯渠道组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['116','152'],time:'2023-05-18 18:48',by:'管理员',test:false},
-  {id:7,name:'iOS返利组',bound:'no',sdk:'iOS',entity:'海南岚滨科技',channels:['21071002','21071001','2','2107888'],time:'2023-03-15 11:51',by:'周满',test:false},
-  {id:8,name:'云游戏组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['2107615'],time:'2023-03-15 11:51',by:'周满',test:false},
-  {id:9,name:'海外英文安卓组',bound:'no',sdk:'安卓',entity:'海南咬哟互娱网络科技',channels:['2107343','2107631'],time:'2023-03-15 11:09',by:'周满',test:false},
+  {id:1,name:'官方包组A',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['116','152','21071002','2107888','2107261'],time:'2026-04-23 17:10',by:'周满',test:false,tags:['支付回传','新渠道']},
+  {id:2,name:'测试渠道组',bound:'no',sdk:'iOS',entity:'海南岚滨科技',channels:['2','21071001'],time:'2026-04-02 10:39',by:'周满',test:true,tags:['测试专用']},
+  {id:3,name:'广告联盟组',bound:'no',sdk:'安卓',entity:'海南咬哟互娱网络科技',channels:['2107343','2107261','21074123'],time:'2026-04-01 18:28',by:'周满',test:false,tags:['海外渠道']},
+  {id:4,name:'商务合作组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['2107620'],time:'2023-04-19 16:38',by:'周满',test:false,tags:['支付回传']},
+  {id:5,name:'品质内网测试组',bound:'no',sdk:'安卓',entity:'海南岚滨科技',channels:['21074123','2107999','2107261'],time:'2026-04-01 18:28',by:'周满',test:true,tags:['测试专用','数据回传']},
+  {id:6,name:'腾讯渠道组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['116','152'],time:'2023-05-18 18:48',by:'管理员',test:false,tags:[]},
+  {id:7,name:'iOS返利组',bound:'no',sdk:'iOS',entity:'海南岚滨科技',channels:['21071002','21071001','2','2107888'],time:'2023-03-15 11:51',by:'周满',test:false,tags:['新渠道']},
+  {id:8,name:'云游戏组',bound:'yes',sdk:'通用',entity:'海南冰川',channels:['2107615'],time:'2023-03-15 11:51',by:'周满',test:false,tags:[]},
+  {id:9,name:'海外英文安卓组',bound:'no',sdk:'安卓',entity:'海南咬哟互娱网络科技',channels:['2107343','2107631'],time:'2023-03-15 11:09',by:'周满',test:false,tags:['海外渠道','临时渠道']},
 ];
 
 let data = [...RAW_DATA];
@@ -679,6 +767,9 @@ function renderCards(){
     const channelArea = g.channels.length === 0
       ? `<span class="gc-empty">暂无渠道，点击管理渠道添加</span>`
       : `<div class="gc-ch-wrap">${chTags}${moreTag}</div>`;
+    const tagsHtml = (g.tags||[]).length > 0
+      ? `<div class="gc-tags">${(g.tags||[]).map(t=>`<span class="gc-tag"><span class="gc-tag-hash">#</span>${t}</span>`).join('')}</div>`
+      : '';
 
     html += `
     <div class="group-card" onclick="location.href='channelGroupCreate.html?id=${g.id}'">
@@ -696,6 +787,7 @@ function renderCards(){
         </div>
       </div>
       <div class="gc-channels">${channelArea}</div>
+      ${tagsHtml}
       <div class="gc-footer">
         <span class="gc-footer-meta"><span>${g.by}</span> · ${g.time.slice(0,10)}</span>
         <div class="gc-ops" onclick="event.stopPropagation()">
@@ -741,7 +833,8 @@ function applyFilter(){
     (!q || g.name.toLowerCase().includes(q)) &&
     (!bound || g.bound===bound) &&
     (!sdk || g.sdk===sdk) &&
-    (!entity || g.entity.includes(entity.slice(0,4)))
+    (!entity || g.entity.includes(entity.slice(0,4))) &&
+    (selectedFilterTags.size===0 || [...selectedFilterTags].every(t=>(g.tags||[]).includes(t)))
   );
   currentPage = 1;
   renderCards();
@@ -752,6 +845,9 @@ function resetFilter(){
   document.getElementById('filterBound').value='';
   document.getElementById('filterSdk').value='';
   document.getElementById('filterEntity').value='';
+  selectedFilterTags.clear();
+  updateTagFilterTrigger();
+  renderTagFilterList();
   filtered=[...data];currentPage=1;renderCards();
 }
 
@@ -873,9 +969,120 @@ function submitForm(){
   document.getElementById('modalOverlay').classList.remove('open');
 }
 
+// ── 标签筛选 ──
+const TAG_LIBRARY_FILTER = ['支付回传','新渠道','测试专用','临时渠道','数据回传','海外渠道'];
+const selectedFilterTags = new Set();
+
+function toggleTagFilter(){
+  const dd = document.getElementById('tagFilterDd');
+  const trigger = document.getElementById('tagFilterTrigger');
+  const open = dd.classList.toggle('open');
+  trigger.classList.toggle('open', open);
+  if(open) renderTagFilterList();
+}
+
+function renderTagFilterList(){
+  const list = document.getElementById('tagFilterList');
+  // 动态收集所有已用标签
+  const allTags = [...new Set([...TAG_LIBRARY_FILTER, ...data.flatMap(g=>g.tags||[])])];
+  if(allTags.length === 0){
+    list.innerHTML = '<div class="tag-filter-empty">暂无标签</div>';
+    return;
+  }
+  list.innerHTML = allTags.map(t => `
+    <label class="tag-filter-item ${selectedFilterTags.has(t)?'checked':''}">
+      <input type="checkbox" ${selectedFilterTags.has(t)?'checked':''} onchange="toggleFilterTag('${t}',this.checked)">
+      # ${t}
+    </label>
+  `).join('');
+}
+
+function toggleFilterTag(name, checked){
+  if(checked) selectedFilterTags.add(name);
+  else selectedFilterTags.delete(name);
+  updateTagFilterTrigger();
+}
+
+function updateTagFilterTrigger(){
+  const trigger = document.getElementById('tagFilterTrigger');
+  const placeholder = document.getElementById('tagFilterPlaceholder');
+  const chips = document.getElementById('tagFilterChips');
+  const tags = [...selectedFilterTags];
+  if(tags.length > 0){
+    placeholder.style.display = 'none';
+    const show = tags.slice(0, 2);
+    const more = tags.length - show.length;
+    chips.innerHTML = show.map(t=>`<span class="tfc">${t}</span>`).join('')
+      + (more > 0 ? `<span class="tfc-more">+${more}</span>` : '');
+    trigger.classList.add('has-val');
+  } else {
+    placeholder.style.display = '';
+    chips.innerHTML = '';
+    trigger.classList.remove('has-val');
+  }
+}
+
+document.addEventListener('click', e=>{
+  const wrap = document.getElementById('tagFilterWrap');
+  if(wrap && !e.composedPath().includes(wrap)){
+    document.getElementById('tagFilterDd').classList.remove('open');
+    document.getElementById('tagFilterTrigger').classList.remove('open');
+  }
+});
+
 // init
 updateStats();renderCards();
 </script>
+<!-- 需求说明 FAB -->
+<div class="req-fab" onclick="openReqDrawer()">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+  需求说明
+</div>
+
+<!-- 需求说明抽屉 -->
+<div class="req-overlay" id="reqOverlay" onclick="closeReqDrawer()"></div>
+<div class="req-drawer" id="reqDrawer">
+  <div class="req-drawer-header">
+    <div class="req-drawer-title">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      需求说明 · 渠道组管理
+    </div>
+    <div class="req-drawer-close" onclick="closeReqDrawer()">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </div>
+  </div>
+  <div class="req-drawer-body">
+
+    <div class="req-section">
+      <div class="req-section-title">
+        渠道组列表
+        <span class="req-badge opt">优化</span>
+      </div>
+      <div class="req-item"><div class="req-dot"></div><div>新增「标签」字段，每个渠道组可携带最多 6 个自定义标签，卡片底部以 <code>#标签名</code> 样式展示</div></div>
+      <div class="req-item"><div class="req-dot"></div><div>筛选栏新增「标签」多选下拉筛选器，来源于标签库，支持多标签同时筛选（AND 逻辑）；选中后触发器内展示标签名 chip，超过 2 个显示 +N</div></div>
+      <div class="req-item"><div class="req-dot"></div><div>卡片整体样式优化，渠道 tag、绑定状态、操作按钮视觉层级更清晰</div></div>
+    </div>
+
+    <div class="req-section">
+      <div class="req-section-title">
+        渠道组新增 / 编辑
+        <span class="req-badge opt">优化</span>
+      </div>
+      <div class="req-item"><div class="req-dot"></div><div>删除「是否测试验收」和「标准组名预览」两个字段</div></div>
+      <div class="req-item"><div class="req-dot"></div><div>新增「标签」字段，交互方案为下拉补全：聚焦展开下拉，可从历史标签中选择，也可回车或底部输入框新建自定义标签；标签为非必填字段</div></div>
+      <div class="req-item"><div class="req-dot"></div><div>标签数量上限 6 个，超出时输入区域出现红色提示</div></div>
+      <div class="req-item"><div class="req-dot"></div><div>已选标签以 chip 形式展示在输入框下方，可逐个删除</div></div>
+      <div class="req-item"><div class="req-dot"></div><div>新建的标签写入历史标签库，下次可直接选用</div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function openReqDrawer(){ document.getElementById('reqDrawer').classList.add('open'); document.getElementById('reqOverlay').classList.add('open'); }
+function closeReqDrawer(){ document.getElementById('reqDrawer').classList.remove('open'); document.getElementById('reqOverlay').classList.remove('open'); }
+</script>
+
 <script src="../sidebar.js"></script>
 </body>
 </html>
