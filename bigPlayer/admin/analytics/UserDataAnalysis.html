@@ -240,6 +240,7 @@ tbody tr:hover { background: #fafeff; }
           <option value="web">网页端</option>
           <option value="mp">小程序端</option>
           <option value="app">APP端</option>
+          <option value="game">游戏端</option>
         </select>
       </div>
       <div class="filter-item filter-date-range">
@@ -413,7 +414,7 @@ tbody tr:hover { background: #fafeff; }
   renderTable(TABLE_ROWS_FULL);
 
   // ── 应用筛选（社区类型联动） ──
-  const CLIENT_NAME = { web: '网页端', mp: '小程序端', app: 'APP端' };
+  const CLIENT_NAME = { web: '网页端', mp: '小程序端', app: 'APP端', game: '游戏端' };
   function applyFilter() {
     const client = document.getElementById('filter-client').value;
     const tip = document.getElementById('client-tip');
@@ -569,14 +570,14 @@ tbody tr:hover { background: #fafeff; }
 
         <div class="help-section">
           <div class="help-section-title">本次变更</div>
-          <p>筛选栏「所属版块」之后新增「社区类型」单选下拉，默认「不限」，可选 网页端 / 小程序端 / APP端。</p>
+          <p>筛选栏「所属版块」之后新增「社区类型」单选下拉，默认「不限」，可选 网页端 / 小程序端 / APP端 / 游戏端。</p>
         </div>
 
         <div class="help-section">
           <div class="help-section-title">筛选规则</div>
           <ul>
             <li><b>不限</b>：返回该版块全部历史数据，与上线前一致。</li>
-            <li><b>网页端 / 小程序端 / APP端</b>：累计总数与按天表格按所选端类型重新统计；因历史数据未按端类型区分，仅统计本需求上线后新产生的数据，老数据不进入统计。</li>
+            <li><b>网页端 / 小程序端 / APP端 / 游戏端</b>：累计总数与按天表格按所选端类型重新统计；因历史数据未按端类型区分，仅统计本需求上线后新产生的数据，老数据不进入统计。</li>
             <li>选择具体端类型后，筛选栏下方显示黄色提示条说明上述规则；切回「不限」时提示条消失。</li>
           </ul>
         </div>
