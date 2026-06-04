@@ -541,6 +541,37 @@ body{
   background:var(--bg);color:var(--ink-3);padding:2px 7px;border-radius:4px;
   letter-spacing:.02em;
 }
+.req-fab{position:fixed;right:24px;bottom:28px;z-index:200;display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;background:#1e3a8a;color:white;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(30,58,138,.35);transition:background .15s,box-shadow .15s;user-select:none;}
+.req-fab:hover{background:#1e40af;box-shadow:0 6px 20px rgba(30,58,138,.45);}
+.req-fab svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.req-drawer{position:fixed;top:0;right:-420px;width:420px;height:100vh;z-index:300;background:white;border-left:1px solid #e5e9f0;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;transition:right .25s cubic-bezier(.4,0,.2,1);}
+.req-drawer.open{right:0;}
+.req-drawer-header{padding:18px 20px 14px;border-bottom:1px solid #e5e9f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.req-drawer-title{font-size:15px;font-weight:700;color:#0b1220;display:flex;align-items:center;gap:8px;}
+.req-drawer-title svg{width:16px;height:16px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.req-drawer-close{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#94a3b8;cursor:pointer;transition:background .12s;}
+.req-drawer-close:hover{background:#f1f5f9;color:#475569;}
+.req-drawer-close svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;}
+.req-drawer-body{flex:1;overflow-y:auto;padding:20px;}
+.req-drawer-body::-webkit-scrollbar{width:4px;}
+.req-drawer-body::-webkit-scrollbar-thumb{background:#e5e9f0;border-radius:2px;}
+.req-section{margin-bottom:22px;}
+.req-section:last-child{margin-bottom:0;}
+.req-section-title{font-size:13px;font-weight:700;color:#1f2937;margin-bottom:10px;padding-bottom:7px;border-bottom:2px solid #dbeafe;display:flex;align-items:center;gap:6px;}
+.req-badge{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:3px;font-size:10.5px;font-weight:700;letter-spacing:.04em;flex-shrink:0;}
+.req-badge.new{background:#dcfce7;color:#166534;}
+.req-badge.opt{background:#dbeafe;color:#1e3a8a;}
+.req-item{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px;color:#475569;line-height:1.6;}
+.req-item:last-child{border-bottom:none;}
+.req-dot{width:5px;height:5px;border-radius:50%;background:#2563eb;flex-shrink:0;margin-top:6px;}
+.req-overlay{position:fixed;inset:0;z-index:299;background:rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:opacity .25s;}
+.req-overlay.open{opacity:1;pointer-events:auto;}
+.req-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;border:1px solid #e5e9f0;border-radius:6px;overflow:hidden;}
+.req-table th{background:#f1f5f9;color:#1f2937;font-weight:700;text-align:left;padding:7px 10px;border-bottom:1px solid #e5e9f0;white-space:nowrap;}
+.req-table td{padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#475569;line-height:1.6;vertical-align:top;}
+.req-table tr:last-child td{border-bottom:none;}
+.req-table td:first-child{font-weight:600;color:#1f2937;white-space:nowrap;background:#fafbfc;}
+.req-table code{background:#eef2f7;color:#1e3a8a;padding:1px 5px;border-radius:3px;font-size:11px;}
 </style>
 </head>
 <body>
@@ -586,15 +617,6 @@ body{
       </div>
     </div>
 
-    <div class="sb-divider"></div>
-
-    <div class="sb-section">
-      <div class="sb-section-label">记录</div>
-      <div class="nav-item">
-        <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-        操作日志
-      </div>
-    </div>
 
   </nav>
 
@@ -621,8 +643,8 @@ body{
       <div class="cat-tabs">
         <div class="cat-tab active">全部 <span class="n">34</span></div>
         <div class="cat-tab">移动端 SDK <span class="n">8</span></div>
-        <div class="cat-tab">PC 端 SDK <span class="n">2</span></div>
         <div class="cat-tab">小游戏 SDK <span class="n">24</span></div>
+        <div class="cat-tab">PC 端 SDK <span class="n">2</span></div>
       </div>
 
       <!-- FILTERS -->
@@ -652,15 +674,15 @@ body{
         <span class="icon chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
         <div class="collapse-icon"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span></div>
         <div class="collapse-info">
-          <div class="collapse-title">官方认可的兜底方案 <span style="font-size:11px;font-weight:600;background:var(--grey-bg);color:var(--grey);padding:2px 7px;border-radius:5px;margin-left:6px;">10</span></div>
-          <div class="collapse-desc">每个 SDK 类型自带的官方默认配置，新游戏未配置自定义方案时使用。</div>
+          <div class="collapse-title">官方兜底方案 <span style="font-size:11px;font-weight:600;background:var(--grey-bg);color:var(--grey);padding:2px 7px;border-radius:5px;margin-left:6px;">10</span></div>
+          <div class="collapse-desc">每个 SDK 类型自带的官方默认配置，若对应 SDK 类型未配置方案则会取兜底方案。</div>
         </div>
         <span style="font-size:12.5px;color:var(--ink-4);">展开管理</span>
       </div>
       <div class="collapse-body" id="defBody" style="display:none;">
         <div class="sec-note">
           <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
-          这些是冰川 SDK 平台为每种 SDK 类型预置的兜底方案。如需修改请联系 SDK 平台管理员，普通运营人员只能查看。
+          这些是冰川 SDK 平台为每种 SDK 类型预置的兜底方案。
         </div>
         <table class="tbl">
           <thead>
@@ -1364,6 +1386,59 @@ function openDup(){openModal('m-dup');}
 
 /* "..." action menu on list rows — simple noop alert for prototype */
 function openMore(el,name){alert('更多操作（演示）：'+name+'\n包含 复制 / 历史 / 删除');}
+</script>
+<!-- 需求说明 FAB -->
+<div class="req-fab" onclick="openReqDrawer()">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+  需求说明
+</div>
+<div class="req-overlay" id="reqOverlay" onclick="closeReqDrawer()"></div>
+<div class="req-drawer" id="reqDrawer">
+  <div class="req-drawer-header">
+    <div class="req-drawer-title">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      需求说明 · 方案管理
+    </div>
+    <div class="req-drawer-close" onclick="closeReqDrawer()">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </div>
+  </div>
+  <div class="req-drawer-body">
+
+    <div class="req-section">
+      <div class="req-section-title">顶部分类 Tab<span class="req-badge opt">优化</span></div>
+      <div style="font-size:12px;color:#475569;margin-bottom:8px;line-height:1.6;">按 SDK 类型对方案分类，Tab 右上角数字为该分类下方案总数（含兜底+我的方案）。切换 Tab 时下方两个区块的列表同步按该类型过滤。</div>
+      <table class="req-table">
+        <thead><tr><th>Tab</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>全部</td><td>默认选中，展示所有 SDK 类型的方案</td></tr>
+          <tr><td>移动端 SDK</td><td>仅展示移动端 SDK 类型方案</td></tr>
+          <tr><td>小游戏 SDK</td><td>仅展示各类小游戏 / 快游戏 / 小程序 SDK 方案</td></tr>
+          <tr><td>PC 端 SDK</td><td>仅展示 Windows / H5 等 PC 端 SDK 方案</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="req-section">
+      <div class="req-section-title">官方兜底方案（独立分区）<span class="req-badge opt">优化</span></div>
+      <div style="font-size:12px;color:#475569;margin-bottom:8px;line-height:1.6;">本次将「兜底方案」从普通方案中单独抽出为可折叠分区，置于「我的方案」上方。默认折叠，点击标题栏展开/收起。</div>
+      <table class="req-table">
+        <thead><tr><th>项</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>分区定义</td><td>每个 SDK 类型自带的官方默认配置；当某 SDK 类型未配置自定义方案时，自动取该类型的兜底方案生效</td></tr>
+          <tr><td>计数徽标</td><td>标题右侧数字为兜底方案总数（每种 SDK 类型一条）</td></tr>
+          <tr><td>展开/收起</td><td>点击整条标题栏切换，左侧箭头随状态翻转</td></tr>
+          <tr><td>「默认」标记</td><td>每条方案名后带灰色「默认」角标，区别于用户自建方案</td></tr>
+          <tr><td>风险项处理</td><td>兜底方案合规状态为「风险」时，操作列显示红色「立即处理」入口；「编辑」对官方默认方案置灰不可点</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+<script>
+function openReqDrawer(){ document.getElementById('reqDrawer').classList.add('open'); document.getElementById('reqOverlay').classList.add('open'); }
+function closeReqDrawer(){ document.getElementById('reqDrawer').classList.remove('open'); document.getElementById('reqOverlay').classList.remove('open'); }
 </script>
 <script src="../sidebar.js"></script>
 </body>
