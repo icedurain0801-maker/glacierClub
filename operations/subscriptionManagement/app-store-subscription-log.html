@@ -576,7 +576,13 @@ tbody td:first-child{text-align:center;padding:0}
                 <option>冷冻期</option>
               </select>
             </label>
-            <label class="field">平台订单ID:<input type="text" class="ctrl mid input" placeholder=""></label>
+            <div class="field">
+              <select class="ctrl" style="min-width:0;width:104px;margin-left:0;border-right:none;border-radius:3px 0 0 3px">
+                <option>平台订单ID</option>
+                <option>订阅产品ID</option>
+                <option>游戏包名</option>
+              </select><input type="text" class="ctrl input" style="min-width:168px;margin-left:0;border-radius:0 3px 3px 0" placeholder="请输入">
+            </div>
             <div class="field">
               <select class="ctrl" style="min-width:0;width:120px;margin-left:0;border-right:none;border-radius:3px 0 0 3px">
                 <option>冰川通行证ID</option>
@@ -593,7 +599,6 @@ tbody td:first-child{text-align:center;padding:0}
                 <option>小米</option>
               </select>
             </label>
-            <label class="field">订阅产品ID:<input type="text" class="ctrl mid input" placeholder=""></label>
             <label class="field">最后订单ID:<input type="text" class="ctrl mid input" placeholder=""></label>
             <button class="btn-query" type="button">查 询</button>
           </form>
@@ -768,10 +773,9 @@ tbody td:first-child{text-align:center;padding:0}
           <tr><td>订单创建日期</td><td>日期范围选择器</td><td>否</td><td>空</td><td>结束日期 ≥ 开始日期；最大跨度建议 180 天，超出时 Toast 提示</td></tr>
           <tr><td>购买日期</td><td>日期范围选择器</td><td>否</td><td>空</td><td>同上，与「订单创建日期」相互独立，可同时生效（AND 关系）</td></tr>
           <tr><td>状态</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / 有效 / 试用 / 宽限期 / 已取消 / 冷冻期</td></tr>
-          <tr><td>平台订单ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配渠道侧订单ID，不支持模糊搜索；最长 64 字符</td></tr>
+          <tr><td>ID 类搜索</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>平台订单ID</td><td>下拉切换搜索类型：<b>平台订单ID</b>（精确匹配，最长 64 字符）/ <b>订阅产品ID</b>（精确匹配，最长 128 字符）/ <b>游戏包名</b>（精确匹配）；切换类型时清空已输入值</td></tr>
           <tr><td>用户标识类型 + 值</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>冰川通行证ID</td><td>类型：冰川通行证ID / 角色ID / 角色名称；切换类型时清空已输入值；角色名称支持模糊匹配，其余精确匹配</td></tr>
           <tr><td>渠道类型</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / GooglePlay / AppStore / 华为 / 小米；后续可扩展</td></tr>
-          <tr><td>订阅产品ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配，最长 128 字符</td></tr>
           <tr><td>最后订单ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配链式续订最新订单ID，值为 "0" 时表示无续订记录</td></tr>
         </tbody>
       </table>
