@@ -587,7 +587,6 @@ tbody td:first-child{text-align:center;padding:0}
               <select class="ctrl" style="min-width:0;width:120px;margin-left:0;border-right:none;border-radius:3px 0 0 3px">
                 <option>冰川通行证ID</option>
                 <option>角色ID</option>
-                <option>角色名称</option>
               </select><input type="text" class="ctrl input" style="min-width:160px;margin-left:0;border-radius:0 3px 3px 0" placeholder="请输入">
             </div>
             <label class="field">渠道类型:
@@ -623,7 +622,6 @@ tbody td:first-child{text-align:center;padding:0}
                     <th style="width:160px">平台订单ID</th>
                     <th style="width:140px">冰川通行证ID</th>
                     <th style="width:110px">角色ID</th>
-                    <th style="width:110px">角色名称</th>
                     <th style="width:90px">渠道类型</th>
                     <th style="width:180px">游戏包名</th>
                     <th style="width:120px">产品ID</th>
@@ -774,7 +772,7 @@ tbody td:first-child{text-align:center;padding:0}
           <tr><td>购买日期</td><td>日期范围选择器</td><td>否</td><td>空</td><td>同上，与「订单创建日期」相互独立，可同时生效（AND 关系）</td></tr>
           <tr><td>状态</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / 有效 / 试用 / 宽限期 / 已取消 / 冷冻期</td></tr>
           <tr><td>ID 类搜索</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>平台订单ID</td><td>下拉切换搜索类型：<b>平台订单ID</b>（精确匹配，最长 64 字符）/ <b>订阅产品ID</b>（精确匹配，最长 128 字符）/ <b>游戏包名</b>（精确匹配）；切换类型时清空已输入值</td></tr>
-          <tr><td>用户标识类型 + 值</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>冰川通行证ID</td><td>类型：冰川通行证ID / 角色ID / 角色名称；切换类型时清空已输入值；角色名称支持模糊匹配，其余精确匹配</td></tr>
+          <tr><td>用户标识类型 + 值</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>冰川通行证ID</td><td>类型：冰川通行证ID / 角色ID；切换类型时清空已输入值；均为精确匹配</td></tr>
           <tr><td>渠道类型</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / GooglePlay / AppStore / 华为 / 小米；后续可扩展</td></tr>
           <tr><td>最后订单ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配链式续订最新订单ID，值为 "0" 时表示无续订记录</td></tr>
         </tbody>
@@ -792,7 +790,6 @@ tbody td:first-child{text-align:center;padding:0}
           <tr><td>平台订单ID</td><td>渠道侧唯一订单标识，超长截断加 Tooltip</td></tr>
           <tr><td>冰川通行证ID</td><td>用户平台账号ID</td></tr>
           <tr><td>角色ID</td><td>游戏内角色ID</td></tr>
-          <tr><td>角色名称</td><td>游戏内角色昵称</td></tr>
           <tr><td>渠道类型</td><td>GooglePlay / AppStore / 华为 / 小米 等</td></tr>
           <tr><td>游戏包名</td><td>应用商店侧包名，可换行展示</td></tr>
           <tr><td>产品ID</td><td>订阅商品ID</td></tr>
@@ -947,7 +944,6 @@ function render() {
       <td>${r.orderId}</td>
       <td>${r.passportId}</td>
       <td>${r.roleId}</td>
-      <td>${r.roleName}</td>
       <td>${r.channel}</td>
       <td>${r.pkg}</td>
       <td>${r.pid}</td>
