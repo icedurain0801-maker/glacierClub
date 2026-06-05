@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>应用商店订阅日志查询</title>
+<style>
+:root{
+  --top:#08243a;
+  --side:#031525;
+  --side-2:#061d31;
+  --side-3:#02101c;
+  --blue:#1890ff;
+  --blue-2:#168cff;
+  --line:#e6e9ee;
+  --line-2:#f0f2f5;
+  --page:#eef2f6;
+  --text:#202733;
+  --muted:#8994a3;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;
+  background:var(--page);
+  color:var(--text);
+  font-size:13px;
+}
+button,input,select{font:inherit}
+.shell{
+  position:relative;
+  width:100vw;
+  min-width:1360px;
+  height:100vh;
+  background:var(--page);
+  overflow:hidden;
+}
+
+/* ===== 顶部平台栏 ===== */
+.platform{
+  height:42px;
+  display:flex;
+  align-items:center;
+  background:var(--top);
+  color:#d5e7f7;
+  box-shadow:0 1px 0 rgba(0,0,0,.18);
+}
+.plat-brand{
+  width:128px;
+  height:42px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding-left:7px;
+  color:#eef8ff;
+  font-size:15px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.plat-mark{
+  width:24px;height:22px;
+  display:grid;
+  grid-template-columns:repeat(4,4px);
+  gap:2px;
+  align-items:end;
+}
+.plat-mark span{
+  display:block;width:4px;border-radius:2px;
+  background:#27a4ff;
+  box-shadow:0 0 6px rgba(39,164,255,.36);
+}
+.plat-mark span:nth-child(1){height:15px}
+.plat-mark span:nth-child(2){height:21px}
+.plat-mark span:nth-child(3){height:18px}
+.plat-mark span:nth-child(4){height:22px}
+.plat-nav{height:42px;display:flex;align-items:center;gap:0;min-width:0}
+.plat-nav a{
+  height:42px;display:flex;align-items:center;
+  padding:0 17px;color:#d6e1ee;text-decoration:none;
+  font-size:13px;white-space:nowrap;
+}
+.plat-nav a.active{color:#fff;font-weight:600}
+
+/* ===== 工作区 ===== */
+.workspace{position:absolute;inset:42px 0 0 0;display:flex}
+
+/* ===== 侧边栏 ===== */
+.sidebar{
+  width:214px;height:100%;
+  background:var(--side);color:#aebed0;
+  flex:0 0 auto;overflow:hidden;position:relative;
+}
+.app-logo{
+  height:50px;display:flex;align-items:center;gap:10px;
+  padding:0 24px 0 43px;color:#fff;font-size:17px;font-weight:700;
+  background:#06192b;
+}
+.app-logo-icon{
+  width:27px;height:27px;border:2px solid #f1f6fb;
+  border-radius:50%;position:relative;flex:0 0 auto;
+}
+.app-logo-icon:before,.app-logo-icon:after{
+  content:"";position:absolute;top:9px;
+  width:5px;height:7px;border:2px solid #f1f6fb;
+  border-bottom:0;border-radius:8px 8px 0 0;
+}
+.app-logo-icon:before{left:6px}
+.app-logo-icon:after{right:6px}
+.menu{height:calc(100% - 50px);overflow-y:auto;padding:0 0 18px}
+.menu::-webkit-scrollbar{width:6px}
+.menu::-webkit-scrollbar-thumb{background:#455a6d;border-radius:4px}
+.menu-item,.menu-group{
+  height:41px;display:flex;align-items:center;gap:10px;
+  padding:0 20px 0 24px;color:#c5d1dd;white-space:nowrap;font-size:13px;
+}
+.menu-group.active-head{color:#f4f8fd;background:#082033;font-weight:600}
+.menu-dark{background:var(--side-3);padding:2px 5px 10px 0}
+.menu-child{
+  height:39px;display:flex;align-items:center;gap:8px;
+  padding-left:46px;color:#bbc6d2;font-size:13px;
+}
+.menu-child.sub{padding-left:64px;font-size:12.5px}
+.menu-child.active{
+  margin:3px 6px 3px 5px;height:34px;padding-left:59px;
+  border-radius:3px;background:#2394f2;color:#fff;font-weight:600;
+}
+.menu .ico{
+  width:14px;height:14px;display:inline-flex;align-items:center;
+  justify-content:center;color:#8fa3b8;flex:0 0 auto;
+}
+.menu .chev{margin-left:auto;color:#788b9f;font-size:12px}
+.menu-sub-head{
+  height:39px;display:flex;align-items:center;gap:8px;
+  padding-left:46px;padding-right:20px;color:#c5d1dd;font-size:13px;cursor:pointer;
+}
+.menu-sub-head.open{color:#f4f8fd;background:#071a2e;font-weight:600}
+.menu-sub-head.open .ico{color:#6ba8e8}
+.menu-sub-head .chev{margin-left:auto;color:#788b9f;font-size:12px}
+
+/* ===== 主内容区 ===== */
+.main{flex:1;min-width:0;height:100%;position:relative;background:var(--page)}
+
+/* tabsbar */
+.tabsbar{
+  height:44px;background:#fff;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:0;
+  box-shadow:0 1px 4px rgba(16,35,59,.05);
+}
+.hamb{
+  width:38px;height:44px;display:flex;align-items:center;
+  justify-content:center;color:#697386;border-right:1px solid #eef1f5;
+}
+.hamb svg,.tool svg,.top-icon svg,.table-tool svg{
+  width:16px;height:16px;stroke:currentColor;fill:none;
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+}
+.tool{width:40px;height:44px;display:flex;align-items:center;justify-content:center;color:#6d7480}
+.tabs{display:flex;height:44px;align-items:center;gap:8px;padding:0 8px;margin-left:6px;border-left:1px solid #eef1f5}
+.tab{
+  height:30px;padding:0 8px 0 12px;display:flex;align-items:center;gap:6px;
+  border:1px solid #e7ebf0;border-radius:4px;color:#5a6472;
+  background:#f7f9fc;font-size:13px;cursor:pointer;transition:all .15s;
+}
+.tab:hover{color:#1687ed;border-color:#cfe4fb}
+.tab.active{color:#1687ed;background:#eaf4ff;border-color:#9ccafb;font-weight:500}
+.tab .close{
+  width:16px;height:16px;display:flex;align-items:center;
+  justify-content:center;border-radius:50%;color:#aab3bf;font-size:13px;line-height:1;
+}
+.tab .close:hover{background:#dfe5ec;color:#5a6472}
+.tab.active .close{color:#6ba8e8}
+.tab.active .close:hover{background:#cfe4fb;color:#1687ed}
+.top-actions{
+  margin-left:auto;height:44px;display:flex;align-items:center;
+  gap:13px;padding:0 17px 0 8px;color:#2f3a48;
+}
+.search{
+  width:196px;height:30px;border:1px solid #dde3eb;border-radius:16px;
+  display:flex;align-items:center;gap:6px;padding:0 9px;color:#8994a3;
+}
+.search kbd{
+  margin-left:auto;height:18px;min-width:38px;border:1px solid #cbd3dd;
+  border-radius:3px;color:#667384;background:#fff;font-size:11px;
+  line-height:16px;text-align:center;font-family:inherit;
+}
+.env-select{
+  height:30px;width:154px;border:1px solid #dde3eb;border-radius:16px;
+  padding:0 34px 0 15px;display:flex;align-items:center;
+  justify-content:space-between;color:#334155;background:#fff;
+}
+.top-link,.lang,.time,.user{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px}
+.top-icon{
+  width:18px;height:18px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;color:#168cff;
+}
+.notice{position:relative;display:flex;align-items:center;gap:5px}
+.notice .badge{
+  position:absolute;top:-11px;left:10px;min-width:24px;height:17px;
+  padding:0 5px;border-radius:10px;background:#ff4d4f;color:#fff;
+  font-size:12px;line-height:17px;text-align:center;font-weight:700;
+}
+.avatar{width:18px;height:18px;border-radius:50%;background:#2b8fff}
+
+/* ===== 页面内容 ===== */
+.page{height:calc(100% - 44px);overflow:hidden;background:var(--page);position:relative;display:flex;flex-direction:column}
+.watermark{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.watermark span{
+  position:absolute;display:block;color:rgba(110,124,139,.075);
+  font-size:13px;line-height:1;white-space:nowrap;transform:rotate(-26deg);
+}
+.content{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* ===== 筛选区 ===== */
+.filters{
+  background:#fff;padding:12px 20px 11px;
+  border-bottom:1px solid #edf0f5;
+  display:flex;flex-wrap:wrap;align-content:flex-start;gap:10px 8px;
+  flex-shrink:0;
+}
+.field{height:28px;display:flex;align-items:center;color:#2a3340;white-space:nowrap}
+.ctrl{
+  height:28px;min-width:180px;border:1px solid #dcdfe6;background:#fff;
+  color:#2f3a48;margin-left:6px;padding:0 10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.ctrl.short{min-width:150px}
+.ctrl.mid{min-width:200px}
+.ctrl.long{min-width:220px}
+.ctrl.input{justify-content:flex-start;color:#adb5c0}
+select.ctrl{
+  margin-left:6px;-webkit-appearance:none;appearance:none;outline:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,#c8ced6 50%),linear-gradient(135deg,#c8ced6 50%,transparent 50%);
+  background-position:calc(100% - 14px) 12px,calc(100% - 9px) 12px;
+  background-size:5px 5px;background-repeat:no-repeat;
+}
+select.ctrl:focus{border-color:#168cff}
+input.ctrl{margin-left:6px;outline:none;cursor:text}
+input.ctrl:focus{border-color:#168cff}
+input.ctrl::placeholder{color:#adb5c0}
+.dr-wrap{position:relative;margin-left:6px;display:inline-flex;align-items:center;gap:4px}
+.dr-input{
+  height:28px;width:110px;border:1px solid #dcdfe6;background:#fff;
+  color:#2f3a48;padding:0 8px;outline:none;font:inherit;font-size:12px;cursor:pointer;
+}
+.dr-input:focus{border-color:#168cff}
+.dr-input::placeholder{color:#adb5c0}
+.dr-sep{color:#aeb7c2;font-size:12px}
+.caret{width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #c8ced6}
+.btn-query{
+  height:29px;padding:0 17px;border:1px solid #168cff;border-radius:2px;
+  background:#168cff;color:#fff;cursor:pointer;margin-left:1px;
+}
+
+/* ===== 表格区 ===== */
+.table-card{
+  flex:1;background:#fff;border-top:1px solid #f3f4f6;
+  position:relative;overflow:hidden;margin-top:9px;
+}
+.table-actions{
+  height:50px;display:flex;align-items:center;padding:0 23px;
+}
+.btn-export{
+  height:28px;padding:0 16px;border:1px solid #168cff;border-radius:2px;
+  background:#168cff;color:#fff;cursor:pointer;font-size:13px;
+}
+.table-tools{margin-left:auto;display:flex;gap:17px;color:#303846}
+.table-tool{width:14px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.grid{
+  position:absolute;left:23px;right:22px;top:50px;bottom:42px;overflow:auto;
+}
+.grid::-webkit-scrollbar{height:9px;width:9px}
+.grid::-webkit-scrollbar-thumb{background:#cfcfcf;border-radius:8px}
+table{border-collapse:collapse;table-layout:fixed;font-size:12px;background:#fff}
+thead th{
+  height:34px;padding:0 10px;text-align:left;color:#1c2430;font-weight:600;
+  border:1px solid #eef0f3;border-left:0;background:#fbfcfd;
+  position:sticky;top:0;z-index:1;white-space:nowrap;
+}
+thead th:first-child{border-left:1px solid #eef0f3}
+tbody td{
+  height:46px;padding:6px 10px;color:#39424f;
+  border:1px solid #eef0f3;border-left:0;
+  vertical-align:middle;word-break:break-all;line-height:1.5;
+}
+tbody td:first-child{border-left:1px solid #eef0f3}
+tbody tr:hover td{background:#f6fbff}
+.tag{display:inline-block;padding:1px 8px;border-radius:3px;font-size:12px;line-height:18px}
+.tag.s1{color:#389e0d;background:#f6ffed;border:1px solid #b7eb8f}
+.tag.s2{color:#0958d9;background:#e6f4ff;border:1px solid #91caff}
+.tag.s3{color:#d48806;background:#fff7e6;border:1px solid #ffe0a3}
+.tag.s4{color:#cf1322;background:#fff1f0;border:1px solid #ffccc7}
+.tag.s5{color:#531dab;background:#f9f0ff;border:1px solid #d3adf7}
+.detail-json{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:#5a6475;word-break:break-all;line-height:1.5}
+.pager{
+  position:absolute;right:24px;bottom:10px;
+  display:flex;align-items:center;gap:14px;color:#5b6573;font-size:12px;
+}
+.pager .pg-num{
+  min-width:24px;height:24px;padding:0 6px;border:1px solid #168cff;
+  color:#168cff;border-radius:2px;display:flex;align-items:center;justify-content:center;
+}
+.pager .pg-arrow{color:#c2c9d2}
+.pager .pg-size{
+  height:24px;padding:0 8px;border:1px solid #dcdfe6;border-radius:2px;
+  display:flex;align-items:center;gap:8px;color:#5b6573;
+}
+.win{
+  position:absolute;right:78px;bottom:40px;color:rgba(75,82,90,.24);
+  z-index:2;font-size:14px;line-height:1.6;
+}
+.win strong{display:block;font-size:18px;font-weight:400}
+
+/* ===== checkbox ===== */
+.checkbox{
+  width:14px;height:14px;border:1px solid #d9dde5;border-radius:2px;
+  display:inline-block;vertical-align:middle;background:#fff;cursor:pointer;position:relative;
+}
+.checkbox.checked{background:#168cff;border-color:#168cff}
+.checkbox.checked:after{
+  content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);
+}
+thead th:first-child{width:38px;text-align:center;padding:0}
+tbody td:first-child{text-align:center;padding:0}
+
+/* ===== 批量操作 ===== */
+.btn-batch{
+  height:28px;padding:0 13px;border:1px solid #e0e3e8;
+  background:#fbfbfc;color:#b6bec8;border-radius:2px;cursor:not-allowed;
+}
+.btn-batch.enabled{border-color:#168cff;background:#168cff;color:#fff;cursor:pointer}
+.batch-count{margin-left:12px;color:#8994a3;font-size:12px}
+.batch-count b{color:#168cff;font-weight:600}
+
+/* ===== 行内操作链接 ===== */
+.link{color:#168cff;cursor:pointer;white-space:nowrap}
+.link.disabled{color:#b6bec8;cursor:not-allowed}
+.col-actions{white-space:nowrap}
+
+/* ===== 弹窗 ===== */
+.modal-mask{
+  position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);
+  display:flex;align-items:flex-start;justify-content:center;
+}
+.modal-mask.hidden{display:none}
+.modal{
+  margin-top:160px;width:480px;background:#fff;border-radius:4px;
+  box-shadow:0 6px 24px rgba(0,0,0,.18);overflow:hidden;
+}
+.modal-head{
+  height:48px;padding:0 18px;display:flex;align-items:center;
+  justify-content:space-between;border-bottom:1px solid #edf0f5;
+  font-size:15px;font-weight:600;color:#1c2430;
+}
+.modal-head .x{cursor:pointer;color:#9aa3af;font-size:18px;line-height:1}
+.modal-body{padding:22px 24px 6px}
+.form-row{display:flex;margin-bottom:20px}
+.form-row > label{
+  width:84px;flex:0 0 auto;text-align:right;padding-right:12px;
+  padding-top:6px;color:#2a3340;
+}
+.form-row > label .req{color:#f04134;margin-right:3px}
+.form-row .field-ctrl{flex:1;min-width:0}
+.modal select{
+  width:100%;height:32px;border:1px solid #dcdfe6;border-radius:3px;
+  padding:0 10px;color:#2f3a48;background:#fff;outline:none;
+}
+.modal select:focus{border-color:#168cff}
+.modal textarea{
+  width:100%;height:84px;border:1px solid #dcdfe6;border-radius:3px;
+  padding:7px 10px;color:#2f3a48;resize:vertical;outline:none;font-family:inherit;
+}
+.modal textarea:focus{border-color:#168cff}
+.modal-foot{padding:10px 24px 20px;display:flex;justify-content:flex-end;gap:10px}
+.btn{height:32px;padding:0 18px;border-radius:3px;cursor:pointer;font-size:13px}
+.btn-cancel{border:1px solid #dcdfe6;background:#fff;color:#4b5563}
+.btn-ok{border:1px solid #168cff;background:#168cff;color:#fff}
+
+/* ===== 需求说明 悬浮按钮 + 侧边栏 ===== */
+.req-fab{
+  position:fixed;right:24px;bottom:28px;z-index:60;
+  height:36px;padding:0 14px 0 10px;
+  display:flex;align-items:center;gap:6px;
+  background:#1c2f45;color:#d8e8f5;font-size:13px;font-weight:600;
+  border-radius:18px;cursor:pointer;
+  box-shadow:0 4px 12px rgba(16,35,59,.28);
+  transition:background .15s;user-select:none;white-space:nowrap;
+}
+.req-fab:hover{background:#243d56}
+.req-fab svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.req-mask{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.32);opacity:0;pointer-events:none;transition:opacity .25s}
+.req-mask.open{opacity:1;pointer-events:auto}
+.req-drawer{
+  position:fixed;top:0;right:-600px;width:600px;max-width:96vw;height:100vh;
+  z-index:95;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.14);
+  display:flex;flex-direction:column;
+  transition:right .3s cubic-bezier(.4,0,.2,1);
+}
+.req-drawer.open{right:0}
+.req-head{
+  height:52px;flex:0 0 auto;padding:0 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid #edf0f5;
+}
+.req-head .ttl{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;color:#1c2430}
+.req-head .ttl:before{content:"";width:4px;height:16px;border-radius:2px;background:#168cff}
+.req-head .x{
+  width:28px;height:28px;border:0;border-radius:50%;
+  background:#f4f6f9;color:#8c98a6;font-size:17px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.req-head .x:hover{background:#e6eaf0;color:#445}
+.req-body{flex:1;overflow-y:auto;padding:18px 20px 28px}
+.req-body::-webkit-scrollbar{width:7px}
+.req-body::-webkit-scrollbar-thumb{background:#d3d8e0;border-radius:6px}
+.req-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.req-chip{
+  font-size:12px;color:#0958d9;background:#e6f4ff;
+  border:1px solid #91caff;border-radius:11px;padding:2px 10px;
+}
+.req-note{
+  margin-top:8px;background:#f0f7ff;border-left:3px solid #91d5ff;
+  border-radius:0 6px 6px 0;padding:8px 11px;font-size:12px;color:#55606e;line-height:1.8;
+}
+.req-note.warn{background:#fff7e6;border-left-color:#ffc53d}
+.prd-h2{
+  margin:24px 0 12px;font-size:15px;font-weight:700;color:#1c2430;
+  padding-bottom:8px;border-bottom:1px solid #eef0f3;
+  display:flex;align-items:center;gap:8px;
+}
+.prd-h2:first-child{margin-top:0}
+.prd-h2 .no{
+  flex:0 0 auto;width:22px;height:22px;border-radius:5px;
+  background:#168cff;color:#fff;font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+.prd-h3{margin:16px 0 7px;font-size:13px;font-weight:600;color:#0958d9}
+.prd-block{margin-bottom:20px}
+.prd-block p{margin:0 0 6px;font-size:13px;color:#4b5563;line-height:1.85}
+.prd-block ul{margin:0 0 6px;padding-left:18px}
+.prd-block li{font-size:13px;color:#4b5563;line-height:1.9}
+.prd-block li b{color:#1c2430;font-weight:600}
+.prd-tbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+.prd-tbl th,.prd-tbl td{border:1px solid #e8ecf0;padding:6px 10px;text-align:left;vertical-align:top}
+.prd-tbl td:first-child,.prd-tbl th:first-child{width:130px;min-width:130px;white-space:nowrap}
+.prd-tbl th{background:#f5f7fa;color:#1c2430;font-weight:600}
+.prd-tbl td{color:#4b5563}
+.req-y{color:#389e0d;font-weight:600}
+
+/* ===== Toast ===== */
+.toast{
+  position:fixed;top:84px;left:50%;transform:translateX(-50%) translateY(-10px);
+  z-index:120;background:#fff;border-radius:3px;box-shadow:0 3px 14px rgba(0,0,0,.16);
+  padding:9px 16px;font-size:13px;display:flex;align-items:center;gap:8px;
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast .ok{
+  width:16px;height:16px;border-radius:50%;background:#52c41a;color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:11px;flex:0 0 auto;
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="platform">
+    <div class="plat-brand">
+      <div class="plat-mark"><span></span><span></span><span></span><span></span></div>
+      <span>冰川业务平台</span>
+    </div>
+    <nav class="plat-nav" aria-label="平台导航">
+      <a class="active">游戏运营后台</a>
+      <a>自动化运维</a>
+      <a>自动化部署</a>
+      <a>SDK 管理后台</a>
+      <a>会员管理后台</a>
+      <a>数据分析</a>
+      <a>客服后台</a>
+      <a>活动管理系统</a>
+      <a>聊天系统</a>
+      <a>联合业务后台</a>
+      <a>开放平台</a>
+      <a>通用配置</a>
+    </nav>
+  </header>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="app-logo"><span class="app-logo-icon"></span><span>游戏运营后台</span></div>
+      <nav class="menu">
+        <div class="menu-item"><span class="ico">⌂</span><span>首页</span></div>
+        <div class="menu-group"><span class="ico">◫</span><span>游戏中心</span><span class="chev">⌄</span></div>
+        <div class="menu-group"><span class="ico">♟</span><span>玩家中心</span><span class="chev">⌄</span></div>
+        <div class="menu-group"><span class="ico">◌</span><span>交易中心</span><span class="chev">⌄</span></div>
+        <div class="menu-group"><span class="ico">▤</span><span>数据中心</span><span class="chev">⌄</span></div>
+        <div class="menu-group active-head"><span class="ico">⚙</span><span>运营中心</span><span class="chev">⌃</span></div>
+        <div class="menu-dark">
+          <div class="menu-child"><span class="ico">◈</span><span>公告</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>广播</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>邮件</span><span class="chev">⌄</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>兑换码</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>应用推送</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>区服管理</span><span class="chev">⌄</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>调查问卷</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>流失干预</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>余额管理</span></div>
+          <div class="menu-child"><span class="ico">◈</span><span>用户反馈</span><span class="chev">⌄</span></div>
+          <!-- 订阅管理 -->
+          <div class="menu-sub-head open" onclick="toggleSubMenu()">
+            <span class="ico">◈</span><span>订阅管理</span><span class="chev" id="subChev">⌃</span>
+          </div>
+          <div id="subMenu">
+            <div class="menu-child sub active" style="cursor:pointer">应用商店订阅日志查询</div>
+          </div>
+          <div class="menu-child"><span class="ico">◈</span><span>大玩家</span></div>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="tabsbar">
+        <div class="hamb">
+          <svg viewBox="0 0 24 24"><line x1="5" y1="7" x2="19" y2="7"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="17" x2="19" y2="17"/></svg>
+        </div>
+        <div class="tool"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></div>
+        <div class="tabs">
+          <div class="tab home">首页 <span class="close">×</span></div>
+          <div class="tab active">应用商店订阅日志查询 <span class="close">×</span></div>
+        </div>
+        <div class="top-actions">
+          <div class="search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+            <span>输入功能名称</span><kbd>Ctrl+K</kbd>
+          </div>
+          <div class="env-select"><span>暮光</span><span class="caret"></span></div>
+          <div class="top-link"><span class="top-icon">?</span><span>帮助</span></div>
+          <div class="lang">▣ 简体</div>
+          <div class="time"><span class="top-icon">◷</span><span>UTC+8</span></div>
+          <div class="notice"><span class="badge">12</span><span class="top-icon">♟</span><span>通知</span></div>
+          <div class="user"><span class="avatar"></span><span>刘福毅</span><span>⌄</span></div>
+        </div>
+      </div>
+
+      <section class="page">
+        <div class="watermark" id="watermark"></div>
+        <div class="content">
+          <!-- 筛选区 -->
+          <form class="filters">
+            <label class="field">平台:
+              <select class="ctrl short">
+                <option>手游平台海外</option>
+                <option>手游平台国内</option>
+              </select>
+            </label>
+            <div class="field">订单创建日期:
+              <div class="dr-wrap">
+                <input class="dr-input" type="text" placeholder="开始日期" readonly>
+                <span class="dr-sep">至</span>
+                <input class="dr-input" type="text" placeholder="结束日期" readonly>
+              </div>
+            </div>
+            <div class="field">购买日期:
+              <div class="dr-wrap">
+                <input class="dr-input" type="text" placeholder="开始日期" readonly>
+                <span class="dr-sep">至</span>
+                <input class="dr-input" type="text" placeholder="结束日期" readonly>
+              </div>
+            </div>
+            <label class="field">状态:
+              <select class="ctrl short">
+                <option>不限</option>
+                <option>有效</option>
+                <option>试用</option>
+                <option>宽限期</option>
+                <option>已取消</option>
+                <option>冷冻期</option>
+              </select>
+            </label>
+            <label class="field">平台订单ID:<input type="text" class="ctrl mid input" placeholder=""></label>
+            <div class="field">
+              <select class="ctrl" style="min-width:0;width:120px;margin-left:0;border-right:none;border-radius:3px 0 0 3px">
+                <option>冰川通行证ID</option>
+                <option>角色ID</option>
+                <option>角色名称</option>
+              </select><input type="text" class="ctrl input" style="min-width:160px;margin-left:0;border-radius:0 3px 3px 0" placeholder="请输入">
+            </div>
+            <label class="field">渠道类型:
+              <select class="ctrl short">
+                <option>不限</option>
+                <option>GooglePlay</option>
+                <option>AppStore</option>
+                <option>华为</option>
+                <option>小米</option>
+              </select>
+            </label>
+            <label class="field">订阅产品ID:<input type="text" class="ctrl mid input" placeholder=""></label>
+            <label class="field">最后订单ID:<input type="text" class="ctrl mid input" placeholder=""></label>
+            <button class="btn-query" type="button">查 询</button>
+          </form>
+
+          <!-- 表格区 -->
+          <div class="table-card">
+            <div class="table-actions">
+              <button class="btn-export" type="button">导出</button>
+              <button class="btn-batch" id="batchBtn" type="button" style="margin-left:10px" onclick="openBatchModal()">批量取消订阅</button>
+              <span class="batch-count">已选 <b id="selCount">0</b> 项</span>
+              <div class="table-tools" aria-label="表格工具">
+                <span class="table-tool"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="8 11 12 15 16 11"/><path d="M5 20h14"/></svg></span>
+                <span class="table-tool"><svg viewBox="0 0 24 24"><path d="M12 4v16"/><path d="M8 8h8"/><path d="M8 16h8"/></svg></span>
+                <span class="table-tool"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.05.05a2.2 2.2 0 0 1-3.11 3.11l-.05-.05a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.66V21a2.2 2.2 0 0 1-4.4 0v-.08A1.8 1.8 0 0 0 8 19.26a1.8 1.8 0 0 0-2 .36l-.05.05a2.2 2.2 0 0 1-3.11-3.11l.05-.05a1.8 1.8 0 0 0 .36-2 1.8 1.8 0 0 0-1.66-1.1H1.5a2.2 2.2 0 0 1 0-4.4h.08A1.8 1.8 0 0 0 3.24 8a1.8 1.8 0 0 0-.36-2l-.05-.05a2.2 2.2 0 0 1 3.11-3.11l.05.05A1.8 1.8 0 0 0 8 3.24a1.8 1.8 0 0 0 1.1-1.66V1.5a2.2 2.2 0 0 1 4.4 0v.08A1.8 1.8 0 0 0 15 3.24a1.8 1.8 0 0 0 2-.36l.05-.05a2.2 2.2 0 0 1 3.11 3.11l-.05.05a1.8 1.8 0 0 0-.36 2 1.8 1.8 0 0 0 1.66 1.1h.08a2.2 2.2 0 0 1 0 4.4h-.08A1.8 1.8 0 0 0 19.4 15z"/></svg></span>
+              </div>
+            </div>
+            <div class="grid">
+              <table style="width:100%;min-width:2260px">
+                <thead>
+                  <tr>
+                    <th style="width:38px;text-align:center;padding:0"><span class="checkbox" id="checkAll" onclick="toggleAll()"></span></th>
+                    <th style="width:160px">平台订单ID</th>
+                    <th style="width:140px">冰川通行证ID</th>
+                    <th style="width:110px">角色ID</th>
+                    <th style="width:110px">角色名称</th>
+                    <th style="width:90px">渠道类型</th>
+                    <th style="width:180px">游戏包名</th>
+                    <th style="width:120px">产品ID</th>
+                    <th style="width:70px">金额(分)</th>
+                    <th style="width:72px">状态</th>
+                    <th style="width:145px">购买时间</th>
+                    <th style="width:145px">到期时间</th>
+                    <th style="width:62px">自动续订</th>
+                    <th style="width:72px">支付状态</th>
+                    <th style="width:155px">最新订阅平台订单</th>
+                    <th style="width:140px">备注</th>
+                    <th style="width:260px">详情</th>
+                    <th style="width:145px">创建时间</th>
+                    <th style="width:140px">操作备注</th>
+                    <th style="width:90px">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+            <div class="pager">
+              <span>共 18 条</span>
+              <span class="pg-arrow">‹</span>
+              <span class="pg-num">1</span>
+              <span class="pg-arrow">›</span>
+              <span class="pg-size">10 条/页 <span class="caret"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="win"><strong>激活 Windows</strong>转到"设置"以激活 Windows。</div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 单条取消订阅弹窗 -->
+<div class="modal-mask hidden" id="singleModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>取消订阅确认</span>
+      <span class="x" onclick="closeSingleModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>平台订单ID</label>
+        <div class="field-ctrl"><input type="text" id="sOrderId" readonly style="height:32px;border:1px solid #dcdfe6;border-radius:3px;padding:0 10px;width:100%;background:#f7f8fa;color:#5b6573;box-sizing:border-box"></div>
+      </div>
+      <div class="form-row">
+        <label>产品ID</label>
+        <div class="field-ctrl"><input type="text" id="sPid" readonly style="height:32px;border:1px solid #dcdfe6;border-radius:3px;padding:0 10px;width:100%;background:#f7f8fa;color:#5b6573;box-sizing:border-box"></div>
+      </div>
+      <div class="form-row">
+        <label><span class="req">*</span>订阅结果</label>
+        <div class="field-ctrl">
+          <select id="sResult">
+            <option value="cancel">取消订阅</option>
+            <option value="refund">取消并退款</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>备注</label>
+        <div class="field-ctrl"><textarea id="sRemark" placeholder="请输入备注信息"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-cancel" type="button" onclick="closeSingleModal()">取 消</button>
+      <button class="btn btn-ok" type="button" onclick="confirmSingle()">确 定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 批量取消订阅弹窗 -->
+<div class="modal-mask hidden" id="batchModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>批量取消订阅</span>
+      <span class="x" onclick="closeBatchModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-row" style="margin-bottom:16px">
+        <label style="padding-top:0"></label>
+        <div class="field-ctrl" style="color:#595959;font-size:13px;line-height:1.7">
+          已选择 <b id="batchCountTip" style="color:#168cff"></b> 项，是否全部取消订阅？
+        </div>
+      </div>
+      <div class="form-row">
+        <label>备注</label>
+        <div class="field-ctrl"><textarea id="bRemark" placeholder="请输入备注信息"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-cancel" type="button" onclick="closeBatchModal()">取 消</button>
+      <button class="btn btn-ok" type="button" onclick="confirmBatch()">确 定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<!-- Toast -->
+<div class="toast" id="toast"><span class="ok">✓</span><span id="toastText"></span></div>
+
+<!-- 需求说明 悬浮按钮 -->
+<div class="req-fab" id="reqFab" onclick="openReq()">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+  需求说明
+</div>
+
+<!-- 需求说明 侧边栏 -->
+<div class="req-mask" id="reqMask" onclick="closeReq()"></div>
+<aside class="req-drawer" id="reqDrawer">
+  <div class="req-head">
+    <span class="ttl">应用商店订阅日志查询 — 需求说明</span>
+    <button class="x" type="button" onclick="closeReq()">×</button>
+  </div>
+  <div class="req-body">
+
+    <!-- 1. 需求概述 -->
+    <div class="prd-h2"><span class="no">1</span>需求概述</div>
+    <div class="prd-block">
+      <p><b>背景与目标：</b>目前各渠道（GooglePlay / AppStore / 华为 / 小米等）的订阅数据分散于各平台，运营及客服人员无统一入口查询和处理异常订阅，导致用户反馈处理效率低、取消订阅操作依赖研发介入。本页面旨在提供统一的订阅日志查询与管理能力，支持多维度筛选、订阅状态全链路查看、单条及批量取消订阅操作，降低研发介入成本，提升运营处理时效。</p>
+      <p><b>菜单地址：</b>在运营中心新增订阅管理子菜单，然后在子菜单里新增子页面应用商店订阅日志查询。</p>
+    </div>
+
+    <!-- 2. 交互流程 -->
+    <div class="prd-h2"><span class="no">2</span>页面交互流程</div>
+    <div class="prd-block">
+      <div class="prd-h3">核心操作流：取消订阅</div>
+      <ul>
+        <li><b>单条流程：</b>进入页面 → 输入筛选条件 → 点击「查询」→ 定位目标行 → 点击「取消订阅」→ 弹窗确认（填写订阅结果 + 备注）→ 确认提交 → 系统调用渠道接口 → 成功：行状态变为「已取消」并写入操作备注；失败：弹窗保留、Toast 报错。</li>
+        <li><b>批量流程：</b>勾选多行（已取消行不可选）→ 「批量取消订阅」按钮激活 → 弹窗展示已选数量 → 填写统一备注 → 确认提交 → 系统逐条调用渠道接口 → Toast 展示「成功 X 条，失败 Y 条」（部分失败时保留失败项可重试）。</li>
+      </ul>
+      <div class="prd-h3">导出流程</div>
+      <ul>
+        <li>点击「导出」→ 按当前筛选条件下发导出任务 → 数量 ≤ 10 万条时直接下载 Excel；超量时 Toast 提示「数据量过大，请缩小筛选范围后重试」，不触发下载。</li>
+      </ul>
+    </div>
+
+    <!-- 3. 筛选区字段 -->
+    <div class="prd-h2"><span class="no">3</span>筛选区字段定义</div>
+    <div class="prd-block">
+      <table class="prd-tbl">
+        <thead><tr><th>字段</th><th>控件</th><th>必填</th><th>默认值</th><th>校验 / 枚举 / 说明</th></tr></thead>
+        <tbody>
+          <tr><td>平台</td><td>下拉单选</td><td>是</td><td>手游平台海外</td><td>手游平台海外 / 手游平台国内；切换平台后列表自动重置并重新查询</td></tr>
+          <tr><td>订单创建日期</td><td>日期范围选择器</td><td>否</td><td>空</td><td>结束日期 ≥ 开始日期；最大跨度建议 180 天，超出时 Toast 提示</td></tr>
+          <tr><td>购买日期</td><td>日期范围选择器</td><td>否</td><td>空</td><td>同上，与「订单创建日期」相互独立，可同时生效（AND 关系）</td></tr>
+          <tr><td>状态</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / 有效 / 试用 / 宽限期 / 已取消 / 冷冻期</td></tr>
+          <tr><td>平台订单ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配渠道侧订单ID，不支持模糊搜索；最长 64 字符</td></tr>
+          <tr><td>用户标识类型 + 值</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>冰川通行证ID</td><td>类型：冰川通行证ID / 角色ID / 角色名称；切换类型时清空已输入值；角色名称支持模糊匹配，其余精确匹配</td></tr>
+          <tr><td>渠道类型</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / GooglePlay / AppStore / 华为 / 小米；后续可扩展</td></tr>
+          <tr><td>订阅产品ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配，最长 128 字符</td></tr>
+          <tr><td>最后订单ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配链式续订最新订单ID，值为 "0" 时表示无续订记录</td></tr>
+        </tbody>
+      </table>
+      <div class="req-note">所有筛选项均为 AND 关系。点击「查询」触发请求，不支持实时搜索（避免高频接口调用）。筛选区内容在当前会话中保持，刷新页面后重置为默认值。</div>
+    </div>
+
+    <!-- 4. 列表字段 -->
+    <div class="prd-h2"><span class="no">4</span>列表字段定义</div>
+    <div class="prd-block">
+      <table class="prd-tbl">
+        <thead><tr><th>字段</th><th>说明 / 展示规则</th></tr></thead>
+        <tbody>
+          <tr><td>复选框</td><td>「已取消」状态行禁止勾选，复选框置灰；全选仅选中当前页可操作行</td></tr>
+          <tr><td>平台订单ID</td><td>渠道侧唯一订单标识，超长截断加 Tooltip</td></tr>
+          <tr><td>冰川通行证ID</td><td>用户平台账号ID</td></tr>
+          <tr><td>角色ID</td><td>游戏内角色ID</td></tr>
+          <tr><td>角色名称</td><td>游戏内角色昵称</td></tr>
+          <tr><td>渠道类型</td><td>GooglePlay / AppStore / 华为 / 小米 等</td></tr>
+          <tr><td>游戏包名</td><td>应用商店侧包名，可换行展示</td></tr>
+          <tr><td>产品ID</td><td>订阅商品ID</td></tr>
+          <tr><td>金额（分）</td><td>订阅金额，单位：分；展示原始数值，不做货币转换</td></tr>
+          <tr><td>状态</td><td>彩色标签：有效（绿）/ 试用（蓝）/ 宽限期（橙）/ 已取消（红）/ 冷冻期（紫）</td></tr>
+          <tr><td>购买时间</td><td>格式：YYYY-MM-DD HH:mm:ss</td></tr>
+          <tr><td>到期时间</td><td>格式同上；已到期时字体变灰</td></tr>
+          <tr><td>自动续订</td><td>1 = 开启，0 = 关闭；居中展示</td></tr>
+          <tr><td>支付状态</td><td>渠道侧支付流水状态文本</td></tr>
+          <tr><td>最新订阅平台订单</td><td>关联最新续订的订单ID；值为 "0" 时展示 "—"</td></tr>
+          <tr><td>备注</td><td>渠道通知中的状态说明文本，超长 Tooltip</td></tr>
+          <tr><td>详情</td><td>渠道原始通知 JSON，等宽字体展示，可横向滚动</td></tr>
+          <tr><td>创建时间</td><td>记录入库时间，格式同购买时间</td></tr>
+          <tr><td>操作备注</td><td>人工操作时填写的备注；空值展示 "—"</td></tr>
+          <tr><td>操作</td><td>有效/试用/宽限期/冷冻期行：「取消订阅」蓝色链接；已取消行：置灰不可点</td></tr>
+        </tbody>
+      </table>
+      <div class="req-note">列表默认按「创建时间」倒序排列，不提供前端排序切换（数据量大，排序应由后端承担）。分页默认 10 条/页，可切换 10 / 20 / 50 / 100。</div>
+    </div>
+
+    <!-- 5. 弹窗字段 -->
+    <div class="prd-h2"><span class="no">5</span>弹窗字段定义</div>
+    <div class="prd-block">
+      <div class="prd-h3">单条取消订阅弹窗</div>
+      <table class="prd-tbl">
+        <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>平台订单ID</td><td>只读文本</td><td>—</td><td>自动填入，不可修改，灰底提示</td></tr>
+          <tr><td>产品ID</td><td>只读文本</td><td>—</td><td>自动填入，不可修改，灰底提示</td></tr>
+          <tr><td>订阅结果</td><td>下拉单选</td><td class="req-y">是</td><td>取消订阅 / 取消并退款；默认「取消订阅」</td></tr>
+          <tr><td>备注</td><td>多行文本</td><td>否</td><td>最长 200 字；用于记录人工操作原因，写入操作备注列</td></tr>
+        </tbody>
+      </table>
+      <div class="prd-h3" style="margin-top:14px">批量取消订阅弹窗</div>
+      <table class="prd-tbl">
+        <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>已选数量提示</td><td>只读文本</td><td>—</td><td>「已选择 X 项，是否全部取消订阅？」蓝色加粗数量</td></tr>
+          <tr><td>备注</td><td>多行文本</td><td>否</td><td>最长 200 字；统一写入所有被操作行的操作备注列</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 6. 功能逻辑 -->
+    <div class="prd-h2"><span class="no">6</span>功能逻辑与联动规则</div>
+    <div class="prd-block">
+      <div class="prd-h3">筛选联动</div>
+      <ul>
+        <li>「平台」切换后，列表数据立即重置，已勾选行清空，重新执行查询（当前筛选条件保留）。</li>
+        <li>「用户标识类型」切换后，右侧输入框清空已填内容，placeholder 更新为对应类型提示。</li>
+        <li>日期范围组件：点选开始日期后，结束日期不可早于开始日期；均为空时不作为筛选条件。</li>
+      </ul>
+      <div class="prd-h3">复选框与批量按钮联动</div>
+      <ul>
+        <li>页头全选框：勾选 = 全选当前页中状态非「已取消」的行；若全部可选行已勾选，则再次点击为全部取消。</li>
+        <li>已选数量实时更新于按钮旁「已选 X 项」，X = 0 时批量按钮置灰不可点。</li>
+        <li>翻页或重新查询后，已勾选行清空（避免跨页误操作）。</li>
+      </ul>
+      <div class="prd-h3">取消订阅提交逻辑</div>
+      <ul>
+        <li>单条：确认提交后，按钮进入 loading 防抖状态，接口返回前不可重复点击。</li>
+        <li>成功：弹窗关闭，列表局部刷新该行状态，Toast「取消订阅成功：{平台订单ID}」。</li>
+        <li>失败：弹窗保留已填内容，Toast 报错提示，允许用户重新提交。</li>
+        <li>批量：后端逐条处理并返回明细结果；全成功时 Toast「批量取消订阅成功，共 X 条」；部分失败时 Toast「成功 X 条，失败 Y 条」，失败行保持可勾选状态以便重试。</li>
+      </ul>
+    </div>
+
+    <!-- 7. 异常与边界 -->
+    <div class="prd-h2"><span class="no">7</span>异常与边界情况</div>
+    <div class="prd-block">
+      <div class="prd-h3">数据异常</div>
+      <ul>
+        <li><b>列表为空：</b>展示空状态图+文案「暂无数据，请调整筛选条件后重试」，不展示表格骨架。</li>
+        <li><b>字段缺失：</b>后端返回 null 或空字符串的字段，前端统一展示 "—"，不显示 "null" / "undefined"。</li>
+        <li><b>详情 JSON 异常：</b>若渠道原始通知格式错误，原样展示原始字符串，不强制解析。</li>
+      </ul>
+      <div class="prd-h3">性能与容量</div>
+      <ul>
+        <li><b>查询无条件保护：</b>所有筛选项均为空时，禁止查询（按钮置灰或提示「请至少填写一个筛选条件」），避免全表扫描。</li>
+        <li><b>日期跨度限制：</b>单次查询日期跨度建议 ≤ 180 天，超出时前端拦截提示。</li>
+        <li><b>导出数量上限：</b>10 万条；超出时提示缩小筛选范围，不触发后端任务。</li>
+        <li><b>批量操作上限：</b>单次批量取消订阅建议 ≤ 200 条，超出时提示「单次批量操作上限 200 条，请分批操作」。</li>
+      </ul>
+      <div class="prd-h3">权限边界</div>
+      <ul>
+        <li><b>查询权限：</b>所有已登录运营人员默认拥有。</li>
+        <li><b>取消订阅权限：</b>需「订阅管理-操作」权限；无权限时「取消订阅」链接和「批量取消订阅」按钮不展示（隐藏，非置灰），页面不出现操作入口。</li>
+        <li><b>导出权限：</b>需「订阅管理-导出」权限；无权限时「导出」按钮隐藏。</li>
+      </ul>
+      <div class="prd-h3">操作异常</div>
+      <ul>
+        <li><b>并发冲突：</b>同一订阅被两人同时操作，后提交者接口返回状态冲突时，提示「该订阅已被处理，请刷新后确认」，不静默失败。</li>
+        <li><b>网络断开：</b>提交失败统一展示 Toast 错误提示，弹窗保留内容可重试；不自动重试（避免重复取消）。</li>
+        <li><b>渠道接口异常：</b>渠道侧返回错误码时，展示具体错误信息（如「渠道侧订单不存在」），便于人工判断是否重试。</li>
+        <li><b>会话过期：</b>操作提交时若会话已过期，跳转登录页，操作不执行。</li>
+      </ul>
+      <div class="req-note warn">⚠️ 取消订阅为不可逆操作，直接调用渠道侧接口终止续订权益。弹窗中需明确展示被操作订单的关键信息（平台订单ID、产品ID），并要求操作者主动选择「订阅结果」，避免误触。</div>
+    </div>
+
+  </div>
+</aside>
+
+<script>
+/* 订阅管理子菜单折叠 */
+function toggleSubMenu() {
+  const menu = document.getElementById("subMenu");
+  const chev = document.getElementById("subChev");
+  const head = chev.closest(".menu-sub-head");
+  const open = menu.style.display !== "none";
+  menu.style.display = open ? "none" : "block";
+  chev.textContent = open ? "⌄" : "⌃";
+  head.classList.toggle("open", !open);
+}
+
+/* 水印 */
+const wm = document.getElementById("watermark");
+for (let y = 64; y < window.innerHeight + 120; y += 72) {
+  for (let x = -20; x < window.innerWidth + 180; x += 185) {
+    const s = document.createElement("span");
+    s.style.left = x + "px";
+    s.style.top  = y + "px";
+    s.textContent = "lufujy  刘福毅  应用商店订阅日志查询";
+    wm.appendChild(s);
+  }
+}
+
+/* mock 数据 */
+const rows = [
+  { orderId:"4059168285360550001", passportId:"465486750", roleId:"131000951", roleName:"剑舞红尘", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.3.99",  amount:"2577",  status:1, buyTime:"2025-06-20 18:48:51", expireTime:"2026-03-04 17:55:51", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已进入帐号保留状态", detail:'{"notificationType": 5,"developerPayload":"4059168285360550001*131000951*10053270"}',  createTime:"2026-03-05 17:55:28", opRemark:"" },
+  { orderId:"4059168692965670001", passportId:"342359112", roleId:"143254663", roleName:"问道行者", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:4, buyTime:"2026-01-23 23:36:47", expireTime:"2026-02-23 23:36:44", autoRenew:"0", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已到期",             detail:'{"notificationType": 13,"developerPayload":"4059168692965670001*143254663*10145689"}', createTime:"2026-02-23 23:35:57", opRemark:"" },
+  { orderId:"4059168193978870001", passportId:"475075362", roleId:"114816533", roleName:"逍遥散人", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:2, buyTime:"2026-02-23 05:31:00", expireTime:"2026-03-23 05:30:49", autoRenew:"1", payStatus:"待付款", latestOrder:"4059177179586170000", remark:"续订了处于活动状态的订阅", detail:'{"notificationType": 2,"developerPayload":"4059168193978870001*114816533*10052530"}',  createTime:"2026-02-23 05:30:08", opRemark:"" },
+  { orderId:"4059168564610260001", passportId:"382910045", roleId:"90000212",  roleName:"青云子",   channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:3, buyTime:"2025-06-17 15:50:06", expireTime:"2026-02-21 15:53:23", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已进入帐号保留状态", detail:'{"notificationType": 5,"developerPayload":"4059168564610260001*90000212*10035462"}',   createTime:"2026-02-22 15:53:09", opRemark:"" },
+  { orderId:"4059168285360550001", passportId:"465486750", roleId:"131000951", roleName:"剑舞红尘", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.3.99",  amount:"2577",  status:5, buyTime:"2025-06-20 18:48:51", expireTime:"2026-02-18 17:55:51", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已进入帐号保留状态", detail:'{"notificationType": 5,"developerPayload":"4059168285360550001*131000951*10053270"}',  createTime:"2026-02-19 17:55:22", opRemark:"" },
+  { orderId:"4059168193978870001", passportId:"475075362", roleId:"114816533", roleName:"逍遥散人", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:1, buyTime:"2026-02-23 05:31:00", expireTime:"2026-02-23 05:30:49", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"新订阅",                 detail:'{"notificationType": 4,"developerPayload":"4059168193978870001*114816533*10052530"}',  createTime:"2026-02-23 05:30:01", opRemark:"" },
+  { orderId:"4059167843201190001", passportId:"219830761", roleId:"122003841", roleName:"北冥有鱼", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.3.99",  amount:"2577",  status:4, buyTime:"2026-01-18 09:22:14", expireTime:"2026-02-18 09:22:14", autoRenew:"0", payStatus:"待付款", latestOrder:"0",                    remark:"用户主动取消订阅",       detail:'{"notificationType": 3,"developerPayload":"4059167843201190001*122003841*10051874"}',  createTime:"2026-02-18 09:21:58", opRemark:"" },
+  { orderId:"4059167523019880001", passportId:"539204817", roleId:"119887402", roleName:"天外飞仙", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.9.99",  amount:"6498",  status:1, buyTime:"2025-12-10 14:05:33", expireTime:"2026-02-10 14:05:33", autoRenew:"1", payStatus:"待付款", latestOrder:"4059169001234560000", remark:"续订了处于活动状态的订阅", detail:'{"notificationType": 2,"developerPayload":"4059167523019880001*119887402*10050211"}',  createTime:"2026-02-10 14:04:50", opRemark:"" }
+];
+
+const statusMap = {
+  1: '<span class="tag s1">有效</span>',
+  2: '<span class="tag s2">试用</span>',
+  3: '<span class="tag s3">宽限期</span>',
+  4: '<span class="tag s4">已取消</span>',
+  5: '<span class="tag s5">冷冻期</span>'
+};
+
+/* ===== 渲染 ===== */
+function render() {
+  document.getElementById("tbody").innerHTML = rows.map((r, i) => `
+    <tr>
+      <td style="text-align:center;padding:0"><span class="checkbox row-check${r.status===4 ? ' disabled-check' : ''}" data-i="${i}" onclick="${r.status===4 ? '' : 'toggleRow(' + i + ')'}"></span></td>
+      <td>${r.orderId}</td>
+      <td>${r.passportId}</td>
+      <td>${r.roleId}</td>
+      <td>${r.roleName}</td>
+      <td>${r.channel}</td>
+      <td>${r.pkg}</td>
+      <td>${r.pid}</td>
+      <td>${r.amount}</td>
+      <td>${statusMap[r.status] || r.status}</td>
+      <td>${r.buyTime}</td>
+      <td>${r.expireTime}</td>
+      <td style="text-align:center">${r.autoRenew}</td>
+      <td>${r.payStatus}</td>
+      <td style="word-break:break-all">${r.latestOrder}</td>
+      <td>${r.remark}</td>
+      <td><span class="detail-json">${r.detail}</span></td>
+      <td>${r.createTime}</td>
+      <td style="color:#5b6573">${r.opRemark || '<span style="color:#c5ccd5">—</span>'}</td>
+      <td class="col-actions">
+        ${r.status===4
+          ? '<span class="link disabled">取消订阅</span>'
+          : `<span class="link" onclick="openSingleModal(${i})">取消订阅</span>`
+        }
+      </td>
+    </tr>
+  `).join("");
+  // 恢复勾选状态
+  selected.forEach(i => {
+    const box = document.querySelector(`.row-check[data-i="${i}"]`);
+    if (box) box.classList.add("checked");
+  });
+  refreshBatch();
+}
+
+/* ===== 勾选 ===== */
+const selected = new Set();
+
+function refreshBatch() {
+  document.getElementById("selCount").textContent = selected.size;
+  const btn = document.getElementById("batchBtn");
+  btn.classList.toggle("enabled", selected.size > 0);
+  const all = document.getElementById("checkAll");
+  const activeRows = rows.filter(r => r.status !== 4);
+  all.classList.toggle("checked", selected.size > 0 && selected.size === activeRows.length);
+}
+
+function toggleRow(i) {
+  if (rows[i].status === 4) return;
+  const box = document.querySelector(`.row-check[data-i="${i}"]`);
+  if (selected.has(i)) { selected.delete(i); box.classList.remove("checked"); }
+  else { selected.add(i); box.classList.add("checked"); }
+  refreshBatch();
+}
+
+function toggleAll() {
+  const activeIdxs = rows.map((r, i) => (r.status !== 4 ? i : -1)).filter(i => i >= 0);
+  const allChecked = selected.size === activeIdxs.length;
+  selected.clear();
+  document.querySelectorAll(".row-check").forEach(b => b.classList.remove("checked"));
+  if (!allChecked) {
+    activeIdxs.forEach(i => {
+      selected.add(i);
+      const b = document.querySelector(`.row-check[data-i="${i}"]`);
+      if (b) b.classList.add("checked");
+    });
+  }
+  refreshBatch();
+}
+
+/* ===== 单条取消订阅 ===== */
+let _singleIdx = null;
+
+function openSingleModal(i) {
+  _singleIdx = i;
+  document.getElementById("sOrderId").value = rows[i].orderId;
+  document.getElementById("sPid").value = rows[i].pid;
+  document.getElementById("sResult").value = "cancel";
+  document.getElementById("sRemark").value = "";
+  document.getElementById("singleModal").classList.remove("hidden");
+}
+function closeSingleModal() { document.getElementById("singleModal").classList.add("hidden"); }
+function confirmSingle() {
+  const resultText = document.getElementById("sResult").value === "cancel" ? "取消订阅" : "取消并退款";
+  const remark = document.getElementById("sRemark").value.trim();
+  rows[_singleIdx].status = 4;
+  rows[_singleIdx].opRemark = remark || resultText;
+  selected.delete(_singleIdx);
+  closeSingleModal();
+  render();
+  showToast(`已取消订阅：${rows[_singleIdx].orderId}`);
+}
+
+/* ===== 批量取消订阅 ===== */
+function openBatchModal() {
+  if (selected.size === 0) return;
+  document.getElementById("batchCountTip").textContent = selected.size;
+  document.getElementById("bRemark").value = "";
+  document.getElementById("batchModal").classList.remove("hidden");
+}
+function closeBatchModal() { document.getElementById("batchModal").classList.add("hidden"); }
+function confirmBatch() {
+  const remark = document.getElementById("bRemark").value.trim();
+  const count = selected.size;
+  selected.forEach(i => {
+    rows[i].status = 4;
+    rows[i].opRemark = remark || "取消订阅";
+  });
+  selected.clear();
+  closeBatchModal();
+  render();
+  showToast(`批量取消订阅成功，共 ${count} 条`);
+}
+
+/* ===== Toast ===== */
+let _toastTimer;
+function showToast(text) {
+  const t = document.getElementById("toast");
+  document.getElementById("toastText").textContent = text;
+  t.classList.add("show");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    closeSingleModal();
+    closeBatchModal();
+    closeReq();
+  }
+});
+
+/* 需求说明侧边栏 */
+function openReq(){
+  document.getElementById("reqDrawer").classList.add("open");
+  document.getElementById("reqMask").classList.add("open");
+}
+function closeReq(){
+  document.getElementById("reqDrawer").classList.remove("open");
+  document.getElementById("reqMask").classList.remove("open");
+}
+
+render();
+</script>
+</body>
+</html>
