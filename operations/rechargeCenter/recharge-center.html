@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>大玩家 — 官方充值中心</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --primary: #0061a4;
+    --primary-dim: #005590;
+    --secondary-container: #cbe6ff;
+    --on-secondary-container: #0a5780;
+    --on-surface: #2a3439;
+    --surface-container-low: #f0f4f7;
+    --surface-container-lowest: #ffffff;
+    --rc-cream: #fdf3e3;
+    --rc-card-bg: #fbf0db;
+    --rc-card-border: #ecd9b6;
+    --rc-red: #c0392b;
+    --rc-red-soft: #e07a5f;
+    --rc-text: #6b4a2b;
+    --rc-text-muted: #a98a63;
+    --rc-voucher: #b8541f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: #e8e8e8;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* ── Phone shell ── */
+  .phone-shell {
+    width: 375px;
+    height: 812px;
+    background: var(--rc-cream);
+    border-radius: 44px;
+    box-shadow:
+      0 0 0 10px #1a1a1a,
+      0 0 0 12px #3a3a3a,
+      0 40px 80px rgba(0,0,0,0.35),
+      0 10px 20px rgba(0,0,0,0.18);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .dynamic-island {
+    position: absolute;
+    top: 12px; left: 50%; transform: translateX(-50%);
+    width: 124px; height: 36px;
+    background: #000; border-radius: 20px; z-index: 100;
+  }
+
+  .rc-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rc-scroll::-webkit-scrollbar { display: none; }
+
+  /* ── Top banner ── */
+  .rc-banner {
+    position: relative;
+    height: 150px;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #f6dcc0 0%, #f3cfa6 60%, #eec092 100%);
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 22px;
+  }
+  .rc-banner__title-wrap {
+    position: relative; z-index: 2;
+    width: 100%;
+    background: linear-gradient(180deg, #fffdf8 0%, #fdf3e3 100%);
+    border: 2px solid #e8c9a0;
+    border-radius: 10px;
+    padding: 16px 30px;
+    box-shadow: 0 4px 12px rgba(150,90,40,0.18);
+  }
+  .rc-banner__title-wrap::before,
+  .rc-banner__title-wrap::after {
+    content: "";
+    position: absolute; top: -4px; bottom: -4px;
+    width: 18px;
+    background: linear-gradient(180deg, #e6b878 0%, #d8a25f 50%, #c98f47 100%);
+    border-radius: 5px;
+    box-shadow: 0 2px 6px rgba(150,90,40,0.25);
+  }
+  .rc-banner__title-wrap::before { left: -12px; }
+  .rc-banner__title-wrap::after { right: -12px; }
+  .rc-banner__title {
+    font-family: Manrope, "PingFang SC", sans-serif;
+    font-size: 24px; font-weight: 800; line-height: 1.25;
+    color: var(--rc-red);
+    text-align: center;
+    text-shadow: 0 1px 0 #fff;
+    white-space: nowrap;
+  }
+
+  /* ── Login bar ── */
+  .rc-login {
+    margin: 14px 14px 0;
+    background: #fffaf1;
+    border: 1px solid var(--rc-card-border);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 2px 8px rgba(150,90,40,0.08);
+  }
+  .rc-login__row {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .rc-login__label {
+    flex-shrink: 0;
+    font-size: 13px; font-weight: 700; color: #fff;
+    background: var(--rc-red);
+    border-radius: 8px;
+    padding: 7px 12px;
+  }
+  /* 红框：角色登录入口 */
+  .rc-role-login {
+    flex: 1;
+    height: 38px;
+    border: 1.5px solid var(--rc-red);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--rc-red);
+    font-size: 14px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .rc-role-login:active { background: var(--rc-red); color: #fff; }
+  .rc-role-login .material-symbols-outlined { font-size: 18px; }
+  .rc-login__meta {
+    display: flex; align-items: center; gap: 18px;
+    margin-top: 12px;
+    font-size: 12.5px; color: var(--rc-text);
+  }
+  .rc-login__meta b { color: var(--rc-text-muted); font-weight: 600; }
+  .rc-login__server {
+    margin-top: 8px;
+    font-size: 12.5px; color: var(--rc-text);
+  }
+
+  /* ── Voucher grid ── */
+  .rc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 14px;
+  }
+  .rc-card {
+    background: var(--rc-card-bg);
+    border: 1px solid var(--rc-card-border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex; flex-direction: column; align-items: center;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.15s;
+  }
+  .rc-card:active { transform: scale(0.98); }
+  .rc-card__price {
+    width: 100%;
+    background: linear-gradient(180deg, var(--rc-red-soft) 0%, var(--rc-red) 100%);
+    color: #fff;
+    font-size: 13px; font-weight: 700;
+    text-align: center;
+    padding: 7px 4px;
+  }
+  .rc-card__img {
+    width: 64px; height: 64px;
+    margin: 12px 0 6px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 5px rgba(150,90,40,0.25));
+  }
+  .rc-card__voucher {
+    color: var(--rc-voucher);
+    font-size: 12.5px; font-weight: 700;
+    padding-bottom: 12px;
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     「角色验证登录」全屏页（内嵌覆盖层）
+     ════════════════════════════════════════════════════════════════ */
+  .rv-page {
+    position: absolute; inset: 0;
+    background: var(--surface-container-lowest);
+    z-index: 450;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .rv-page.open { transform: translateX(0); }
+  .rv-back {
+    position: absolute; top: 14px; left: 14px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #2a3439; color: #fff;
+    border: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
+  .rv-back .material-symbols-outlined { font-size: 22px; }
+  .rv-body {
+    padding: 96px 24px 32px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .rv-title {
+    text-align: center;
+    font-family: Manrope, sans-serif;
+    font-size: 22px; font-weight: 800;
+    color: var(--primary);
+    margin-bottom: 14px;
+  }
+  .rv-field {
+    position: relative;
+    display: flex; align-items: center;
+    background: var(--surface-container-low);
+    border-radius: 14px;
+    padding: 0 14px;
+    height: 52px;
+  }
+  .rv-field input {
+    flex: 1;
+    border: none; outline: none; background: transparent;
+    font-size: 14px; color: var(--on-surface);
+    font-family: Inter, sans-serif;
+  }
+  .rv-field input::placeholder { color: #a4adb2; }
+  .rv-info {
+    display: none;
+    padding: 4px 4px 0;
+    color: var(--primary);
+    font-family: Manrope, sans-serif;
+    font-size: 13px; font-weight: 700;
+    margin-top: -8px;
+  }
+  .rv-info.show { display: block; }
+  .rv-info--error { color: #c0392b; }
+  .rv-getcode {
+    border: none;
+    background: #e1e9ee;
+    color: #a4adb2;
+    font-family: Manrope, sans-serif;
+    font-size: 12px; font-weight: 700;
+    padding: 8px 12px; border-radius: 8px;
+    cursor: not-allowed;
+    white-space: nowrap;
+    transition: background 0.18s, color 0.18s;
+  }
+  .rv-getcode.active {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    cursor: pointer;
+  }
+  .rv-getcode:disabled { opacity: 0.55; cursor: not-allowed; }
+  .rv-submit {
+    position: relative;
+    margin-top: 6px;
+    height: 50px;
+    border: none; border-radius: 14px;
+    background: #b7d6f3; color: #fff;
+    font-family: Manrope, sans-serif;
+    font-size: 15px; font-weight: 800;
+    cursor: pointer;
+    transition: background 0.18s;
+  }
+  .rv-submit.active { background: var(--primary); }
+
+  /* ════════════════════════════════════════════════════════════════
+     需求说明 悬浮按钮 + 右侧侧边栏
+     ════════════════════════════════════════════════════════════════ */
+  .req-fab{
+    position:fixed;right:24px;bottom:28px;z-index:600;
+    height:38px;padding:0 16px 0 12px;
+    display:flex;align-items:center;gap:6px;
+    background:#1c2f45;color:#d8e8f5;font-size:13px;font-weight:600;
+    border-radius:19px;cursor:pointer;
+    box-shadow:0 4px 14px rgba(16,35,59,.32);
+    transition:background .15s;user-select:none;white-space:nowrap;
+  }
+  .req-fab:hover{background:#243d56}
+  .req-fab svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+  .req-mask{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.32);opacity:0;pointer-events:none;transition:opacity .25s}
+  .req-mask.open{opacity:1;pointer-events:auto}
+  .req-drawer{
+    position:fixed;top:0;right:-640px;width:640px;max-width:96vw;height:100vh;
+    z-index:705;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.14);
+    display:flex;flex-direction:column;
+    transition:right .3s cubic-bezier(.4,0,.2,1);
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  .req-drawer.open{right:0}
+  .req-head{
+    height:54px;flex:0 0 auto;padding:0 18px;
+    display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid #edf0f5;
+  }
+  .req-head .ttl{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;color:#1c2430}
+  .req-head .ttl:before{content:"";width:4px;height:16px;border-radius:2px;background:#168cff}
+  .req-head .x{
+    width:28px;height:28px;border:0;border-radius:50%;
+    background:#f4f6f9;color:#8c98a6;font-size:17px;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .req-head .x:hover{background:#e6eaf0;color:#445}
+  .req-body{flex:1;overflow-y:auto;padding:18px 22px 32px}
+  .req-body::-webkit-scrollbar{width:7px}
+  .req-body::-webkit-scrollbar-thumb{background:#d3d8e0;border-radius:6px}
+  .req-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+  .req-chip{
+    font-size:12px;color:#0958d9;background:#e6f4ff;
+    border:1px solid #91caff;border-radius:11px;padding:3px 11px;
+  }
+  .req-chip.alt{color:#08979c;background:#e6fffb;border-color:#87e8de}
+  .req-note{
+    margin-top:10px;background:#f0f7ff;border-left:3px solid #91d5ff;
+    border-radius:0 6px 6px 0;padding:9px 12px;font-size:12.5px;color:#55606e;line-height:1.85;
+  }
+  .req-note.warn{background:#fff7e6;border-left-color:#ffc53d}
+  .prd-h2{
+    margin:26px 0 12px;font-size:15px;font-weight:700;color:#1c2430;
+    padding-bottom:8px;border-bottom:1px solid #eef0f3;
+    display:flex;align-items:center;gap:8px;
+  }
+  .prd-h2:first-child{margin-top:0}
+  .prd-h2 .no{
+    flex:0 0 auto;width:22px;height:22px;border-radius:5px;
+    background:#168cff;color:#fff;font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .prd-h3{margin:18px 0 7px;font-size:13.5px;font-weight:600;color:#0958d9}
+  .prd-block{margin-bottom:20px}
+  .prd-block p{margin:0 0 8px;font-size:13px;color:#4b5563;line-height:1.9}
+  .prd-block ul{margin:0 0 8px;padding-left:18px}
+  .prd-block li{font-size:13px;color:#4b5563;line-height:1.95}
+  .prd-block li b{color:#1c2430;font-weight:600}
+  .prd-tbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+  .prd-tbl th,.prd-tbl td{border:1px solid #e8ecf0;padding:7px 10px;text-align:left;vertical-align:top}
+  .prd-tbl td:first-child,.prd-tbl th:first-child{width:120px;min-width:120px;white-space:nowrap}
+  .prd-tbl th{background:#f5f7fa;color:#1c2430;font-weight:600}
+  .prd-tbl td{color:#4b5563;line-height:1.7}
+  .req-y{color:#389e0d;font-weight:600}
+  .req-section-tag{
+    margin:0 0 4px;display:flex;align-items:center;gap:10px;
+    padding:13px 16px;border-radius:10px;color:#fff;
+    font-size:15px;font-weight:700;letter-spacing:.02em;
+  }
+  .req-section-tag .seq{
+    flex:0 0 auto;width:24px;height:24px;border-radius:6px;
+    background:rgba(255,255,255,.22);font-size:13px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .req-section-tag .sub{font-size:12px;font-weight:500;opacity:.9;margin-left:auto}
+  .req-section-tag.a{background:linear-gradient(120deg,#168cff,#0958d9)}
+  .req-section-tag.b{background:linear-gradient(120deg,#08979c,#006d75)}
+  .req-divider{height:1px;background:#e8ecf0;margin:32px 0}
+  .req-flow{
+    counter-reset:step;list-style:none;padding:0;margin:6px 0 0;
+  }
+  .req-flow li{
+    position:relative;padding:0 0 14px 30px;font-size:13px;color:#4b5563;line-height:1.8;
+    border-left:2px solid #e3e9f0;margin-left:9px;
+  }
+  .req-flow li:last-child{border-left-color:transparent;padding-bottom:0}
+  .req-flow li:before{
+    counter-increment:step;content:counter(step);
+    position:absolute;left:-11px;top:0;width:20px;height:20px;border-radius:50%;
+    background:#168cff;color:#fff;font-size:11px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone-shell">
+  <div class="dynamic-island"></div>
+
+  <div class="rc-scroll">
+    <!-- ── Banner ── -->
+    <div class="rc-banner">
+      <div class="rc-banner__title-wrap">
+        <div class="rc-banner__title">官方充值中心<br>营业啦</div>
+      </div>
+    </div>
+
+    <!-- ── Login bar ── -->
+    <div class="rc-login">
+      <div class="rc-login__row">
+        <span class="rc-login__label">账号登录</span>
+        <!-- 红框：角色登录入口，点击滑入角色验证登录页 -->
+        <button class="rc-role-login" onclick="openRoleVerify()">
+          <span class="material-symbols-outlined">person</span>
+          角色登录
+        </button>
+      </div>
+      <div class="rc-login__meta">
+        <span>角色ID：<b id="rc-role-id">登录后展示角色</b></span>
+        <span>角色名：<b id="rc-role-name"></b></span>
+      </div>
+      <div class="rc-login__server">区服：<span id="rc-role-server"></span></div>
+    </div>
+
+    <!-- ── Voucher grid ── -->
+    <div class="rc-grid" id="rc-grid"></div>
+  </div>
+
+  <!-- ══════════════ 「角色验证登录」全屏页 ══════════════ -->
+  <div class="rv-page" id="rv-page">
+    <button class="rv-back" onclick="closeRoleVerify()" aria-label="返回">
+      <span class="material-symbols-outlined">chevron_left</span>
+    </button>
+    <div class="rv-body">
+      <div class="rv-title">角色验证登录</div>
+      <div class="rv-field">
+        <input id="rv-role-id" type="text" placeholder="请输入角色ID" autocomplete="off" onblur="rvVerifyRoleId()">
+      </div>
+      <div class="rv-info" id="rv-info"></div>
+      <div class="rv-field">
+        <input id="rv-code" type="text" placeholder="请输入验证码" autocomplete="off" maxlength="6">
+        <button class="rv-getcode" id="rv-getcode" onclick="rvSendCode()">获取验证码</button>
+      </div>
+      <button class="rv-submit" id="rv-submit" onclick="rvSubmit()">
+        验证并登录
+      </button>
+    </div>
+  </div>
+
+</div><!-- /phone-shell -->
+
+<!-- 需求说明 悬浮按钮 -->
+<div class="req-fab" id="reqFab" onclick="openReq()">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+  需求说明
+</div>
+
+<!-- 需求说明 侧边栏 -->
+<div class="req-mask" id="reqMask" onclick="closeReq()"></div>
+<aside class="req-drawer" id="reqDrawer">
+  <div class="req-head">
+    <span class="ttl">角色验证码登录 — 需求说明（两个需求）</span>
+    <button class="x" type="button" onclick="closeReq()">×</button>
+  </div>
+  <div class="req-body">
+
+    <div class="req-meta">
+      <span class="req-chip">所属模块：账号 / 登录中心</span>
+      <span class="req-chip">优先级：高</span>
+      <span class="req-chip alt">服务对象：网页活动</span>
+      <span class="req-chip alt">两个独立需求</span>
+    </div>
+
+    <!-- 背景总述 -->
+    <div class="prd-h2"><span class="no">0</span>共同背景</div>
+    <div class="prd-block">
+      <p>本批次包含<b>两个独立需求</b>，二者都基于「角色验证码登录」这套验证流程——<b>验证码不发短信/邮箱，而是发到游戏内角色的邮件</b>，玩家凭角色邮件里的验证码完成身份核验。但两者是<b>面向不同诉求、各自独立交付的需求</b>，不能合并：</p>
+      <ul>
+        <li><b>需求一 · 角色登录：</b>登录态只到<b>角色维度</b>。<b>服务对象是渠道用户</b>（红钻活动、企业微信活动）。</li>
+        <li><b>需求二 · 账号登录：</b>通过角色 ID <b>反查账号 ID</b>，登录态到<b>账号维度</b>。<b>服务对象是冰川自营各端 SDK 用户</b>（如抖小、微小）。</li>
+      </ul>
+      <p>共同点：① 验证渠道都是「游戏内角色邮件验证码」；② 都<b>为网页活动做嫁衣</b>，支持网页活动跳转登录、登录成功后回带登录态。共同的「验证码下发与核验机制」见下方各需求内描述（流程一致，差异在登录态产物）。</p>
+    </div>
+
+    <!-- ═══════════ 需求一：角色登录 ═══════════ -->
+    <div class="req-divider"></div>
+    <div class="req-section-tag a"><span class="seq">一</span>需求一 · 角色验证码登录（角色维度）<span class="sub">红钻 / 企微活动</span></div>
+
+    <div class="prd-h2"><span class="no">1.1</span>需求概述</div>
+    <div class="prd-block">
+      <p><b>定位：</b>以<b>游戏角色</b>为身份锚点的轻量登录，登录态<b>只到角色维度（角色 ID + 区服）</b>，不涉及账号体系。</p>
+      <p><b>服务对象：</b><b>渠道用户</b>。专为<b>红钻活动、企业微信活动</b>等渠道侧活动做嫁衣。这类活动只关心「是哪个角色」，不需要打通账号下的其他角色或账号级资产，因此用最短的角色维度登录即可。</p>
+      <p><b>价值：</b>玩家在网页/企微侧无需记忆账密，输入角色 ID + 角色邮件验证码即可登录参与活动，登录门槛最低、转化最高。</p>
+    </div>
+
+    <div class="prd-h2"><span class="no">1.2</span>登录流程</div>
+    <div class="prd-block">
+      <ol class="req-flow">
+        <li>玩家输入<b>角色 ID</b>，系统校验该角色是否真实存在。</li>
+        <li>角色校验成功 → 调用游戏侧发件接口，<b>向该角色游戏内邮箱发送含验证码的邮件</b>（6 位数字，有效期 5 分钟）。</li>
+        <li>玩家在游戏内读取验证码，回填登录页。</li>
+        <li>系统校验「角色 ID + 验证码」匹配且未过期 → <b>以角色身份登录</b>，登录态 = 角色 ID + 区服 + 角色名。</li>
+      </ol>
+      <div class="req-note">为什么用游戏内邮件：能在游戏里收到并读取该角色的邮件，即证明操作人拥有此角色，无需再依赖手机号/邮箱等账号资产，验证与角色身份天然绑定。</div>
+    </div>
+
+    <div class="prd-h2"><span class="no">1.3</span>网页活动接入</div>
+    <div class="prd-block">
+      <ul>
+        <li><b>跳转登录：</b>红钻/企微活动检测未登录时，携带回跳地址 + 活动标识跳转至本登录页。</li>
+        <li><b>回带登录态：</b>登录成功后将<b>角色维度</b>凭证（角色 ID / 区服 / 角色名）回带至活动页。</li>
+      </ul>
+    </div>
+
+    <div class="prd-h2"><span class="no">1.4</span>异常与边界</div>
+    <div class="prd-block">
+      <ul>
+        <li><b>角色不存在：</b>拦截在第一步，不发码，避免无效发件。</li>
+        <li><b>验证码错误/过期：</b>提示「验证码错误或已过期」，可重新获取；连续错误 5 次锁定防爆破。</li>
+        <li><b>发码频控：</b>同一角色 60s 仅可获取一次；按 IP/活动来源设日发码上限防刷。</li>
+        <li><b>游戏侧发件失败：</b>Toast 提示重试，不进入倒计时。</li>
+        <li><b>回跳地址非法：</b>redirect 不在白名单内拒绝跳转，防开放重定向。</li>
+      </ul>
+    </div>
+
+    <!-- ═══════════ 需求二：账号登录 ═══════════ -->
+    <div class="req-divider"></div>
+    <div class="req-section-tag b"><span class="seq">二</span>需求二 · 角色验证码登录（账号维度）<span class="sub">抖小 / 微小等 SDK</span></div>
+
+    <div class="prd-h2"><span class="no">2.1</span>需求概述</div>
+    <div class="prd-block">
+      <p><b>定位：</b>验证流程同样基于角色邮件验证码，但登录成功后<b>由角色 ID 反查出账号 ID</b>，最终登录态落到<b>账号维度（通行证 ID）</b>。</p>
+      <p><b>与需求一的本质区别：</b>需求一停在角色；需求二多了一步<b>「角色 ID → 账号 ID」映射</b>，登录的是整个账号，可覆盖账号下多角色通用奖励、账号余额、跨角色资产等<b>账号级权益</b>的活动。</p>
+      <p><b>服务对象：</b><b>冰川自营各端 SDK 用户</b>（如抖小、微小等小程序端）。这类端有自己的账号体系，活动需要账号级身份与权益，因此登录态要落到账号维度。</p>
+      <div class="req-note warn"><b>定位边界（重要）：</b>本登录<b>只是补充登录入口，仅在活动场景下使用</b>，不替代各端的原生登录。抖小、微小等端在 App 内的常规登录<b>仍走各自的原生登录（抖音/微信授权等）</b>；只有当端内活动需要账号身份、而当前缺少可用登录态时，才走本「角色验证码登录」作为补充通道完成账号维度登录。</div>
+    </div>
+
+    <div class="prd-h2"><span class="no">2.2</span>登录流程</div>
+    <div class="prd-block">
+      <ol class="req-flow">
+        <li>玩家输入<b>角色 ID</b>，系统校验该角色是否真实存在。</li>
+        <li>角色校验成功 → 向该角色游戏内邮箱发送验证码邮件（6 位数字，有效期 5 分钟）。</li>
+        <li>玩家读取验证码并回填。</li>
+        <li>校验「角色 ID + 验证码」通过 → <b>由角色 ID 反查绑定的账号 ID</b>。</li>
+        <li>映射成功 → <b>以账号身份登录</b>，登录态 = 账号 ID（通行证 ID）+ 当前验证角色 ID。</li>
+      </ol>
+      <div class="req-note warn"><b>映射环节关键约束：</b>角色 ID → 账号 ID 必须<b>唯一且实时</b>。需明确：① 一个角色是否只属于一个账号（预期是）；② 角色被转移/找回后映射如何同步更新；③ 映射查询失败（游戏侧接口超时）时<b>必须拦截登录而非放行</b>，杜绝登错账号。</div>
+    </div>
+
+    <div class="prd-h2"><span class="no">2.3</span>网页活动接入</div>
+    <div class="prd-block">
+      <ul>
+        <li><b>跳转登录：</b>活动检测未登录时携带回跳地址 + 活动标识跳转至本登录页。</li>
+        <li><b>回带登录态：</b>登录成功后将<b>账号维度</b>凭证（账号 ID + 验证角色 ID）回带至活动页。</li>
+      </ul>
+      <div class="req-note">待你确认：账号维度登录后，若该账号下有多个角色，活动上下文是<b>固定为验证用的那个角色</b>，还是允许在账号的多角色间切换？此点影响活动侧角色选择交互，需明确。</div>
+    </div>
+
+    <div class="prd-h2"><span class="no">2.4</span>异常与边界</div>
+    <div class="prd-block">
+      <ul>
+        <li><b>角色不存在：</b>拦截在第一步，不发码。</li>
+        <li><b>验证码错误/过期、发码频控、发件失败：</b>同需求一。</li>
+        <li><b>账号映射失败（核心差异）：</b>角色存在但查不到绑定账号 → 明确提示「该角色未绑定账号，无法以账号方式登录」，<b>不得静默放行或登错账号</b>。</li>
+        <li><b>回跳地址非法：</b>redirect 白名单校验，防开放重定向。</li>
+      </ul>
+    </div>
+
+    <!-- ═══════════ 公共：登录页字段 ═══════════ -->
+    <div class="req-divider"></div>
+    <div class="prd-h2"><span class="no">3</span>登录页字段定义（两需求共用）</div>
+    <div class="prd-block">
+      <table class="prd-tbl">
+        <thead><tr><th>字段</th><th>控件</th><th>必填</th><th>校验 / 说明</th></tr></thead>
+        <tbody>
+          <tr><td>角色 ID</td><td>文本输入</td><td>是</td><td>失焦即校验角色是否存在；不存在时下方红字提示「未找到该角色ID」，并禁用「获取验证码」</td></tr>
+          <tr><td>角色信息回显</td><td>文本（只读）</td><td>—</td><td>角色校验通过后展示「角色ID - 角色名 - 区服」，供玩家确认身份</td></tr>
+          <tr><td>验证码</td><td>文本输入</td><td>是</td><td>6 位数字；有效期 5 分钟；最多输入 6 位</td></tr>
+          <tr><td>获取验证码</td><td>按钮</td><td>—</td><td>角色校验通过后才可点；点击后 60s 倒计时防刷；结束后变「重新获取」</td></tr>
+          <tr><td>验证并登录</td><td>按钮</td><td>—</td><td>角色 + 验证码均通过后高亮可点；按所属需求产出角色维度 / 账号维度登录态</td></tr>
+        </tbody>
+      </table>
+      <div class="req-note">登录页 UI 与字段两需求一致，差异仅在<b>验证通过后的后端处理</b>（需求一止于角色、需求二多一步账号映射）与<b>回带给活动的登录态维度</b>。</div>
+    </div>
+
+  </div>
+</aside>
+
+<script>
+  /* ── 充值中心：代金券档位 ── */
+  const VOUCHER_IMG = "https://opsoss.q1.com/club/images/2023/06/12/1686550033873_2c528ec8-bfff-417c-bcf6-fd1d911cb71d_3004633.png";
+  const PACKAGES = [
+    { price: 6,    voucher: 600 },
+    { price: 30,   voucher: 3000 },
+    { price: 68,   voucher: 6800 },
+    { price: 128,  voucher: 12800 },
+    { price: 328,  voucher: 32800 },
+    { price: 648,  voucher: 64800 },
+    { price: 1296, voucher: 129600 },
+    { price: 1944, voucher: 194400 },
+    { price: 2592, voucher: 259200 },
+    { price: 3240, voucher: 324000 },
+    { price: 6480, voucher: 648000 },
+  ];
+  function fmt(n) { return n.toLocaleString('en-US'); }
+  document.getElementById('rc-grid').innerHTML = PACKAGES.map(p => `
+    <div class="rc-card" onclick="buy(${p.price})">
+      <div class="rc-card__price">售价${p.price}元</div>
+      <img class="rc-card__img" src="${VOUCHER_IMG}" alt="代金券">
+      <div class="rc-card__voucher">代金券*${fmt(p.voucher)}</div>
+    </div>
+  `).join('');
+  function buy(price) {
+    if (!_rvVerifiedRole) { alert('请先完成角色登录后再购买'); openRoleVerify(); return; }
+    alert(`下单成功！\n角色：${_rvVerifiedRole.name}（${_rvVerifiedRole.id}）\n售价：${price} 元`);
+  }
+
+  /* ── 角色验证登录页 ── */
+  const RV_MOCK_ROLES = {
+    '88888888': { name: '屠龙者', server: '零氪服38区' },
+    '12345678': { name: '凤凰', server: '联盟服12区' },
+    '10086':    { name: '夜狼', server: '精英服5区' },
+    '66666':    { name: '铁拳', server: 'PK服7区'  },
+  };
+  let _rvVerifiedRole = null;
+  let _rvCodeTimer = null;
+
+  function openRoleVerify() {
+    document.getElementById('rv-page').classList.add('open');
+  }
+  function closeRoleVerify() {
+    document.getElementById('rv-page').classList.remove('open');
+    rvReset();
+  }
+  function rvReset() {
+    document.getElementById('rv-role-id').value = '';
+    document.getElementById('rv-code').value = '';
+    const info = document.getElementById('rv-info');
+    info.classList.remove('show', 'rv-info--error');
+    info.textContent = '';
+    document.getElementById('rv-submit').classList.remove('active');
+    if (_rvCodeTimer) { clearInterval(_rvCodeTimer); _rvCodeTimer = null; }
+    const btn = document.getElementById('rv-getcode');
+    btn.disabled = true; btn.textContent = '获取验证码';
+    btn.classList.remove('active');
+  }
+  function rvLookupRole(id) {
+    if (RV_MOCK_ROLES[id]) return RV_MOCK_ROLES[id];
+    if (/^\d{4,}$/.test(id)) {
+      return { name: '玩家_' + id.slice(-4), server: '零氪服38区' };
+    }
+    return null;
+  }
+  function rvVerifyRoleId() {
+    const id = document.getElementById('rv-role-id').value.trim();
+    const info = document.getElementById('rv-info');
+    const btn = document.getElementById('rv-getcode');
+    if (!id) {
+      info.classList.remove('show', 'rv-info--error');
+      info.textContent = '';
+      btn.disabled = true; btn.classList.remove('active');
+      return;
+    }
+    const role = rvLookupRole(id);
+    if (!role) {
+      info.classList.add('show', 'rv-info--error');
+      info.textContent = '未找到该角色ID，请检查后重试';
+      btn.disabled = true; btn.classList.remove('active');
+      document.getElementById('rv-submit').classList.remove('active');
+      return;
+    }
+    info.classList.remove('rv-info--error');
+    info.classList.add('show');
+    info.textContent = `${id} - ${role.name} - ${role.server}`;
+    btn.disabled = false; btn.classList.add('active');
+  }
+  function rvSendCode() {
+    const id = document.getElementById('rv-role-id').value.trim();
+    const role = rvLookupRole(id);
+    if (!role) return;
+    const btn = document.getElementById('rv-getcode');
+    let n = 60;
+    btn.disabled = true;
+    btn.classList.remove('active');
+    btn.textContent = `${n}s 后重发`;
+    _rvCodeTimer = setInterval(() => {
+      n--;
+      if (n <= 0) {
+        clearInterval(_rvCodeTimer); _rvCodeTimer = null;
+        btn.disabled = false; btn.classList.add('active');
+        btn.textContent = '重新获取';
+      } else {
+        btn.textContent = `${n}s 后重发`;
+      }
+    }, 1000);
+    document.getElementById('rv-submit').classList.add('active');
+  }
+  function rvSubmit() {
+    const id = document.getElementById('rv-role-id').value.trim();
+    const code = document.getElementById('rv-code').value.trim();
+    const role = rvLookupRole(id);
+    if (!role) { alert('请先输入并校验角色ID'); return; }
+    if (!code) { alert('请输入验证码'); return; }
+    _rvVerifiedRole = { id, ...role };
+    // 回填到充值中心的账号登录条
+    document.getElementById('rc-role-id').textContent = id;
+    document.getElementById('rc-role-name').textContent = role.name;
+    document.getElementById('rc-role-server').textContent = role.server;
+    closeRoleVerify();
+  }
+
+  /* ── 需求说明侧边栏 ── */
+  function openReq(){
+    document.getElementById('reqDrawer').classList.add('open');
+    document.getElementById('reqMask').classList.add('open');
+  }
+  function closeReq(){
+    document.getElementById('reqDrawer').classList.remove('open');
+    document.getElementById('reqMask').classList.remove('open');
+  }
+</script>
+</body>
+</html>
