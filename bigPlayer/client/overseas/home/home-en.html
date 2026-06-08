@@ -498,8 +498,8 @@
   .m-card--quote .m-card__qtitle {
     margin: 18px 0 8px;
     font-family: Inter, sans-serif;
-    font-weight: 700; font-size: 14px; line-height: 1.4;
-    color: var(--on-surface);
+    font-weight: 400; font-size: 12px; line-height: 1.5;
+    color: var(--on-surface-variant);
     display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4;
     -webkit-box-orient: vertical; overflow: hidden;
   }
@@ -517,6 +517,22 @@
     display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
   }
   .m-card--quote .m-card__qlikes .material-symbols-outlined { font-size: 13px; }
+  /* ── quote: title + content variant ── */
+  .m-card--quote .m-card__qheading {
+    margin: 18px 0 5px;
+    font-family: Inter, sans-serif;
+    font-weight: 700; font-size: 14px; line-height: 1.4;
+    color: var(--on-surface);
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .m-card--quote .m-card__qexcerpt {
+    font-size: 12px; font-weight: 400;
+    color: var(--on-surface-variant); line-height: 1.5;
+    margin-bottom: 6px;
+    display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
 
   /* ── Quick grid item ── */
   .quick-item { display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
@@ -2098,6 +2114,35 @@
             <span class="m-card__nick">Hex</span>
           </div>
           <span class="m-card__qlikes"><span class="material-symbols-outlined">thumb_up</span>87</span>
+        </div>
+      </div>
+
+      <!-- quote: title + content -->
+      <div class="m-card m-card--quote">
+        <p class="m-card__qheading">Best Arena comps after the patch</p>
+        <p class="m-card__qexcerpt">After 80+ runs I finally settled on a double-support lineup with Lyra on flank. Survivability went through the roof — sharing the full breakdown here.</p>
+        <div class="m-card__qmeta">
+          <div class="m-card__qauthor">
+            <img class="m-card__avatar"
+              src="https://opsoss.q1.com/club/avatar/2022/12/16/1671192782141_65fccc1b-f0b7-49bf-972f-6cbf33c60c35.jpeg"
+              alt="author" loading="lazy">
+            <span class="m-card__nick">TankMeta</span>
+          </div>
+          <span class="m-card__qlikes"><span class="material-symbols-outlined">thumb_up</span>341</span>
+        </div>
+      </div>
+
+      <!-- quote: content only (no title) -->
+      <div class="m-card m-card--quote">
+        <p class="m-card__qtitle">The new event skin color palette hits different in dark mode. Whoever picked those gradients deserves a raise.</p>
+        <div class="m-card__qmeta">
+          <div class="m-card__qauthor">
+            <img class="m-card__avatar"
+              src="https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg"
+              alt="author" loading="lazy">
+            <span class="m-card__nick">NightOwl_G</span>
+          </div>
+          <span class="m-card__qlikes"><span class="material-symbols-outlined">thumb_up</span>156</span>
         </div>
       </div>
 
