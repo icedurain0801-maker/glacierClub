@@ -69,6 +69,7 @@
     --surface-container-high:#e1e9ee;
     --on-surface:#2a3439;
     --background:#f7f9fb;
+    --hero-fade-rgb:247,249,251;
     --inverse-primary:#2498f5;
     --surface:#f7f9fb;
     --surface-tint:#0061a4;
@@ -124,6 +125,7 @@
     --surface-container-high:#21262d;
     --on-surface:#e6edf3;
     --background:#0d1117;
+    --hero-fade-rgb:13,17,23;
     --inverse-primary:#79c0ff;
     --surface:#0d1117;
     --surface-tint:#4493f8;
@@ -1364,15 +1366,15 @@
     background:linear-gradient(180deg,
       rgba(20,30,45,0.42) 0%,
       rgba(20,30,45,0.30) 35%,
-      rgba(247,249,251,0.65) 58%,
-      rgba(247,249,251,0.92) 75%,
+      rgba(var(--hero-fade-rgb),0.65) 58%,
+      rgba(var(--hero-fade-rgb),0.92) 75%,
       var(--background) 100%);
   }
   /* 底部 12px 实色，确保与下方内容区无缝衔接 */
   .simple-hero-bg::before{
     content:''; position:absolute; left:0; right:0; bottom:-1px;
     height:18px;
-    background:linear-gradient(180deg, rgba(247,249,251,0) 0%, var(--background) 100%);
+    background:linear-gradient(180deg, rgba(var(--hero-fade-rgb),0) 0%, var(--background) 100%);
     z-index:1;
   }
   /* 让 status bar 透出 .simple-hero-bg；sticky-header 自己挂一份同尺寸 hero 图，
@@ -1403,8 +1405,8 @@
     background:linear-gradient(180deg,
       rgba(20,30,45,0.42) 0%,
       rgba(20,30,45,0.30) 35%,
-      rgba(247,249,251,0.65) 58%,
-      rgba(247,249,251,0.92) 75%,
+      rgba(var(--hero-fade-rgb),0.65) 58%,
+      rgba(var(--hero-fade-rgb),0.92) 75%,
       var(--background) 100%);
     z-index:-1; pointer-events:none;
   }
@@ -1431,8 +1433,8 @@
     background:linear-gradient(180deg,
       rgba(20,30,45,0.42) 0%,
       rgba(20,30,45,0.30) 58%,
-      rgba(247,249,251,0.14) 70%,
-      rgba(247,249,251,0.72) 86%,
+      rgba(var(--hero-fade-rgb),0.14) 70%,
+      rgba(var(--hero-fade-rgb),0.72) 86%,
       var(--background) 100%);
   }
   body[data-active-variant="miniprogram"]{
@@ -1443,8 +1445,8 @@
     background:linear-gradient(180deg,
       rgba(20,30,45,0.42) 0%,
       rgba(20,30,45,0.30) 35%,
-      rgba(247,249,251,0.65) 58%,
-      rgba(247,249,251,0.92) 75%,
+      rgba(var(--hero-fade-rgb),0.65) 58%,
+      rgba(var(--hero-fade-rgb),0.92) 75%,
       var(--background) 100%);
   }
 

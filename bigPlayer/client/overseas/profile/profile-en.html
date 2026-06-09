@@ -198,10 +198,13 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
 .post-time{font-size:11px;color:var(--text-faint);font-family:Inter;}
 .post-edit-fab{position:absolute;bottom:10px;right:14px;width:26px;height:26px;border-radius:50%;background:var(--bg-card);border:1.5px solid var(--primary);color:var(--primary);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0;}
 .post-edit-fab .material-symbols-outlined{font-size:13px;}
-.post-row.deleted{background:#fffaf8;}
-.post-row.deleted .post-thumb{opacity:.5;}
-.post-row.deleted .post-title{color:var(--text-faint);}
-.post-row.deleted .post-body{color:#c8d0d5;}
+.post-row.deleted{background:var(--bg-page);}
+.post-row.deleted .post-info{display:flex;flex-direction:column;justify-content:center;min-height:76px;}
+.post-del-thumb{width:68px;height:76px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,var(--bg-input),var(--bg-divider));display:flex;align-items:center;justify-content:center;}
+.post-del-thumb .badge{width:34px;height:34px;border-radius:50%;background:var(--bg-card);box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;color:var(--text-faint);}
+.post-del-thumb .badge .material-symbols-outlined{font-size:19px;}
+.post-del-note{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--text-muted);font-family:Inter;margin:0;}
+.post-del-note .material-symbols-outlined{font-size:16px;color:var(--ps-deleted);}
 
 /* Activity items (Comments / Likes / Saves) */
 .act-item{padding:10px 14px 0;position:relative;}
@@ -337,7 +340,7 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
           <button class="post-edit-fab"><span class="material-symbols-outlined">edit</span></button>
         </div>
         <div class="post-row" data-title="Ancient Secrets Trial — My Solo Clear Strategy">
-          <div class="post-thumb" style="background:var(--bg-input);display:flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:8px;width:68px;height:52px;"><span class="material-symbols-outlined" style="font-size:20px;color:#c8d0d5;">image</span></div>
+          <div class="post-del-thumb"><span class="badge"><span class="material-symbols-outlined">hide_image</span></span></div>
           <div class="post-info">
             <p class="post-title">Ancient Secrets Trial — My Solo Clear Strategy</p>
             <p class="post-body">Skill rotation and equipment loadout for the final boss solo clear.</p>
@@ -346,11 +349,10 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
           <button class="post-edit-fab"><span class="material-symbols-outlined">edit</span></button>
         </div>
         <div class="post-row deleted" data-title="Farming Routes for Rare Drops — Map &amp; Timing Guide">
-          <img class="post-thumb" src="https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg" alt="">
+          <div class="post-del-thumb"><span class="badge"><span class="material-symbols-outlined">hide_image</span></span></div>
           <div class="post-info">
-            <p class="post-title">Farming Routes for Rare Drops — Map &amp; Timing Guide</p>
-            <p class="post-body">Efficient routes and spawn timings for the rarest crafting materials.</p>
-            <div class="post-bottom"><span class="post-status ps-del">Deleted</span><span class="post-time">Mar 19, 2026</span></div>
+            <p class="post-del-note"><span class="material-symbols-outlined">delete</span>Post removed by author</p>
+            <div class="post-bottom"><span class="post-status ps-del">Deleted</span></div>
           </div>
         </div>
       </div>
