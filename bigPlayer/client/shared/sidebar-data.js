@@ -35,12 +35,6 @@ const SIDEBAR_DATA = [
             type: 'item',
             label: '首页',
             href: 'client-new/home_src.html'
-          },
-          {
-            type: 'item',
-            label: '搜索结果页',
-            version: 'v1.0.0',
-            href: 'client/home/search-results.html'
           }
         ]
       },
