@@ -123,21 +123,20 @@
     border-radius: 8px;
     padding: 7px 12px;
   }
-  /* 红框：角色登录入口 */
-  .rc-role-login {
+  /* 账号登录按钮 */
+  .rc-login__btn {
     flex: 1;
     height: 38px;
-    border: 1.5px solid var(--rc-red);
+    border: none;
     border-radius: 8px;
-    background: #fff;
-    color: var(--rc-red);
+    background: var(--rc-red);
+    color: #fff;
     font-size: 14px; font-weight: 700;
     display: inline-flex; align-items: center; justify-content: center; gap: 5px;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: opacity 0.15s;
   }
-  .rc-role-login:active { background: var(--rc-red); color: #fff; }
-  .rc-role-login .material-symbols-outlined { font-size: 18px; }
+  .rc-login__btn:active { opacity: 0.82; }
   .rc-login__meta {
     display: flex; align-items: center; gap: 18px;
     margin-top: 12px;
@@ -187,12 +186,400 @@
   }
 
   /* ════════════════════════════════════════════════════════════════
-     「角色验证登录」全屏页（内嵌覆盖层）
+     右上角 Tab 栏（充值页 / 企微活动页）
+     ════════════════════════════════════════════════════════════════ */
+  .top-tabs {
+    position: fixed; top: 24px; right: 24px; z-index: 620;
+    display: flex; padding: 4px;
+    background: #fff4e2;
+    border: 1px solid #e8c9a0;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(150,90,40,.22);
+  }
+  .top-tab {
+    padding: 8px 18px;
+    font-size: 13px; font-weight: 700;
+    color: var(--rc-text); cursor: pointer;
+    border-radius: 999px;
+    white-space: nowrap;
+    transition: background .18s, color .18s;
+    user-select: none;
+  }
+  .top-tab.active {
+    color: #fff;
+    background: linear-gradient(180deg, var(--rc-red-soft) 0%, var(--rc-red) 100%);
+    box-shadow: 0 2px 6px rgba(192,57,43,.32);
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     企微活动页 — 修仙「宗门小助手 专属见面礼」
+     ════════════════════════════════════════════════════════════════ */
+  .act-view {
+    position: relative;
+    min-height: 100%;
+    display: flex; flex-direction: column;
+    /* 远山雾气 + 仙气底色 */
+    background:
+      radial-gradient(120% 70% at 50% 0%, #c7d8c0 0%, transparent 55%),
+      radial-gradient(90% 60% at 18% 38%, rgba(150,175,140,.5) 0%, transparent 60%),
+      radial-gradient(90% 60% at 86% 60%, rgba(150,175,140,.5) 0%, transparent 60%),
+      linear-gradient(180deg, #a9c2a4 0%, #9bb597 30%, #aec5a8 65%, #c2d2bb 100%);
+    padding: 0 14px 26px;
+  }
+
+  /* 顶部栏：游戏 Logo + 登录 */
+  .act-topbar {
+    position: relative; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 4px 6px;
+  }
+  .act-logo {
+    display: flex; align-items: center; gap: 8px;
+    font-family: Manrope, "PingFang SC", sans-serif;
+    font-size: 20px; font-weight: 800; letter-spacing: .04em;
+    color: #f4e9c8;
+    text-shadow: 0 2px 0 #5a3a1e, 0 0 6px rgba(0,0,0,.35);
+  }
+  .act-logo__mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: radial-gradient(circle at 35% 30%, #ffe6a8, #c0392b 75%);
+    box-shadow: 0 2px 6px rgba(0,0,0,.3), inset 0 0 0 2px rgba(244,233,200,.7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; line-height: 1;
+  }
+  .act-login-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 16px;
+    background: rgba(40,40,40,.42);
+    border: 1.5px solid #d8c9a0;
+    border-radius: 8px;
+    color: #f4e9c8; font-size: 14px; font-weight: 700;
+    cursor: pointer; backdrop-filter: blur(3px);
+    transition: background .15s;
+  }
+  .act-login-btn:active { background: rgba(40,40,40,.6); }
+  .act-login-btn .material-symbols-outlined { font-size: 16px; }
+
+  /* 主角插画区 */
+  .act-hero {
+    position: relative; z-index: 2;
+    height: 150px;
+    margin: 0 -4px;
+    overflow: hidden;
+  }
+  .act-hero__char {
+    position: absolute; left: 8px; bottom: -6px; z-index: 2;
+    font-size: 104px; line-height: 1;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,.35));
+    user-select: none;
+  }
+  .act-hero__decor {
+    position: absolute; z-index: 2; user-select: none;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,.3));
+  }
+  .act-hero__decor.bell   { top: 6px;  right: 70px; font-size: 40px; }
+  .act-hero__decor.box    { top: 34px; right: 22px; font-size: 44px; }
+  .act-hero__decor.cloud  { top: 18px; right: 128px; font-size: 26px; opacity: .85; }
+  .act-hero__decor.bamboo { top: 50px; left: 122px; font-size: 32px; }
+
+  /* 主标题：宗门小助手 专属见面礼 */
+  .act-headline {
+    position: relative; z-index: 3;
+    text-align: center;
+    margin: 2px 0 18px;
+  }
+  .act-headline__title {
+    font-family: "STKaiti", "KaiTi", "PingFang SC", Manrope, sans-serif;
+    font-size: 34px; font-weight: 900; line-height: 1.18;
+    letter-spacing: .04em;
+    color: #b3402e;
+    text-shadow:
+      0 2px 0 #f4e9c8, 0 3px 1px #7a4a22, 0 0 10px rgba(120,60,20,.25);
+  }
+  .act-headline__seal {
+    position: absolute; top: 2px; left: 50%;
+    transform: translateX(64px) rotate(6deg);
+    width: 30px; height: 30px; border-radius: 5px;
+    background: #b3402e;
+    color: #f4e9c8; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    line-height: 1.15;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  }
+
+  /* 奖励卡片（专属礼 / 签到礼共用） */
+  .act-card {
+    position: relative; z-index: 3;
+    background: linear-gradient(180deg, #f3e6c8 0%, #ecd9b6 100%);
+    border: 1.5px solid #9c6b3a;
+    border-radius: 14px;
+    padding: 8px;
+    margin-bottom: 16px;
+    box-shadow: 0 6px 16px rgba(90,55,25,.28);
+  }
+  .act-card__inner {
+    border: 1.5px dashed #b8895a;
+    border-radius: 10px;
+    padding: 16px 14px 18px;
+  }
+  /* 卡片标题：──◆ 标题 ◆── */
+  .act-card__header {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .act-card__header::before,
+  .act-card__header::after {
+    content: ""; flex: 0 0 40px; height: 2px;
+    background: linear-gradient(90deg, transparent, #9c6b3a);
+  }
+  .act-card__header::after { transform: scaleX(-1); }
+  .act-card__title {
+    font-family: "STKaiti", "KaiTi", "PingFang SC", Manrope, sans-serif;
+    font-size: 17px; font-weight: 800; letter-spacing: .08em;
+    color: #6b4a2b;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .act-card__title::before,
+  .act-card__title::after { content: "◆"; color: #c0392b; font-size: 10px; }
+
+  .act-rewards {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-bottom: 18px;
+  }
+  .act-reward {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    text-align: center;
+  }
+  .act-reward__icon {
+    width: 58px; height: 58px; border-radius: 12px;
+    background: radial-gradient(circle at 40% 30%, #fffaf0, #e8d6b0);
+    border: 1px solid #c9a877;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; line-height: 1;
+    box-shadow: inset 0 2px 4px rgba(255,255,255,.6), 0 3px 6px rgba(120,80,30,.22);
+  }
+  .act-reward__label {
+    font-size: 11.5px; font-weight: 600; color: #6b4a2b;
+    line-height: 1.3;
+  }
+  .act-card__btn {
+    display: block;
+    width: 78%; height: 46px; margin: 0 auto;
+    border: none; border-radius: 10px;
+    background: linear-gradient(180deg, var(--rc-red-soft) 0%, var(--rc-red) 100%);
+    color: #fff; font-size: 16px; font-weight: 800; letter-spacing: .1em;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(192,57,43,.4), inset 0 1px 0 rgba(255,255,255,.25);
+    transition: opacity .15s;
+  }
+  .act-card__btn:active { opacity: .85; }
+
+  /* 登录账号 弹窗 */
+  .act-modal-mask {
+    position: absolute; inset: 0; z-index: 300;
+    background: rgba(20,30,20,.5);
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 22px;
+  }
+  .act-modal-mask[hidden] { display: none; }
+  .act-modal {
+    position: relative;
+    width: 100%; max-width: 320px;
+    background: linear-gradient(180deg, #f4f6e9 0%, #e9eedc 100%);
+    border: 3px solid #3a4a30;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.4);
+    padding: 22px 22px 26px;
+  }
+  .act-modal__close {
+    position: absolute; top: 12px; right: 12px;
+    width: 26px; height: 26px; border: none; background: transparent;
+    color: #c0392b; font-size: 22px; font-weight: 700; cursor: pointer;
+    line-height: 1;
+  }
+  .act-modal__title {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-family: Manrope, "PingFang SC", sans-serif;
+    font-size: 19px; font-weight: 800; color: var(--rc-red);
+    margin-bottom: 18px;
+  }
+  .act-modal__title::before,
+  .act-modal__title::after {
+    content: "◇";
+    color: #b0985f; font-size: 14px;
+  }
+  .act-modal__desc {
+    text-align: center;
+    font-size: 13px; color: #5a4a30; line-height: 1.7;
+    margin-bottom: 22px;
+  }
+  .act-modal__btns {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .act-modal__btn {
+    width: 100%; height: 46px;
+    border-radius: 8px;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    transition: opacity .15s, background .15s;
+  }
+  .act-modal__btn:active { opacity: .85; }
+  .act-modal__btn--primary {
+    border: none;
+    background: linear-gradient(180deg, var(--rc-red-soft) 0%, var(--rc-red) 100%);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(192,57,43,.35);
+  }
+  .act-modal__btn--ghost {
+    border: 1.5px solid var(--rc-red);
+    background: #fffaf1;
+    color: var(--rc-red);
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     登录全屏页
+     ════════════════════════════════════════════════════════════════ */
+  .lg-page {
+    position: absolute; inset: 0;
+    background: #fdf5e0;
+    z-index: 450;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .lg-page.open { transform: translateX(0); }
+
+  /* 宝箱插画区 */
+  .lg-chest {
+    position: relative;
+    flex-shrink: 0;
+    height: 260px;
+    background: radial-gradient(ellipse 90% 65% at 50% 85%, #ffe98a 0%, #ffd84a 40%, #fdf5e0 100%);
+    display: flex; align-items: flex-end; justify-content: center;
+    overflow: hidden;
+  }
+  .lg-chest__rays {
+    position: absolute; inset: 0;
+    background: conic-gradient(from 0deg at 50% 90%,
+      transparent 0deg, rgba(255,225,30,0.28) 7deg, transparent 14deg,
+      transparent 28deg, rgba(255,225,30,0.28) 35deg, transparent 42deg,
+      transparent 56deg, rgba(255,225,30,0.28) 63deg, transparent 70deg,
+      transparent 84deg, rgba(255,225,30,0.28) 91deg, transparent 98deg,
+      transparent 112deg, rgba(255,225,30,0.28) 119deg, transparent 126deg,
+      transparent 140deg, rgba(255,225,30,0.28) 147deg, transparent 154deg,
+      transparent 168deg, rgba(255,225,30,0.28) 175deg, transparent 182deg);
+  }
+  .lg-chest__img {
+    position: relative; z-index: 1;
+    font-size: 110px; line-height: 1; user-select: none;
+    filter: drop-shadow(0 8px 20px rgba(160,100,10,0.30));
+    margin-bottom: 8px;
+  }
+  .lg-chest__sparkle {
+    position: absolute; z-index: 2;
+    color: #f0c040; font-size: 22px; font-weight: 900;
+    animation: sparkle 2.2s ease-in-out infinite;
+    line-height: 1;
+  }
+  .lg-chest__sparkle:nth-child(2) { top: 50px; left: 52px; animation-delay: 0s; }
+  .lg-chest__sparkle:nth-child(3) { top: 34px; right: 58px; animation-delay: 0.8s; }
+  .lg-chest__sparkle:nth-child(4) { top: 80px; right: 36px; animation-delay: 1.5s; font-size: 15px; }
+  @keyframes sparkle {
+    0%,100% { opacity: 0.15; transform: scale(0.75) rotate(-15deg); }
+    50% { opacity: 1; transform: scale(1.2) rotate(10deg); }
+  }
+
+  /* 表单区 */
+  .lg-form {
+    flex: 1;
+    padding: 0 24px 28px;
+    background: #fdf5e0;
+  }
+  .lg-tabs {
+    display: flex; border-bottom: 1px solid #e2d0b0;
+    margin-bottom: 24px;
+  }
+  .lg-tab {
+    padding: 14px 0 11px;
+    font-size: 15px; font-weight: 600;
+    color: #b09070; cursor: pointer;
+    border-bottom: 2.5px solid transparent; margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    margin-right: 28px;
+  }
+  .lg-tab.active { color: #3d6fd4; border-bottom-color: #3d6fd4; }
+  .lg-field {
+    display: flex; align-items: center;
+    border-bottom: 1px solid #d8c9a8;
+    padding: 12px 0;
+    margin-bottom: 4px; gap: 10px;
+  }
+  .lg-field__icon { font-size: 20px; color: #c0a87a; flex-shrink: 0; }
+  .lg-field input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 14px; color: #3a2e1a;
+    font-family: Inter, sans-serif;
+  }
+  .lg-field input::placeholder { color: #c8b48a; }
+  .lg-getcode {
+    flex-shrink: 0;
+    border: 1.5px solid #3d6fd4; border-radius: 999px;
+    background: transparent; color: #3d6fd4;
+    font-size: 12px; font-weight: 600;
+    padding: 5px 12px; cursor: pointer;
+    white-space: nowrap; transition: opacity 0.15s;
+  }
+  .lg-getcode:disabled { opacity: 0.4; cursor: not-allowed; }
+  .lg-getcode.counting { border-color: #c4b090; color: #b09070; }
+  /* 角色验证 tab 的角色信息回显 */
+  .lg-rv-info {
+    display: none;
+    font-size: 12.5px; font-weight: 600;
+    color: #3d6fd4;
+    padding: 2px 4px 4px;
+    line-height: 1.5;
+  }
+  .lg-rv-info.show { display: block; }
+  .lg-rv-info.error { color: #c0392b; }
+  .lg-submit {
+    width: 100%; height: 50px; margin-top: 28px;
+    border: none; border-radius: 12px;
+    background: linear-gradient(90deg, #4a7fe0 0%, #3d6fd4 100%);
+    color: #fff; font-size: 16px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.15s;
+    box-shadow: 0 4px 16px rgba(61,111,212,0.38);
+    letter-spacing: .04em;
+  }
+  .lg-submit:active { opacity: 0.82; }
+  .lg-agree {
+    display: flex; align-items: flex-start; gap: 7px;
+    margin-top: 14px;
+    font-size: 11.5px; color: #a89878; line-height: 1.55;
+  }
+  .lg-agree input { margin-top: 2px; accent-color: #3d6fd4; flex-shrink: 0; }
+  .lg-agree a { color: #3d6fd4; text-decoration: none; }
+  /* 返回按钮 */
+  .lg-back {
+    position: absolute; top: 14px; left: 14px; z-index: 2;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(0,0,0,0.18); border: none;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.15s;
+  }
+  .lg-back:active { background: rgba(0,0,0,0.32); }
+  .lg-back .material-symbols-outlined { font-size: 20px; }
+
+  /* ════════════════════════════════════════════════════════════════
+     「角色验证登录」独立全屏页（抄自 home.html）
      ════════════════════════════════════════════════════════════════ */
   .rv-page {
     position: absolute; inset: 0;
     background: var(--surface-container-lowest);
-    z-index: 450;
+    z-index: 460;
     transform: translateX(100%);
     transition: transform 0.28s cubic-bezier(.4,0,.2,1);
     display: flex; flex-direction: column;
@@ -274,6 +661,89 @@
     transition: background 0.18s;
   }
   .rv-submit.active { background: var(--primary); }
+
+  /* ════════════════════════════════════════════════════════════════
+     企微活动页「账号密码登录」独立全屏页（复刻渠道登录页）
+     ════════════════════════════════════════════════════════════════ */
+  .pw-page {
+    position: absolute; inset: 0;
+    background: #fff;
+    z-index: 460;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+    /* 顶部淡蓝水印光斑 */
+    background-image:
+      radial-gradient(60% 40% at 100% 0%, #e4eefb 0%, transparent 60%),
+      radial-gradient(50% 30% at 0% 18%, #eaf2fc 0%, transparent 55%);
+  }
+  .pw-page.open { transform: translateX(0); }
+  .pw-back {
+    position: absolute; top: 14px; left: 12px; z-index: 2;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #b9bfc6; color: #fff; border: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pw-back .material-symbols-outlined { font-size: 22px; }
+  .pw-body { flex: 1; padding: 64px 28px 0; }
+  .pw-title {
+    text-align: center;
+    font-size: 24px; font-weight: 700; color: #2b2f36;
+    letter-spacing: .04em;
+    margin: 8px 0 44px;
+  }
+  .pw-field {
+    display: flex; align-items: center; gap: 10px;
+    background: #f4f5f7;
+    border-radius: 10px;
+    height: 52px; padding: 0 16px;
+    margin-bottom: 18px;
+  }
+  .pw-field input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 15px; color: #2b2f36;
+    font-family: Inter, sans-serif;
+  }
+  .pw-field input::placeholder { color: #9aa0a8; }
+  .pw-field__eye {
+    border: none; background: transparent; cursor: pointer;
+    color: #9aa0a8; display: inline-flex; align-items: center;
+    padding: 0;
+  }
+  .pw-field__eye .material-symbols-outlined { font-size: 20px; }
+  .pw-submit {
+    width: 100%; height: 48px; margin-top: 10px;
+    border: none; border-radius: 10px;
+    background: #a9cdf2; color: #fff;
+    font-size: 16px; font-weight: 600; letter-spacing: .04em;
+    cursor: pointer; transition: background .18s;
+  }
+  .pw-submit.active { background: var(--primary); }
+  .pw-links {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 16px;
+    font-size: 13.5px;
+  }
+  .pw-links .forgot { color: #6b7178; cursor: pointer; }
+  .pw-links .phone { color: var(--primary); cursor: pointer; font-weight: 500; }
+  .pw-foot {
+    flex-shrink: 0;
+    padding: 20px 28px 26px;
+    text-align: center;
+    font-size: 12.5px; color: #9aa0a8;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pw-foot a { color: var(--primary); text-decoration: none; }
+  .pw-foot__bubble {
+    position: absolute; right: 22px; bottom: 64px;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; box-shadow: 0 6px 16px rgba(0,97,164,.4);
+    cursor: pointer;
+  }
+  .pw-foot__bubble .material-symbols-outlined { font-size: 24px; }
 
   /* ════════════════════════════════════════════════════════════════
      需求说明 悬浮按钮 + 右侧侧边栏
@@ -381,39 +851,189 @@
 </head>
 <body>
 
+<!-- 右上角 Tab 栏 -->
+<div class="top-tabs">
+  <div class="top-tab active" id="topTabRecharge" onclick="switchView('recharge')">充值页</div>
+  <div class="top-tab" id="topTabActivity" onclick="switchView('activity')">企微活动页</div>
+</div>
+
 <div class="phone-shell">
   <div class="dynamic-island"></div>
 
   <div class="rc-scroll">
-    <!-- ── Banner ── -->
-    <div class="rc-banner">
-      <div class="rc-banner__title-wrap">
-        <div class="rc-banner__title">官方充值中心<br>营业啦</div>
+    <!-- ══════════════ 视图：充值页 ══════════════ -->
+    <div id="viewRecharge">
+      <!-- ── Banner ── -->
+      <div class="rc-banner">
+        <div class="rc-banner__title-wrap">
+          <div class="rc-banner__title">官方充值中心<br>营业啦</div>
+        </div>
       </div>
+
+      <!-- ── Login bar ── -->
+      <div class="rc-login">
+        <div class="rc-login__row">
+          <button class="rc-login__btn" onclick="openLogin()">
+            <span class="material-symbols-outlined" style="font-size:17px">login</span>
+            账号登录
+          </button>
+        </div>
+        <div class="rc-login__meta">
+          <span>角色ID：<b id="rc-role-id">登录后展示角色</b></span>
+          <span>角色名：<b id="rc-role-name"></b></span>
+        </div>
+        <div class="rc-login__server">区服：<span id="rc-role-server"></span></div>
+      </div>
+
+      <!-- ── Voucher grid ── -->
+      <div class="rc-grid" id="rc-grid"></div>
     </div>
 
-    <!-- ── Login bar ── -->
-    <div class="rc-login">
-      <div class="rc-login__row">
-        <span class="rc-login__label">账号登录</span>
-        <!-- 红框：角色登录入口，点击滑入角色验证登录页 -->
-        <button class="rc-role-login" onclick="openRoleVerify()">
-          <span class="material-symbols-outlined">person</span>
-          角色登录
+    <!-- ══════════════ 视图：企微活动页 ══════════════ -->
+    <div class="act-view" id="viewActivity" style="display:none">
+      <!-- 顶部栏：游戏 Logo + 登录 -->
+      <div class="act-topbar">
+        <div class="act-logo">
+          <span class="act-logo__mark">仙</span>
+          我当老祖
+        </div>
+        <button class="act-login-btn" onclick="openActModal()">
+          <span class="material-symbols-outlined">login</span>
+          登录
         </button>
       </div>
-      <div class="rc-login__meta">
-        <span>角色ID：<b id="rc-role-id">登录后展示角色</b></span>
-        <span>角色名：<b id="rc-role-name"></b></span>
-      </div>
-      <div class="rc-login__server">区服：<span id="rc-role-server"></span></div>
-    </div>
 
-    <!-- ── Voucher grid ── -->
-    <div class="rc-grid" id="rc-grid"></div>
+      <!-- 主角插画区 -->
+      <div class="act-hero">
+        <div class="act-hero__char">🧙</div>
+        <span class="act-hero__decor cloud">☁️</span>
+        <span class="act-hero__decor bell">🔔</span>
+        <span class="act-hero__decor box">🎁</span>
+        <span class="act-hero__decor bamboo">🎍</span>
+      </div>
+
+      <!-- 主标题 -->
+      <div class="act-headline">
+        <div class="act-headline__title">宗门小助手<br>专属见面礼</div>
+        <span class="act-headline__seal">修仙</span>
+      </div>
+
+      <!-- 企微专属礼 -->
+      <div class="act-card">
+        <div class="act-card__inner">
+          <div class="act-card__header">
+            <span class="act-card__title">企微专属礼</span>
+          </div>
+          <div class="act-rewards">
+            <div class="act-reward">
+              <span class="act-reward__icon">🐉</span>
+              <span class="act-reward__label">仙玉*300</span>
+            </div>
+            <div class="act-reward">
+              <span class="act-reward__icon">🪣</span>
+              <span class="act-reward__label">体力*10</span>
+            </div>
+            <div class="act-reward">
+              <span class="act-reward__icon">💎</span>
+              <span class="act-reward__label">灵石*5000</span>
+            </div>
+          </div>
+          <button class="act-card__btn" onclick="actClaim()">领取奖励</button>
+        </div>
+      </div>
+
+      <!-- 每月签到礼 -->
+      <div class="act-card">
+        <div class="act-card__inner">
+          <div class="act-card__header">
+            <span class="act-card__title">每月签到礼</span>
+          </div>
+          <div class="act-rewards">
+            <div class="act-reward">
+              <span class="act-reward__icon">🐉</span>
+              <span class="act-reward__label">仙玉*210</span>
+            </div>
+            <div class="act-reward">
+              <span class="act-reward__icon">🌱</span>
+              <span class="act-reward__label">利爪当归种子*17</span>
+            </div>
+            <div class="act-reward">
+              <span class="act-reward__icon">📜</span>
+              <span class="act-reward__label">大灵雨符*51</span>
+            </div>
+          </div>
+          <button class="act-card__btn" onclick="actSignin()">前往签到</button>
+        </div>
+      </div>
+
+      <!-- 登录账号 弹窗 -->
+      <div class="act-modal-mask" id="actModalMask">
+        <div class="act-modal">
+          <button class="act-modal__close" onclick="closeActModal()" aria-label="关闭">×</button>
+          <div class="act-modal__title">登录账号</div>
+          <div class="act-modal__desc">请老祖根据自身实际情况，选择登录方式</div>
+          <div class="act-modal__btns">
+            <button class="act-modal__btn act-modal__btn--primary" onclick="openPwLogin()">账号登录</button>
+            <button class="act-modal__btn act-modal__btn--ghost" onclick="openRoleVerify()">角色验证登录</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- ══════════════ 「角色验证登录」全屏页 ══════════════ -->
+  <!-- ══════════════ 登录全屏页 ══════════════ -->
+  <div class="lg-page" id="lgPage">
+    <!-- 返回按钮 -->
+    <button class="lg-back" onclick="closeLogin()" aria-label="返回">
+      <span class="material-symbols-outlined">chevron_left</span>
+    </button>
+    <!-- 宝箱插画区 -->
+    <div class="lg-chest">
+      <div class="lg-chest__rays"></div>
+      <span class="lg-chest__sparkle">✦</span>
+      <span class="lg-chest__sparkle">✦</span>
+      <span class="lg-chest__sparkle">✦</span>
+      <div class="lg-chest__img">🧰</div>
+    </div>
+    <!-- 表单区 -->
+    <div class="lg-form">
+      <div class="lg-tabs">
+        <div class="lg-tab active" id="lgTabRole" onclick="lgSwitchTab('role')">角色验证登录</div>
+        <div class="lg-tab" id="lgTabAccount" onclick="lgSwitchTab('account')">账号登录</div>
+      </div>
+      <!-- 角色验证登录（红钻充值页定制 · 与企微独立页逻辑一致） -->
+      <div id="lgPanelRole">
+        <div class="lg-field">
+          <span class="lg-field__icon material-symbols-outlined">sports_esports</span>
+          <input id="lgRoleId" type="text" placeholder="请输入角色ID" autocomplete="off" onblur="lgRvVerify()">
+        </div>
+        <div class="lg-rv-info" id="lgRoleInfo"></div>
+        <div class="lg-field">
+          <span class="lg-field__icon material-symbols-outlined">lock</span>
+          <input id="lgRoleCode" type="text" placeholder="请输入角色邮件中的验证码" maxlength="6">
+          <button class="lg-getcode" id="lgRoleGetcode" onclick="lgRvSendCode()" disabled>获取验证码</button>
+        </div>
+      </div>
+      <!-- 账号登录 -->
+      <div id="lgPanelAccount" style="display:none">
+        <div class="lg-field">
+          <span class="lg-field__icon material-symbols-outlined">person</span>
+          <input id="lgAccount" type="text" placeholder="请输入账号">
+        </div>
+        <div class="lg-field">
+          <span class="lg-field__icon material-symbols-outlined">lock</span>
+          <input id="lgPassword" type="password" placeholder="请输入密码">
+        </div>
+      </div>
+      <button class="lg-submit" onclick="lgSubmit()">登录</button>
+      <div class="lg-agree">
+        <input type="checkbox" id="lgAgree" checked>
+        <label for="lgAgree">阅读并同意 <a href="#">《用户协议》</a>、<a href="#">《隐私政策》</a> 和 <a href="#">《儿童隐私政策》</a></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ 「角色验证登录」独立全屏页（抄自 home.html） ══════════════ -->
   <div class="rv-page" id="rv-page">
     <button class="rv-back" onclick="closeRoleVerify()" aria-label="返回">
       <span class="material-symbols-outlined">chevron_left</span>
@@ -425,12 +1045,42 @@
       </div>
       <div class="rv-info" id="rv-info"></div>
       <div class="rv-field">
-        <input id="rv-code" type="text" placeholder="请输入验证码" autocomplete="off" maxlength="6">
+        <input id="rv-code" type="text" placeholder="请输入角色邮件中的验证码" autocomplete="off" maxlength="6">
         <button class="rv-getcode" id="rv-getcode" onclick="rvSendCode()">获取验证码</button>
       </div>
       <button class="rv-submit" id="rv-submit" onclick="rvSubmit()">
         验证并登录
       </button>
+    </div>
+  </div>
+
+  <!-- ══════════════ 企微活动页「账号密码登录」独立全屏页 ══════════════ -->
+  <div class="pw-page" id="pw-page">
+    <button class="pw-back" onclick="closePwLogin()" aria-label="返回">
+      <span class="material-symbols-outlined">chevron_left</span>
+    </button>
+    <div class="pw-body">
+      <div class="pw-title">账号密码登录</div>
+      <div class="pw-field">
+        <input id="pw-account" type="text" placeholder="请输入账号" autocomplete="off" oninput="pwToggleSubmit()">
+      </div>
+      <div class="pw-field">
+        <input id="pw-password" type="password" placeholder="请输入密码" oninput="pwToggleSubmit()">
+        <button class="pw-field__eye" id="pw-eye" onclick="pwTogglePwd()" aria-label="显示密码">
+          <span class="material-symbols-outlined">visibility_off</span>
+        </button>
+      </div>
+      <button class="pw-submit" id="pw-submit" onclick="pwSubmit()">登录</button>
+      <div class="pw-links">
+        <span class="forgot" onclick="alert('忘记密码')">忘记密码</span>
+        <span class="phone" onclick="alert('手机登录 / 注册')">手机登录/注册</span>
+      </div>
+    </div>
+    <div class="pw-foot">
+      由于其他问题导致无法登录，请点此<a href="#" onclick="alert('联系人工客服');return false;">联系人工</a>
+    </div>
+    <div class="pw-foot__bubble" onclick="alert('在线客服')" aria-label="客服">
+      <span class="material-symbols-outlined">support_agent</span>
     </div>
   </div>
 
@@ -446,7 +1096,7 @@
 <div class="req-mask" id="reqMask" onclick="closeReq()"></div>
 <aside class="req-drawer" id="reqDrawer">
   <div class="req-head">
-    <span class="ttl">角色验证码登录 — 需求说明（两个需求）</span>
+    <span class="ttl">角色验证登录 — 需求说明</span>
     <button class="x" type="button" onclick="closeReq()">×</button>
   </div>
   <div class="req-body">
@@ -454,120 +1104,97 @@
     <div class="req-meta">
       <span class="req-chip">所属模块：账号 / 登录中心</span>
       <span class="req-chip">优先级：高</span>
-      <span class="req-chip alt">服务对象：网页活动</span>
-      <span class="req-chip alt">两个独立需求</span>
+      <span class="req-chip alt">应用场景：红钻充值页 + 企微活动页</span>
+      <span class="req-chip alt">仅角色维度</span>
+      <span class="req-chip alt">验证码有效期 24 小时</span>
     </div>
 
-    <!-- 背景总述 -->
-    <div class="prd-h2"><span class="no">0</span>共同背景</div>
+    <!-- 1. 需求概述 -->
+    <div class="prd-h2"><span class="no">1</span>需求概述</div>
     <div class="prd-block">
-      <p>本批次包含<b>两个独立需求</b>，二者都基于「角色验证码登录」这套验证流程——<b>验证码不发短信/邮箱，而是发到游戏内角色的邮件</b>，玩家凭角色邮件里的验证码完成身份核验。但两者是<b>面向不同诉求、各自独立交付的需求</b>，不能合并：</p>
-      <ul>
-        <li><b>需求一 · 角色登录：</b>登录态只到<b>角色维度</b>。<b>服务对象是渠道用户</b>（红钻活动、企业微信活动）。</li>
-        <li><b>需求二 · 账号登录：</b>通过角色 ID <b>反查账号 ID</b>，登录态到<b>账号维度</b>。<b>服务对象是冰川自营各端 SDK 用户</b>（如抖小、微小）。</li>
-      </ul>
-      <p>共同点：① 验证渠道都是「游戏内角色邮件验证码」；② 都<b>为网页活动做嫁衣</b>，支持网页活动跳转登录、登录成功后回带登录态。共同的「验证码下发与核验机制」见下方各需求内描述（流程一致，差异在登录态产物）。</p>
+      <p><b>背景：</b>当前网页活动在引导玩家参与时，缺少一套轻量、无需账号密码、可独立验证玩家身份的登录方式。玩家在网页侧往往只知道自己的<b>游戏角色</b>，并不记得平台账号密码，传统账密登录在活动场景下转化率低、流失严重。</p>
+      <p><b>定位：</b>新增「角色验证登录」能力——以<b>游戏角色</b>为身份锚点的轻量登录，登录态<b>只到角色维度（角色 ID + 角色名 + 区服）</b>，不涉及账号体系。<b>验证码不发短信/邮箱，而是发到游戏内角色的邮件</b>，玩家凭角色邮件里的验证码完成身份核验。</p>
+      <p><b>核心逻辑（两个活动页完全一致）：</b>校验角色 ID 有效性 → 向该游戏角色发送一封含验证码的<b>游戏内邮件</b> → 玩家在游戏里拿到验证码后回网页端填写 → 验证成功即<b>以该角色身份登录本次网页活动</b>。</p>
+      <p><b>应用场景：</b>本次落地<b>红钻充值页</b>与<b>企微活动页</b>两个活动；二者的角色验证登录操作逻辑完全相同，差异仅在入口形态（见第 3 节）。</p>
     </div>
 
-    <!-- ═══════════ 需求一：角色登录 ═══════════ -->
-    <div class="req-divider"></div>
-    <div class="req-section-tag a"><span class="seq">一</span>需求一 · 角色验证码登录（角色维度）<span class="sub">红钻 / 企微活动</span></div>
-
-    <div class="prd-h2"><span class="no">1.1</span>需求概述</div>
+    <!-- 2. 角色验证登录通用流程 -->
+    <div class="prd-h2"><span class="no">2</span>角色验证登录通用流程</div>
     <div class="prd-block">
-      <p><b>定位：</b>以<b>游戏角色</b>为身份锚点的轻量登录，登录态<b>只到角色维度（角色 ID + 区服）</b>，不涉及账号体系。</p>
-      <p><b>服务对象：</b><b>渠道用户</b>。专为<b>红钻活动、企业微信活动</b>等渠道侧活动做嫁衣。这类活动只关心「是哪个角色」，不需要打通账号下的其他角色或账号级资产，因此用最短的角色维度登录即可。</p>
-      <p><b>价值：</b>玩家在网页/企微侧无需记忆账密，输入角色 ID + 角色邮件验证码即可登录参与活动，登录门槛最低、转化最高。</p>
-    </div>
-
-    <div class="prd-h2"><span class="no">1.2</span>登录流程</div>
-    <div class="prd-block">
+      <p>两个活动页共用同一套操作逻辑：</p>
       <ol class="req-flow">
-        <li>玩家输入<b>角色 ID</b>，系统校验该角色是否真实存在。</li>
-        <li>角色校验成功 → 调用游戏侧发件接口，<b>向该角色游戏内邮箱发送含验证码的邮件</b>（6 位数字，有效期 5 分钟）。</li>
+        <li>玩家输入<b>角色 ID</b>，失焦即校验该角色是否真实存在；校验通过后回显「角色ID - 角色名 - 区服」供玩家确认。</li>
+        <li><b>角色校验成功后，「获取验证码」按钮才高亮可点击</b>；校验失败按钮保持置灰不可点。</li>
+        <li>点击获取验证码 → 调用游戏侧发件接口，<b>向该角色游戏内邮箱发送含验证码的邮件</b>（6 位数字，<b>有效期 24 小时</b>）；按钮进入 60s 倒计时防刷。</li>
         <li>玩家在游戏内读取验证码，回填登录页。</li>
-        <li>系统校验「角色 ID + 验证码」匹配且未过期 → <b>以角色身份登录</b>，登录态 = 角色 ID + 区服 + 角色名。</li>
+        <li>系统校验「角色 ID + 验证码」匹配且未过期 → <b>以角色身份登录该网页活动</b>，登录态 = 角色 ID + 角色名 + 区服。</li>
       </ol>
       <div class="req-note">为什么用游戏内邮件：能在游戏里收到并读取该角色的邮件，即证明操作人拥有此角色，无需再依赖手机号/邮箱等账号资产，验证与角色身份天然绑定。</div>
     </div>
 
-    <div class="prd-h2"><span class="no">1.3</span>网页活动接入</div>
+    <!-- 3. 两个活动页的入口形态 -->
+    <div class="prd-h2"><span class="no">3</span>两个活动页的入口形态</div>
+
+    <div class="req-section-tag a"><span class="seq">A</span>红钻充值页（定制登录页）<span class="sub">入口内嵌</span></div>
     <div class="prd-block">
+      <p>红钻充值页的登录页面为<b>定制化页面</b>，不复用通用页。直接在原「账号登录」页<b>顶部增加一个「角色验证登录」Tab</b>，与「账号登录」并列切换：</p>
       <ul>
-        <li><b>跳转登录：</b>红钻/企微活动检测未登录时，携带回跳地址 + 活动标识跳转至本登录页。</li>
-        <li><b>回带登录态：</b>登录成功后将<b>角色维度</b>凭证（角色 ID / 区服 / 角色名）回带至活动页。</li>
+        <li><b>角色验证登录 Tab：</b>输入框为<b>角色 ID</b> + <b>验证码</b>，操作逻辑同第 2 节。</li>
+        <li><b>账号登录 Tab：</b>保持原有账密登录逻辑不变。</li>
+        <li>两个 Tab 共用底部「登录」按钮与协议勾选。</li>
       </ul>
     </div>
 
-    <div class="prd-h2"><span class="no">1.4</span>异常与边界</div>
+    <div class="req-section-tag b"><span class="seq">B</span>企微活动页（复用通用页）<span class="sub">独立页面</span></div>
     <div class="prd-block">
+      <p>企微活动页点击「登录」后弹出登录方式选择弹窗，<b>除「账号登录」外新增「角色验证登录」</b>。其中：</p>
       <ul>
-        <li><b>角色不存在：</b>拦截在第一步，不发码，避免无效发件。</li>
-        <li><b>验证码错误/过期：</b>提示「验证码错误或已过期」，可重新获取；连续错误 5 次锁定防爆破。</li>
-        <li><b>发码频控：</b>同一角色 60s 仅可获取一次；按 IP/活动来源设日发码上限防刷。</li>
-        <li><b>游戏侧发件失败：</b>Toast 提示重试，不进入倒计时。</li>
-        <li><b>回跳地址非法：</b>redirect 不在白名单内拒绝跳转，防开放重定向。</li>
+        <li><b>「角色验证登录」为本次新增的通用独立页面</b>，从弹窗点击后跳转至该独立页，输入角色 ID + 验证码完成登录。</li>
+        <li>该通用页<b>与具体游戏 / 活动解耦</b>，后续其他游戏、其他活动可<b>直接复用</b>，无需重复开发。</li>
+        <li>登录成功后以角色身份回带登录态至当前活动页。</li>
       </ul>
+      <div class="req-note">A 为充值页专属的定制内嵌 Tab，B 为可被多个活动/游戏复用的独立页面；二者<b>界面承载不同，但角色验证登录的字段、校验、发码、时效逻辑完全一致</b>。</div>
     </div>
 
-    <!-- ═══════════ 需求二：账号登录 ═══════════ -->
-    <div class="req-divider"></div>
-    <div class="req-section-tag b"><span class="seq">二</span>需求二 · 角色验证码登录（账号维度）<span class="sub">抖小 / 微小等 SDK</span></div>
-
-    <div class="prd-h2"><span class="no">2.1</span>需求概述</div>
+    <!-- 4. 登录页字段 -->
+    <div class="prd-h2"><span class="no">4</span>角色验证登录字段定义</div>
     <div class="prd-block">
-      <p><b>定位：</b>验证流程同样基于角色邮件验证码，但登录成功后<b>由角色 ID 反查出账号 ID</b>，最终登录态落到<b>账号维度（通行证 ID）</b>。</p>
-      <p><b>与需求一的本质区别：</b>需求一停在角色；需求二多了一步<b>「角色 ID → 账号 ID」映射</b>，登录的是整个账号，可覆盖账号下多角色通用奖励、账号余额、跨角色资产等<b>账号级权益</b>的活动。</p>
-      <p><b>服务对象：</b><b>冰川自营各端 SDK 用户</b>（如抖小、微小等小程序端）。这类端有自己的账号体系，活动需要账号级身份与权益，因此登录态要落到账号维度。</p>
-      <div class="req-note warn"><b>定位边界（重要）：</b>本登录<b>只是补充登录入口，仅在活动场景下使用</b>，不替代各端的原生登录。抖小、微小等端在 App 内的常规登录<b>仍走各自的原生登录（抖音/微信授权等）</b>；只有当端内活动需要账号身份、而当前缺少可用登录态时，才走本「角色验证码登录」作为补充通道完成账号维度登录。</div>
-    </div>
-
-    <div class="prd-h2"><span class="no">2.2</span>登录流程</div>
-    <div class="prd-block">
-      <ol class="req-flow">
-        <li>玩家输入<b>角色 ID</b>，系统校验该角色是否真实存在。</li>
-        <li>角色校验成功 → 向该角色游戏内邮箱发送验证码邮件（6 位数字，有效期 5 分钟）。</li>
-        <li>玩家读取验证码并回填。</li>
-        <li>校验「角色 ID + 验证码」通过 → <b>由角色 ID 反查绑定的账号 ID</b>。</li>
-        <li>映射成功 → <b>以账号身份登录</b>，登录态 = 账号 ID（通行证 ID）+ 当前验证角色 ID。</li>
-      </ol>
-      <div class="req-note warn"><b>映射环节关键约束：</b>角色 ID → 账号 ID 必须<b>唯一且实时</b>。需明确：① 一个角色是否只属于一个账号（预期是）；② 角色被转移/找回后映射如何同步更新；③ 映射查询失败（游戏侧接口超时）时<b>必须拦截登录而非放行</b>，杜绝登错账号。</div>
-    </div>
-
-    <div class="prd-h2"><span class="no">2.3</span>网页活动接入</div>
-    <div class="prd-block">
-      <ul>
-        <li><b>跳转登录：</b>活动检测未登录时携带回跳地址 + 活动标识跳转至本登录页。</li>
-        <li><b>回带登录态：</b>登录成功后将<b>账号维度</b>凭证（账号 ID + 验证角色 ID）回带至活动页。</li>
-      </ul>
-      <div class="req-note">待你确认：账号维度登录后，若该账号下有多个角色，活动上下文是<b>固定为验证用的那个角色</b>，还是允许在账号的多角色间切换？此点影响活动侧角色选择交互，需明确。</div>
-    </div>
-
-    <div class="prd-h2"><span class="no">2.4</span>异常与边界</div>
-    <div class="prd-block">
-      <ul>
-        <li><b>角色不存在：</b>拦截在第一步，不发码。</li>
-        <li><b>验证码错误/过期、发码频控、发件失败：</b>同需求一。</li>
-        <li><b>账号映射失败（核心差异）：</b>角色存在但查不到绑定账号 → 明确提示「该角色未绑定账号，无法以账号方式登录」，<b>不得静默放行或登错账号</b>。</li>
-        <li><b>回跳地址非法：</b>redirect 白名单校验，防开放重定向。</li>
-      </ul>
-    </div>
-
-    <!-- ═══════════ 公共：登录页字段 ═══════════ -->
-    <div class="req-divider"></div>
-    <div class="prd-h2"><span class="no">3</span>登录页字段定义（两需求共用）</div>
-    <div class="prd-block">
+      <p>下列字段在「红钻充值页定制 Tab」与「企微通用独立页」中保持一致：</p>
       <table class="prd-tbl">
         <thead><tr><th>字段</th><th>控件</th><th>必填</th><th>校验 / 说明</th></tr></thead>
         <tbody>
-          <tr><td>角色 ID</td><td>文本输入</td><td>是</td><td>失焦即校验角色是否存在；不存在时下方红字提示「未找到该角色ID」，并禁用「获取验证码」</td></tr>
+          <tr><td>角色 ID</td><td>文本输入</td><td>是</td><td>失焦即校验角色是否存在；不存在时下方红字提示「未找到该角色ID，请检查后重试」，并禁用「获取验证码」</td></tr>
           <tr><td>角色信息回显</td><td>文本（只读）</td><td>—</td><td>角色校验通过后展示「角色ID - 角色名 - 区服」，供玩家确认身份</td></tr>
-          <tr><td>验证码</td><td>文本输入</td><td>是</td><td>6 位数字；有效期 5 分钟；最多输入 6 位</td></tr>
-          <tr><td>获取验证码</td><td>按钮</td><td>—</td><td>角色校验通过后才可点；点击后 60s 倒计时防刷；结束后变「重新获取」</td></tr>
-          <tr><td>验证并登录</td><td>按钮</td><td>—</td><td>角色 + 验证码均通过后高亮可点；按所属需求产出角色维度 / 账号维度登录态</td></tr>
+          <tr><td>验证码</td><td>文本输入</td><td>是</td><td>6 位数字；<b>有效期 24 小时</b>；最多输入 6 位</td></tr>
+          <tr><td>获取验证码</td><td>按钮</td><td>—</td><td><b>角色校验通过后才高亮可点</b>；点击后 60s 倒计时防刷；结束后变「重新获取」</td></tr>
+          <tr><td>验证并登录</td><td>按钮</td><td>—</td><td>角色 + 验证码均填写后可提交；成功后产出角色维度登录态</td></tr>
         </tbody>
       </table>
-      <div class="req-note">登录页 UI 与字段两需求一致，差异仅在<b>验证通过后的后端处理</b>（需求一止于角色、需求二多一步账号映射）与<b>回带给活动的登录态维度</b>。</div>
+    </div>
+
+    <!-- 5. 后端安全性校验 -->
+    <div class="prd-h2"><span class="no">5</span>后端安全性校验</div>
+    <div class="prd-block">
+      <p>本登录无账密、纯靠角色 + 验证码，<b>安全性全部由后端兜底</b>，前端只做基础体验校验，所有关键判定以后端为准。两个活动页接入同一套后端能力。</p>
+      <div class="prd-h3">验证码安全</div>
+      <ul>
+        <li><b>服务端生成与比对：</b>验证码由后端生成并与角色 ID 强绑定存储（建议加盐哈希），前端不持有明文、不参与比对。</li>
+        <li><b>时效与一次性：</b><b>有效期 24 小时</b>；一经验证成功立即作废，禁止重复使用；重新获取后旧码失效。</li>
+        <li><b>错误次数限制：</b>同一角色/同一码连续错误达上限（建议 5 次）即作废并锁定一段时间，防暴力枚举。</li>
+      </ul>
+      <div class="prd-h3">发码与请求防刷</div>
+      <ul>
+        <li><b>发码频控：</b>同一角色 60s 内仅可发一次；同一 IP / 同一活动来源设日发码上限，防轰炸式刷邮件。</li>
+        <li><b>角色存在性后端校验：</b>角色 ID 是否存在由后端裁定，不存在直接拦截、不发码，避免向不存在角色发件及探测。</li>
+        <li><b>接口限流与风控：</b>发码、校验接口均接入限流与风控，识别批量/异常来源请求并拦截。</li>
+      </ul>
+      <div class="prd-h3">登录态与回跳安全</div>
+      <ul>
+        <li><b>登录凭证：</b>登录成功下发<b>短时效、一次性票据（ticket）</b>，活动侧凭票据换取正式登录态，票据用后即焚、不可重放。</li>
+        <li><b>回跳地址白名单：</b>redirect 必须命中后端域名白名单，否则拒绝跳转，<b>防开放重定向</b>。</li>
+        <li><b>凭证不可伪造：</b>回带凭证由后端签名，活动侧校验签名，防止前端伪造角色身份。</li>
+      </ul>
+      <div class="req-note warn">原则：前端的角色校验、倒计时、按钮置灰等仅为体验优化，<b>不可信</b>；是否发码、验证码是否正确、角色是否存在、能否登录、回跳是否合法，<b>全部以后端校验结果为准</b>。</div>
     </div>
 
   </div>
@@ -597,12 +1224,123 @@
       <div class="rc-card__voucher">代金券*${fmt(p.voucher)}</div>
     </div>
   `).join('');
+  let _loggedIn = false;
+  let _lgCodeTimer = null;
+
   function buy(price) {
-    if (!_rvVerifiedRole) { alert('请先完成角色登录后再购买'); openRoleVerify(); return; }
-    alert(`下单成功！\n角色：${_rvVerifiedRole.name}（${_rvVerifiedRole.id}）\n售价：${price} 元`);
+    if (!_loggedIn) { alert('请先登录后再购买'); openLogin(); return; }
+    alert(`下单成功！\n售价：${price} 元`);
   }
 
-  /* ── 角色验证登录页 ── */
+  /* ── 顶部 Tab 视图切换 ── */
+  function switchView(view) {
+    const isRecharge = view === 'recharge';
+    // 切换前先收起全屏登录页，避免它盖在视图上方造成「切换无效」的错觉
+    closeLogin();
+    document.getElementById('viewRecharge').style.display = isRecharge ? '' : 'none';
+    document.getElementById('viewActivity').style.display = isRecharge ? 'none' : '';
+    document.getElementById('topTabRecharge').classList.toggle('active', isRecharge);
+    document.getElementById('topTabActivity').classList.toggle('active', !isRecharge);
+    document.querySelector('.rc-scroll').scrollTop = 0;
+  }
+
+  /* ── 企微活动页：登录账号 弹窗 ── */
+  function openActModal() {
+    document.getElementById('actModalMask').hidden = false;
+  }
+  function closeActModal() {
+    document.getElementById('actModalMask').hidden = true;
+  }
+  /* 企微活动页：领取 / 签到（未登录先唤起登录弹窗） */
+  function actClaim() {
+    if (!_loggedIn) { openActModal(); return; }
+    alert('领取成功！\n仙玉*300、体力*10、灵石*5000 已发放至游戏内邮箱');
+  }
+  function actSignin() {
+    if (!_loggedIn) { openActModal(); return; }
+    alert('前往签到');
+  }
+
+  /* ── 红钻充值页：定制登录全屏页（角色验证登录 / 账号登录 两个 tab） ── */
+  let _lgRoleVerified = null;   // 角色验证 tab 已校验通过的角色
+  function openLogin(tab) {
+    document.getElementById('lgPage').classList.add('open');
+    lgSwitchTab(tab || 'role');
+  }
+  function closeLogin() {
+    document.getElementById('lgPage').classList.remove('open');
+    if (_lgCodeTimer) { clearInterval(_lgCodeTimer); _lgCodeTimer = null; }
+    const btn = document.getElementById('lgRoleGetcode');
+    btn.disabled = true; btn.textContent = '获取验证码'; btn.classList.remove('counting');
+  }
+  let _lgCurrentTab = 'role';
+  function lgSwitchTab(tab) {
+    _lgCurrentTab = tab;
+    ['role','account'].forEach(t => {
+      document.getElementById('lgTab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+      document.getElementById('lgPanel' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? '' : 'none';
+    });
+  }
+  /* 角色验证 tab — 与企微独立页 rv-* 逻辑完全一致：先校验角色，校验通过「获取验证码」才高亮可点 */
+  function lgRvVerify() {
+    const id = document.getElementById('lgRoleId').value.trim();
+    const info = document.getElementById('lgRoleInfo');
+    const btn = document.getElementById('lgRoleGetcode');
+    _lgRoleVerified = null;
+    if (!id) {
+      info.classList.remove('show', 'error'); info.textContent = '';
+      btn.disabled = true; return;
+    }
+    const role = rvLookupRole(id);
+    if (!role) {
+      info.classList.add('show', 'error');
+      info.textContent = '未找到该角色ID，请检查后重试';
+      btn.disabled = true; return;
+    }
+    info.classList.remove('error'); info.classList.add('show');
+    info.textContent = `${id} - ${role.name} - ${role.server}`;
+    btn.disabled = false;
+    _lgRoleVerified = { id, ...role };
+  }
+  function lgRvSendCode() {
+    if (!_lgRoleVerified) return;   // 角色未校验通过不可发码
+    const btn = document.getElementById('lgRoleGetcode');
+    let n = 60;
+    btn.disabled = true; btn.classList.add('counting');
+    btn.textContent = `${n}s`;
+    _lgCodeTimer = setInterval(() => {
+      n--;
+      if (n <= 0) {
+        clearInterval(_lgCodeTimer); _lgCodeTimer = null;
+        btn.disabled = false; btn.classList.remove('counting');
+        btn.textContent = '重新获取';
+      } else {
+        btn.textContent = `${n}s`;
+      }
+    }, 1000);
+    alert('验证码已发送至该角色游戏内邮箱，有效期 24 小时');
+  }
+  function lgSubmit() {
+    if (!document.getElementById('lgAgree').checked) { alert('请先阅读并同意用户协议'); return; }
+    if (_lgCurrentTab === 'role') {
+      if (!_lgRoleVerified) { alert('请先输入并校验角色ID'); return; }
+      if (!document.getElementById('lgRoleCode').value.trim()) { alert('请输入角色邮件中的验证码'); return; }
+      rcSetLoggedIn(_lgRoleVerified.id, _lgRoleVerified.name, _lgRoleVerified.server);
+    } else {
+      if (!document.getElementById('lgAccount').value.trim()) { alert('请输入账号'); return; }
+      rcSetLoggedIn('88888888', '屠龙者', '零氪服38区');
+    }
+    closeLogin();
+  }
+  /* 统一写入登录态（角色维度） */
+  function rcSetLoggedIn(id, name, server) {
+    _loggedIn = true;
+    document.getElementById('rc-role-id').textContent = id;
+    document.getElementById('rc-role-name').textContent = name;
+    document.getElementById('rc-role-server').textContent = server;
+  }
+
+  /* ── 「角色验证登录」通用独立页（企微活动页入口；后续其他游戏可复用） ── */
   const RV_MOCK_ROLES = {
     '88888888': { name: '屠龙者', server: '零氪服38区' },
     '12345678': { name: '凤凰', server: '联盟服12区' },
@@ -613,6 +1351,7 @@
   let _rvCodeTimer = null;
 
   function openRoleVerify() {
+    closeActModal();
     document.getElementById('rv-page').classList.add('open');
   }
   function closeRoleVerify() {
@@ -626,6 +1365,7 @@
     info.classList.remove('show', 'rv-info--error');
     info.textContent = '';
     document.getElementById('rv-submit').classList.remove('active');
+    _rvVerifiedRole = null;
     if (_rvCodeTimer) { clearInterval(_rvCodeTimer); _rvCodeTimer = null; }
     const btn = document.getElementById('rv-getcode');
     btn.disabled = true; btn.textContent = '获取验证码';
@@ -646,6 +1386,7 @@
       info.classList.remove('show', 'rv-info--error');
       info.textContent = '';
       btn.disabled = true; btn.classList.remove('active');
+      _rvVerifiedRole = null;
       return;
     }
     const role = rvLookupRole(id);
@@ -653,6 +1394,7 @@
       info.classList.add('show', 'rv-info--error');
       info.textContent = '未找到该角色ID，请检查后重试';
       btn.disabled = true; btn.classList.remove('active');
+      _rvVerifiedRole = null;
       document.getElementById('rv-submit').classList.remove('active');
       return;
     }
@@ -660,11 +1402,10 @@
     info.classList.add('show');
     info.textContent = `${id} - ${role.name} - ${role.server}`;
     btn.disabled = false; btn.classList.add('active');
+    _rvVerifiedRole = { id, ...role };
   }
   function rvSendCode() {
-    const id = document.getElementById('rv-role-id').value.trim();
-    const role = rvLookupRole(id);
-    if (!role) return;
+    if (!_rvVerifiedRole) return;
     const btn = document.getElementById('rv-getcode');
     let n = 60;
     btn.disabled = true;
@@ -681,19 +1422,47 @@
       }
     }, 1000);
     document.getElementById('rv-submit').classList.add('active');
+    alert('验证码已发送至该角色游戏内邮箱，有效期 24 小时');
   }
   function rvSubmit() {
-    const id = document.getElementById('rv-role-id').value.trim();
     const code = document.getElementById('rv-code').value.trim();
-    const role = rvLookupRole(id);
-    if (!role) { alert('请先输入并校验角色ID'); return; }
+    if (!_rvVerifiedRole) { alert('请先输入并校验角色ID'); return; }
     if (!code) { alert('请输入验证码'); return; }
-    _rvVerifiedRole = { id, ...role };
-    // 回填到充值中心的账号登录条
-    document.getElementById('rc-role-id').textContent = id;
-    document.getElementById('rc-role-name').textContent = role.name;
-    document.getElementById('rc-role-server').textContent = role.server;
+    // 通用页验证成功 → 以该角色身份登录当前活动（此处为企微活动页，复用充值页登录态）
+    rcSetLoggedIn(_rvVerifiedRole.id, _rvVerifiedRole.name, _rvVerifiedRole.server);
+    alert(`登录成功！\n角色：${_rvVerifiedRole.name}（${_rvVerifiedRole.id}）\n区服：${_rvVerifiedRole.server}`);
     closeRoleVerify();
+  }
+
+  /* ── 企微活动页「账号密码登录」独立页（复刻渠道登录页） ── */
+  function openPwLogin() {
+    closeActModal();
+    document.getElementById('pw-page').classList.add('open');
+  }
+  function closePwLogin() {
+    document.getElementById('pw-page').classList.remove('open');
+    document.getElementById('pw-account').value = '';
+    document.getElementById('pw-password').value = '';
+    pwToggleSubmit();
+  }
+  function pwToggleSubmit() {
+    const ok = document.getElementById('pw-account').value.trim()
+            && document.getElementById('pw-password').value.trim();
+    document.getElementById('pw-submit').classList.toggle('active', !!ok);
+  }
+  function pwTogglePwd() {
+    const input = document.getElementById('pw-password');
+    const icon = document.querySelector('#pw-eye .material-symbols-outlined');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    icon.textContent = show ? 'visibility' : 'visibility_off';
+  }
+  function pwSubmit() {
+    if (!document.getElementById('pw-account').value.trim()) { alert('请输入账号'); return; }
+    if (!document.getElementById('pw-password').value.trim()) { alert('请输入密码'); return; }
+    rcSetLoggedIn('88888888', '屠龙者', '零氪服38区');
+    alert('登录成功！');
+    closePwLogin();
   }
 
   /* ── 需求说明侧边栏 ── */
