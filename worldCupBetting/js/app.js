@@ -342,27 +342,6 @@
 </div>`;
   }
 
-  function renderHomeSchedulePreview() {
-    // 取 home 当天往后 3 天有比赛的
-    const now = state.activeDate;
-    const idx = F.groupStageDates.indexOf(now);
-    const dates = F.groupStageDates.slice(idx, idx + 3);
-    return dates.map((iso, i) => {
-      const list = getMatchesByDate(iso);
-      const first = list[0];
-      const head = first ? `${first.team1.nameEn} vs ${first.team2.nameEn}` : '—';
-      const label = i === 0 ? 'Today' : (i === 1 ? 'Tomorrow' : 'Day After');
-      return `
-<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; ${i ? 'border-top:1px solid #E3EAF5;' : ''}" data-action="goto-bet" data-date="${iso}">
-  <div>
-    <div style="font-size:13px; font-weight:700; color:#0B1B3D;">${label} · ${fmtDateCN(iso)}</div>
-    <div style="font-size:11px; color:#6B7E9E; margin-top:2px;">${head}</div>
-  </div>
-  <div style="font-size:11px; color:#6B7E9E;">${list.length} match${list.length === 1 ? '' : 'es'}</div>
-</div>`;
-    }).join('');
-  }
-
   function renderBetPage() {
     return `
 <div class="page">
@@ -537,145 +516,6 @@
 </div>`;
   }
 
-  function renderRulesPage() {
-    return `
-<div class="page">
-  <div class="page-header" style="padding-top:10px;">
-    <div style="display:flex; align-items:flex-start; flex:1;">
-      <div class="back-arrow" data-action="goto-home">‹</div>
-      <div class="page-header-text">
-        <div class="eyebrow">RULES</div>
-        <h1 style="font-size: 22px;">Rules</h1>
-      </div>
-    </div>
-  </div>
-
-  <div class="glass-card rules-card">
-    <h2><span class="num">1</span>How It Works</h2>
-    <p>Covers all 72 group-stage matches of the 2026 USA / Canada / Mexico World Cup. Place predictions before each kickoff. Three outcomes: <b>Home Win / Draw / Away Win</b>.</p>
-    <ul>
-      <li>Stake 20 / 50 / 100 / 200 points per pick</li>
-      <li>Win pays at the locked odds; loss forfeits the stake</li>
-      <li>Knockout stage (R32 → Final) has a separate entry</li>
-    </ul>
-  </div>
-
-  <div class="glass-card rules-card">
-    <h2><span class="num">2</span>Odds & Points</h2>
-    <p>Odds follow standard probability models and lock 1 hour before kickoff.</p>
-    <div class="rules-table">
-      <div class="head">Streak</div>
-      <div class="head">Bonus</div>
-      <div>3 in a row</div>
-      <div>×1.2</div>
-      <div>5 in a row</div>
-      <div>×1.5</div>
-      <div>10 in a row</div>
-      <div>×2.0</div>
-    </div>
-  </div>
-
-  <div class="glass-card rules-card">
-    <h2><span class="num">3</span>Settlement</h2>
-    <p>Auto-settled within 30 minutes of full time. Points credit instantly.</p>
-    <ul>
-      <li>VAR overturn / cancelled match: stake refunded in full</li>
-      <li>Penalty shootouts not counted (90-minute scoreline only)</li>
-    </ul>
-  </div>
-
-  <div class="glass-card rules-card">
-    <h2><span class="num">4</span>Disclaimer</h2>
-    <p>For entertainment only. No cash, gifts or physical rewards. Points are platform-internal — non-cashable, non-transferable, non-tradable. Please play responsibly.</p>
-  </div>
-
-  <div style="padding:0 18px 16px; text-align: center; font-size: 11px; color: #94A0BB;">
-    Active: 2026/6/11 – 2026/7/3 (Group Stage)<br/>
-    Final interpretation reserved by the organiser
-  </div>
-</div>`;
-  }
-
-  function renderSharePage() {
-    return `
-<div class="page">
-  <div class="page-header" style="padding-top:10px;">
-    <div style="display:flex; align-items:flex-start; flex:1;">
-      <div class="back-arrow" data-action="goto-home">‹</div>
-      <div class="page-header-text">
-        <div class="eyebrow">SHARE & INVITE</div>
-        <h1 style="font-size: 22px;">Share & Invite</h1>
-      </div>
-    </div>
-  </div>
-
-  <div class="glass-card share-card">
-    <svg class="share-illust" viewBox="0 0 120 120">
-      <defs>
-        <radialGradient id="shareBall" cx=".3" cy=".3" r=".7">
-          <stop offset="0%" stop-color="#fff"/>
-          <stop offset="50%" stop-color="#DCE7FB"/>
-          <stop offset="100%" stop-color="#1659E5"/>
-        </radialGradient>
-      </defs>
-      <circle cx="60" cy="60" r="48" fill="url(#shareBall)"/>
-      <g fill="#0B1B3D">
-        <polygon points="60,30 76,40 72,57 48,57 44,40" opacity=".85"/>
-        <polygon points="36,62 22,72 28,90 44,90 50,76" opacity=".75"/>
-        <polygon points="84,62 98,72 92,90 76,90 70,76" opacity=".75"/>
-      </g>
-      <circle cx="60" cy="60" r="48" stroke="#1659E5" stroke-width="2" fill="none" opacity=".4"/>
-      <circle cx="60" cy="60" r="56" stroke="#1659E5" stroke-width="1" fill="none" opacity=".15" stroke-dasharray="4 4"/>
-    </svg>
-    <h2>Invite Friends<br/>Win Together</h2>
-    <p class="sub">For each friend who signs up and places a first pick,<br/>you both get <b class="text-brand" style="font-weight:700;">200 points</b></p>
-
-    <div style="padding-top:18px;">
-      <button class="btn-primary" data-action="copy-link">Copy Invite Link</button>
-    </div>
-
-    <div class="share-channels">
-      <div class="share-channel" data-action="share-wechat">
-        <div class="share-channel-icon">💬</div>
-        <span class="label">WeChat</span>
-      </div>
-      <div class="share-channel" data-action="share-moments">
-        <div class="share-channel-icon">🌐</div>
-        <span class="label">Moments</span>
-      </div>
-      <div class="share-channel" data-action="share-weibo">
-        <div class="share-channel-icon">📱</div>
-        <span class="label">Weibo</span>
-      </div>
-      <div class="share-channel" data-action="share-qr">
-        <div class="share-channel-icon">▦</div>
-        <span class="label">QR Code</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="glass-card invite-card">
-    <div class="left">
-      <div class="title">Friends Invited</div>
-      <div class="sub">3 this season</div>
-    </div>
-    <div class="invite-bonus">+600</div>
-  </div>
-
-  <div class="glass-card invite-card">
-    <div class="left">
-      <div class="title">Share results to Moments</div>
-      <div class="sub">+20 pts on first share each day</div>
-    </div>
-    <div class="invite-bonus">+20/day</div>
-  </div>
-
-  <div style="padding: 4px 22px 0; text-align: center; font-size: 11px; color: #94A0BB;">
-    No financial transactions involved<br/>Only personal points ranking is shown
-  </div>
-</div>`;
-  }
-
   // ---------------- 主渲染 + 路由 ----------------
   function render() {
     const root = document.getElementById('phone-content');
@@ -683,8 +523,6 @@
       home: renderHome,
       bet: renderBetPage,
       record: renderRecordPage,
-      rules: renderRulesPage,
-      share: renderSharePage,
     };
     root.innerHTML = (map[state.currentPage] || renderHome)();
     root.scrollTop = 0;
