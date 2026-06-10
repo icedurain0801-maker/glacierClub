@@ -396,12 +396,23 @@
     <div class="bet-amount">
       ${[20, 50, 100, 200].map(a => {
         const on = pick && pick.amount === a;
-        return `<div class="bet-amount-chip ${on ? 'selected' : ''}" data-action="set-amount" data-mid="${m.id}" data-amount="${a}">${a}</div>`;
+        const tooMuch = a > state.currentUser.points;
+        return `<div class="bet-amount-chip ${on ? 'selected' : ''} ${tooMuch ? 'disabled' : ''}"
+          ${tooMuch ? '' : `data-action="set-amount" data-mid="${m.id}" data-amount="${a}"`}
+          style="${tooMuch ? 'opacity:.35; cursor:not-allowed;' : ''}">${a}</div>`;
       }).join('')}
     </div>
-    <button class="confirm-btn" data-action="confirm-bet" data-mid="${m.id}" ${pick && pick.side ? '' : 'disabled'}>
-      ${pick && pick.side ? `Confirm · ${pick.amount || 50} pts` : 'Pick a result'}
-    </button>
+    ${(() => {
+      const stake = (pick && pick.amount) || 50;
+      const broke = state.currentUser.points < 20;
+      const insufficient = stake > state.currentUser.points;
+      const canConfirm = pick && pick.side && !insufficient && !broke;
+      const label = broke ? 'Insufficient points'
+        : !pick || !pick.side ? 'Pick a result'
+        : insufficient ? 'Insufficient points'
+        : `Confirm · ${stake} pts`;
+      return `<button class="confirm-btn" data-action="confirm-bet" data-mid="${m.id}" ${canConfirm ? '' : 'disabled'}>${label}</button>`;
+    })()}
   </div>
   ` : ''}
 </div>`;
