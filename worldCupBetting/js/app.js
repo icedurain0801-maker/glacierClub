@@ -536,7 +536,6 @@
     switch (action) {
       case 'goto-home': goto('home'); break;
       case 'goto-record': goto('record'); break;
-      case 'goto-rules': goto('rules'); break;
       case 'goto-bet':
         if (el.dataset.date) state.activeDate = el.dataset.date;
         goto('bet');
@@ -630,15 +629,6 @@
       case 'set-record-tab':
         state.recordTab = el.dataset.tab;
         render();
-        break;
-      case 'copy-link':
-        alert('Invite link copied: https://wc2026.example.com/invite?u=' + state.currentUser.avatar);
-        break;
-      case 'share-wechat':
-      case 'share-moments':
-      case 'share-weibo':
-      case 'share-qr':
-        alert('Share to ' + action.replace('share-', ''));
         break;
     }
   });
