@@ -303,6 +303,8 @@
            </svg>
            Predicted
          </button>`
+      : state.currentUser.points < 50
+      ? `<button class="feature-predict-btn dim" disabled>Insufficient points</button>`
       : `<button class="feature-predict-btn ${state.focusPick ? '' : 'dim'}"
            data-action="${state.focusPick ? 'focus-confirm' : ''}"
            ${state.focusPick ? '' : 'disabled'}>
@@ -555,10 +557,20 @@
         break;
       case 'focus-confirm':
         if (state.focusPick && !state.focusDone) {
+          if (state.currentUser.points < 50) { alert('积分不足，无法竞猜'); break; }
           state.focusDone = true;
-          state.currentUser.points = Math.max(0, state.currentUser.points - 50);
+          state.currentUser.points = state.currentUser.points - 50;
+          const fm = getFocusMatch();
+          const [fw, fd, fl] = genOdds(fm.id);
+          const fOdds = state.focusPick === 'win' ? fw : state.focusPick === 'draw' ? fd : fl;
+          const fLabel = state.focusPick === 'win' ? fm.team1.nameEn + ' Win'
+            : state.focusPick === 'draw' ? 'Draw' : fm.team2.nameEn + ' Win';
+          sessionRecords.unshift({
+            id: 'srfocus_' + fm.id, matchDate: fm.date,
+            t1: fm.team1.nameEn, c1: fm.team1.code, t2: fm.team2.nameEn, c2: fm.team2.code,
+            pick: fLabel, amount: 50, odds: parseFloat(fOdds), status: 'pending', earned: 0,
+          });
           render();
-          // 短暂 toast 提示
           const toast = document.createElement('div');
           toast.textContent = 'Prediction placed! 🎉';
           Object.assign(toast.style, {
@@ -592,11 +604,22 @@
         const mid = parseInt(el.dataset.mid);
         const pick = state.picks[mid];
         if (!pick || !pick.side) return;
-        // 模拟扣除积分
-        state.currentUser.points = Math.max(0, state.currentUser.points - (pick.amount || 50));
+        const stake = pick.amount || 50;
+        if (stake > state.currentUser.points) { alert('积分不足，无法竞猜'); return; }
+        const m = F.matches.find(x => x.id === mid);
+        const [w, d, l] = genOdds(mid);
+        const odds = pick.side === 'win' ? w : pick.side === 'draw' ? d : l;
+        const pickLabel = pick.side === 'win' ? m.team1.nameEn + ' Win'
+          : pick.side === 'draw' ? 'Draw' : m.team2.nameEn + ' Win';
+        state.currentUser.points -= stake;
+        sessionRecords.unshift({
+          id: 'sr' + mid + '_' + stake, matchDate: m.date,
+          t1: m.team1.nameEn, c1: m.team1.code, t2: m.team2.nameEn, c2: m.team2.code,
+          pick: pickLabel, amount: stake, odds: parseFloat(odds), status: 'pending', earned: 0,
+        });
         delete state.picks[mid];
         state.expandedMatchId = null;
-        alert(`Bet placed!\n${pick.amount || 50} pts staked. Awaiting kickoff.`);
+        alert(`Bet placed!\n${stake} pts staked. Awaiting kickoff.`);
         render();
         break;
       }
