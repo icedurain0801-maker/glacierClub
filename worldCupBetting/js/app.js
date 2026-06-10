@@ -330,7 +330,7 @@
     <div style="display:flex; align-items:flex-start; flex:1;">
       <div class="back-arrow" data-action="goto-home">‹</div>
       <div class="page-header-text">
-        <div class="eyebrow">WORLD CUP 2026</div>
+        <div class="eyebrow">TOMORROW · ${fmtDateCN(TOMORROW)}</div>
         <h1 style="font-size: 22px;">Predict</h1>
       </div>
     </div>
@@ -338,19 +338,6 @@
       <div style="font-size:11.5px; color:#6B7E9E;">My Points</div>
       <div style="font-size:15px; font-weight:800; color:#1659E5; letter-spacing:-.01em;">${state.currentUser.points.toLocaleString()}</div>
     </div>
-  </div>
-
-  <div class="date-strip">
-    ${F.groupStageDates.map(iso => {
-      const active = iso === state.activeDate;
-      const cnt = getMatchesByDate(iso).length;
-      return `
-<div class="date-pill ${active ? 'active' : ''}" data-action="set-date" data-date="${iso}">
-  <div class="month">JUN</div>
-  <div class="day">${fmtDateShort(iso)}</div>
-  <div class="count">${cnt}</div>
-</div>`;
-    }).join('')}
   </div>
 
   <div class="match-list">
