@@ -32,14 +32,15 @@
     recordTab: 'all', // all | pending | won | lost
   };
 
-  // Mock prediction records
+  // 历史已结算记录（盈亏已并入起始 1000，仅作记录页演示，不再二次应用到 points）
   const mockRecords = [
-    { id: 'r1', matchDate: '2026-06-13', t1: 'Brazil',  c1: 'BRA', t2: 'Morocco',  c2: 'MAR', pick: 'Home Win', amount: 100, odds: 1.45, status: 'won', earned: 145 },
-    { id: 'r2', matchDate: '2026-06-13', t1: 'Korea',   c1: 'KOR', t2: 'Czechia',  c2: 'CZE', pick: 'Draw',     amount: 50,  odds: 3.30, status: 'pending', earned: 0 },
-    { id: 'r3', matchDate: '2026-06-12', t1: 'Canada',  c1: 'CAN', t2: 'Bosnia',   c2: 'BIH', pick: 'Home Win', amount: 50,  odds: 2.10, status: 'won', earned: 105 },
-    { id: 'r4', matchDate: '2026-06-12', t1: 'USA',     c1: 'USA', t2: 'Paraguay', c2: 'PAR', pick: 'Home Win', amount: 200, odds: 1.85, status: 'lost', earned: 0 },
-    { id: 'r5', matchDate: '2026-06-11', t1: 'Mexico',  c1: 'MEX', t2: 'S. Africa',c2: 'RSA', pick: 'Home Win', amount: 100, odds: 1.55, status: 'won', earned: 155 },
+    { id: 'r1', matchDate: '2026-06-09', t1: 'Spain',   c1: 'ESP', t2: 'Portugal', c2: 'POR', pick: 'Home Win', amount: 100, odds: 1.95, status: 'won',  earned: 195 },
+    { id: 'r2', matchDate: '2026-06-09', t1: 'France',  c1: 'FRA', t2: 'Croatia',  c2: 'CRO', pick: 'Draw',     amount: 50,  odds: 3.30, status: 'lost', earned: 0 },
+    { id: 'r3', matchDate: '2026-06-08', t1: 'Germany', c1: 'GER', t2: 'Japan',    c2: 'JPN', pick: 'Home Win', amount: 50,  odds: 1.80, status: 'won',  earned: 90 },
   ];
+
+  // 本会话新确认的竞猜（明天 6/11 未开赛 → 全部 pending）
+  const sessionRecords = [];
 
   // ---------------- 工具函数 ----------------
 
