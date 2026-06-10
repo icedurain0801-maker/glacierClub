@@ -1,6 +1,6 @@
 /* ==========================================================================
    2026 世界杯积分竞猜 · 主控
-   单页应用：5 个页面（home / bet / record / rules / share）
+   单页应用：3 个页面（home / bet / record）
    数据：window.WC2026_FIXTURES（fixtures.js 暴露）
    ========================================================================== */
 
@@ -10,7 +10,6 @@
   const F = window.WC2026_FIXTURES;
 
   // 写死「当前时间」：今天 6/10，只能竞猜明天 6/11 的比赛
-  const TODAY = '2026-06-10';
   const TOMORROW = '2026-06-11';
 
   // ---------------- 状态 ----------------
@@ -103,9 +102,9 @@
   }
 
   function getFocusMatch() {
-    // 取今天/最近一天的第一场作为焦点
-    const today = state.activeDate;
-    const list = getMatchesByDate(today);
+    // 取明天(6/11)的第一场作为焦点
+    const date = state.activeDate;
+    const list = getMatchesByDate(date);
     return list[0] || F.matches[0];
   }
 
@@ -537,13 +536,8 @@
       case 'goto-home': goto('home'); break;
       case 'goto-record': goto('record'); break;
       case 'goto-bet':
-        if (el.dataset.date) state.activeDate = el.dataset.date;
+        state.activeDate = TOMORROW; // 固定只看明天 6/11
         goto('bet');
-        break;
-      case 'set-date':
-        state.activeDate = el.dataset.date;
-        state.expandedMatchId = null;
-        render();
         break;
       case 'toggle-expand': {
         const mid = parseInt(el.dataset.mid);
