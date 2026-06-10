@@ -1,5 +1,5 @@
 // 公共布局、鉴权、API 工具，通过 <script src="_layout.js"> 引入
-const API = 'http://localhost:3000/api';
+const API = (window.WC_CONFIG && window.WC_CONFIG.API_BASE) || 'http://localhost:3000/api';
 
 function getToken() { return localStorage.getItem('wc_admin_token') || ''; }
 function getUser()  { return JSON.parse(localStorage.getItem('wc_admin_user') || 'null'); }

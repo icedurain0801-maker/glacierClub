@@ -41,8 +41,9 @@ input:focus{border-color:#1659E5}
     <div class="error" id="errMsg"></div>
   </form>
 </div>
+<script src="../js/config.js"></script>
 <script>
-const API = 'http://localhost:3000/api';
+const API = (window.WC_CONFIG && window.WC_CONFIG.API_BASE) || 'http://localhost:3000/api';
 document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   const btn = e.target.querySelector('.btn');
