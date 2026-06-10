@@ -9,10 +9,14 @@
 
   const F = window.WC2026_FIXTURES;
 
+  // 写死「当前时间」：今天 6/10，只能竞猜明天 6/11 的比赛
+  const TODAY = '2026-06-10';
+  const TOMORROW = '2026-06-11';
+
   // ---------------- 状态 ----------------
   const state = {
     currentPage: 'home',
-    activeDate: '2026-06-13', // 默认显示巴西 vs 摩洛哥 那一天
+    activeDate: TOMORROW, // 固定只看明天 6/11
     expandedMatchId: null,
     picks: {}, // matchId -> { side: 'win'|'draw'|'lose', amount: 50 }
     focusPick: null,   // 首页焦点赛事：'win'|'draw'|'lose'
@@ -20,10 +24,10 @@
     currentUser: {
       name: 'Player Z',
       avatar: 'Z',
-      points: 1267,
-      streak: 3,
-      played: 14,
-      won: 8,
+      points: 1000,
+      streak: 0,
+      played: 0,
+      won: 0,
     },
     recordTab: 'all', // all | pending | won | lost
   };
