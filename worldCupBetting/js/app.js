@@ -424,12 +424,14 @@
   }
 
   function renderRecordPage() {
-    const filtered = mockRecords.filter(r => {
+    const allRecords = [...sessionRecords, ...mockRecords];
+    const filtered = allRecords.filter(r => {
       if (state.recordTab === 'all') return true;
       return r.status === state.recordTab;
     });
+    const settled = mockRecords.filter(r => r.status !== 'pending');
     const totalEarned = mockRecords.filter(r => r.status === 'won').reduce((s, r) => s + r.earned, 0);
-    const winRate = Math.round(mockRecords.filter(r => r.status === 'won').length / mockRecords.filter(r => r.status !== 'pending').length * 100);
+    const winRate = settled.length ? Math.round(mockRecords.filter(r => r.status === 'won').length / settled.length * 100) : 0;
 
     return `
 <div class="page">
