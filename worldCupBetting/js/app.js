@@ -241,18 +241,6 @@
           </g>
         </svg>
       </div>
-      <button class="rules-icon" data-action="goto-rules" aria-label="Rules" title="Rules">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
-          <!-- 文档外框 -->
-          <path d="M6 3.5h9l4 4v12a1.5 1.5 0 0 1-1.5 1.5h-11.5a1.5 1.5 0 0 1-1.5-1.5v-14.5a1.5 1.5 0 0 1 1.5-1.5z"
-                stroke="#9EB0CC" stroke-width="1.6" stroke-linejoin="round"/>
-          <!-- 折角 -->
-          <path d="M15 3.5v4h4" stroke="#9EB0CC" stroke-width="1.6" stroke-linejoin="round"/>
-          <!-- 条款横线 -->
-          <path d="M7.5 11.5h7M7.5 14.5h7M7.5 17.5h4.5"
-                stroke="#9EB0CC" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-      </button>
     </div>
   </div>
 
@@ -322,14 +310,6 @@
            ${state.focusPick ? `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-left:5px;vertical-align:-1px"><path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` : ''}
          </button>`
     }
-  </div>
-
-  <div class="glass-card thin" style="margin: 14px 18px 0; padding: 14px 18px;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <div style="font-size:13px; font-weight:700; color:#0B1B3D;">This Week</div>
-      <div style="font-size:11.5px; color:#1659E5; font-weight:700;" data-action="goto-bet">View All ›</div>
-    </div>
-    ${renderHomeSchedulePreview()}
   </div>
 
   <div style="padding: 22px 18px 0;">
