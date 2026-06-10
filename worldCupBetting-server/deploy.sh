@@ -20,32 +20,48 @@ fi
 DB_PASS=${DB_PASS:-"Wc$(date +%s | sha256sum | head -c 16)!"}
 
 echo "==> [1/7] 安装 MySQL / Node.js（自动识别系统）"
+
+install_node() {
+  # 已装就跳过
+  if command -v node >/dev/null 2>&1; then echo "    Node 已安装：$(node -v)"; return 0; fi
+  # 优先用系统自带源（OpenCloudOS / TencentOS / 较新 CentOS / Ubuntu 都自带 nodejs 包）
+  if command -v dnf >/dev/null 2>&1; then
+    dnf install -y nodejs npm && return 0
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y nodejs npm && return 0
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt-get install -y nodejs npm && return 0
+  fi
+  return 1
+}
+
 if command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
   apt-get install -y mysql-server curl
-  curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-  apt-get install -y nodejs
   systemctl enable mysql && systemctl start mysql
-elif command -v yum >/dev/null 2>&1; then
-  yum install -y mysql-server curl || yum install -y mariadb-server curl
-  curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-  yum install -y nodejs
+elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+  PKG=$(command -v dnf || command -v yum)
+  $PKG install -y mysql-server curl || $PKG install -y mariadb-server curl
   systemctl enable mysqld 2>/dev/null && systemctl start mysqld 2>/dev/null || \
-  (systemctl enable mariadb && systemctl start mariadb)
+  (systemctl enable mariadb 2>/dev/null && systemctl start mariadb 2>/dev/null) || true
 else
   echo "!! 未识别的系统，请手动安装 MySQL 和 Node.js 18+ 后重试"; exit 1
 fi
+
+install_node || { echo "!! Node.js 安装失败，请手动执行: dnf install -y nodejs npm"; exit 1; }
 echo "    Node 版本：$(node -v)"
 
 echo "==> [2/7] 创建数据库和账号"
-mysql <<SQL || mysql -uroot <<SQL
-CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+SQL_INIT="CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
-FLUSH PRIVILEGES;
-SQL
+FLUSH PRIVILEGES;"
+# 优先用 root 无密码 socket 登录；失败再试常见情况
+mysql -uroot -e "$SQL_INIT" 2>/dev/null \
+  || mysql -e "$SQL_INIT" 2>/dev/null \
+  || { echo "!! 数据库初始化失败：root 可能已设密码。请手动执行下面的 SQL 后重跑脚本："; echo "$SQL_INIT"; exit 1; }
 
 echo "==> [3/7] 生成 .env 配置"
 JWT=$(head -c 32 /dev/urandom | sha256sum | head -c 32)
