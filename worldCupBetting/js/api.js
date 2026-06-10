@@ -1,6 +1,6 @@
 // 后端 API 封装
 const WC_API = (function () {
-  const BASE = 'http://localhost:3000/api';
+  const BASE = (window.WC_CONFIG && window.WC_CONFIG.API_BASE) || 'http://localhost:3000/api';
 
   function getToken() {
     return localStorage.getItem('wc_token') || '';
