@@ -41,6 +41,7 @@
 
   // 本会话新确认的竞猜（明天 6/11 未开赛 → 全部 pending）
   const sessionRecords = [];
+  let recordSeq = 0; // 递增序号，保证会话记录 id 唯一
 
   // ---------------- 工具函数 ----------------
 
@@ -566,7 +567,7 @@
           const fLabel = state.focusPick === 'win' ? fm.team1.nameEn + ' Win'
             : state.focusPick === 'draw' ? 'Draw' : fm.team2.nameEn + ' Win';
           sessionRecords.unshift({
-            id: 'srfocus_' + fm.id, matchDate: fm.date,
+            id: 'srfocus_' + fm.id + '_' + (++recordSeq), matchDate: fm.date,
             t1: fm.team1.nameEn, c1: fm.team1.code, t2: fm.team2.nameEn, c2: fm.team2.code,
             pick: fLabel, amount: 50, odds: parseFloat(fOdds), status: 'pending', earned: 0,
           });
@@ -607,13 +608,14 @@
         const stake = pick.amount || 50;
         if (stake > state.currentUser.points) { alert('积分不足，无法竞猜'); return; }
         const m = F.matches.find(x => x.id === mid);
+        if (!m) return;
         const [w, d, l] = genOdds(mid);
         const odds = pick.side === 'win' ? w : pick.side === 'draw' ? d : l;
         const pickLabel = pick.side === 'win' ? m.team1.nameEn + ' Win'
           : pick.side === 'draw' ? 'Draw' : m.team2.nameEn + ' Win';
         state.currentUser.points -= stake;
         sessionRecords.unshift({
-          id: 'sr' + mid + '_' + stake, matchDate: m.date,
+          id: 'sr' + mid + '_' + (++recordSeq), matchDate: m.date,
           t1: m.team1.nameEn, c1: m.team1.code, t2: m.team2.nameEn, c2: m.team2.code,
           pick: pickLabel, amount: stake, odds: parseFloat(odds), status: 'pending', earned: 0,
         });
