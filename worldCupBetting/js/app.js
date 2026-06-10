@@ -395,8 +395,8 @@
     </div>
     <div class="bet-amount">
       ${[20, 50, 100, 200].map(a => {
-        const on = pick && pick.amount === a;
         const tooMuch = a > state.currentUser.points;
+        const on = pick && pick.amount === a && !tooMuch;
         return `<div class="bet-amount-chip ${on ? 'selected' : ''} ${tooMuch ? 'disabled' : ''}"
           ${tooMuch ? '' : `data-action="set-amount" data-mid="${m.id}" data-amount="${a}"`}
           style="${tooMuch ? 'opacity:.35; cursor:not-allowed;' : ''}">${a}</div>`;
@@ -404,6 +404,7 @@
     </div>
     ${(() => {
       const stake = (pick && pick.amount) || 50;
+      // 余额低于最小注(20)直接判定积分不足，连结果都不必选
       const broke = state.currentUser.points < 20;
       const insufficient = stake > state.currentUser.points;
       const canConfirm = pick && pick.side && !insufficient && !broke;
