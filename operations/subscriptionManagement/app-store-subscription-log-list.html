@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>应用商店订阅管理</title>
+<title>应用商店订阅日志</title>
 <style>
 :root{
   --top:#08243a;
@@ -322,15 +322,8 @@ tbody tr:hover td{background:#f6fbff}
 }
 thead th:first-child{width:38px;text-align:center;padding:0}
 tbody td:first-child{text-align:center;padding:0}
-
-/* ===== 批量操作 ===== */
-.btn-batch{
-  height:28px;padding:0 13px;border:1px solid #e0e3e8;
-  background:#fbfbfc;color:#b6bec8;border-radius:2px;cursor:not-allowed;
-}
-.btn-batch.enabled{border-color:#168cff;background:#168cff;color:#fff;cursor:pointer}
-.batch-count{margin-left:12px;color:#8994a3;font-size:12px}
-.batch-count b{color:#168cff;font-weight:600}
+.log-table thead th:first-child{width:170px;text-align:left;padding:0 10px}
+.log-table tbody td:first-child{text-align:left;padding:6px 10px}
 
 /* ===== 行内操作链接 ===== */
 .link{color:#168cff;cursor:pointer;white-space:nowrap}
@@ -510,8 +503,8 @@ tbody td:first-child{text-align:center;padding:0}
             <span class="ico">◈</span><span>订阅管理</span><span class="chev" id="subChev">⌃</span>
           </div>
           <div id="subMenu">
-            <div class="menu-child sub active" style="cursor:pointer" onclick="location.href='app-store-subscription-log.html'">应用商店订阅管理</div>
-            <div class="menu-child sub" style="cursor:pointer" onclick="location.href='app-store-subscription-log-list.html'">应用商店订阅日志</div>
+            <div class="menu-child sub" style="cursor:pointer" onclick="location.href='app-store-subscription-log.html'">应用商店订阅管理</div>
+            <div class="menu-child sub active" style="cursor:pointer" onclick="location.href='app-store-subscription-log-list.html'">应用商店订阅日志</div>
           </div>
           <div class="menu-child"><span class="ico">◈</span><span>大玩家</span></div>
         </div>
@@ -526,7 +519,7 @@ tbody td:first-child{text-align:center;padding:0}
         <div class="tool"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></div>
         <div class="tabs">
           <div class="tab home">首页 <span class="close">×</span></div>
-          <div class="tab active">应用商店订阅管理 <span class="close">×</span></div>
+          <div class="tab active">应用商店订阅日志 <span class="close">×</span></div>
         </div>
         <div class="top-actions">
           <div class="search">
@@ -549,6 +542,7 @@ tbody td:first-child{text-align:center;padding:0}
           <form class="filters">
             <label class="field">平台:
               <select class="ctrl short">
+                <option>内网手游平台</option>
                 <option>手游平台海外</option>
                 <option>手游平台国内</option>
               </select>
@@ -577,28 +571,8 @@ tbody td:first-child{text-align:center;padding:0}
                 <option>冷冻期</option>
               </select>
             </label>
-            <div class="field">
-              <select class="ctrl" style="min-width:0;width:104px;margin-left:0;border-right:none;border-radius:3px 0 0 3px">
-                <option>原始订单ID</option>
-                <option>订阅产品ID</option>
-                <option>游戏包名</option>
-              </select><input type="text" class="ctrl input" style="min-width:168px;margin-left:0;border-radius:0 3px 3px 0" placeholder="请输入">
-            </div>
-            <div class="field">
-              <select class="ctrl" style="min-width:0;width:120px;margin-left:0;border-right:none;border-radius:3px 0 0 3px">
-                <option>冰川通行证ID</option>
-                <option>角色ID</option>
-              </select><input type="text" class="ctrl input" style="min-width:160px;margin-left:0;border-radius:0 3px 3px 0" placeholder="请输入">
-            </div>
-            <label class="field">渠道类型:
-              <select class="ctrl short">
-                <option>不限</option>
-                <option>GooglePlay</option>
-                <option>AppStore</option>
-                <option>华为</option>
-                <option>小米</option>
-              </select>
-            </label>
+            <label class="field">原始订单号ID:<input type="text" class="ctrl mid input" placeholder=""></label>
+            <label class="field">订阅产品ID:<input type="text" class="ctrl mid input" placeholder=""></label>
             <label class="field">最后订单ID:<input type="text" class="ctrl mid input" placeholder=""></label>
             <button class="btn-query" type="button">查 询</button>
           </form>
@@ -607,8 +581,6 @@ tbody td:first-child{text-align:center;padding:0}
           <div class="table-card">
             <div class="table-actions">
               <button class="btn-export" type="button">导出</button>
-              <button class="btn-batch" id="batchBtn" type="button" style="margin-left:10px" onclick="openBatchModal()">批量取消订阅</button>
-              <span class="batch-count">已选 <b id="selCount">0</b> 项</span>
               <div class="table-tools" aria-label="表格工具">
                 <span class="table-tool"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="8 11 12 15 16 11"/><path d="M5 20h14"/></svg></span>
                 <span class="table-tool"><svg viewBox="0 0 24 24"><path d="M12 4v16"/><path d="M8 8h8"/><path d="M8 16h8"/></svg></span>
@@ -616,28 +588,23 @@ tbody td:first-child{text-align:center;padding:0}
               </div>
             </div>
             <div class="grid">
-              <table style="width:100%;min-width:2260px">
+              <table class="log-table" style="width:100%;min-width:1970px">
                 <thead>
                   <tr>
-                    <th style="width:38px;text-align:center;padding:0"><span class="checkbox" id="checkAll" onclick="toggleAll()"></span></th>
-                    <th style="width:160px">原始订单ID</th>
+                    <th style="width:170px">原始订单号ID</th>
                     <th style="width:155px">最新订阅平台订单ID</th>
-                    <th style="width:140px">冰川通行证ID</th>
-                    <th style="width:110px">角色ID</th>
-                    <th style="width:90px">渠道类型</th>
-                    <th style="width:180px">游戏包名</th>
-                    <th style="width:120px">订阅产品ID</th>
-                    <th style="width:70px">金额(分)</th>
-                    <th style="width:72px">状态</th>
-                    <th style="width:145px">购买时间</th>
-                    <th style="width:145px">到期时间</th>
-                    <th style="width:62px">自动续订</th>
-                    <th style="width:72px">支付状态</th>
+                    <th style="width:110px">渠道类型</th>
+                    <th style="width:210px">游戏包名</th>
+                    <th style="width:190px">订阅产品ID</th>
+                    <th style="width:85px">金额(分)</th>
+                    <th style="width:90px">状态</th>
+                    <th style="width:150px">购买时间</th>
+                    <th style="width:150px">到期时间</th>
+                    <th style="width:90px">自动续订</th>
+                    <th style="width:100px">支付状态</th>
                     <th style="width:140px">备注</th>
-                    <th style="width:260px">详情</th>
-                    <th style="width:145px">创建时间</th>
-                    <th style="width:140px">操作备注</th>
-                    <th style="width:90px">操作</th>
+                    <th style="width:270px">详情</th>
+                    <th style="width:150px">创建时间</th>
                   </tr>
                 </thead>
                 <tbody id="tbody"></tbody>
@@ -659,70 +626,6 @@ tbody td:first-child{text-align:center;padding:0}
   </div>
 </div>
 
-<!-- 单条取消订阅弹窗 -->
-<div class="modal-mask hidden" id="singleModal">
-  <div class="modal">
-    <div class="modal-head">
-      <span>取消订阅确认</span>
-      <span class="x" onclick="closeSingleModal()">×</span>
-    </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <label>原始订单ID</label>
-        <div class="field-ctrl"><input type="text" id="sOrderId" readonly style="height:32px;border:1px solid #dcdfe6;border-radius:3px;padding:0 10px;width:100%;background:#f7f8fa;color:#5b6573;box-sizing:border-box"></div>
-      </div>
-      <div class="form-row">
-        <label>订阅产品ID</label>
-        <div class="field-ctrl"><input type="text" id="sPid" readonly style="height:32px;border:1px solid #dcdfe6;border-radius:3px;padding:0 10px;width:100%;background:#f7f8fa;color:#5b6573;box-sizing:border-box"></div>
-      </div>
-      <div class="form-row">
-        <label><span class="req">*</span>订阅结果</label>
-        <div class="field-ctrl">
-          <select id="sResult">
-            <option value="cancel">取消订阅</option>
-            <option value="refund">取消并退款</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <label>备注</label>
-        <div class="field-ctrl"><textarea id="sRemark" placeholder="请输入备注信息"></textarea></div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-cancel" type="button" onclick="closeSingleModal()">取 消</button>
-      <button class="btn btn-ok" type="button" onclick="confirmSingle()">确 定</button>
-    </div>
-  </div>
-</div>
-
-<!-- 批量取消订阅弹窗 -->
-<div class="modal-mask hidden" id="batchModal">
-  <div class="modal">
-    <div class="modal-head">
-      <span>批量取消订阅</span>
-      <span class="x" onclick="closeBatchModal()">×</span>
-    </div>
-    <div class="modal-body">
-      <div class="form-row" style="margin-bottom:16px">
-        <label style="padding-top:0"></label>
-        <div class="field-ctrl" style="color:#595959;font-size:13px;line-height:1.7">
-          已选择 <b id="batchCountTip" style="color:#168cff"></b> 项，是否全部取消订阅？
-        </div>
-      </div>
-      <div class="form-row">
-        <label>备注</label>
-        <div class="field-ctrl"><textarea id="bRemark" placeholder="请输入备注信息"></textarea></div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-cancel" type="button" onclick="closeBatchModal()">取 消</button>
-      <button class="btn btn-ok" type="button" onclick="confirmBatch()">确 定</button>
-    </div>
-  </div>
-</div>
-
-<!-- Toast -->
 <!-- Toast -->
 <div class="toast" id="toast"><span class="ok">✓</span><span id="toastText"></span></div>
 
@@ -736,160 +639,24 @@ tbody td:first-child{text-align:center;padding:0}
 <div class="req-mask" id="reqMask" onclick="closeReq()"></div>
 <aside class="req-drawer" id="reqDrawer">
   <div class="req-head">
-    <span class="ttl">应用商店订阅管理 — 需求说明</span>
+    <span class="ttl">应用商店订阅日志 — 需求说明</span>
     <button class="x" type="button" onclick="closeReq()">×</button>
   </div>
   <div class="req-body">
 
-    <!-- 1. 需求概述 -->
-    <div class="prd-h2"><span class="no">1</span>需求概述</div>
+    <!-- 1. 迁移说明 -->
+    <div class="prd-h2"><span class="no">1</span>迁移说明</div>
     <div class="prd-block">
-      <p><b>背景与目标：</b>目前各渠道（GooglePlay / AppStore / 华为 / 小米等）的订阅数据分散于各平台，运营及客服人员无统一入口查询和处理异常订阅，导致用户反馈处理效率低、取消订阅操作依赖研发介入。本页面旨在提供统一的订阅日志查询与管理能力，支持多维度筛选、订阅状态全链路查看、单条及批量取消订阅操作，降低研发介入成本，提升运营处理时效。</p>
-      <p><b>菜单地址：</b>侧边栏位置为「运营中心 / 订阅管理 / 应用商店订阅管理」。同级菜单另有「应用商店订阅日志」，用于进入从老手游后台迁移的订阅日志页。</p>
-      <p><b>本次字段调整：</b>原页面中的「平台订单ID」统一改名为「原始订单ID」，筛选区 ID 类搜索默认项、列表表头、单条取消订阅弹窗只读字段及需求说明中的同名字段均保持一致。</p>
-      <p><b>列表字段顺序：</b>列表中「最新订阅平台订单ID」固定放在「原始订单ID」之后，整体顺序为：复选框、原始订单ID、最新订阅平台订单ID、冰川通行证ID、角色ID、渠道类型、游戏包名、订阅产品ID、金额(分)、状态、购买时间、到期时间、自动续订、支付状态、备注、详情、创建时间、操作备注、操作。</p>
+      <p><b>页面来源：</b>「应用商店订阅日志」页面直接从老手游后台迁移过来，筛选项、列表字段、字段顺序、分页和导出入口按老手游后台现有页面保持一致。</p>
+      <p><b>实现原则：</b>本页不重新定义详细业务需求，不新增订阅管理操作，仅作为老后台订阅日志查询页面在新运营后台中的入口迁移。</p>
     </div>
 
-    <!-- 2. 交互流程 -->
-    <div class="prd-h2"><span class="no">2</span>页面交互流程</div>
+    <!-- 2. 侧边栏位置 -->
+    <div class="prd-h2"><span class="no">2</span>侧边栏位置</div>
     <div class="prd-block">
-      <div class="prd-h3">核心操作流：取消订阅</div>
-      <ul>
-        <li><b>单条流程：</b>进入页面 → 输入筛选条件 → 点击「查询」→ 定位目标行 → 点击「取消订阅」→ 弹窗确认（填写订阅结果 + 备注）→ 确认提交 → 系统调用渠道接口 → 成功：行状态变为「已取消」并写入操作备注；失败：弹窗保留、Toast 报错。</li>
-        <li><b>批量流程：</b>勾选多行（已取消行不可选）→ 「批量取消订阅」按钮激活 → 弹窗展示已选数量 → 填写统一备注 → 确认提交 → 系统逐条调用渠道接口 → Toast 展示「成功 X 条，失败 Y 条」（部分失败时保留失败项可重试）。</li>
-      </ul>
-      <div class="prd-h3">导出流程</div>
-      <ul>
-        <li>点击「导出」→ 按当前筛选条件下发导出任务 → 数量 ≤ 10 万条时直接下载 Excel；超量时 Toast 提示「数据量过大，请缩小筛选范围后重试」，不触发下载。</li>
-      </ul>
-    </div>
-
-    <!-- 3. 筛选区字段 -->
-    <div class="prd-h2"><span class="no">3</span>筛选区字段定义</div>
-    <div class="prd-block">
-      <table class="prd-tbl">
-        <thead><tr><th>字段</th><th>控件</th><th>必填</th><th>默认值</th><th>校验 / 枚举 / 说明</th></tr></thead>
-        <tbody>
-          <tr><td>平台</td><td>下拉单选</td><td>是</td><td>手游平台海外</td><td>手游平台海外 / 手游平台国内；切换平台后列表自动重置并重新查询</td></tr>
-          <tr><td>订单创建日期</td><td>日期范围选择器</td><td>否</td><td>空</td><td>结束日期 ≥ 开始日期；最大跨度建议 180 天，超出时 Toast 提示</td></tr>
-          <tr><td>购买日期</td><td>日期范围选择器</td><td>否</td><td>空</td><td>同上，与「订单创建日期」相互独立，可同时生效（AND 关系）</td></tr>
-          <tr><td>状态</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / 有效 / 试用 / 宽限期 / 已取消 / 冷冻期</td></tr>
-          <tr><td>ID 类搜索</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>原始订单ID</td><td>下拉切换搜索类型：<b>原始订单ID</b>（精确匹配，最长 64 字符）/ <b>订阅产品ID</b>（精确匹配，最长 128 字符）/ <b>游戏包名</b>（精确匹配）；切换类型时清空已输入值</td></tr>
-          <tr><td>用户标识类型 + 值</td><td>下拉 + 文本输入（联动）</td><td>否</td><td>冰川通行证ID</td><td>类型：冰川通行证ID / 角色ID；切换类型时清空已输入值；均为精确匹配</td></tr>
-          <tr><td>渠道类型</td><td>下拉单选</td><td>否</td><td>不限</td><td>不限 / GooglePlay / AppStore / 华为 / 小米；后续可扩展</td></tr>
-          <tr><td>最后订单ID</td><td>文本输入</td><td>否</td><td>空</td><td>精确匹配链式续订最新订单ID，值为 "0" 时表示无续订记录</td></tr>
-        </tbody>
-      </table>
-      <div class="req-note">所有筛选项均为 AND 关系。点击「查询」触发请求，不支持实时搜索（避免高频接口调用）。筛选区内容在当前会话中保持，刷新页面后重置为默认值。</div>
-    </div>
-
-    <!-- 4. 列表字段 -->
-    <div class="prd-h2"><span class="no">4</span>列表字段定义</div>
-    <div class="prd-block">
-      <table class="prd-tbl">
-        <thead><tr><th>字段</th><th>说明 / 展示规则</th></tr></thead>
-        <tbody>
-          <tr><td>复选框</td><td>「已取消」状态行禁止勾选，复选框置灰；全选仅选中当前页可操作行</td></tr>
-          <tr><td>原始订单ID</td><td>渠道侧唯一订单标识，超长截断加 Tooltip</td></tr>
-          <tr><td>最新订阅平台订单ID</td><td>关联最新续订的订单ID；值为 "0" 时展示 "—"</td></tr>
-          <tr><td>冰川通行证ID</td><td>用户平台账号ID</td></tr>
-          <tr><td>角色ID</td><td>游戏内角色ID</td></tr>
-          <tr><td>渠道类型</td><td>GooglePlay / AppStore / 华为 / 小米 等</td></tr>
-          <tr><td>游戏包名</td><td>应用商店侧包名，可换行展示</td></tr>
-          <tr><td>订阅产品ID</td><td>订阅商品ID</td></tr>
-          <tr><td>金额（分）</td><td>订阅金额，单位：分；展示原始数值，不做货币转换</td></tr>
-          <tr><td>状态</td><td>彩色标签：有效（绿）/ 试用（蓝）/ 宽限期（橙）/ 已取消（红）/ 冷冻期（紫）</td></tr>
-          <tr><td>购买时间</td><td>格式：YYYY-MM-DD HH:mm:ss</td></tr>
-          <tr><td>到期时间</td><td>格式同上；已到期时字体变灰</td></tr>
-          <tr><td>自动续订</td><td>1 = 开启，0 = 关闭；居中展示</td></tr>
-          <tr><td>支付状态</td><td>渠道侧支付流水状态文本</td></tr>
-          <tr><td>备注</td><td>渠道通知中的状态说明文本，超长 Tooltip</td></tr>
-          <tr><td>详情</td><td>渠道原始通知 JSON，等宽字体展示，可横向滚动</td></tr>
-          <tr><td>创建时间</td><td>记录入库时间，格式同购买时间</td></tr>
-          <tr><td>操作备注</td><td>人工操作时填写的备注；空值展示 "—"</td></tr>
-          <tr><td>操作</td><td>有效/试用/宽限期/冷冻期行：「取消订阅」蓝色链接；已取消行：置灰不可点</td></tr>
-        </tbody>
-      </table>
-      <div class="req-note">列表默认按「创建时间」倒序排列，不提供前端排序切换（数据量大，排序应由后端承担）。分页默认 10 条/页，可切换 10 / 20 / 50 / 100。「最新订阅平台订单ID」必须紧跟在「原始订单ID」之后，后续字段按上表顺序展示。</div>
-    </div>
-
-    <!-- 5. 弹窗字段 -->
-    <div class="prd-h2"><span class="no">5</span>弹窗字段定义</div>
-    <div class="prd-block">
-      <div class="prd-h3">单条取消订阅弹窗</div>
-      <table class="prd-tbl">
-        <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td>原始订单ID</td><td>只读文本</td><td>—</td><td>自动填入，不可修改，灰底提示</td></tr>
-          <tr><td>订阅产品ID</td><td>只读文本</td><td>—</td><td>自动填入，不可修改，灰底提示</td></tr>
-          <tr><td>订阅结果</td><td>下拉单选</td><td class="req-y">是</td><td>取消订阅 / 取消并退款；默认「取消订阅」</td></tr>
-          <tr><td>备注</td><td>多行文本</td><td>否</td><td>最长 200 字；用于记录人工操作原因，写入操作备注列</td></tr>
-        </tbody>
-      </table>
-      <div class="prd-h3" style="margin-top:14px">批量取消订阅弹窗</div>
-      <table class="prd-tbl">
-        <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td>已选数量提示</td><td>只读文本</td><td>—</td><td>「已选择 X 项，是否全部取消订阅？」蓝色加粗数量</td></tr>
-          <tr><td>备注</td><td>多行文本</td><td>否</td><td>最长 200 字；统一写入所有被操作行的操作备注列</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- 6. 功能逻辑 -->
-    <div class="prd-h2"><span class="no">6</span>功能逻辑与联动规则</div>
-    <div class="prd-block">
-      <div class="prd-h3">筛选联动</div>
-      <ul>
-        <li>「平台」切换后，列表数据立即重置，已勾选行清空，重新执行查询（当前筛选条件保留）。</li>
-        <li>「用户标识类型」切换后，右侧输入框清空已填内容，placeholder 更新为对应类型提示。</li>
-        <li>日期范围组件：点选开始日期后，结束日期不可早于开始日期；均为空时不作为筛选条件。</li>
-      </ul>
-      <div class="prd-h3">复选框与批量按钮联动</div>
-      <ul>
-        <li>页头全选框：勾选 = 全选当前页中状态非「已取消」的行；若全部可选行已勾选，则再次点击为全部取消。</li>
-        <li>已选数量实时更新于按钮旁「已选 X 项」，X = 0 时批量按钮置灰不可点。</li>
-        <li>翻页或重新查询后，已勾选行清空（避免跨页误操作）。</li>
-      </ul>
-      <div class="prd-h3">取消订阅提交逻辑</div>
-      <ul>
-        <li>单条：确认提交后，按钮进入 loading 防抖状态，接口返回前不可重复点击。</li>
-        <li>成功：弹窗关闭，列表局部刷新该行状态，Toast「取消订阅成功：{原始订单ID}」。</li>
-        <li>失败：弹窗保留已填内容，Toast 报错提示，允许用户重新提交。</li>
-        <li>批量：后端逐条处理并返回明细结果；全成功时 Toast「批量取消订阅成功，共 X 条」；部分失败时 Toast「成功 X 条，失败 Y 条」，失败行保持可勾选状态以便重试。</li>
-      </ul>
-    </div>
-
-    <!-- 7. 异常与边界 -->
-    <div class="prd-h2"><span class="no">7</span>异常与边界情况</div>
-    <div class="prd-block">
-      <div class="prd-h3">数据异常</div>
-      <ul>
-        <li><b>列表为空：</b>展示空状态图+文案「暂无数据，请调整筛选条件后重试」，不展示表格骨架。</li>
-        <li><b>字段缺失：</b>后端返回 null 或空字符串的字段，前端统一展示 "—"，不显示 "null" / "undefined"。</li>
-        <li><b>详情 JSON 异常：</b>若渠道原始通知格式错误，原样展示原始字符串，不强制解析。</li>
-      </ul>
-      <div class="prd-h3">性能与容量</div>
-      <ul>
-        <li><b>查询无条件保护：</b>所有筛选项均为空时，禁止查询（按钮置灰或提示「请至少填写一个筛选条件」），避免全表扫描。</li>
-        <li><b>日期跨度限制：</b>单次查询日期跨度建议 ≤ 180 天，超出时前端拦截提示。</li>
-        <li><b>导出数量上限：</b>10 万条；超出时提示缩小筛选范围，不触发后端任务。</li>
-        <li><b>批量操作上限：</b>单次批量取消订阅建议 ≤ 200 条，超出时提示「单次批量操作上限 200 条，请分批操作」。</li>
-      </ul>
-      <div class="prd-h3">权限边界</div>
-      <ul>
-        <li><b>查询权限：</b>所有已登录运营人员默认拥有。</li>
-        <li><b>取消订阅权限：</b>需「订阅管理-操作」权限；无权限时「取消订阅」链接和「批量取消订阅」按钮不展示（隐藏，非置灰），页面不出现操作入口。</li>
-        <li><b>导出权限：</b>需「订阅管理-导出」权限；无权限时「导出」按钮隐藏。</li>
-      </ul>
-      <div class="prd-h3">操作异常</div>
-      <ul>
-        <li><b>并发冲突：</b>同一订阅被两人同时操作，后提交者接口返回状态冲突时，提示「该订阅已被处理，请刷新后确认」，不静默失败。</li>
-        <li><b>网络断开：</b>提交失败统一展示 Toast 错误提示，弹窗保留内容可重试；不自动重试（避免重复取消）。</li>
-        <li><b>渠道接口异常：</b>渠道侧返回错误码时，展示具体错误信息（如「渠道侧订单不存在」），便于人工判断是否重试。</li>
-        <li><b>会话过期：</b>操作提交时若会话已过期，跳转登录页，操作不执行。</li>
-      </ul>
-      <div class="req-note warn">⚠️ 取消订阅为不可逆操作，直接调用渠道侧接口终止续订权益。弹窗中需明确展示被操作订单的关键信息（原始订单ID、订阅产品ID），并要求操作者主动选择「订阅结果」，避免误触。</div>
+      <p><b>入口位置：</b>运营后台左侧导航「运营中心 / 订阅管理 / 应用商店订阅日志」。</p>
+      <p><b>同级页面：</b>「应用商店订阅管理」位于同一订阅管理分组下，点击进入 <b>app-store-subscription-log.html</b>；当前日志页点击进入 <b>app-store-subscription-log-list.html</b>。</p>
+      <p><b>菜单状态：</b>访问本页面时，侧边栏「订阅管理」展开，「应用商店订阅日志」高亮，「应用商店订阅管理」保持同级非选中状态。</p>
     </div>
 
   </div>
@@ -914,40 +681,33 @@ for (let y = 64; y < window.innerHeight + 120; y += 72) {
     const s = document.createElement("span");
     s.style.left = x + "px";
     s.style.top  = y + "px";
-    s.textContent = "lufujy  刘福毅  应用商店订阅管理";
+    s.textContent = "lufujy  刘福毅  应用商店订阅日志";
     wm.appendChild(s);
   }
 }
 
 /* mock 数据 */
 const rows = [
-  { orderId:"4059168285360550001", passportId:"465486750", roleId:"131000951", roleName:"剑舞红尘", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.3.99",  amount:"2577",  status:1, buyTime:"2025-06-20 18:48:51", expireTime:"2026-03-04 17:55:51", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已进入帐号保留状态", detail:'{"notificationType": 5,"developerPayload":"4059168285360550001*131000951*10053270"}',  createTime:"2026-03-05 17:55:28", opRemark:"" },
-  { orderId:"4059168692965670001", passportId:"342359112", roleId:"143254663", roleName:"问道行者", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:4, buyTime:"2026-01-23 23:36:47", expireTime:"2026-02-23 23:36:44", autoRenew:"0", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已到期",             detail:'{"notificationType": 13,"developerPayload":"4059168692965670001*143254663*10145689"}', createTime:"2026-02-23 23:35:57", opRemark:"" },
-  { orderId:"4059168193978870001", passportId:"475075362", roleId:"114816533", roleName:"逍遥散人", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:2, buyTime:"2026-02-23 05:31:00", expireTime:"2026-03-23 05:30:49", autoRenew:"1", payStatus:"待付款", latestOrder:"4059177179586170000", remark:"续订了处于活动状态的订阅", detail:'{"notificationType": 2,"developerPayload":"4059168193978870001*114816533*10052530"}',  createTime:"2026-02-23 05:30:08", opRemark:"" },
-  { orderId:"4059168564610260001", passportId:"382910045", roleId:"90000212",  roleName:"青云子",   channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:3, buyTime:"2025-06-17 15:50:06", expireTime:"2026-02-21 15:53:23", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已进入帐号保留状态", detail:'{"notificationType": 5,"developerPayload":"4059168564610260001*90000212*10035462"}',   createTime:"2026-02-22 15:53:09", opRemark:"" },
-  { orderId:"4059168285360550001", passportId:"465486750", roleId:"131000951", roleName:"剑舞红尘", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.3.99",  amount:"2577",  status:5, buyTime:"2025-06-20 18:48:51", expireTime:"2026-02-18 17:55:51", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"订阅已进入帐号保留状态", detail:'{"notificationType": 5,"developerPayload":"4059168285360550001*131000951*10053270"}',  createTime:"2026-02-19 17:55:22", opRemark:"" },
-  { orderId:"4059168193978870001", passportId:"475075362", roleId:"114816533", roleName:"逍遥散人", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.15.99", amount:"10327", status:1, buyTime:"2026-02-23 05:31:00", expireTime:"2026-02-23 05:30:49", autoRenew:"1", payStatus:"待付款", latestOrder:"0",                    remark:"新订阅",                 detail:'{"notificationType": 4,"developerPayload":"4059168193978870001*114816533*10052530"}',  createTime:"2026-02-23 05:30:01", opRemark:"" },
-  { orderId:"4059167843201190001", passportId:"219830761", roleId:"122003841", roleName:"北冥有鱼", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.3.99",  amount:"2577",  status:4, buyTime:"2026-01-18 09:22:14", expireTime:"2026-02-18 09:22:14", autoRenew:"0", payStatus:"待付款", latestOrder:"0",                    remark:"用户主动取消订阅",       detail:'{"notificationType": 3,"developerPayload":"4059167843201190001*122003841*10051874"}',  createTime:"2026-02-18 09:21:58", opRemark:"" },
-  { orderId:"4059167523019880001", passportId:"539204817", roleId:"119887402", roleName:"天外飞仙", channel:"GooglePlay", pkg:"com.merge.farm.town.cook.diy", pid:"com.sub.9.99",  amount:"6498",  status:1, buyTime:"2025-12-10 14:05:33", expireTime:"2026-02-10 14:05:33", autoRenew:"1", payStatus:"待付款", latestOrder:"4059169001234560000", remark:"续订了处于活动状态的订阅", detail:'{"notificationType": 2,"developerPayload":"4059167523019880001*119887402*10050211"}',  createTime:"2026-02-10 14:04:50", opRemark:"" }
+  { orderId:"4999178108362020001", channel:"GooglePlay", pkg:"com.lastlight.freeplay.mena", pid:"com.lastlight.freeplay.mena.sub19", amount:"1417", status:3, buyTime:"2026-06-10 17:27:03", expireTime:"2026-06-10 17:47:04", autoRenew:"0", payStatus:"待付款", latestOrder:"0", remark:"订阅已进入宽限期", detail:'{"notificationType":6,"token":"mbgpeloigofbpgcamgfhipmnAO-J1OztGrl1nqJEIF15B54hQTb9FNhIdZQL1DqoM53UHqO4Ne-LWjfFE5tOcQ_s9kBbAQED_yBB8jR2KtUxM_OS4bU_UlevMIEQoiSvBXZAqQjSLvGuL4tc"}', createTime:"2026-06-11 00:22:16" },
+  { orderId:"4999178108452620001", channel:"GooglePlay", pkg:"com.lastlight.freeplay.mena", pid:"com.lastlight.freeplay.mena.sub99", amount:"7112", status:4, buyTime:"2026-06-10 18:12:39", expireTime:"2026-06-10 18:17:35", autoRenew:"0", payStatus:"待付款", latestOrder:"0", remark:"订阅已到期", detail:'{"notificationType":13,"token":"dkeflbiohokpdhecpkoapmhhAO-J1Oy_7CokFiOQrFDoFXjVi4r5NJK8e8XIKCYsLnDm737PkbAzQUsXb-NdqRa8r9j1wjmMQQfYr8e8ZgbUqwgPbltW57brJTpHcxfv7k1tv4_XKsRjhD2U"}', createTime:"2026-06-10 18:17:01" },
+  { orderId:"4999178108127340001", channel:"GooglePlay", pkg:"com.lastlight.freeplay.mena", pid:"com.lastlight.freeplay.mena.sub49", amount:"3548", status:1, buyTime:"2026-06-10 16:08:11", expireTime:"2026-07-10 16:08:11", autoRenew:"1", payStatus:"待付款", latestOrder:"4999178109123450000", remark:"订阅已购买", detail:'{"notificationType":4,"token":"dkeilbiookpdhecpkoapmhhAO-J1Oy_7CokFiOQrFDoFXjVi4r5NJK8e8XIKCYsLnDm737PkbAzQUsXb-NdqRa8r9j1wjmMQQfYr8e8ZgbUqwgPbltW57brJTpHcxfv7k1tv4_XKsRjhD2U"}', createTime:"2026-06-10 16:08:15" },
+  { orderId:"4999178107986530001", channel:"GooglePlay", pkg:"com.lastlight.freeplay.mena", pid:"com.lastlight.freeplay.mena.sub19", amount:"1417", status:2, buyTime:"2026-06-10 15:44:26", expireTime:"2026-06-17 15:44:26", autoRenew:"1", payStatus:"待付款", latestOrder:"0", remark:"试用订阅已激活", detail:'{"notificationType":1,"token":"dkfpnlekcljgikbbniapdpoAO-J1Ox2qsGwxlPvq80SDy3u6rqNf7eypE4CPnsb57sgpXuN7yIgux74juLw6PEyxmhe0"}', createTime:"2026-06-10 15:44:31" }
 ];
 
 const statusMap = {
-  1: '<span class="tag s1">有效</span>',
-  2: '<span class="tag s2">试用</span>',
-  3: '<span class="tag s3">宽限期</span>',
-  4: '<span class="tag s4">已取消</span>',
-  5: '<span class="tag s5">冷冻期</span>'
+  1: "有效",
+  2: "试用",
+  3: "宽限期",
+  4: "已取消",
+  5: "冷冻期"
 };
 
 /* ===== 渲染 ===== */
 function render() {
   document.getElementById("tbody").innerHTML = rows.map((r, i) => `
     <tr>
-      <td style="text-align:center;padding:0"><span class="checkbox row-check${r.status===4 ? ' disabled-check' : ''}" data-i="${i}" onclick="${r.status===4 ? '' : 'toggleRow(' + i + ')'}"></span></td>
       <td>${r.orderId}</td>
       <td style="word-break:break-all">${r.latestOrder}</td>
-      <td>${r.passportId}</td>
-      <td>${r.roleId}</td>
       <td>${r.channel}</td>
       <td>${r.pkg}</td>
       <td>${r.pid}</td>
@@ -960,100 +720,8 @@ function render() {
       <td>${r.remark}</td>
       <td><span class="detail-json">${r.detail}</span></td>
       <td>${r.createTime}</td>
-      <td style="color:#5b6573">${r.opRemark || '<span style="color:#c5ccd5">—</span>'}</td>
-      <td class="col-actions">
-        ${r.status===4
-          ? '<span class="link disabled">取消订阅</span>'
-          : `<span class="link" onclick="openSingleModal(${i})">取消订阅</span>`
-        }
-      </td>
     </tr>
   `).join("");
-  // 恢复勾选状态
-  selected.forEach(i => {
-    const box = document.querySelector(`.row-check[data-i="${i}"]`);
-    if (box) box.classList.add("checked");
-  });
-  refreshBatch();
-}
-
-/* ===== 勾选 ===== */
-const selected = new Set();
-
-function refreshBatch() {
-  document.getElementById("selCount").textContent = selected.size;
-  const btn = document.getElementById("batchBtn");
-  btn.classList.toggle("enabled", selected.size > 0);
-  const all = document.getElementById("checkAll");
-  const activeRows = rows.filter(r => r.status !== 4);
-  all.classList.toggle("checked", selected.size > 0 && selected.size === activeRows.length);
-}
-
-function toggleRow(i) {
-  if (rows[i].status === 4) return;
-  const box = document.querySelector(`.row-check[data-i="${i}"]`);
-  if (selected.has(i)) { selected.delete(i); box.classList.remove("checked"); }
-  else { selected.add(i); box.classList.add("checked"); }
-  refreshBatch();
-}
-
-function toggleAll() {
-  const activeIdxs = rows.map((r, i) => (r.status !== 4 ? i : -1)).filter(i => i >= 0);
-  const allChecked = selected.size === activeIdxs.length;
-  selected.clear();
-  document.querySelectorAll(".row-check").forEach(b => b.classList.remove("checked"));
-  if (!allChecked) {
-    activeIdxs.forEach(i => {
-      selected.add(i);
-      const b = document.querySelector(`.row-check[data-i="${i}"]`);
-      if (b) b.classList.add("checked");
-    });
-  }
-  refreshBatch();
-}
-
-/* ===== 单条取消订阅 ===== */
-let _singleIdx = null;
-
-function openSingleModal(i) {
-  _singleIdx = i;
-  document.getElementById("sOrderId").value = rows[i].orderId;
-  document.getElementById("sPid").value = rows[i].pid;
-  document.getElementById("sResult").value = "cancel";
-  document.getElementById("sRemark").value = "";
-  document.getElementById("singleModal").classList.remove("hidden");
-}
-function closeSingleModal() { document.getElementById("singleModal").classList.add("hidden"); }
-function confirmSingle() {
-  const resultText = document.getElementById("sResult").value === "cancel" ? "取消订阅" : "取消并退款";
-  const remark = document.getElementById("sRemark").value.trim();
-  rows[_singleIdx].status = 4;
-  rows[_singleIdx].opRemark = remark || resultText;
-  selected.delete(_singleIdx);
-  closeSingleModal();
-  render();
-  showToast(`已取消订阅：${rows[_singleIdx].orderId}`);
-}
-
-/* ===== 批量取消订阅 ===== */
-function openBatchModal() {
-  if (selected.size === 0) return;
-  document.getElementById("batchCountTip").textContent = selected.size;
-  document.getElementById("bRemark").value = "";
-  document.getElementById("batchModal").classList.remove("hidden");
-}
-function closeBatchModal() { document.getElementById("batchModal").classList.add("hidden"); }
-function confirmBatch() {
-  const remark = document.getElementById("bRemark").value.trim();
-  const count = selected.size;
-  selected.forEach(i => {
-    rows[i].status = 4;
-    rows[i].opRemark = remark || "取消订阅";
-  });
-  selected.clear();
-  closeBatchModal();
-  render();
-  showToast(`批量取消订阅成功，共 ${count} 条`);
 }
 
 /* ===== Toast ===== */
@@ -1068,8 +736,6 @@ function showToast(text) {
 
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
-    closeSingleModal();
-    closeBatchModal();
     closeReq();
   }
 });
