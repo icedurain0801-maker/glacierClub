@@ -4,7 +4,7 @@ import { Select, Button, message, Modal, Switch, Input, Form, Popover, Tag } fro
 import { FilterBox, Q1Table, ColumnsType, Q1TablePropsType } from 'q1-antd';
 import { cloneDeep, get, keyBy, map, sortBy } from 'lodash';
 import type { TableRowSelection } from 'antd/es/table/interface';
-import { arrayMove } from 'react-sortable-hoc';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 import { OptionsType } from 'rc-select/lib/interface';
 import { FormInstance } from 'antd/es/form';
 
@@ -44,7 +44,7 @@ import Audit from './Audit';
 import Detail from './Detail';
 import { CopyStrategy } from './CopyStrategy';
 
-require('./tableList.less');
+import './tableList.less';
 
 interface TableListProps {
     tableType: TABLE_TYPE;
@@ -161,7 +161,7 @@ const TableList = React.forwardRef<RefMethods, TableListProps>((props, ref) => {
                 const { statuses, boardId, groupId, ...values } = await filterers.validate();
                 setCurrentFromFilter({ statuses, boardId, ...values } as any);
                 if ([ null, undefined ].includes(boardId)) {
-                    message.warn('请选择所属版块');
+                    message.warning('请选择所属版块');
                     return false;
                 }
                 let status =

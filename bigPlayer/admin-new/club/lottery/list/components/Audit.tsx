@@ -51,6 +51,7 @@ function BannerAudit(props: BannerAuditProps) {
             getContainer={useContentDialogContainer()}
             title="批量审核"
             visible={visible}
+            forceRender
             onOk={handleOk}
             onCancel={onCancel}
             confirmLoading={batchAuditLoading}

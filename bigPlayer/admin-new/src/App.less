@@ -1,0 +1,365 @@
+.admin-shell {
+  min-height: 100vh;
+  background: #edf1f6;
+}
+
+.platform-topbar {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  min-height: 42px;
+  overflow: hidden;
+  background: #08263f;
+  border-bottom: 1px solid rgba(135, 176, 212, 0.18);
+  color: #d7e8f7;
+}
+
+.platform-brand {
+  display: flex;
+  flex: 0 0 214px;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+  border-right: 1px solid rgba(151, 190, 224, 0.16);
+  color: #9fd0ff;
+  white-space: nowrap;
+}
+
+.platform-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(120, 196, 255, 0.56);
+  border-radius: 5px;
+  color: #59b9ff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.platform-brand-title {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.platform-nav {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  height: 42px;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.platform-nav::-webkit-scrollbar {
+  height: 0;
+}
+
+.platform-nav-item {
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 16px;
+  color: rgba(221, 236, 249, 0.82);
+  font-size: 13px;
+  line-height: 42px;
+  white-space: nowrap;
+}
+
+.platform-nav-item.active {
+  background: #0b3658;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.admin-shell-body {
+  height: calc(100vh - 42px);
+  min-height: 0;
+}
+
+.app-sidebar {
+  overflow: hidden;
+  background: #00111d !important;
+  box-shadow: 3px 0 12px rgba(3, 17, 31, 0.22);
+}
+
+.app-sidebar .ant-layout-sider-children {
+  height: 100%;
+  background: #00111d;
+}
+
+.app-sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #00111d;
+}
+
+.sidebar-product {
+  display: flex;
+  flex: 0 0 52px;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 14px;
+  background: #031b2c;
+  border-bottom: 1px solid rgba(159, 194, 224, 0.13);
+  color: #ffffff;
+}
+
+.sidebar-product-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  border: 2px solid rgba(255, 255, 255, 0.84);
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sidebar-product-title {
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar-menu {
+  flex: 1;
+  min-height: 0;
+  padding: 7px 0 16px;
+  overflow-y: auto;
+  border-inline-end: 0 !important;
+  background: transparent !important;
+}
+
+.app-sidebar-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.app-sidebar-menu::-webkit-scrollbar-thumb {
+  background: rgba(151, 190, 224, 0.28);
+  border-radius: 4px;
+}
+
+.app-sidebar-menu .ant-menu-item,
+.app-sidebar-menu .ant-menu-submenu-title {
+  width: auto;
+  height: 36px;
+  margin: 3px 5px;
+  padding-inline: 12px !important;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 36px;
+}
+
+.app-sidebar-menu .ant-menu-submenu-title {
+  color: rgba(219, 234, 248, 0.82) !important;
+}
+
+.app-sidebar-menu .ant-menu-item {
+  color: rgba(219, 234, 248, 0.78) !important;
+}
+
+.app-sidebar-menu .ant-menu-item:hover,
+.app-sidebar-menu .ant-menu-submenu-title:hover {
+  background: #062139 !important;
+  color: #ffffff !important;
+}
+
+.app-sidebar-menu .ant-menu-sub.ant-menu-inline {
+  background: #00111d !important;
+}
+
+.app-sidebar-menu .ant-menu-item-selected {
+  background: #1890ff !important;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+.app-sidebar-menu .ant-menu-item-selected::after {
+  content: none;
+}
+
+.app-sidebar-menu .ant-menu-title-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-workspace {
+  min-width: 0;
+  height: 100%;
+  background: #edf1f6;
+}
+
+.workspace-header {
+  display: flex;
+  flex: 0 0 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 52px;
+  padding: 0 12px;
+  border-bottom: 1px solid #e5ebf3;
+  background: #ffffff;
+}
+
+.workspace-left,
+.workspace-tools {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.workspace-left {
+  flex: 1;
+  gap: 8px;
+}
+
+.workspace-tools {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.workspace-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #536273;
+  cursor: pointer;
+}
+
+.workspace-icon-btn:hover {
+  background: #eef3f8;
+  color: #1f3652;
+}
+
+.workspace-route-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #e2eaf3;
+  border-bottom: 2px solid #1890ff;
+  border-radius: 4px 4px 0 0;
+  background: #f7fbff;
+  color: #1677ff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.workspace-breadcrumb {
+  overflow: hidden;
+  color: #8897a8;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-search {
+  width: 278px;
+  max-width: 30vw;
+  border-color: #dde5ef;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.workspace-search .ant-input {
+  font-size: 13px;
+}
+
+.workspace-shortcut {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid #d2dce8;
+  border-radius: 3px;
+  color: #667789;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.workspace-tool,
+.workspace-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #36506d;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.workspace-tool-icon {
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.workspace-user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #edf5ff;
+  color: #1677ff;
+}
+
+.workspace-user-arrow {
+  color: #8b99aa;
+  font-size: 10px;
+}
+
+.app-content {
+  min-height: 0;
+  overflow: auto;
+  background: #edf1f6;
+}
+
+.app-page-frame {
+  min-height: 100%;
+  padding: 12px 14px 28px;
+  background: #edf1f6;
+  color: #263241;
+}
+
+@media (max-width: 1440px) {
+  .platform-nav-item {
+    padding: 0 12px;
+  }
+
+  .workspace-search {
+    width: 220px;
+  }
+
+  .workspace-breadcrumb {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .workspace-tool:nth-of-type(2),
+  .workspace-tool:nth-of-type(3) {
+    display: none;
+  }
+}

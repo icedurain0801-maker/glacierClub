@@ -41,7 +41,7 @@ import { extractId } from '../../board/hooks/usePostSelect';
 import { ManageCyclopedia } from './ManageCyclopedia';
 import { watchStrategyGroupHandle } from './TableList';
 
-require('./create.less');
+import './create.less';
 
 interface CreatePediaProps extends DrawerProps {
     strategyGroupLoading: boolean;

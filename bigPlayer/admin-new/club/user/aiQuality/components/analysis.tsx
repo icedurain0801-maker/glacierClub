@@ -15,7 +15,7 @@ import {
 import { BOARD_PERMIT_SEPARATE, CLUB_DEPLOY_VERSION } from '@ts/club';
 
 import { useAiQualityContext } from '../context';
-require('./analysis.less');
+import './analysis.less';
 
 interface MetricItem {
     title: string;

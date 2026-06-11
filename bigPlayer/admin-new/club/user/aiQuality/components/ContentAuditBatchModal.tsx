@@ -71,6 +71,7 @@ function ContentAuditBatchModal(props: ContentAuditBatchModalProps) {
             getContainer={getContainer}
             title="批量审核"
             visible={visible}
+            forceRender
             onCancel={onCancel}
             maskClosable={false}
             destroyOnClose

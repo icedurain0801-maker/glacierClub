@@ -16,7 +16,7 @@ import { DefaultPagination } from '@ts/enum/table';
 
 import PieChart, { PieDataItem } from './PieChart';
 import { usePremitClubBoard } from '../../board/hooks/useClubBoardOptions';
-require('./index.less');
+import './index.less';
 interface TagListProps {
     clubBoardOptions: BoardPermitOptionsType[];
 }

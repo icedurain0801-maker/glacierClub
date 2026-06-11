@@ -82,7 +82,7 @@ const ActorCheckForm = React.forwardRef<ActorCheckFormRef, ActorCheckFormProps>(
             const isPushAll = form.getFieldValue(isPushAllFormName);
             // 区服类型为选择区服但是没有选择
             if (isPushAll === undefined) {
-                message.warn('请先完善区服信息！');
+                message.warning('请先完善区服信息！');
                 return;
             }
             // 校验角色ID重复--做多一个弹窗的提示---start
@@ -190,7 +190,7 @@ const ActorCheckForm = React.forwardRef<ActorCheckFormRef, ActorCheckFormProps>(
                                 {
                                     validator: rule => {
                                         if (receiverIdMsg) {
-                                            message.warn(rule.message);
+                                            message.warning(rule.message);
                                             setReceiverIdMsg('');
                                             return Promise.reject(rule.message);
                                         }

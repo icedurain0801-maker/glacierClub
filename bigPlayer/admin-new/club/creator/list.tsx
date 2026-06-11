@@ -29,7 +29,7 @@ import { OMIT_TABLE_HEIGHT } from '@ts/clientModel';
 import { usePremitClubBoard } from '../board/hooks/useClubBoardOptions';
 import Audit from './components/Audit';
 import Create from './components/Create';
-require('./list.less');
+import './list.less';
 const pickFilterItemCom = (type: string) => (
     <FilterBox.Item
         name={type}

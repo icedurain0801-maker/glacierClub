@@ -42,7 +42,7 @@ import PostContent from '../../components/PostContent';
 import PostDetail from '../../components/PostDetail';
 import { sectionsS2C } from '../../post/components/TableList';
 
-require('./tableList.less');
+import './tableList.less';
 
 const defaultPagination: paginationType = {
     pageIndex: 1,
@@ -166,7 +166,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
                 ...values
             } = await filterers.validate();
             if ([ null, undefined ].includes(boardIdOrg)) {
-                message.warn('请选择所属版块');
+                message.warning('请选择所属版块');
                 return false;
             }
             const [ clubDeploy, boardId ] = boardIdOrg.split(BOARD_PERMIT_SEPARATE);

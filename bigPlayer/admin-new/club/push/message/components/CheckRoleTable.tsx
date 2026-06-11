@@ -1,6 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Table, Input, Button, Space, Spin } from 'antd';
-import Highlighter from 'react-highlight-words';
 import { CheckCircleOutlined, CloseOutlined, SearchOutlined } from '@ant-design/icons';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -18,6 +17,33 @@ export interface ICheckRoleTableData extends SenderList {
     result: boolean;
     /** 自定义展示文字 */
     msg?: React.ReactNode;
+}
+
+function Highlighter({
+    searchWords,
+    textToHighlight,
+    highlightStyle,
+}: {
+    searchWords: string[];
+    textToHighlight: string;
+    highlightStyle?: React.CSSProperties;
+}) {
+    const text = String(textToHighlight || '');
+    const word = searchWords.find(Boolean);
+    if (!word) {
+        return <>{text}</>;
+    }
+    const index = text.toLowerCase().indexOf(word.toLowerCase());
+    if (index < 0) {
+        return <>{text}</>;
+    }
+    return (
+        <>
+            {text.slice(0, index)}
+            <span style={highlightStyle}>{text.slice(index, index + word.length)}</span>
+            {text.slice(index + word.length)}
+        </>
+    );
 }
 
 export default function CheckRoleTable({ data, checkedResultLoading = false, isEdit = false }: CheckRoleTableProps) {

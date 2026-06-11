@@ -7,7 +7,7 @@ import { getQualityDetail } from '@/api/clubQuality';
 import TableCellText from '@/components/display/Table/TableCellText';
 import TagList from '@/components/TagList';
 import { useContentDialogContainer } from '@/context';
-import { HugeConfirmModalProps } from '@/utils/defaultProps';
+const HugeConfirmModalProps = { width: 900 };
 
 import { CLUB_DEPLOY_VERSION } from '@ts/club';
 import {

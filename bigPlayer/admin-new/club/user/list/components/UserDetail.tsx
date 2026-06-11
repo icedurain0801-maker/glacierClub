@@ -43,48 +43,51 @@ function BaseDrawer(props: IProps) {
     });
 
     const fetchTableData = useCallback(async () => {
+        if (!visible || !detail) {
+            return;
+        }
         setLoading(true);
         try {
-            const { timeRange } = await form.validateFields();
-            if (detail) {
-                const { pageSize, current } = getPagination();
-                const query = {
-                    userInfoId: detail.userInfoId,
-                    boardId,
-                    ...(timeRange && timeRange.length > 0
-                        ? {
-                              beginTime: setUtcFormat(timeRange[0]),
-                              endTime: setUtcFormat(timeRange[1]),
-                          }
-                        : {}),
-                    pageIndex: current,
-                    pageSize,
-                };
-                const { data = [], total = 0 } = await getUserExperience(query, clubDeployVersion);
-                if ((data || [])?.length === 0 && current !== 1) {
-                    setpagination({ ...getPagination(), current: 1 });
-                    fetchTableData();
-                }
-                if (data) {
-                    const _data = data.map((item, idx: number) => ({
-                        ...item,
-                        customKey: pageSize * (current - 1) + idx,
-                    }));
-                    setTableData(_data);
-                    setpagination({ ...getPagination(), total });
-                } else {
-                    setTableData([]);
-                    setpagination({ ...getPagination(), total: 0 });
-                }
+            const { timeRange } = await form.validateFields().catch(() => ({}));
+            const { pageSize, current } = getPagination();
+            const query = {
+                userInfoId: detail.userInfoId,
+                boardId,
+                ...(timeRange && timeRange.length > 0
+                    ? {
+                          beginTime: setUtcFormat(timeRange[0]),
+                          endTime: setUtcFormat(timeRange[1]),
+                      }
+                    : {}),
+                pageIndex: current,
+                pageSize,
+            };
+            const { data = [], total = 0 } = await getUserExperience(query, clubDeployVersion);
+            if ((data || [])?.length === 0 && current !== 1) {
+                setpagination({ ...getPagination(), current: 1 });
+                return;
+            }
+            if (data) {
+                const _data = data.map((item, idx: number) => ({
+                    ...item,
+                    customKey: pageSize * (current - 1) + idx,
+                }));
+                setTableData(_data);
+                setpagination({ ...getPagination(), total });
+            } else {
+                setTableData([]);
+                setpagination({ ...getPagination(), total: 0 });
             }
         } finally {
             setLoading(false);
         }
-    }, [ boardId, clubDeployVersion, detail, form, getPagination, setpagination ]);
+    }, [ boardId, clubDeployVersion, detail, form, getPagination, setpagination, visible ]);
 
     useEffect(() => {
-        fetchTableData();
-    }, [ fetchTableData ]);
+        if (visible && detail) {
+            fetchTableData();
+        }
+    }, [ detail, fetchTableData, visible ]);
 
     const columns: ColumnsType<UserExperienceItem> = useMemo(() => {
         return [

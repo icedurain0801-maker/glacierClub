@@ -50,7 +50,7 @@ import {
 import Audit from './components/Audit';
 import Create from './components/Create';
 import { usePremitClubBoard } from '../../board/hooks/useClubBoardOptions';
-require('./index.less');
+import './index.less';
 
 export enum TABLE_TYPE {
     Record = 'Record',

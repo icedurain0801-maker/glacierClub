@@ -4,7 +4,7 @@ import { PlusCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { isEqual } from 'lodash';
 import type { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
-import arrayMove from 'array-move';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 
 import SortableTable from '@/components/q1Table/sortableTable';
 import { useIsEqualState } from '@/context';
@@ -13,7 +13,7 @@ import { normalRuleValidator } from '@/utils/lib';
 import { CLUB_DEPLOY_VERSION } from '@ts/club';
 import { CREATOR_TASK_ENUM, TaskSelection } from '@ts/creator';
 
-require('./sections.less');
+import './sections.less';
 
 export const DefaultSections = {
     sort: 0,

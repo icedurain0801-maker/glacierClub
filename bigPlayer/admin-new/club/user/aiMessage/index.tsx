@@ -414,6 +414,7 @@ function AiMessage(props: AiMeesageProps) {
                 <Table
                     columns={totalColumns}
                     dataSource={totalDataSource}
+                    rowKey={() => 'summary'}
                     bordered
                     pagination={false}
                     className="mb-20"

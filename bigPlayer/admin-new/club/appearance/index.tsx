@@ -36,7 +36,7 @@ import { OMIT_TABLE_HEIGHT } from '@ts/clientModel';
 import { usePremitClubBoard } from '../board/hooks/useClubBoardOptions';
 import Audit from './components/Audit';
 import Create from './components/Create';
-require('./index.less');
+import './index.less';
 
 export enum TABLE_TYPE {
     Record = 'Record',
@@ -66,7 +66,7 @@ function AppearanceListFn() {
     }, []);
 
     return (
-        <>
+        <div className="admin-polish-page appearance-manage-shell">
             <Tabs activeKey={activeKey} className="page-content-tabbox" onTabClick={handleTabClick} animated={false}>
                 <Tabs.TabPane tab="装扮列表" key={TABLE_TYPE.Record}>
                     <TableList tableType={TABLE_TYPE.Record} onTabChange={handleTabChange} ref={recordRef} />
@@ -75,7 +75,7 @@ function AppearanceListFn() {
                     <TableList tableType={TABLE_TYPE.Audit} onTabChange={handleTabChange} ref={auditRef} />
                 </Tabs.TabPane>
             </Tabs>
-        </>
+        </div>
     );
 }
 
@@ -112,9 +112,10 @@ const TableList = forwardRef(({ tableType, onTabChange }: TableListProps, ref) =
     const [ clubDeployVersion, setclubDeployVersion ] = useState(get(clubBoardOptions, '0.value'));
     const tableEl = useRef<HTMLDivElement>(null);
     const getTableHeight = useTableAdaptHeight(tableEl, OMIT_TABLE_HEIGHT);
-    const [ tableData, setTableData ] = useState<FeedbackResponseType2<DressUpListItem[]>>(
-        {} as FeedbackResponseType2<DressUpListItem[]>
-    );
+    const [ tableData, setTableData ] = useState<FeedbackResponseType2<DressUpListItem[]>>({
+        data: [],
+        total: 0,
+    });
     const [ loading, setLoading ] = useState(false);
     const [ editVisible, setEditVisible ] = useState(false);
     const getContainer = useContentDialogContainer();
@@ -328,7 +329,7 @@ const TableList = forwardRef(({ tableType, onTabChange }: TableListProps, ref) =
                 dataIndex: 'name',
                 width: 160,
                 render(_, r) {
-                    return r.dressUpInfos[0].dressName ?? '';
+                    return r.dressUpInfos?.[0]?.dressName ?? '';
                 },
             },
             {

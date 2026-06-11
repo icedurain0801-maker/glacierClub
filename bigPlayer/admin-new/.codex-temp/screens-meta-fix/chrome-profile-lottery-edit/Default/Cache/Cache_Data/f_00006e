@@ -1,0 +1,213 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/club/user/aiQuality/components/ContentAuditBatchModal.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=22152c6b"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/node_modules/.vite/deps/react.js?v=22152c6b"; const useEffect = __vite__cjsImport3_react["useEffect"]; const useState = __vite__cjsImport3_react["useState"];
+import { Button, Form, Modal, Select, Space } from "/node_modules/.vite/deps/antd.js?v=fec5e2ad";
+import { useContentDialogContainer } from "/src/context/index.ts";
+import {
+  CLUB_AI_VERIFY_REASON,
+  CLUB_AI_VERIFY_RESULT,
+  ClubAiVerifyReasonOptions,
+  ClubAiVerifyResultOptions
+} from "/src/types/clubQuality/index.ts";
+import "/club/user/aiQuality/components/ContentAuditBatchModal.less";
+const INITIAL_VALUES = {
+  resultStatus: CLUB_AI_VERIFY_RESULT.Correct,
+  checkType: CLUB_AI_VERIFY_REASON.BadContent
+};
+function ContentAuditBatchModal(props) {
+  _s();
+  const { visible, count, onCancel, onOk } = props;
+  const getContainer = useContentDialogContainer();
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!visible) {
+      form.resetFields();
+      return;
+    }
+    form.setFieldsValue(INITIAL_VALUES);
+  }, [form, visible]);
+  const handleResultChange = (value) => {
+    if (value === CLUB_AI_VERIFY_RESULT.Correct) {
+      form.setFieldsValue({
+        resultStatus: value,
+        checkType: form.getFieldValue("checkType") || CLUB_AI_VERIFY_REASON.BadContent
+      });
+      return;
+    }
+    form.setFieldsValue({
+      resultStatus: value,
+      checkType: void 0
+    });
+  };
+  const handleSubmit = async () => {
+    try {
+      setLoading(true);
+      const values = await form.validateFields();
+      await onOk?.(values);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return /* @__PURE__ */ jsxDEV(
+    Modal,
+    {
+      getContainer,
+      title: "批量审核",
+      visible,
+      forceRender: true,
+      onCancel,
+      maskClosable: false,
+      destroyOnClose: true,
+      footer: /* @__PURE__ */ jsxDEV("div", { className: "club-ai-quality-batch-modal__footer", children: /* @__PURE__ */ jsxDEV(Space, { size: "large", children: [
+        /* @__PURE__ */ jsxDEV(Button, { onClick: onCancel, children: "取消" }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+          lineNumber: 100,
+          columnNumber: 25
+        }, this),
+        /* @__PURE__ */ jsxDEV(Button, { loading, type: "primary", onClick: handleSubmit, children: "确定" }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+          lineNumber: 101,
+          columnNumber: 25
+        }, this)
+      ] }, void 0, true, {
+        fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+        lineNumber: 99,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+        lineNumber: 98,
+        columnNumber: 7
+      }, this),
+      children: /* @__PURE__ */ jsxDEV(Form, { form, initialValues: INITIAL_VALUES, layout: "horizontal", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "club-ai-quality-batch-modal__count", children: [
+          /* @__PURE__ */ jsxDEV("span", { children: "共审核" }, void 0, false, {
+            fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+            lineNumber: 110,
+            columnNumber: 21
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { className: "club-ai-quality-batch-modal__count-num", children: count }, void 0, false, {
+            fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+            lineNumber: 111,
+            columnNumber: 21
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { children: "个Badcase" }, void 0, false, {
+            fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+            lineNumber: 112,
+            columnNumber: 21
+          }, this)
+        ] }, void 0, true, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+          lineNumber: 109,
+          columnNumber: 17
+        }, this),
+        /* @__PURE__ */ jsxDEV(Form.Item, { label: "审核结果", name: "resultStatus", rules: [{ required: true, message: "请选择审核结果" }], children: /* @__PURE__ */ jsxDEV(Select, { options: ClubAiVerifyResultOptions, onChange: handleResultChange }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+          lineNumber: 116,
+          columnNumber: 21
+        }, this) }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+          lineNumber: 115,
+          columnNumber: 17
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Form.Item,
+          {
+            shouldUpdate: (prevValues, currentValues) => prevValues.resultStatus !== currentValues.resultStatus,
+            noStyle: true,
+            children: ({ getFieldValue }) => {
+              const resultStatus = getFieldValue("resultStatus");
+              if (resultStatus !== CLUB_AI_VERIFY_RESULT.Correct) {
+                return null;
+              }
+              return /* @__PURE__ */ jsxDEV(
+                Form.Item,
+                {
+                  label: "判定分类",
+                  name: "checkType",
+                  rules: [{ required: true, message: "请选择判定分类" }],
+                  children: /* @__PURE__ */ jsxDEV(Select, { options: ClubAiVerifyReasonOptions }, void 0, false, {
+                    fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+                    lineNumber: 136,
+                    columnNumber: 33
+                  }, this)
+                },
+                void 0,
+                false,
+                {
+                  fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+                  lineNumber: 131,
+                  columnNumber: 15
+                },
+                this
+              );
+            }
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+            lineNumber: 119,
+            columnNumber: 17
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("div", { className: "club-ai-quality-batch-modal__tip", children: "提示：仅支持全部通过或全部拒绝，如想查看详情，请逐条查看" }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+          lineNumber: 141,
+          columnNumber: 17
+        }, this)
+      ] }, void 0, true, {
+        fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+        lineNumber: 108,
+        columnNumber: 13
+      }, this)
+    },
+    void 0,
+    false,
+    {
+      fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx",
+      lineNumber: 89,
+      columnNumber: 5
+    },
+    this
+  );
+}
+_s(ContentAuditBatchModal, "AzK2TC3iQfoLty36ajuE6jjnzoE=", false, function() {
+  return [useContentDialogContainer, Form.useForm];
+});
+_c = ContentAuditBatchModal;
+export default ContentAuditBatchModal;
+var _c;
+$RefreshReg$(_c, "ContentAuditBatchModal");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/aiQuality/components/ContentAuditBatchModal.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFBeUI7QUFBQSxhQUFBQSxJQUFBIiwibmFtZXMiOlsidXNlRWZmZWN0IiwidXNlU3RhdGUiLCJCdXR0b24iLCJGb3JtIiwiTW9kYWwiLCJTZWxlY3QiLCJTcGFjZSIsInVzZUNvbnRlbnREaWFsb2dDb250YWluZXIiLCJDTFVCX0FJX1ZFUklGWV9SRUFTT04iLCJDTFVCX0FJX1ZFUklGWV9SRVNVTFQiLCJDbHViQWlWZXJpZnlSZWFzb25PcHRpb25zIiwiQ2x1YkFpVmVyaWZ5UmVzdWx0T3B0aW9ucyIsIklOSVRJQUxfVkFMVUVTIiwicmVzdWx0U3RhdHVzIiwiQ29ycmVjdCIsImNoZWNrVHlwZSIsIkJhZENvbnRlbnQiLCJDb250ZW50QXVkaXRCYXRjaE1vZGFsIiwicHJvcHMiLCJfcyIsInZpc2libGUiLCJjb3VudCIsIm9uQ2FuY2VsIiwib25PayIsImdldENvbnRhaW5lciIsImZvcm0iLCJ1c2VGb3JtIiwibG9hZGluZyIsInNldExvYWRpbmciLCJyZXNldEZpZWxkcyIsInNldEZpZWxkc1ZhbHVlIiwiaGFuZGxlUmVzdWx0Q2hhbmdlIiwidmFsdWUiLCJnZXRGaWVsZFZhbHVlIiwidW5kZWZpbmVkIiwiaGFuZGxlU3VibWl0IiwidmFsdWVzIiwidmFsaWRhdGVGaWVsZHMiLCJyZXF1aXJlZCIsIm1lc3NhZ2UiLCJwcmV2VmFsdWVzIiwiY3VycmVudFZhbHVlcyIsIl9jIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIkNvbnRlbnRBdWRpdEJhdGNoTW9kYWwudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBSZWFjdCwgeyB1c2VFZmZlY3QsIHVzZVN0YXRlIH0gZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgQnV0dG9uLCBGb3JtLCBJbnB1dCwgTW9kYWwsIFNlbGVjdCwgU3BhY2UgfSBmcm9tICdhbnRkJztcblxuaW1wb3J0IHsgdXNlQ29udGVudERpYWxvZ0NvbnRhaW5lciB9IGZyb20gJ0AvY29udGV4dCc7XG5cbmltcG9ydCB7XG4gICAgQ0xVQl9BSV9WRVJJRllfUkVBU09OLFxuICAgIENMVUJfQUlfVkVSSUZZX1JFU1VMVCxcbiAgICBDbHViQWlDb250ZW50QmF0Y2hBdWRpdEZvcm1WYWx1ZXMsXG4gICAgQ2x1YkFpVmVyaWZ5UmVhc29uT3B0aW9ucyxcbiAgICBDbHViQWlWZXJpZnlSZXN1bHRPcHRpb25zLFxufSBmcm9tICdAdHMvY2x1YlF1YWxpdHknO1xuXG5pbXBvcnQgJy4vQ29udGVudEF1ZGl0QmF0Y2hNb2RhbC5sZXNzJztcblxuaW50ZXJmYWNlIENvbnRlbnRBdWRpdEJhdGNoTW9kYWxQcm9wcyB7XG4gICAgdmlzaWJsZTogYm9vbGVhbjtcbiAgICBjb3VudDogbnVtYmVyO1xuICAgIG9uQ2FuY2VsPzogKCkgPT4gdm9pZDtcbiAgICBvbk9rPzogKHZhbHVlczogQ2x1YkFpQ29udGVudEJhdGNoQXVkaXRGb3JtVmFsdWVzKSA9PiB2b2lkIHwgUHJvbWlzZTx2b2lkPjtcbn1cblxuY29uc3QgSU5JVElBTF9WQUxVRVM6IENsdWJBaUNvbnRlbnRCYXRjaEF1ZGl0Rm9ybVZhbHVlcyA9IHtcbiAgICByZXN1bHRTdGF0dXM6IENMVUJfQUlfVkVSSUZZX1JFU1VMVC5Db3JyZWN0LFxuICAgIGNoZWNrVHlwZTogQ0xVQl9BSV9WRVJJRllfUkVBU09OLkJhZENvbnRlbnQsXG59O1xuXG5mdW5jdGlvbiBDb250ZW50QXVkaXRCYXRjaE1vZGFsKHByb3BzOiBDb250ZW50QXVkaXRCYXRjaE1vZGFsUHJvcHMpIHtcbiAgICBjb25zdCB7IHZpc2libGUsIGNvdW50LCBvbkNhbmNlbCwgb25PayB9ID0gcHJvcHM7XG4gICAgY29uc3QgZ2V0Q29udGFpbmVyID0gdXNlQ29udGVudERpYWxvZ0NvbnRhaW5lcigpO1xuICAgIGNvbnN0IFsgZm9ybSBdID0gRm9ybS51c2VGb3JtPENsdWJBaUNvbnRlbnRCYXRjaEF1ZGl0Rm9ybVZhbHVlcz4oKTtcbiAgICBjb25zdCBbIGxvYWRpbmcsIHNldExvYWRpbmcgXSA9IHVzZVN0YXRlKGZhbHNlKTtcblxuICAgIHVzZUVmZmVjdCgoKSA9PiB7XG4gICAgICAgIGlmICghdmlzaWJsZSkge1xuICAgICAgICAgICAgZm9ybS5yZXNldEZpZWxkcygpO1xuICAgICAgICAgICAgcmV0dXJuO1xuICAgICAgICB9XG5cbiAgICAgICAgZm9ybS5zZXRGaWVsZHNWYWx1ZShJTklUSUFMX1ZBTFVFUyk7XG4gICAgfSwgWyBmb3JtLCB2aXNpYmxlIF0pO1xuXG4gICAgY29uc3QgaGFuZGxlUmVzdWx0Q2hhbmdlID0gKHZhbHVlOiBDTFVCX0FJX1ZFUklGWV9SRVNVTFQpID0+IHtcbiAgICAgICAgaWYgKHZhbHVlID09PSBDTFVCX0FJX1ZFUklGWV9SRVNVTFQuQ29ycmVjdCkge1xuICAgICAgICAgICAgZm9ybS5zZXRGaWVsZHNWYWx1ZSh7XG4gICAgICAgICAgICAgICAgcmVzdWx0U3RhdHVzOiB2YWx1ZSxcbiAgICAgICAgICAgICAgICBjaGVja1R5cGU6IGZvcm0uZ2V0RmllbGRWYWx1ZSgnY2hlY2tUeXBlJykgfHwgQ0xVQl9BSV9WRVJJRllfUkVBU09OLkJhZENvbnRlbnQsXG4gICAgICAgICAgICB9KTtcbiAgICAgICAgICAgIHJldHVybjtcbiAgICAgICAgfVxuXG4gICAgICAgIGZvcm0uc2V0RmllbGRzVmFsdWUoe1xuICAgICAgICAgICAgcmVzdWx0U3RhdHVzOiB2YWx1ZSxcbiAgICAgICAgICAgIGNoZWNrVHlwZTogdW5kZWZpbmVkLFxuICAgICAgICB9KTtcbiAgICB9O1xuXG4gICAgY29uc3QgaGFuZGxlU3VibWl0ID0gYXN5bmMgKCkgPT4ge1xuICAgICAgICB0cnkge1xuICAgICAgICAgICAgc2V0TG9hZGluZyh0cnVlKTtcbiAgICAgICAgICAgIGNvbnN0IHZhbHVlcyA9IGF3YWl0IGZvcm0udmFsaWRhdGVGaWVsZHMoKTtcblxuICAgICAgICAgICAgYXdhaXQgb25Paz8uKHZhbHVlcyk7XG4gICAgICAgIH0gZmluYWxseSB7XG4gICAgICAgICAgICBzZXRMb2FkaW5nKGZhbHNlKTtcbiAgICAgICAgfVxuICAgIH07XG5cbiAgICByZXR1cm4gKFxuICAgICAgICA8TW9kYWxcbiAgICAgICAgICAgIGdldENvbnRhaW5lcj17Z2V0Q29udGFpbmVyfVxuICAgICAgICAgICAgdGl0bGU9XCLmibnph4/lrqHmoLhcIlxuICAgICAgICAgICAgdmlzaWJsZT17dmlzaWJsZX1cbiAgICAgICAgICAgIGZvcmNlUmVuZGVyXG4gICAgICAgICAgICBvbkNhbmNlbD17b25DYW5jZWx9XG4gICAgICAgICAgICBtYXNrQ2xvc2FibGU9e2ZhbHNlfVxuICAgICAgICAgICAgZGVzdHJveU9uQ2xvc2VcbiAgICAgICAgICAgIGZvb3Rlcj17XG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjbHViLWFpLXF1YWxpdHktYmF0Y2gtbW9kYWxfX2Zvb3RlclwiPlxuICAgICAgICAgICAgICAgICAgICA8U3BhY2Ugc2l6ZT1cImxhcmdlXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8QnV0dG9uIG9uQ2xpY2s9e29uQ2FuY2VsfT7lj5bmtog8L0J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxCdXR0b24gbG9hZGluZz17bG9hZGluZ30gdHlwZT1cInByaW1hcnlcIiBvbkNsaWNrPXtoYW5kbGVTdWJtaXR9PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIOehruWumlxuICAgICAgICAgICAgICAgICAgICAgICAgPC9CdXR0b24+XG4gICAgICAgICAgICAgICAgICAgIDwvU3BhY2U+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICB9XG4gICAgICAgID5cbiAgICAgICAgICAgIDxGb3JtPENsdWJBaUNvbnRlbnRCYXRjaEF1ZGl0Rm9ybVZhbHVlcz4gZm9ybT17Zm9ybX0gaW5pdGlhbFZhbHVlcz17SU5JVElBTF9WQUxVRVN9IGxheW91dD1cImhvcml6b250YWxcIj5cbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImNsdWItYWktcXVhbGl0eS1iYXRjaC1tb2RhbF9fY291bnRcIj5cbiAgICAgICAgICAgICAgICAgICAgPHNwYW4+5YWx5a6h5qC4PC9zcGFuPlxuICAgICAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJjbHViLWFpLXF1YWxpdHktYmF0Y2gtbW9kYWxfX2NvdW50LW51bVwiPntjb3VudH08L3NwYW4+XG4gICAgICAgICAgICAgICAgICAgIDxzcGFuPuS4qkJhZGNhc2U8L3NwYW4+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG5cbiAgICAgICAgICAgICAgICA8Rm9ybS5JdGVtIGxhYmVsPVwi5a6h5qC457uT5p6cXCIgbmFtZT1cInJlc3VsdFN0YXR1c1wiIHJ1bGVzPXtbIHsgcmVxdWlyZWQ6IHRydWUsIG1lc3NhZ2U6ICfor7fpgInmi6nlrqHmoLjnu5PmnpwnIH0gXX0+XG4gICAgICAgICAgICAgICAgICAgIDxTZWxlY3Qgb3B0aW9ucz17Q2x1YkFpVmVyaWZ5UmVzdWx0T3B0aW9uc30gb25DaGFuZ2U9e2hhbmRsZVJlc3VsdENoYW5nZX0gLz5cbiAgICAgICAgICAgICAgICA8L0Zvcm0uSXRlbT5cblxuICAgICAgICAgICAgICAgIDxGb3JtLkl0ZW1cbiAgICAgICAgICAgICAgICAgICAgc2hvdWxkVXBkYXRlPXsocHJldlZhbHVlcywgY3VycmVudFZhbHVlcykgPT4gcHJldlZhbHVlcy5yZXN1bHRTdGF0dXMgIT09IGN1cnJlbnRWYWx1ZXMucmVzdWx0U3RhdHVzfVxuICAgICAgICAgICAgICAgICAgICBub1N0eWxlXG4gICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICB7KHsgZ2V0RmllbGRWYWx1ZSB9KSA9PiB7XG4gICAgICAgICAgICAgICAgICAgICAgICBjb25zdCByZXN1bHRTdGF0dXMgPSBnZXRGaWVsZFZhbHVlKCdyZXN1bHRTdGF0dXMnKTtcblxuICAgICAgICAgICAgICAgICAgICAgICAgaWYgKHJlc3VsdFN0YXR1cyAhPT0gQ0xVQl9BSV9WRVJJRllfUkVTVUxULkNvcnJlY3QpIHtcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICByZXR1cm4gbnVsbDtcbiAgICAgICAgICAgICAgICAgICAgICAgIH1cblxuICAgICAgICAgICAgICAgICAgICAgICAgcmV0dXJuIChcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8Rm9ybS5JdGVtXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGxhYmVsPVwi5Yik5a6a5YiG57G7XCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbmFtZT1cImNoZWNrVHlwZVwiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHJ1bGVzPXtbIHsgcmVxdWlyZWQ6IHRydWUsIG1lc3NhZ2U6ICfor7fpgInmi6nliKTlrprliIbnsbsnIH0gXX1cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxTZWxlY3Qgb3B0aW9ucz17Q2x1YkFpVmVyaWZ5UmVhc29uT3B0aW9uc30gLz5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L0Zvcm0uSXRlbT5cbiAgICAgICAgICAgICAgICAgICAgICAgICk7XG4gICAgICAgICAgICAgICAgICAgIH19XG4gICAgICAgICAgICAgICAgPC9Gb3JtLkl0ZW0+XG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJjbHViLWFpLXF1YWxpdHktYmF0Y2gtbW9kYWxfX3RpcFwiPlxuICAgICAgICAgICAgICAgICAgICDmj5DnpLrvvJrku4XmlK/mjIHlhajpg6jpgJrov4fmiJblhajpg6jmi5Lnu53vvIzlpoLmg7Pmn6XnnIvor6bmg4XvvIzor7fpgJDmnaHmn6XnnItcbiAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgIDwvRm9ybT5cbiAgICAgICAgPC9Nb2RhbD5cbiAgICApO1xufVxuXG5leHBvcnQgZGVmYXVsdCBDb250ZW50QXVkaXRCYXRjaE1vZGFsO1xuIl0sImZpbGUiOiJDOi9Vc2Vycy9BZG1pbmlzdHJhdG9yL0FwcERhdGEvUm9hbWluZy9Db2RlL1VzZXIvcHJvamVjdCBtYW5hZ2UvYmlnUGxheWVyL2FkbWluLW5ldy9jbHViL3VzZXIvYWlRdWFsaXR5L2NvbXBvbmVudHMvQ29udGVudEF1ZGl0QmF0Y2hNb2RhbC50c3gifQ==

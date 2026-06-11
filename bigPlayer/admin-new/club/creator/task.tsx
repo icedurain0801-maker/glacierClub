@@ -5,7 +5,7 @@ import { ColumnsType, FilterBox, Q1Table, Q1TablePropsType } from 'q1-antd';
 import { cloneDeep, get, keyBy } from 'lodash';
 import type { TableRowSelection } from 'antd/es/table/interface';
 import moment from 'moment';
-import { arrayMove } from 'react-sortable-hoc';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 
 import {
     useContentDialogContainer,
@@ -45,7 +45,7 @@ import { OMIT_TABLE_HEIGHT } from '@ts/clientModel';
 import { usePremitClubBoard } from '../board/hooks/useClubBoardOptions';
 import Audit from './components/Audit';
 import Create from './components/Create';
-require('./index.less');
+import './index.less';
 const pickFilterItemCom = (type: string) => (
     <FilterBox.Item
         name={type}
@@ -158,7 +158,7 @@ const TableList = forwardRef(({ tableType, onTabChange }: TableListProps, ref) =
                 setLoading(true);
                 const { type, boardId, filterType, ...values } = await filterers.validate();
                 if ([ null, undefined ].includes(boardId)) {
-                    message.warn('请选择所属版块');
+                    message.warning('请选择所属版块');
                     return false;
                 }
                 const query: any = {

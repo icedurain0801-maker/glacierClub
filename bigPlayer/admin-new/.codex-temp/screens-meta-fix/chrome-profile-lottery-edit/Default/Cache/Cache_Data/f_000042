@@ -1,0 +1,209 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/club/user/list/components/UserEdit.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=22152c6b"; const Fragment = __vite__cjsImport0_react_jsxDevRuntime["Fragment"]; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/node_modules/.vite/deps/react.js?v=22152c6b"; const useState = __vite__cjsImport3_react["useState"]; const useEffect = __vite__cjsImport3_react["useEffect"]; const useCallback = __vite__cjsImport3_react["useCallback"]; const memo = __vite__cjsImport3_react["memo"];
+import { Button, Form, message, Modal, Select, Space, TreeSelect } from "/node_modules/.vite/deps/antd.js?v=fec5e2ad";
+import { inject, observer } from "/node_modules/.vite/deps/mobx-react.js?v=00becadc";
+import { editUserinfo } from "/src/api/club.ts";
+import { useContentDialogContainer } from "/src/context/index.ts";
+export const FormOnlyVisiable = memo(
+  _c = (props) => {
+    const { value } = props;
+    return /* @__PURE__ */ jsxDEV(Fragment, { children: value }, void 0, false, {
+      fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+      lineNumber: 34,
+      columnNumber: 10
+    }, this);
+  },
+  (pre, next) => pre?.value === next?.value
+);
+_c2 = FormOnlyVisiable;
+function UserEdit(props) {
+  _s();
+  const [modalForm] = Form.useForm();
+  const {
+    data,
+    visible,
+    onOk,
+    onCancel,
+    clubDeployVersion,
+    userRoleTypeOptions,
+    labelTypeOptions
+  } = props;
+  useEffect(() => {
+    if (visible) {
+      modalForm.setFieldsValue(data);
+    }
+  }, [data, modalForm, visible]);
+  const [loading, setLoading] = useState(false);
+  const handleOk = useCallback(async () => {
+    const values = await modalForm.validateFields();
+    setLoading(true);
+    try {
+      const { code, msg } = await editUserinfo({ boardId: String(data?.boardId) }, values, clubDeployVersion);
+      if (code === 0) {
+        message.success(msg);
+        onOk?.();
+      } else {
+        message.error(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [clubDeployVersion, data, modalForm, onOk]);
+  return /* @__PURE__ */ jsxDEV(
+    Modal,
+    {
+      getContainer: useContentDialogContainer(),
+      title: "用户编辑",
+      visible,
+      onCancel: () => {
+        onCancel?.();
+      },
+      footer: /* @__PURE__ */ jsxDEV("div", { style: { textAlign: "right" }, children: /* @__PURE__ */ jsxDEV(Space, { size: "large", children: [
+        /* @__PURE__ */ jsxDEV(
+          Button,
+          {
+            onClick: () => {
+              onCancel?.();
+            },
+            children: "取消"
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+            lineNumber: 94,
+            columnNumber: 25
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          Button,
+          {
+            loading,
+            type: "primary",
+            onClick: () => {
+              handleOk();
+            },
+            children: "确定"
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+            lineNumber: 101,
+            columnNumber: 25
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+        lineNumber: 93,
+        columnNumber: 21
+      }, this) }, void 0, false, {
+        fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+        lineNumber: 92,
+        columnNumber: 7
+      }, this),
+      children: /* @__PURE__ */ jsxDEV(Form, { form: modalForm, children: [
+        /* @__PURE__ */ jsxDEV(Form.Item, { name: "userName", label: "冰川通行证名称", children: /* @__PURE__ */ jsxDEV(FormOnlyVisiable, {}, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 116,
+          columnNumber: 21
+        }, this) }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 115,
+          columnNumber: 17
+        }, this),
+        /* @__PURE__ */ jsxDEV(Form.Item, { name: "userInfoId", label: "用户自增id", hidden: true, children: /* @__PURE__ */ jsxDEV(FormOnlyVisiable, {}, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 120,
+          columnNumber: 21
+        }, this) }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 119,
+          columnNumber: 17
+        }, this),
+        /* @__PURE__ */ jsxDEV(Form.Item, { name: "userStatsId", label: "版块用户id", hidden: true, children: /* @__PURE__ */ jsxDEV(FormOnlyVisiable, {}, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 123,
+          columnNumber: 21
+        }, this) }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 122,
+          columnNumber: 17
+        }, this),
+        /* @__PURE__ */ jsxDEV(Form.Item, { name: "roleId", label: "用户分组", rules: [{ message: "请选择", required: true }], children: /* @__PURE__ */ jsxDEV(Select, { options: userRoleTypeOptions, allowClear: true }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 126,
+          columnNumber: 21
+        }, this) }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 125,
+          columnNumber: 17
+        }, this),
+        /* @__PURE__ */ jsxDEV(Form.Item, { name: "labelId", label: "用户标签", rules: [{ message: "请选择", required: true }], children: /* @__PURE__ */ jsxDEV(TreeSelect, { treeData: labelTypeOptions, allowClear: true, treeDefaultExpandAll: true }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 129,
+          columnNumber: 21
+        }, this) }, void 0, false, {
+          fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+          lineNumber: 128,
+          columnNumber: 17
+        }, this)
+      ] }, void 0, true, {
+        fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+        lineNumber: 114,
+        columnNumber: 13
+      }, this)
+    },
+    void 0,
+    false,
+    {
+      fileName: "C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx",
+      lineNumber: 84,
+      columnNumber: 5
+    },
+    this
+  );
+}
+_s(UserEdit, "2UUqBs3tb1S1evGNUvFoDp1wjvQ=", false, function() {
+  return [Form.useForm, useContentDialogContainer];
+});
+_c3 = UserEdit;
+export default inject("Club")(observer(UserEdit));
+var _c, _c2, _c3;
+$RefreshReg$(_c, "FormOnlyVisiable$memo");
+$RefreshReg$(_c2, "FormOnlyVisiable");
+$RefreshReg$(_c3, "UserEdit");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/admin-new/club/user/list/components/UserEdit.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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RUFBRUMsU0FBU1UsUUFBUSxDQUFDO0FBQUUsSUFBQU4sSUFBQUssS0FBQTBCO0FBQUEsYUFBQS9CLElBQUE7QUFBQSxhQUFBSyxLQUFBO0FBQUEsYUFBQTBCLEtBQUEiLCJuYW1lcyI6WyJ1c2VTdGF0ZSIsInVzZUVmZmVjdCIsInVzZUNhbGxiYWNrIiwibWVtbyIsIkJ1dHRvbiIsIkZvcm0iLCJtZXNzYWdlIiwiTW9kYWwiLCJTZWxlY3QiLCJTcGFjZSIsIlRyZWVTZWxlY3QiLCJpbmplY3QiLCJvYnNlcnZlciIsImVkaXRVc2VyaW5mbyIsInVzZUNvbnRlbnREaWFsb2dDb250YWluZXIiLCJGb3JtT25seVZpc2lhYmxlIiwiX2MiLCJwcm9wcyIsInZhbHVlIiwicHJlIiwibmV4dCIsIl9jMiIsIlVzZXJFZGl0IiwiX3MiLCJtb2RhbEZvcm0iLCJ1c2VGb3JtIiwiZGF0YSIsInZpc2libGUiLCJvbk9rIiwib25DYW5jZWwiLCJjbHViRGVwbG95VmVyc2lvbiIsInVzZXJSb2xlVHlwZU9wdGlvbnMiLCJsYWJlbFR5cGVPcHRpb25zIiwic2V0RmllbGRzVmFsdWUiLCJsb2FkaW5nIiwic2V0TG9hZGluZyIsImhhbmRsZU9rIiwidmFsdWVzIiwidmFsaWRhdGVGaWVsZHMiLCJjb2RlIiwibXNnIiwiYm9hcmRJZCIsIlN0cmluZyIsInN1Y2Nlc3MiLCJlcnJvciIsInRleHRBbGlnbiIsInJlcXVpcmVkIiwiX2MzIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIlVzZXJFZGl0LnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QsIHsgdXNlU3RhdGUsIHVzZUVmZmVjdCwgdXNlQ2FsbGJhY2ssIG1lbW8gfSBmcm9tICdyZWFjdCc7XG5pbXBvcnQgeyBCdXR0b24sIEZvcm0sIG1lc3NhZ2UsIE1vZGFsLCBTZWxlY3QsIFNwYWNlLCBUcmVlU2VsZWN0IH0gZnJvbSAnYW50ZCc7XG5pbXBvcnQgeyBpbmplY3QsIG9ic2VydmVyIH0gZnJvbSAnbW9ieC1yZWFjdCc7XG5cbmltcG9ydCB7IFN0b3JlVHlwZSB9IGZyb20gJ0Avc3RvcmUvY29uZmlnJztcbmltcG9ydCB7IGVkaXRVc2VyaW5mbyB9IGZyb20gJ0AvYXBpL2NsdWInO1xuaW1wb3J0IHsgdXNlQ29udGVudERpYWxvZ0NvbnRhaW5lciB9IGZyb20gJ0AvY29udGV4dCc7XG5cbmltcG9ydCB7IENMVUJfREVQTE9ZX1ZFUlNJT04sIFVzZXJpbmZvTGlzdFJlc3BvbnNlIH0gZnJvbSAnQHRzL2NsdWInO1xuXG4vKiogVE9ET1M65Y+v5Lul5Zyo6L+Z6YeM5YGa5LiA5LiL6L2s5o2i5LmL57G755qE77yM55uu5YmN5LiN55+l6YGT6L+U5Zue5qC85byP77yM5pqC5pe25LiN5YGa5aSE55CGICovXG5leHBvcnQgY29uc3QgRm9ybU9ubHlWaXNpYWJsZSA9IG1lbW8oXG4gICAgKHByb3BzOiBhbnkpID0+IHtcbiAgICAgICAgY29uc3QgeyB2YWx1ZSB9ID0gcHJvcHM7XG4gICAgICAgIHJldHVybiA8Pnt2YWx1ZX08Lz47XG4gICAgfSxcbiAgICAocHJlLCBuZXh0KSA9PiBwcmU/LnZhbHVlID09PSBuZXh0Py52YWx1ZVxuKTtcblxuaW50ZXJmYWNlIFVzZXJFZGl0UHJvcHMge1xuICAgIGRhdGE/OiBVc2VyaW5mb0xpc3RSZXNwb25zZTtcbiAgICBjbHViRGVwbG95VmVyc2lvbjogQ0xVQl9ERVBMT1lfVkVSU0lPTjtcbiAgICB2aXNpYmxlOiBib29sZWFuO1xuICAgIG9uT2s/OiAoKSA9PiB2b2lkO1xuICAgIG9uQ2FuY2VsPzogKCkgPT4gdm9pZDtcbiAgICB1c2VyUm9sZVR5cGVPcHRpb25zOiBhbnk7XG4gICAgbGFiZWxUeXBlT3B0aW9uczogYW55O1xufVxuaW50ZXJmYWNlIFVzZXJFZGl0TW9ieFByb3BzIGV4dGVuZHMgVXNlckVkaXRQcm9wcywgUGljazxTdG9yZVR5cGUsICdDbHViJz4ge31cbmZ1bmN0aW9uIFVzZXJFZGl0KHByb3BzOiBVc2VyRWRpdFByb3BzKSB7XG4gICAgY29uc3QgWyBtb2RhbEZvcm0gXSA9IEZvcm0udXNlRm9ybSgpO1xuICAgIGNvbnN0IHtcbiAgICAgICAgZGF0YSxcbiAgICAgICAgdmlzaWJsZSxcbiAgICAgICAgb25PayxcbiAgICAgICAgb25DYW5jZWwsXG4gICAgICAgIGNsdWJEZXBsb3lWZXJzaW9uLFxuICAgICAgICB1c2VyUm9sZVR5cGVPcHRpb25zLFxuICAgICAgICBsYWJlbFR5cGVPcHRpb25zLFxuICAgIH0gPSBwcm9wcyBhcyBVc2VyRWRpdE1vYnhQcm9wcztcblxuICAgIHVzZUVmZmVjdCgoKSA9PiB7XG4gICAgICAgIGlmICh2aXNpYmxlKSB7XG4gICAgICAgICAgICBtb2RhbEZvcm0uc2V0RmllbGRzVmFsdWUoZGF0YSk7XG4gICAgICAgIH1cbiAgICB9LCBbIGRhdGEsIG1vZGFsRm9ybSwgdmlzaWJsZSBdKTtcbiAgICBjb25zdCBbIGxvYWRpbmcsIHNldExvYWRpbmcgXSA9IHVzZVN0YXRlKGZhbHNlKTtcblxuICAgIGNvbnN0IGhhbmRsZU9rID0gdXNlQ2FsbGJhY2soYXN5bmMgKCkgPT4ge1xuICAgICAgICBjb25zdCB2YWx1ZXMgPSBhd2FpdCBtb2RhbEZvcm0udmFsaWRhdGVGaWVsZHMoKTtcbiAgICAgICAgc2V0TG9hZGluZyh0cnVlKTtcbiAgICAgICAgdHJ5IHtcbiAgICAgICAgICAgIGNvbnN0IHsgY29kZSwgbXNnIH0gPSBhd2FpdCBlZGl0VXNlcmluZm8oeyBib2FyZElkOiBTdHJpbmcoZGF0YT8uYm9hcmRJZCkgfSwgdmFsdWVzLCBjbHViRGVwbG95VmVyc2lvbik7XG4gICAgICAgICAgICBpZiAoY29kZSA9PT0gMCkge1xuICAgICAgICAgICAgICAgIG1lc3NhZ2Uuc3VjY2Vzcyhtc2cpO1xuICAgICAgICAgICAgICAgIG9uT2s/LigpO1xuICAgICAgICAgICAgfSBlbHNlIHtcbiAgICAgICAgICAgICAgICBtZXNzYWdlLmVycm9yKG1zZyk7XG4gICAgICAgICAgICB9XG4gICAgICAgIH0gZmluYWxseSB7XG4gICAgICAgICAgICBzZXRMb2FkaW5nKGZhbHNlKTtcbiAgICAgICAgfVxuICAgIH0sIFsgY2x1YkRlcGxveVZlcnNpb24sIGRhdGEsIG1vZGFsRm9ybSwgb25PayBdKTtcbiAgICByZXR1cm4gKFxuICAgICAgICA8TW9kYWxcbiAgICAgICAgICAgIGdldENvbnRhaW5lcj17dXNlQ29udGVudERpYWxvZ0NvbnRhaW5lcigpfVxuICAgICAgICAgICAgdGl0bGU9XCLnlKjmiLfnvJbovpFcIlxuICAgICAgICAgICAgdmlzaWJsZT17dmlzaWJsZX1cbiAgICAgICAgICAgIG9uQ2FuY2VsPXsoKSA9PiB7XG4gICAgICAgICAgICAgICAgb25DYW5jZWw/LigpO1xuICAgICAgICAgICAgfX1cbiAgICAgICAgICAgIGZvb3Rlcj17XG4gICAgICAgICAgICAgICAgPGRpdiBzdHlsZT17eyB0ZXh0QWxpZ246ICdyaWdodCcgfX0+XG4gICAgICAgICAgICAgICAgICAgIDxTcGFjZSBzaXplPVwibGFyZ2VcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxCdXR0b25cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiB7XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG9uQ2FuY2VsPy4oKTtcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICB9fVxuICAgICAgICAgICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIOWPlua2iFxuICAgICAgICAgICAgICAgICAgICAgICAgPC9CdXR0b24+XG4gICAgICAgICAgICAgICAgICAgICAgICA8QnV0dG9uXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgbG9hZGluZz17bG9hZGluZ31cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICB0eXBlPVwicHJpbWFyeVwiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4ge1xuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBoYW5kbGVPaygpO1xuICAgICAgICAgICAgICAgICAgICAgICAgICAgIH19XG4gICAgICAgICAgICAgICAgICAgICAgICA+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAg56Gu5a6aXG4gICAgICAgICAgICAgICAgICAgICAgICA8L0J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgPC9TcGFjZT5cbiAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgIH1cbiAgICAgICAgPlxuICAgICAgICAgICAgPEZvcm0gZm9ybT17bW9kYWxGb3JtfT5cbiAgICAgICAgICAgICAgICA8Rm9ybS5JdGVtIG5hbWU9XCJ1c2VyTmFtZVwiIGxhYmVsPVwi5Yaw5bed6YCa6KGM6K+B5ZCN56ewXCI+XG4gICAgICAgICAgICAgICAgICAgIDxGb3JtT25seVZpc2lhYmxlIC8+XG4gICAgICAgICAgICAgICAgPC9Gb3JtLkl0ZW0+XG5cbiAgICAgICAgICAgICAgICA8Rm9ybS5JdGVtIG5hbWU9XCJ1c2VySW5mb0lkXCIgbGFiZWw9XCLnlKjmiLfoh6rlop5pZFwiIGhpZGRlbj5cbiAgICAgICAgICAgICAgICAgICAgPEZvcm1Pbmx5VmlzaWFibGUgLz5cbiAgICAgICAgICAgICAgICA8L0Zvcm0uSXRlbT5cbiAgICAgICAgICAgICAgICA8Rm9ybS5JdGVtIG5hbWU9XCJ1c2VyU3RhdHNJZFwiIGxhYmVsPVwi54mI5Z2X55So5oi3aWRcIiBoaWRkZW4+XG4gICAgICAgICAgICAgICAgICAgIDxGb3JtT25seVZpc2lhYmxlIC8+XG4gICAgICAgICAgICAgICAgPC9Gb3JtLkl0ZW0+XG4gICAgICAgICAgICAgICAgPEZvcm0uSXRlbSBuYW1lPVwicm9sZUlkXCIgbGFiZWw9XCLnlKjmiLfliIbnu4RcIiBydWxlcz17WyB7IG1lc3NhZ2U6ICfor7fpgInmi6knLCByZXF1aXJlZDogdHJ1ZSB9IF19PlxuICAgICAgICAgICAgICAgICAgICA8U2VsZWN0IG9wdGlvbnM9e3VzZXJSb2xlVHlwZU9wdGlvbnN9IGFsbG93Q2xlYXIgLz5cbiAgICAgICAgICAgICAgICA8L0Zvcm0uSXRlbT5cbiAgICAgICAgICAgICAgICA8Rm9ybS5JdGVtIG5hbWU9XCJsYWJlbElkXCIgbGFiZWw9XCLnlKjmiLfmoIfnrb5cIiBydWxlcz17WyB7IG1lc3NhZ2U6ICfor7fpgInmi6knLCByZXF1aXJlZDogdHJ1ZSB9IF19PlxuICAgICAgICAgICAgICAgICAgICA8VHJlZVNlbGVjdCB0cmVlRGF0YT17bGFiZWxUeXBlT3B0aW9uc30gYWxsb3dDbGVhciB0cmVlRGVmYXVsdEV4cGFuZEFsbCAvPlxuICAgICAgICAgICAgICAgIDwvRm9ybS5JdGVtPlxuICAgICAgICAgICAgPC9Gb3JtPlxuICAgICAgICA8L01vZGFsPlxuICAgICk7XG59XG5cbmV4cG9ydCBkZWZhdWx0IGluamVjdCgnQ2x1YicpKG9ic2VydmVyKFVzZXJFZGl0KSk7XG4iXSwiZmlsZSI6IkM6L1VzZXJzL0FkbWluaXN0cmF0b3IvQXBwRGF0YS9Sb2FtaW5nL0NvZGUvVXNlci9wcm9qZWN0IG1hbmFnZS9iaWdQbGF5ZXIvYWRtaW4tbmV3L2NsdWIvdXNlci9saXN0L2NvbXBvbmVudHMvVXNlckVkaXQudHN4In0=

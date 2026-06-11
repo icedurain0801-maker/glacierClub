@@ -6,7 +6,19 @@ import placeholderVideo from '@/assets/placeholder_video.png';
 
 import { PostListItem, RichTextType, RICH_TEXT_TYPE_ENUM } from '@ts/club';
 
-require('./PostContent.less');
+import './PostContent.less';
+
+const parseRichContent = (content?: string): RichTextType[] => {
+    if (!content) {
+        return [];
+    }
+    try {
+        const parsed = JSON.parse(content);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [ { Type: RICH_TEXT_TYPE_ENUM.Text, Data: String(content) } ];
+    }
+};
 
 interface PostContentProps extends PostListItem {
     showOriginImage?: Boolean; // 是否显示原始图片，默认显示占位图片
@@ -49,24 +61,25 @@ export default function PostContent(props: PostContentProps) {
 
     return (
         <div className="club-post-content-contain">
-            {JSON.parse(content).map((v: RichTextType, i: number) => {
+            {parseRichContent(content).map((v: RichTextType, i: number) => {
+                const data = String(v?.Data ?? '');
                 let node = null;
                 switch (v.Type) {
                     case RICH_TEXT_TYPE_ENUM.Text:
                     case RICH_TEXT_TYPE_ENUM.Link:
                         node =
-                            v?.Data.length >= 99 ? (
+                            data.length >= 99 ? (
                                 <Popover
                                     content={
                                         <div style={{ maxWidth: '40vw', maxHeight: '60vh', overflow: 'auto' }}>
-                                            {v?.Data}
+                                            {data}
                                         </div>
                                     }
                                 >
-                                    <span>{String(v?.Data.substring(0, 100)) + '...'}</span>
+                                    <span>{data.substring(0, 100) + '...'}</span>
                                 </Popover>
                             ) : (
-                                <span>{v?.Data}</span>
+                                <span>{data}</span>
                             );
                         break;
                     case RICH_TEXT_TYPE_ENUM.Image:
@@ -95,7 +108,7 @@ export function PostContentOnlyText(content: string) {
     try {
         if (content) {
             result =
-                JSON.parse(content)
+                parseRichContent(content)
                     ?.map((item: RichTextType) => (item?.Type === RICH_TEXT_TYPE_ENUM.Text ? item?.Data : ''))
                     .join(' ') || '';
         }

@@ -32,7 +32,7 @@ import RobotForm from '../RobotForm';
 import AccountForm from '../AccountForm';
 import { BoardCreateProvider, DefaultLanguage } from '../../../context/boardCreateProvider';
 
-require('./index.less');
+import './index.less';
 
 export const SEPARATE = '&&&&';
 
@@ -458,7 +458,7 @@ function BoardCreate(props: BoardCreateProps) {
             //     holidaySkinEnabled === BASIC_CHECK_STATUS.Open &&
             //     [ playerCircleUrl, rewardTaskUrl, myImageUrl, postUrl, newseUrl, homeUrl ].some(v => !v)
             // ) {
-            //     return message.warn('节假日皮肤开启时，功能栏图标不能为空！');
+            //     return message.warning('节假日皮肤开启时，功能栏图标不能为空！');
             // }
             toolbar = toolMode
                 ? toolbar.map((x: any, index: number) => ({

@@ -9,7 +9,7 @@ import { get, groupBy, pick } from 'lodash';
 
 import { quickPickTimeRange, setUtcEndTimeAndFormat, setUtcStartTimeAndFormat, simpleTime } from '@/utils/date';
 import ActionGroup from '@/components/ActionGroup';
-import { useContentPermissionFn, useReactive } from '@/context';
+import { useContentPermissionFn } from '@/context';
 import { changeUserinfoStatus, getUserList, getUserListHref } from '@/api/club';
 import useSyncState from '@/hooks/state/useSyncState';
 import RangePicker from '@/components/RangePicker';
@@ -82,7 +82,7 @@ function UserList(props: UserListProps) {
         try {
             const { field, value, boardId, registerTime, loginTime, ...rest } = await filterbox.validate();
             if ([ null, undefined ].includes(boardId)) {
-                message.warn('请选择所属版块');
+                message.warning('请选择所属版块');
                 return false;
             }
             const { pageSize, current } = getPagination();
@@ -118,6 +118,10 @@ function UserList(props: UserListProps) {
             }
             setData(data || []);
             setpagination({ ...getPagination(), total });
+        } catch (e) {
+            if (!(e as any)?.outOfDate) {
+                console.error(e);
+            }
         } finally {
             setLoading(false);
         }
@@ -126,10 +130,6 @@ function UserList(props: UserListProps) {
     useEffect(() => {
         fetchTableData();
     }, [ fetchTableData ]);
-
-    useReactive(() => {
-        fetchTableData();
-    });
 
     const handleChange = useCallback(
         (nextPagination: any, _filters, sorter: any) => {
@@ -492,7 +492,7 @@ function UserList(props: UserListProps) {
     const download = useCallback(async () => {
         const { field, value, boardId, ...rest } = await filterbox.validate();
         if ([ null, undefined ].includes(boardId)) {
-            message.warn('请选择所属版块');
+            message.warning('请选择所属版块');
             return false;
         }
         const query = { boardId: boardId.split(BOARD_PERMIT_SEPARATE)[1] };

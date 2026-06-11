@@ -17,7 +17,7 @@ import {
     MultiLangColumnsItem,
     MultiLangToolColumnsItem,
 } from '@ts/club';
-require('./detail.less');
+import './detail.less';
 
 interface Props extends DrawerProps {
     data: PediaListResponse | null;

@@ -6,7 +6,8 @@ import { useContentTabSearch, useReactive, useStore } from '@/context';
 import { removeUrlQuery } from '@/utils/urlQuery';
 import { StoreType } from '@/store/config';
 
-import { MessageAuditOptions, MessageRecordOptions } from '@ts/club';
+const MessageAuditOptions = [{ label: '全部', value: '' }, { label: '待审核', value: 0 }, { label: '已通过', value: 1 }];
+const MessageRecordOptions = [{ label: '全部', value: '' }, { label: '正常', value: 1 }];
 
 import TableList from './components/TableList';
 

@@ -190,6 +190,7 @@ const Create: React.FC<CreateProps> = ({
     return (
         <Drawer
             visible={visible}
+            forceRender
             width={520}
             title={isEdit ? '编辑标签' : '新增标签'}
             footer={

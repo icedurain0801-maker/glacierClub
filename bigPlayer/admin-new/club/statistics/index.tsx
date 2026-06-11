@@ -12,11 +12,12 @@ import { quickPickTimeRange } from '@/utils/date';
 import useSyncState from '@/components/UseSyncState';
 import RangePicker from '@/components/RangePicker';
 import { usePremitClubBoard } from '@/pages/club/board/hooks/useClubBoardOptions';
-import { ContentMemo } from '@/layouts/main/util';
 
 import { BOARD_PERMIT_SEPARATE, StatisticsDailyItem, StatisticsSummaryRes } from '@ts/club';
+import './index.less';
+
+const ContentMemo = React.memo;
 const MAX_CREATE_DAY = 9999;
-require('./index.less');
 
 function Statistics() {
     const { hasFunctionPermit } = useContentPermissionFn();
@@ -113,7 +114,11 @@ function Statistics() {
                 align: 'center',
                 width: 200,
                 render: v => {
-                    return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6)}`;
+                    if (!v) {
+                        return '';
+                    }
+                    const value = String(v);
+                    return value.includes('-') ? value : `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6)}`;
                 },
             },
             {

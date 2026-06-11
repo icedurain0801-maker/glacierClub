@@ -22,6 +22,7 @@ import {
 
 import Create from './components/Create';
 import { CATEGORY, defaultData, GrowthSystemsItemType, RULE_ACTION, RULE_CYCLE } from './defaultVal';
+import './index.less';
 
 /** sections生成树形结构 */
 function sectionsS2C(sections: BoardSectionType[]) {
@@ -291,18 +292,21 @@ function BoardList(props: BoardListProps) {
                 title: '版块ID',
                 switch: 1,
                 align: 'center',
+                width: 82,
             },
             {
                 dataIndex: 'name',
                 title: '版块名称',
                 switch: 1,
                 align: 'center',
+                width: 110,
             },
             {
                 dataIndex: 'imageUrl',
                 title: '版块图片',
                 switch: 1,
                 align: 'center',
+                width: 140,
                 render: v => {
                     return v ? (
                         <Image
@@ -319,7 +323,7 @@ function BoardList(props: BoardListProps) {
                 title: '功能栏',
                 switch: 1,
                 align: 'left',
-                width: 300,
+                width: 190,
                 render: v => {
                     return v?.map((x: any) => (
                         <Tag key={x?.id} color="blue" style={{ marginBottom: '8px' }}>
@@ -333,7 +337,7 @@ function BoardList(props: BoardListProps) {
                 title: '资讯栏目',
                 switch: 1,
                 align: 'left',
-                width: 300,
+                width: 220,
                 render: val => {
                     return sectionsS2C(val || [])?.map((x: BoardSectionType) =>
                         x?.children?.length ? (
@@ -362,6 +366,7 @@ function BoardList(props: BoardListProps) {
                 title: '操作时间 ',
                 switch: 1,
                 align: 'center',
+                width: 142,
                 render: v => (v ? simpleTime(v) : ''),
             },
             {
@@ -369,13 +374,14 @@ function BoardList(props: BoardListProps) {
                 title: '操作人 ',
                 switch: 1,
                 align: 'center',
+                width: 80,
             },
             {
                 dataIndex: 'operation',
                 title: '操作',
                 switch: 1,
                 align: 'center',
-                width: 160,
+                width: 118,
                 resizable: false,
                 render: (v, record: BoardListResponse) => {
                     return (
@@ -452,7 +458,7 @@ function BoardList(props: BoardListProps) {
     );
 
     return (
-        <div>
+        <div className="admin-polish-page board-manage-page">
             <FilterBox query={fetchTableData} tableName="clubBoardTable" context={filterbox} initialValues={initVal}>
                 <FilterBox.Item
                     name="clubDeployVersion"
@@ -481,18 +487,20 @@ function BoardList(props: BoardListProps) {
                 }}
                 onChange={handleChange}
             />
-            <Create
-                data={selectData}
-                visible={visibleCreateModal}
-                onOk={() => {
-                    setVisibleCreateModal(false);
-                    fetchTableData();
-                    refreshClubStoreApi();
-                }}
-                onCancel={() => {
-                    setVisibleCreateModal(false);
-                }}
-            />
+            {visibleCreateModal && (
+                <Create
+                    data={selectData}
+                    visible={visibleCreateModal}
+                    onOk={() => {
+                        setVisibleCreateModal(false);
+                        fetchTableData();
+                        refreshClubStoreApi();
+                    }}
+                    onCancel={() => {
+                        setVisibleCreateModal(false);
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -68,7 +68,7 @@ import { AuditStatus, OptionType } from '@ts/enum/enum';
 
 import { getClubImageHost, useClubUploadOption } from '../../../board/hooks/useClubUploadOption';
 
-require('./Create.less');
+import './Create.less';
 
 interface ClubAppearanceCreateProps {
     clubBoardOptions: BoardPermitOptionsType[];

@@ -11,7 +11,7 @@ import { normalRuleValidator } from '@/utils/lib';
 
 import { ClubDeployVersionOptionsData, ModelSetting } from '@ts/club';
 
-require('./index.less');
+import './index.less';
 
 const MIN = 0;
 const MAX_POINTS = 100;
@@ -343,13 +343,13 @@ function LargeModelParameter() {
                     <BlockHeader title="标签权重" hasBottom size="middle" />
                     <Row className="flex-1" style={{ paddingLeft: 140, marginBottom: 15 }}>
                         <Col span={18}>
-                            <Table columns={columns} dataSource={dataSource} bordered pagination={false} />
+                            <Table rowKey="behavior" columns={columns} dataSource={dataSource} bordered pagination={false} />
                         </Col>
                     </Row>
                     <BlockHeader title="推荐模块内容权重" hasBottom size="middle" />
                     <Row className="flex-1" style={{ paddingLeft: 140, marginBottom: 15 }}>
                         <Col span={18}>
-                            <Table columns={recommendColumns} dataSource={recommendData} bordered pagination={false} />
+                            <Table rowKey="behavior" columns={recommendColumns} dataSource={recommendData} bordered pagination={false} />
                         </Col>
                     </Row>
                     <BlockHeader title="参数设置" hasBottom size="middle" />

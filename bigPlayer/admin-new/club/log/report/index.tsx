@@ -43,7 +43,7 @@ import Audit from './Audit';
 import PostEdit from '../../content/components/PostEdit';
 import PostContent from '../../content/components/PostContent';
 
-require('./index.less');
+import './index.less';
 
 interface ComplaintTabListProps {}
 

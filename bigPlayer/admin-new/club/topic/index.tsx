@@ -43,7 +43,7 @@ import { usePremitClubBoard } from '../board/hooks/useClubBoardOptions';
 import Audit from './components/Audit';
 import Create from './components/Create';
 import BatchImport from './components/BatchImport';
-require('./index.less');
+import './index.less';
 
 export enum TABLE_TYPE {
     Record = 'Record',

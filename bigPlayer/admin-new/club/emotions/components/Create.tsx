@@ -17,7 +17,7 @@ import {
     CLUB_DEPLOY_VERSION,
 } from '@ts/club';
 
-require('./create.less');
+import './create.less';
 
 interface CreateProps {
     clubBoardOptions: BoardPermitOptionsType[];

@@ -25,10 +25,10 @@ import {
     PlusOutlined,
     QuestionCircleOutlined,
 } from '@ant-design/icons';
-import { arrayMove } from 'react-sortable-hoc';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 import { inject, observer } from 'mobx-react';
 import type { FormInstance, Rule } from 'antd/es/form';
-import { get, isArray, keyBy, map, cloneDeep, omit, isEqual, uniq } from 'lodash';
+import { get, isArray, keyBy, map, cloneDeep, omit, isEqual, uniq, groupBy } from 'lodash';
 
 import UploadImg from '@/components/uploadFile/UploadImg';
 import SortableTable from '@/components/q1Table/sortableTable';
@@ -413,16 +413,13 @@ const BaseForm = function BaseForm(props: BaseFormProps) {
                                 item.gameVersion
                             )}`,
                         })) || [];
-                    let options = _(list)
-                        .groupBy('gameStr') // 按 gameStr 分组
-                        .map((items, key) => ({
-                            label: key, // 分组标题（如: xxxx游戏&xxxx版本）
-                            options: items.map(i => ({
-                                label: i.label,
-                                value: i.value,
-                            })),
-                        }))
-                        .value();
+                    let options = Object.entries(groupBy(list, 'gameStr')).map(([ key, items ]) => ({
+                        label: key, // 按 gameStr 分组
+                        options: items.map(i => ({
+                            label: i.label,
+                            value: i.value,
+                        })),
+                    }));
                     setCdkList(options);
                 } else {
                     setCdkList([]);
@@ -1124,6 +1121,7 @@ const BaseForm = function BaseForm(props: BaseFormProps) {
                                                                 : []),
                                                             {
                                                                 key: 'expanded',
+                                                                width: 50,
                                                                 title: '拓展',
                                                                 align: 'center',
                                                                 render: (v: string, row: any) => {
@@ -1166,6 +1164,7 @@ const BaseForm = function BaseForm(props: BaseFormProps) {
                                                         ]}
                                                         pagination={false}
                                                         size="small"
+                                                        scroll={{ x: 920 }}
                                                         footer={() => {
                                                             return fields?.length < SECTION_LENGTH_MAX ? (
                                                                 <Button

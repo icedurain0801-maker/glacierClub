@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Button, Form, Modal, Table, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
-import * as XLSX from 'xlsx';
-import * as XLSXStyle from 'xlsx-style';
-import saveAs from 'file-saver';
 import { get, keyBy } from 'lodash';
 
 import ReadFile from '@/components/uploadFile/readXls';
@@ -11,8 +8,20 @@ import { submitAccountBatch, validateAccountBatch } from '@/api/club';
 
 import { CLUB_DEPLOY_VERSION, ChangerUsersType } from '@ts/club';
 
-const xlsxTemplate = require('../template.xlsx');
-require('./index.less');
+// xlsx/xlsx-style loaded dynamically to avoid Vite build issues
+let XLSX: any = null;
+let XLSXStyle: any = null;
+let saveAs: any = null;
+const loadXlsx = async () => {
+  if (!XLSX) {
+    [{ default: saveAs }, XLSX, XLSXStyle] = await Promise.all([
+      import('file-saver'),
+      import('xlsx'),
+      import('xlsx-style'),
+    ]);
+  }
+};
+import './index.less';
 
 interface UserForbidProps {
     visible: boolean;
@@ -309,7 +318,7 @@ function UserForbid(props: UserForbidProps) {
                             readAsTextEncode="ansi"
                             parsingOptions={{ cellDates: true }}
                         />
-                        <Button type="link" href={xlsxTemplate} download="账号批量封禁模板表格.xlsx">
+                        <Button type="link" href="#" download="账号批量封禁模板表格.xlsx">
                             下载模板表格
                         </Button>
                     </div>

@@ -9,7 +9,7 @@ import { getBoardList } from '@/api/club';
 import { AuditStatusColor, AuditStatusConstant, CLUB_DEPLOY_VERSION, PostListItem } from '@ts/club';
 
 import PostEdit from './PostEdit';
-require('./PostDetail.less');
+import './PostDetail.less';
 interface DetailProps {
     type?: 'recycleBin' | 'detail';
     data?: PostListItem;

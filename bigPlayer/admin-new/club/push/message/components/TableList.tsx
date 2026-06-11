@@ -31,7 +31,7 @@ import { DefaultPagination } from '@ts/enum/table';
 import { TABLE_TYPE } from '../index';
 import Audit from './Audit';
 
-require('./tableList.less');
+import './tableList.less';
 
 interface TableListProps {
     tableType: TABLE_TYPE;
@@ -87,7 +87,7 @@ const TableList = React.forwardRef<RefMethods, TableListProps>((props, ref) => {
                 const { statuses, boardId, title, ...values } = await filterers.validate();
                 setCurrentFromFilter({ statuses, boardId, ...values } as any);
                 if ([ null, undefined ].includes(boardId)) {
-                    message.warn('请选择所属版块');
+                    message.warning('请选择所属版块');
                     return false;
                 }
                 let status = tableType === TABLE_TYPE.Record ? PUSH_STATUS_TYPE.MsgAll : PUSH_STATUS_TYPE.AuditAll;

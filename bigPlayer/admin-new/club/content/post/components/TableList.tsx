@@ -111,7 +111,7 @@ import PostLike from '../../components/PostLike';
 import PostSectionMigrateForm from '../../components/PostSectionMigrateForm';
 import PostAudit from './Audit';
 
-require('./tableList.less');
+import './tableList.less';
 
 const defaultPagination: paginationType = {
     pageIndex: 1,
@@ -227,7 +227,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
             if (record === undefined) {
                 let { boardId, type } = await filterers.validate();
                 if (!boardId || type === undefined) {
-                    !boardId && message.warn('请先选择所属版块');
+                    !boardId && message.warning('请先选择所属版块');
                     type === undefined && message.error('请先选择投稿类型');
                 } else {
                     setSelectData({ boardId: boardId.split(BOARD_PERMIT_SEPARATE)[1], type } as any);
@@ -340,7 +340,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
                 ...values
             } = await filterers.validate();
             if ([ null, undefined, '' ].includes(boardIdOrg)) {
-                message.warn('请选择所属版块');
+                message.warning('请选择所属版块');
                 return false;
             }
             const [ clubDeployVersion, boardId ] = boardIdOrg.split(BOARD_PERMIT_SEPARATE);
@@ -536,7 +536,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
             ...values
         } = await filterers.validate();
         if ([ null, undefined ].includes(boardId)) {
-            message.warn('请选择所属版块');
+            message.warning('请选择所属版块');
             return false;
         }
         const isSearchLastWeek = Object.values(

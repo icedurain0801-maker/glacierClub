@@ -1,7 +1,7 @@
 import { Button, Checkbox, Form, Input, InputNumber, Modal, Radio, Select, Space, Table } from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
 import { FormInstance } from 'antd/es/form';
-import { arrayMove } from 'react-sortable-hoc';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 
 import NumberSwitch from '@/components/NumberSwitch';
 import UploadImg from '@/components/uploadFile/UploadImg';
@@ -22,7 +22,7 @@ import {
 } from '@ts/club';
 
 import { useClubUploadOption } from '../../../hooks/useClubUploadOption';
-require('./index.less');
+import './index.less';
 interface RobotFormProps {
     data: BoardEditParams;
     modalForm: FormInstance;

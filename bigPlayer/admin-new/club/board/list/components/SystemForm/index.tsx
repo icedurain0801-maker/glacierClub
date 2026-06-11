@@ -29,7 +29,7 @@ import {
 } from '../../defaultVal';
 import { LanguageTabWrapper } from '../Create/LanguageTabWrapper';
 import { useBoardCreate } from '../../../context/boardCreateProvider';
-require('./index.less');
+import './index.less';
 /** 论坛币、经验值、周期 下限 */
 const INPUT_NUM_MIN = 0;
 /** 论坛币、经验值、周期 上限 */
@@ -967,7 +967,7 @@ const GrowthTable = function GrowthTable({ modalForm }: { modalForm: FormInstanc
                                                                             getFieldValue('growthSystems').length - 1
                                                                         ];
                                                                         if (lastItem.exp === INPUT_NUM_MAX) {
-                                                                            return message.warn(
+                                                                            return message.warning(
                                                                                 '当前最高等级的经验值已达到上限！'
                                                                             );
                                                                         }

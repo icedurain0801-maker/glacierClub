@@ -7,7 +7,7 @@ import UploadImg from '@/components/uploadFile/UploadImg';
 import { BANNER_IMAGEURL_VISIBLE, BoardEditParams } from '@ts/club';
 
 import { useClubUploadOption } from '../../../hooks/useClubUploadOption';
-require('./index.less');
+import './index.less';
 interface ImageFormProps {
     data: BoardEditParams;
 }

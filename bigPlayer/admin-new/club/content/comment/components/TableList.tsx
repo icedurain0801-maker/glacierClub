@@ -194,7 +194,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
                 ...values
             } = await filterers.validate();
             if ([ null, undefined ].includes(boardId)) {
-                message.warn('请选择所属版块');
+                message.warning('请选择所属版块');
                 return false;
             }
 
@@ -373,7 +373,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
             omit(await filterers.validate(), 'boardId', 'commentFilterType', 'passportFilterType')
         ).every(v => !v);
         if ([ null, undefined, '' ].includes(boardId)) {
-            message.warn('请选择所属版块');
+            message.warning('请选择所属版块');
             return false;
         }
         let query = { boardId: [ boardId.split(BOARD_PERMIT_SEPARATE)[1] ].join(',') };

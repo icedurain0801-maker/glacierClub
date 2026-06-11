@@ -50,38 +50,41 @@ function BaseDrawer(props: IProps) {
     });
 
     const fetchTableData = useCallback(async () => {
+        if (!visible || !detail) {
+            return;
+        }
         setLoading(true);
         try {
-            const { tagName } = await form.validateFields();
-            if (detail) {
-                const { pageSize, current } = getPagination();
-                const query = {
-                    userId: detail.userInfoId,
-                    tagName,
-                    pageIndex: current,
-                    pageSize,
-                };
-                const { data = [], total = 0 } = await getUserTag(query, clubDeployVersion);
-                if ((data || [])?.length === 0 && current !== 1) {
-                    setpagination({ ...getPagination(), current: 1 });
-                    fetchTableData();
-                }
-                if (data) {
-                    setTableData(data);
-                    setpagination({ ...getPagination(), total });
-                } else {
-                    setTableData([]);
-                    setpagination({ ...getPagination(), total: 0 });
-                }
+            const { tagName } = await form.validateFields().catch(() => ({}));
+            const { pageSize, current } = getPagination();
+            const query = {
+                userId: detail.userInfoId,
+                tagName,
+                pageIndex: current,
+                pageSize,
+            };
+            const { data = [], total = 0 } = await getUserTag(query, clubDeployVersion);
+            if ((data || [])?.length === 0 && current !== 1) {
+                setpagination({ ...getPagination(), current: 1 });
+                return;
+            }
+            if (data) {
+                setTableData(data);
+                setpagination({ ...getPagination(), total });
+            } else {
+                setTableData([]);
+                setpagination({ ...getPagination(), total: 0 });
             }
         } finally {
             setLoading(false);
         }
-    }, [ clubDeployVersion, detail, form, getPagination, setpagination ]);
+    }, [ clubDeployVersion, detail, form, getPagination, setpagination, visible ]);
 
     useEffect(() => {
-        fetchTableData();
-    }, [ fetchTableData ]);
+        if (visible && detail) {
+            fetchTableData();
+        }
+    }, [ detail, fetchTableData, visible ]);
 
     const columns: ColumnsType<UserTag> = useMemo(() => {
         return [

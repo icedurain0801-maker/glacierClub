@@ -1,4 +1,4 @@
-import { Button, Card, DatePicker, Form, FormInstance, Input, Radio, Select, Spin, message } from 'antd';
+import { Button, Card, DatePicker, Form, FormInstance, Input, Modal, Radio, Select, Spin, message } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { inject, observer, useObserver } from 'mobx-react';
 import moment, { Moment } from 'moment';
@@ -6,7 +6,7 @@ import { LinkOutlined } from '@ant-design/icons';
 import { usePersistantFunction } from '@q1/hooks';
 
 import { DividerTitle } from '@/pages/email/common/create';
-import { useContentParams, useContentTab, useLiveContentTabSearch, useStore, useWrapModal } from '@/context';
+import { useContentParams, useContentTab, useLiveContentTabSearch, useStore } from '@/context';
 import { createPushMessage, getPushMessageList, updatePushMessage } from '@/api/club';
 import { StoreType } from '@/store/config';
 import UploadImg from '@/components/uploadFile/UploadImg';
@@ -56,15 +56,16 @@ function CreatePushMessage(props: CreatePushMessageProps) {
 
     const { clubBoardOptions } = usePremitClubBoard();
     const searchParams = useLiveContentTabSearch();
-    const _boardId = (searchParams.get('boardId') &&
-        decodeURIComponent(searchParams.get('boardId') as string)) as string;
+    const _boardId = searchParams.get('boardId')
+        ? decodeURIComponent(searchParams.get('boardId') as string)
+        : 'zh&&1';
     const [ clubDeployVersion ] = useState<CLUB_DEPLOY_VERSION>(
-        searchParams.get('clubDeployVersion') as CLUB_DEPLOY_VERSION
+        (searchParams.get('clubDeployVersion') || 'zh') as CLUB_DEPLOY_VERSION
     );
 
     const { editId, copyId } = useContentParams();
     const editorRef = useRef<null | RichtextEditRefProps>(null);
-    const [ modal, contextHolder ] = useWrapModal.useComponentModal();
+    const [ modal, contextHolder ] = Modal.useModal();
     const boardId = useMemo(() => {
         return _boardId.split(BOARD_PERMIT_SEPARATE)[1] as string;
     }, [ _boardId ]);
@@ -331,7 +332,7 @@ function CreatePushMessage(props: CreatePushMessageProps) {
                             {
                                 validator: (rule, { text }) => {
                                     if (text?.replace(/[\n\r]/g, '')?.length > MAX_PUSH_CONTENT) {
-                                        message.warn(rule.message);
+                                        message.warning(rule.message);
                                         return Promise.reject(rule.message);
                                     }
                                     return Promise.resolve();

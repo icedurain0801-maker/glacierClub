@@ -5,7 +5,7 @@ import { OptionsType } from 'rc-select/lib/interface';
 import { batchCopyEncyclopediaGroup } from '@/api/club';
 
 import { CLUB_DEPLOY_VERSION, PediaListResponse } from '@ts/club';
-require('./index.less');
+import './index.less';
 interface PropsType {
     boardId: number;
     userName: string;

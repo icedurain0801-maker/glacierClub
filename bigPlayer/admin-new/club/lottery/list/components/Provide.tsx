@@ -1,4 +1,4 @@
-import { Button, Descriptions, Form, Input, message, Modal, Select, Space, Spin } from 'antd';
+import { Button, Descriptions, Input, message, Modal, Select, Space, Spin } from 'antd';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ColumnsType, Q1Table, Q1TablePropsType } from 'q1-antd';
 import type { TableRowSelection } from 'antd/es/table/interface';
@@ -26,7 +26,7 @@ import {
 } from '@ts/club';
 import { paginationType } from '@ts/common';
 import { DOWNLOAD_PAGESIZE, FeedbackResponseType2 } from '@ts/api';
-require('./provide.less');
+import './provide.less';
 
 interface LotteryProvideProps {
     data: LotteryListResponse;
@@ -127,8 +127,6 @@ function LotteryProvide(props: LotteryProvideProps) {
             setUserOptions(res || []);
         }
     }, [ boardId, clubDeployVersion, data ]);
-
-    const [ form ] = Form.useForm();
 
     const handleOk = async () => {
         try {
@@ -263,9 +261,7 @@ function LotteryProvide(props: LotteryProvideProps) {
 
     const download = useCallback(async () => {
         if (allTableData?.length) {
-            const values = await form.validateFields();
             const params: LotteryAwardsListParams = {
-                ...values,
                 id: data?.id,
                 boardId,
                 addUser: [],
@@ -276,7 +272,7 @@ function LotteryProvide(props: LotteryProvideProps) {
         } else {
             message.warning('暂无数据可导出');
         }
-    }, [ allTableData?.length, form, data?.id, boardId, clubDeployVersion ]);
+    }, [ allTableData?.length, data?.id, boardId, clubDeployVersion ]);
 
     const tableProps: Q1TablePropsType<LotteryProvideListResponse> = useMemo(() => {
         const columns: ColumnsType<LotteryProvideListResponse> = [

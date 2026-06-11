@@ -3,7 +3,7 @@ import { Button, Checkbox, Form, Input, Modal, Space, message } from 'antd';
 
 import { getOptimizeAnswer } from '@/api/clubQuality';
 import { useContentDialogContainer } from '@/context';
-import { HugeConfirmModalProps } from '@/utils/defaultProps';
+const HugeConfirmModalProps = { width: 900 };
 import { simpleTime } from '@/utils/date';
 
 import {
@@ -178,6 +178,7 @@ function ChatAuditDetailModal(props: ChatAuditDetailModalProps) {
     return (
         <Modal
             visible={visible}
+            forceRender
             title="单个校验详情"
             getContainer={getContainer}
             onCancel={onCancel}

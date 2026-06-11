@@ -5,7 +5,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { get, isEqual, uniq, omit, cloneDeep } from 'lodash';
 import type { Rule } from 'antd/es/form';
 import type { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
-import arrayMove from 'array-move';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 
 import SortableTable from '@/components/q1Table/sortableTable';
 import NumberSwitch from '@/components/NumberSwitch';
@@ -150,9 +150,10 @@ export function SectionsChildren(props: SectionsProps) {
             {
                 title: '资讯栏目',
                 key: 'name',
+                width: 260,
                 render: (_, record) => {
                     return (
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div className="section-child-name-cell">
                             <Form.Item
                                 noStyle
                                 shouldUpdate={(pre, cur) =>
@@ -180,7 +181,7 @@ export function SectionsChildren(props: SectionsProps) {
                                 }}
                             </Form.Item>
 
-                            <div className="upload-item" style={{ width: 38, marginRight: 12 }}>
+                            <div className="upload-item" style={{ width: 38 }}>
                                 <Form.Item {...record} name={[ record.name, 'iconUrl' ]}>
                                     <UploadImg
                                         uploadButton={<PlusOutlined />}
@@ -356,6 +357,7 @@ export function SectionsChildren(props: SectionsProps) {
                 columns={columns}
                 pagination={false}
                 size="small"
+                scroll={{ x: 600 }}
                 locale={{ emptyText: '暂无数据' }}
                 rowKey="key"
                 footer={() =>
@@ -589,6 +591,7 @@ export function SecetionItem(props: SecetionItemProps) {
                 key: 'section',
                 title: '序号',
                 align: 'center',
+                width: 64,
                 render: (_, record) => (
                     <>
                         {record.name + 1}
@@ -604,6 +607,7 @@ export function SecetionItem(props: SecetionItemProps) {
                 key: 'name',
                 title: '类别名称',
                 align: 'center',
+                width: 180,
                 render: (_, record, index) => (
                     <Form.Item
                         {...record}
@@ -736,6 +740,7 @@ export function SecetionItem(props: SecetionItemProps) {
                 columns={columns}
                 pagination={false}
                 size="small"
+                scroll={{ x: 620 }}
                 rowKey="key"
                 footer={() =>
                     equaledFields?.length < SECTION_LENGTH_MAX ? (

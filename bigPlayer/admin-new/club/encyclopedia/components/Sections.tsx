@@ -5,7 +5,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { get, isEqual, uniq } from 'lodash';
 import type { Rule } from 'antd/es/form';
 import type { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
-import arrayMove from 'array-move';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 
 import SortableTable from '@/components/q1Table/sortableTable';
 import NumberSwitch from '@/components/NumberSwitch';
@@ -21,7 +21,7 @@ import { BoardSectionType, CLUB_DEPLOY_VERSION, MOMENT_TYPE, PEDIA_TYPE } from '
 
 import { useClubUploadOption } from '../../board/hooks/useClubUploadOption';
 import usePostSelect from '../../board/hooks/usePostSelect';
-require('./sections.less');
+import './sections.less';
 
 export const DefaultSections = {
     name: '',

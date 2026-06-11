@@ -162,7 +162,7 @@ function TableList(props: TableListProps) {
                 ...values
             } = await filterers.validate();
             if ([ null, undefined, '' ].includes(boardIdOrg)) {
-                message.warn('请选择所属版块');
+                message.warning('请选择所属版块');
                 return false;
             }
             const [ clubDeployVersion, boardId ] = boardIdOrg.split(BOARD_PERMIT_SEPARATE);
@@ -502,7 +502,7 @@ function TableList(props: TableListProps) {
             ...values
         } = await filterers.validate();
         if ([ null, undefined, '' ].includes(boardIdOrg)) {
-            message.warn('请选择所属版块');
+            message.warning('请选择所属版块');
             return false;
         }
         const [ clubDeployVersion, boardId ] = boardIdOrg.split(BOARD_PERMIT_SEPARATE);

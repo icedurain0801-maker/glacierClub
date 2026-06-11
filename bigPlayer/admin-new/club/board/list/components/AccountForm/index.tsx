@@ -28,7 +28,7 @@ import {
 import { getClubImageHost, useClubUploadOption } from '../../../hooks/useClubUploadOption';
 import { SEPARATE } from '../Create';
 
-require('./index.less');
+import './index.less';
 interface AccountFormProps {
     form: FormInstance;
     data: BoardEditParams;

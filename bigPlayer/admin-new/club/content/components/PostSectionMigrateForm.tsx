@@ -2,7 +2,7 @@ import { Form, TreeSelect } from 'antd';
 import React from 'react';
 
 import { IdNameOptionsType } from '@ts/club';
-require('./PostSectionMigrateForm.less');
+import './PostSectionMigrateForm.less';
 interface PostSectionMigrateFormProps {
     treeData: IdNameOptionsType[];
     length: number;

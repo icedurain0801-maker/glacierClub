@@ -4,7 +4,7 @@ import { Image, Select, Button, message, Modal, Switch, Input } from 'antd';
 import { FilterBox, Q1Table, ColumnsType, Q1TablePropsType } from 'q1-antd';
 import { cloneDeep, get, keyBy } from 'lodash';
 import type { TableRowSelection } from 'antd/es/table/interface';
-import { arrayMove } from 'react-sortable-hoc';
+import { arrayMoveImmutable as arrayMove } from 'array-move';
 import moment from 'moment';
 
 import Permissions from '@/layouts/components/permissions';
@@ -39,7 +39,7 @@ import {
 import { TABLE_TYPE } from '../index';
 import Create, { POSTION_SEPARATOR } from './Create';
 import Audit from './Audit';
-require('./tableList.less');
+import './tableList.less';
 /** 位置-默认值 */
 export const sectionIdDefault = [ { label: SectionConstant[SECTION_ENUM.Recommend], value: SECTION_ENUM.Recommend } ];
 const defaultPagination: paginationType = {
@@ -101,7 +101,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
                 const { status, boardId, positions, date, ...values } = await filterers.validate();
                 setCurrentFromFilter({ status, boardId, ...values } as any);
                 if ([ null, undefined ].includes(boardId)) {
-                    message.warn('请选择所属版块');
+                    message.warning('请选择所属版块');
                     return false;
                 }
                 let query: any = {
@@ -209,7 +209,7 @@ const TableList: React.FC<TableListProps> = function TableList(props: TableListP
     const handleAdd = useCallback(async () => {
         const { boardId } = await filterers.validate();
         if (boardDictForPermit[boardId]?.status === BOARD_STATUS.Close) {
-            message.warn('该版块已停用，不可新增轮播图');
+            message.warning('该版块已停用，不可新增轮播图');
             return;
         }
         setEditVisiable(true);

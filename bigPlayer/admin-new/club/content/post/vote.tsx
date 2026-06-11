@@ -14,7 +14,7 @@ import { getPostVoteHref, getVoteDetails, getVoteRecord } from '@/api/club';
 import { paginationType } from '@ts/common';
 import { CLUB_DEPLOY_VERSION, VoteDetailItem, VoteDetailResponse, VoteRecordQuery } from '@ts/club';
 
-require('./vote.less');
+import './vote.less';
 
 const defaultPagination: paginationType = {
     pageIndex: 1,

@@ -99,7 +99,7 @@ const TableList = function (props: TableListProps) {
                     ...values
                 } = await filterers.validate();
                 if ([ null, undefined ].includes(boardId)) {
-                    message.warn('请选择所属版块');
+                    message.warning('请选择所属版块');
                     return false;
                 }
                 let query: any = {

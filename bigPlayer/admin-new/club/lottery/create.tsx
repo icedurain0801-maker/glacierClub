@@ -80,7 +80,7 @@ import {
 import ActivityPrize from './list/components/ActivityPrize';
 import { TABLE_TYPE } from './list';
 import { getFixedPrizeGoodsName } from './utils/fixedPrizeI18n';
-require('./create.less');
+import './create.less';
 interface LotteryCreateProps {}
 interface MobxLotteryCreateProps
     extends LotteryCreateProps,
@@ -312,9 +312,9 @@ const LotteryCreate = function (props: LotteryCreateProps) {
     const { id } = useContentParams();
     const tab = useContentTab();
     const query = useContentTabSearch();
-    const type = query.get('type');
-    const boardId = Number(query.get('boardId') || 0);
-    const clubDeployVersion = query.get('clubDeployVersion')! as CLUB_DEPLOY_VERSION;
+    const type = query.get('type') || 'create';
+    const boardId = Number(query.get('boardId') || 1);
+    const clubDeployVersion = (query.get('clubDeployVersion') || 'zh') as CLUB_DEPLOY_VERSION;
     const isMultipleLanguage = clubDeployVersion === CLUB_ENVIRONMENT_ENUM.EN;
     let isEdit = type === 'edit';
     const isCopy = type === 'copy';
@@ -2002,7 +2002,7 @@ const LotteryCreateWithStore = inject(
 
 export default function LotteryCreatePage() {
     const query = useContentTabSearch();
-    const clubDeployVersion = query.get('clubDeployVersion')! as CLUB_DEPLOY_VERSION;
+    const clubDeployVersion = (query.get('clubDeployVersion') || 'zh') as CLUB_DEPLOY_VERSION;
     const { Club, GoodsInfo } = useStore();
 
     const languageOptionsLoading = useObserver(() => Club.languageOptionsLoading);
