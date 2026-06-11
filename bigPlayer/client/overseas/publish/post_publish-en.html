@@ -130,7 +130,7 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
 /* compose */
 .compose-area{padding:16px 16px 0;}
 .compose-textarea{width:100%;border:none;background:transparent;outline:none;resize:none;
-  font-family:Inter;font-size:15px;color:var(--text-strong-2);line-height:1.65;min-height:200px;overflow:hidden;}
+  font-family:Inter;font-size:15px;color:var(--text-strong-2);line-height:1.65;min-height:200px;overflow:hidden;display:block;}
 .compose-textarea::placeholder{color:#c8d0d5;}
 
 /* attachment counters */
@@ -302,8 +302,8 @@ function onTitleInput() {
 
 function onBodyInput() {
   const ta = document.getElementById('mainTextarea');
-  ta.style.height = '200px';
-  ta.style.height = Math.max(200, ta.scrollHeight) + 'px';
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
   const words = ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0;
   document.getElementById('wordCount').textContent = words + ' / 5000 words';
   updateSaveBtn();
