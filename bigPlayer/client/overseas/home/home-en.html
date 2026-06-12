@@ -105,6 +105,8 @@
     --device-bezel-dark:#1a1a1a;
     --like-color:var(--primary);
     --football-like-ball:url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
+    /* 后台未配置 banner 主视觉时的兜底背景（方案 E 品牌深蓝·浅色版），随主题翻色 */
+    --home-hero-fallback:linear-gradient(180deg,#eaf0fb 0%,#dce6f7 60%,#e2eafb 100%);
     --home-hero-bg:url("https://q1-operation-bulletin-sz.oss-cn-shenzhen.aliyuncs.com/CLUB/2026/04/24/1777003605222b8eb3d61-f99b-4e82-882f-b4914d4dcff5.png");
 }
   [data-theme="dark"]{
@@ -126,6 +128,8 @@
     --on-surface:#e6edf3;
     --background:#0d1117;
     --hero-fade-rgb:13,17,23;
+    /* 后台未配置 banner 主视觉时的兜底背景（方案 E 品牌深蓝·深色版） */
+    --home-hero-fallback:linear-gradient(180deg,#16223d 0%,#101a30 60%,#0e1424 100%);
     --inverse-primary:#79c0ff;
     --surface:#0d1117;
     --surface-tint:#4493f8;
@@ -1458,9 +1462,27 @@
   [data-theme="dark"] .theme-toggle .icon-dark{display:none;}
   [data-theme="dark"] .theme-toggle .icon-light{display:inline-block;}
 
+  /* ── Banner Switcher（有图 / 无图兜底切换） ── */
+  .banner-switcher {
+    position: fixed; top: 24px; right: 80px; z-index: 9999;
+    display: inline-flex; background: var(--surface-container-lowest);
+    border-radius: 999px; padding: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  .banner-switcher button {
+    border: none; background: transparent;
+    font-family: Inter, sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--on-surface-variant);
+    border-radius: 999px; padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .banner-switcher button.active { background: var(--primary); color: #fff; }
+  .banner-switcher button:not(.active):hover { color: var(--on-surface); }
+
   /* ── Variant Switcher（网页/APP/简洁 3 版本切换） ── */
   .variant-switcher {
-    position: fixed; top: 24px; right: 80px; z-index: 9999;
+    position: fixed; top: 64px; right: 80px; z-index: 9999;
     display: inline-flex; background: var(--surface-container-lowest);
     border-radius: 999px; padding: 4px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.18);
@@ -1628,6 +1650,10 @@
 </head>
 <body class="flex justify-center items-start py-10 min-h-screen" style="background:var(--bg-body);" data-variant="web">
 <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><span class="material-symbols-outlined icon-dark">dark_mode</span><span class="material-symbols-outlined icon-light">light_mode</span></button>
+<div class="banner-switcher" id="bannerSwitcher">
+  <button data-banner="photo" class="active" onclick="setBanner('photo')">有图</button>
+  <button data-banner="fallback" onclick="setBanner('fallback')">无图·兜底</button>
+</div>
 <div class="variant-switcher" id="variantSwitcher">
   <button data-variant="web" class="active" onclick="setVariant('web')">网页版</button>
   <button data-variant="app" onclick="setVariant('app')">APP版</button>
@@ -3120,14 +3146,23 @@
     document.getElementById('community-chevron').classList.remove('open');
   }
 
+  /* 应用社区 banner 主视觉：后台配置了图就用图，未配置则回落到品牌兜底背景（随主题翻色） */
+  function applyCommunityHero(c) {
+    const hero = (c && c.bg) ? `url('${c.bg}')` : 'var(--home-hero-fallback)';
+    document.body.style.setProperty('--home-hero-bg', hero);
+    const drawerBg = document.getElementById('drawer-bg');
+    if (drawerBg) {
+      drawerBg.style.backgroundImage = (c && c.bg) ? `url('${c.bg}')` : 'var(--home-hero-fallback)';
+    }
+  }
+
   function switchCommunity(id) {
     if (id === _activeCommunityId) { closeCommunityDropdown(); return; }
     _activeCommunityId = id;
     const c = COMMUNITIES.find(x => x.id === id);
 
     /* update drawer header */
-    document.body.style.setProperty('--home-hero-bg', `url('${c.bg}')`);
-    document.getElementById('drawer-bg').style.backgroundImage = `url('${c.bg}')`;
+    applyCommunityHero(c);
     document.getElementById('drawer-community-name').textContent = c.name;
     document.getElementById('drawer-username').textContent = c.server;
     document.getElementById('drawer-lv').textContent = c.lv;
@@ -3157,9 +3192,23 @@
 
   /* init */
   buildCommunityList();
+  /* 首屏按当前社区应用 banner：已配置显图，未配置回落兜底背景 */
+  applyCommunityHero(COMMUNITIES.find(x => x.id === _activeCommunityId));
 
   /* ── Variant Switcher（网页 / APP / 小程序 / 简洁 4 版本切换）── */
   /* 小程序版样式与 APP 版基本一致，仅切换按钮高亮区分；小程序版隐藏角色绑定条 */
+  function setBanner(mode) {
+    const c = COMMUNITIES.find(x => x.id === _activeCommunityId);
+    if (mode === 'fallback') {
+      applyCommunityHero({ bg: '' });
+    } else {
+      applyCommunityHero(c);
+    }
+    document.querySelectorAll('#bannerSwitcher button').forEach(b => {
+      b.classList.toggle('active', b.dataset.banner === mode);
+    });
+  }
+
   function setVariant(variant) {
     if (!['web', 'app', 'miniprogram', 'simple'].includes(variant)) variant = 'web';
     const styleVariant = variant === 'miniprogram' ? 'app' : variant;
