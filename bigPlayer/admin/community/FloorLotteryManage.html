@@ -804,6 +804,62 @@ tbody tr:hover { background: #fafeff; }
 .modal-btn.confirm { background: #ff4d4f; color: #fff; }
 .modal-btn.confirm:hover { background: #ff7875; }
 
+/* ── 投票固定选项：多选下拉 ── */
+.vote-fixed-select { position: relative; max-width: 360px; }
+.vote-fixed-trigger {
+  min-height: 34px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 3px 28px 3px 8px;
+  font-size: 13px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  position: relative;
+}
+.vote-fixed-trigger:hover { border-color: #1890ff; }
+.vote-fixed-select.open .vote-fixed-trigger { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.15); }
+.vote-fixed-placeholder { color: #bfbfbf; }
+.vote-fixed-tags { display: contents; }
+.vote-fixed-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #e6f7ff; border: 1px solid #91d5ff;
+  border-radius: 3px; padding: 1px 6px;
+  font-size: 12px; color: #096dd9;
+}
+.vote-fixed-tag-rm { cursor: pointer; line-height: 1; }
+.vote-fixed-tag-rm:hover { color: #ff4d4f; }
+.vote-fixed-arrow {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  color: #bfbfbf; font-size: 14px; pointer-events: none;
+}
+.vote-fixed-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px); left: 0; right: 0;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 50;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.vote-fixed-select.open .vote-fixed-panel { display: block; }
+.vote-fixed-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  font-size: 13px; color: #262626;
+  cursor: pointer;
+}
+.vote-fixed-opt:hover { background: #f0f7ff; }
+.vote-fixed-opt input { width: 14px; height: 14px; accent-color: #1890ff; }
+
 /* ── 编辑模式：字段锁定 ── */
 .field-locked .form-input,
 .field-locked .form-select,
@@ -1006,9 +1062,24 @@ tbody tr:hover { background: #fafeff; }
     <div class="form-row">
       <div class="form-label"><span class="form-required">*</span> 关联作者：</div>
       <div class="form-control">
-        <div class="author-select-wrap" style="max-width: 240px;">
-          <input type="text" class="form-input" id="e-author" placeholder="请输入大玩家ID或昵称">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="author-select-wrap" style="max-width: 240px; flex:1;">
+            <input type="text" class="form-input" id="e-author" placeholder="请输入大玩家ID或昵称">
+          </div>
+          <button class="btn-inline" id="btn-author-search">搜 索</button>
         </div>
+        <div class="form-hint-text info" id="author-search-result" style="display:none;">已匹配作者：<span id="author-matched-name"></span></div>
+      </div>
+    </div>
+
+    <!-- 关联文章：作者搜索成功后出现 -->
+    <div class="form-row" id="row-related-post" style="display:none;">
+      <div class="form-label"><span class="form-required">*</span> 关联文章：</div>
+      <div class="form-control">
+        <select class="form-select mid" id="e-related-post" style="max-width:360px;">
+          <option value="">请选择该作者发布的文章</option>
+        </select>
+        <div class="form-hint-text">下拉内容为该作者发布的文章，格式为「帖子ID-帖子名称」</div>
       </div>
     </div>
 
@@ -1217,6 +1288,22 @@ tbody tr:hover { background: #fafeff; }
             <div class="radio-group" id="vote-option-group">
               <div class="radio-btn active" data-vote="无要求">无要求</div>
               <div class="radio-btn" data-vote="固定选项">固定选项</div>
+              <div class="radio-btn" data-vote="最多票数" id="vote-tab-most">最多票数</div>
+            </div>
+          </div>
+          <!-- 固定选项：选择投票选项（多选、必选） -->
+          <div class="cond-sub-row" id="row-vote-fixed" style="display:none;">
+            <span class="cond-sub-label"><span class="form-required">*</span> 投票选项：</span>
+            <div style="flex:1; min-width:260px;">
+              <div class="vote-fixed-select" id="vote-fixed-select">
+                <div class="vote-fixed-trigger" id="vote-fixed-trigger">
+                  <span class="vote-fixed-placeholder" id="vote-fixed-placeholder">请选择投票选项（可多选）</span>
+                  <span class="vote-fixed-tags" id="vote-fixed-tags"></span>
+                  <span class="vote-fixed-arrow">⌄</span>
+                </div>
+                <div class="vote-fixed-panel" id="vote-fixed-panel"></div>
+              </div>
+              <div class="form-hint-text">玩家需投出所选的全部选项才算达成条件（多选、必选）</div>
             </div>
           </div>
         </div>
@@ -1526,7 +1613,7 @@ tbody tr:hover { background: #fafeff; }
 
   // 锁定字段范围：除"活动名称/活动奖品/活动说明"以外全部锁定
   const LOCKED_LABEL_TEXT = [
-    '关联作者', '活动类型', '活动时间', '活动截止时间',
+    '关联作者', '关联文章', '活动类型', '活动时间', '活动截止时间',
     '开奖人数', '周期总数', '发奖方式', '参与条件',
     '楼层抽奖规则'
   ];
@@ -1560,6 +1647,14 @@ tbody tr:hover { background: #fafeff; }
     document.getElementById('keyword-show-toggle').checked = true;
     document.getElementById('keyword-show-label').textContent = '开启';
     document.querySelectorAll('#vote-option-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
+    document.getElementById('row-vote-fixed').style.display = 'none';
+    voteFixedSelected = [];
+    renderVoteFixedPanel();
+    renderVoteFixedTags();
+    // 重置关联作者搜索 / 关联文章
+    document.getElementById('author-search-result').style.display = 'none';
+    document.getElementById('row-related-post').style.display = 'none';
+    document.getElementById('e-related-post').selectedIndex = 0;
     // 重置楼层规则
     document.querySelectorAll('#rule-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
     document.getElementById('rule-detail').style.display = 'none';
@@ -1568,6 +1663,10 @@ tbody tr:hover { background: #fafeff; }
     // 重置周期总数模式（默认不限）
     document.querySelectorAll('#cycle-winners-mode-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
     document.getElementById('cycle-winners-input-wrap').style.display = 'none';
+    // 重置活动类型（默认单次活动），并刷新「最多票数」tab 等联动显隐
+    document.querySelectorAll('#activity-type-group .radio-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
+    activityType = 'single';
+    refreshActivityType();
   }
 
   // ── 列表 Tab 切换 ──
@@ -1676,7 +1775,78 @@ tbody tr:hover { background: #fafeff; }
     btn.addEventListener('click', function() {
       document.querySelectorAll('#vote-option-group .radio-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
+      document.getElementById('row-vote-fixed').style.display = this.dataset.vote === '固定选项' ? '' : 'none';
     });
+  });
+
+  // ── 关联作者搜索 → 关联文章联动 ──
+  // mock：每个作者对应一批已发布文章（帖子ID-帖子名称）
+  const MOCK_AUTHOR_POSTS = [
+    { id: 'P10231', name: '超能世界新版本前瞻爆料' },
+    { id: 'P10245', name: '萌新必看：开局阵容搭配指南' },
+    { id: 'P10312', name: '谷雨节气活动玩法详解' },
+    { id: 'P10358', name: '皮肤风格投票，你pick哪一款' },
+    { id: 'P10401', name: '高玩进阶：资源规划与养成节奏' },
+  ];
+
+  document.getElementById('btn-author-search').addEventListener('click', () => {
+    const val = document.getElementById('e-author').value.trim();
+    if (!val) { alert('请输入大玩家ID或昵称'); return; }
+    // mock：搜索成功
+    document.getElementById('author-matched-name').textContent = val;
+    document.getElementById('author-search-result').style.display = '';
+    // 展示关联文章字段并填充该作者发布的文章
+    const sel = document.getElementById('e-related-post');
+    sel.innerHTML = '<option value="">请选择该作者发布的文章</option>' +
+      MOCK_AUTHOR_POSTS.map(p => `<option value="${p.id}">${p.id}-${p.name}</option>`).join('');
+    document.getElementById('row-related-post').style.display = '';
+  });
+
+  // ── 投票固定选项：多选下拉 ──
+  // mock：关联文章下的投票选项
+  const MOCK_VOTE_OPTIONS = ['选项A：清新风', '选项B：暗黑风', '选项C：国风', '选项D：未来科技风', '选项E：可爱风'];
+  let voteFixedSelected = [];
+
+  function renderVoteFixedPanel() {
+    document.getElementById('vote-fixed-panel').innerHTML = MOCK_VOTE_OPTIONS.map((o, i) => `
+      <label class="vote-fixed-opt">
+        <input type="checkbox" value="${i}" ${voteFixedSelected.includes(i) ? 'checked' : ''}> ${o}
+      </label>
+    `).join('');
+  }
+  function renderVoteFixedTags() {
+    const tags = document.getElementById('vote-fixed-tags');
+    const ph = document.getElementById('vote-fixed-placeholder');
+    ph.style.display = voteFixedSelected.length ? 'none' : '';
+    tags.innerHTML = voteFixedSelected.map(i => `
+      <span class="vote-fixed-tag">${MOCK_VOTE_OPTIONS[i]}<span class="vote-fixed-tag-rm" data-idx="${i}">×</span></span>
+    `).join('');
+  }
+  renderVoteFixedPanel();
+  renderVoteFixedTags();
+
+  document.getElementById('vote-fixed-trigger').addEventListener('click', e => {
+    if (e.target.classList.contains('vote-fixed-tag-rm')) {
+      const idx = Number(e.target.dataset.idx);
+      voteFixedSelected = voteFixedSelected.filter(v => v !== idx);
+      renderVoteFixedPanel();
+      renderVoteFixedTags();
+      e.stopPropagation();
+      return;
+    }
+    document.getElementById('vote-fixed-select').classList.toggle('open');
+  });
+  document.getElementById('vote-fixed-panel').addEventListener('change', e => {
+    if (e.target.type !== 'checkbox') return;
+    const idx = Number(e.target.value);
+    if (e.target.checked) { if (!voteFixedSelected.includes(idx)) voteFixedSelected.push(idx); }
+    else voteFixedSelected = voteFixedSelected.filter(v => v !== idx);
+    voteFixedSelected.sort((a, b) => a - b);
+    renderVoteFixedTags();
+  });
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('vote-fixed-select');
+    if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
   });
 
   // ── 发奖方式切换 ──
@@ -1800,6 +1970,15 @@ tbody tr:hover { background: #fafeff; }
 
     // 参与条件周期重置提示
     document.getElementById('cond-cycle-hint').style.display = isCycle ? '' : 'none';
+
+    // 「最多票数」仅单次活动可用：周期活动隐藏该 tab；
+    // 若周期活动下当前正选中「最多票数」，回退到「无要求」
+    const voteMostTab = document.getElementById('vote-tab-most');
+    voteMostTab.style.display = isCycle ? 'none' : '';
+    if (isCycle && voteMostTab.classList.contains('active')) {
+      document.querySelectorAll('#vote-option-group .radio-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+      document.getElementById('row-vote-fixed').style.display = 'none';
+    }
 
     // 周期关键词模式行（仅勾选评论关键词时可见，由 refreshCommentSub 控制）
     refreshCycleKwMode();
@@ -2294,12 +2473,78 @@ tbody tr:hover { background: #fafeff; }
   </div>
   <div class="help-panel-body">
 
-    <!-- v3.1.0 -->
+    <!-- v3.1.2 -->
     <div class="help-version-block open">
       <div class="help-version-hd is-latest">
+        <span class="help-version-num">v3.1.2</span>
+        <span class="help-version-date">2026-06-15</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+        <div class="help-section">
+          <div class="help-section-title">本次需求范围</div>
+          <ol>
+            <li>楼层抽奖「新建 / 编辑」表单中，参与条件勾选「投票创作」后的<strong>「投票选项」</strong>字段新增 <strong>「最多票数」</strong> tab 选项。</li>
+          </ol>
+          <p style="margin-top:8px;">「投票选项」由原「无要求 / 固定选项」扩展为 <strong>「无要求 / 固定选项 / 最多票数」</strong> 三选一。其中「最多票数」表示：玩家需将票投给<strong>开奖时点票数最高的选项</strong>，才算达成抽奖参与条件。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">「最多票数」达标判定规则</div>
+          <table class="help-table">
+            <thead>
+              <tr><th>维度</th><th>规则</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>判定时点</strong></td><td>取<strong>开奖时点</strong>（单次活动 = 活动截止开奖时）的「票数最高选项」快照为准。玩家投票当刻无法预知最终最高票是哪个。</td></tr>
+              <tr><td><strong>达标条件</strong></td><td>玩家所投选项 = 开奖时点的最高票选项 → 达标；否则不达标。</td></tr>
+              <tr><td><strong>票数并列最高</strong></td><td>出现多个选项票数并列最高时，玩家投给其中<strong>任意一个</strong>并列项即算达标（从宽判定）。</td></tr>
+              <tr><td><strong>不可改投</strong></td><td>沿用投票「投后不可取消、不可改投」规则，本条件下<strong>不开放改投</strong>。玩家若投了非最高票选项，则永久无法达标、无补救。</td></tr>
+              <tr><td><strong>全 0 票</strong></td><td>开奖时点无任何有效投票（最高票为 0）→ 按流标处理，无人达标。</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">活动类型限制（重要）</div>
+          <ul>
+            <li><strong>「最多票数」仅单次活动可用</strong> <span class="htag new">NEW</span>：切换到<strong>周期活动时该 tab 隐藏</strong>，投票选项退化为「无要求 / 固定选项」。</li>
+            <li>若在单次活动下已选中「最多票数」，再切换到周期活动 → 自动回退到「无要求」并收起其子字段。</li>
+            <li><strong>屏蔽原因</strong>：周期活动「参与条件按周期重置」与「投票全程累计 + 投票不可改投」三者叠加会形成达标死锁——玩家第 1 周期投了最高票，第 2 周期该选项可能已非最高，但投票不可改投无法重新达标。故从配置入口直接屏蔽。</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">兼容与不变项</div>
+          <ul>
+            <li>存量「无要求 / 固定选项」活动不受影响，新增枚举值对老数据无侵入。</li>
+            <li>「最多票数」与原有投票选项一致，<strong>编辑态置灰只读</strong>。</li>
+            <li>本次仅扩展该 tab，其余字段、列表展示、审核流程、发奖方式规则均不变。</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">验收清单</div>
+          <ol>
+            <li>单次活动 → 投票选项显示「无要求 / 固定选项 / 最多票数」三个 tab</li>
+            <li>周期活动 → 投票选项仅显示「无要求 / 固定选项」，最多票数 tab 隐藏</li>
+            <li>单次活动选中「最多票数」后切到周期活动 → 自动回退到「无要求」，无残留选中态</li>
+            <li>开奖时点取最高票快照判定，玩家投给最高票选项即达标</li>
+            <li>多选项并列最高时，投任一并列项即达标</li>
+            <li>开奖时全 0 票（无人投票）→ 流标，无人达标</li>
+            <li>编辑态下「投票选项」（含最多票数）置灰只读</li>
+            <li>新增 tab 文案在中 / 英 / 繁 / 韩四语言下均有翻译且不溢出</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- v3.1.0 -->
+    <div class="help-version-block">
+      <div class="help-version-hd">
         <span class="help-version-num">v3.1.0</span>
         <span class="help-version-date">2026-05-22</span>
-        <span class="help-version-badge">最新</span>
         <span class="help-version-arrow">▼</span>
       </div>
       <div class="help-version-body">
