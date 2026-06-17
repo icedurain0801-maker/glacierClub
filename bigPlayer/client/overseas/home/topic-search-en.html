@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>BigPlayer — Topic (EN)</title>
+<script src="../shared/theme-toggle.js"></script>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "on-surface-variant": "var(--on-surface-variant)",
+        "primary": "var(--primary)",
+        "secondary-container": "var(--secondary-container)",
+        "on-secondary-container": "var(--on-secondary-container)",
+        "surface-container-low": "var(--surface-container-low)",
+        "surface-variant": "var(--surface-variant)",
+        "surface-container": "var(--surface-container)",
+        "on-background": "var(--on-background)",
+        "on-surface": "var(--on-surface)",
+        "background": "var(--background)",
+        "surface": "var(--surface)",
+        "outline-variant": "var(--outline-variant)",
+        "surface-container-high": "var(--surface-container-high)",
+      },
+      fontFamily: { headline: ["Manrope"], body: ["Inter"], label: ["Inter"] }
+    }
+  }
+}
+</script>
+<style>
+  :root{
+    --on-surface-variant:#566166;
+    --primary:#0061a4;
+    --on-primary:#f5f8ff;
+    --surface-container-lowest:#ffffff;
+    --football-like-ball:url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
+    --secondary-container:#cbe6ff;
+    --on-secondary-container:#0a5780;
+    --surface-container-low:#f0f4f7;
+    --surface-variant:#d9e4ea;
+    --surface-container:#e8eff3;
+    --on-background:#2a3439;
+    --on-surface:#2a3439;
+    --background:#f7f9fb;
+    --surface:#f7f9fb;
+    --outline-variant:#a9b4b9;
+    --surface-container-high:#e1e9ee;
+
+    --body-bg:#f0f4f8;
+    --shell-sh-1:#e0e5e8;
+    --shell-sh-2:#c8d0d5;
+    --shell-sh-3:rgba(0,0,0,0.18);
+    --search-mid-stop:#0061a4;
+    --body-mq-bg:#f7f9fb;
+    --search-input-text:#ffffff;
+    --tab-bar-bg:#ffffff;
+    --tab-bar-border:#e1e9ee;
+    --tab-text:#566166;
+    --tab-active-text:#1f2937;
+    --result-card-bg:#ffffff;
+    --result-card-shadow:rgba(42,52,57,0.07);
+    --card-username:#2a3439;
+    --card-lv-bg:rgba(0,97,164,0.10);
+    --card-time:#566166;
+    --card-body-text:#2a3439;
+    --card-stats-border:#f0f4f7;
+    --card-stats-text:#566166;
+    --card-online-border:#ffffff;
+    --user-row-border:#f0f4f7;
+    --user-name:#1f2937;
+    --user-sub:#a9b4b9;
+    --section-title-color:#0061a4;
+    --section-count:#a9b4b9;
+    --strip-follow-border:#ffffff;
+    --strip-name:#566166;
+    --empty-title:#566166;
+    --empty-sub:#a9b4b9;
+    --hot-chip-bg:#e8f0fb;
+    --hot-chip-text:#0061a4;
+    --bnav-bg:rgba(255,255,255,.96);
+    --bnav-border:#e1e9ee;
+    --bnav-icon:#a9b4b9;
+    --bnav-label:#a9b4b9;
+    --image-label-color:rgba(255,255,255,0.9);
+    --upgrade-mid:#0061a4;
+    --error:#e53935;
+    --state-success:#2e7d32;
+    --state-online:#4caf50;
+    --state-badge-red:#f44336;
+    --rank-1-fg:#dc2626;
+    --rank-2-fg:#ea580c;
+    --rank-3-fg:#ca8a04;
+    --rank-hot-bg:#fee2e2;
+    --rank-warm-bg:#ffedd5;
+    --divider-soft:#e8edf0;
+    --device-bezel-dark:#1a1a1a;
+  }
+  [data-theme="dark"]{
+    --on-surface-variant:#8b949e;
+    --primary:#4493f8;
+    --on-primary:#0d1117;
+    --surface-container-lowest:#0d1117;
+    --secondary-container:#1f3a56;
+    --on-secondary-container:#79c0ff;
+    --surface-container-low:#161b22;
+    --surface-variant:#30363d;
+    --surface-container:#1c2128;
+    --on-background:#e6edf3;
+    --on-surface:#e6edf3;
+    --background:#0d1117;
+    --surface:#0d1117;
+    --outline-variant:#30363d;
+    --surface-container-high:#21262d;
+
+    --body-bg:#1a1f26;
+    --shell-sh-1:#1c2128;
+    --shell-sh-2:#30363d;
+    --shell-sh-3:rgba(0,0,0,0.5);
+    --search-mid-stop:#4493f8;
+    --body-mq-bg:#0d1117;
+    --search-input-text:#e6edf3;
+    --tab-bar-bg:#161b22;
+    --tab-bar-border:#21262d;
+    --tab-text:#8b949e;
+    --tab-active-text:#e6edf3;
+    --result-card-bg:#161b22;
+    --result-card-shadow:rgba(0,0,0,0.3);
+    --card-username:#e6edf3;
+    --card-lv-bg:rgba(68,147,248,0.12);
+    --card-time:#8b949e;
+    --card-body-text:#e6edf3;
+    --card-stats-border:#161b22;
+    --card-stats-text:#8b949e;
+    --card-online-border:#0d1117;
+    --user-row-border:#161b22;
+    --user-name:#e6edf3;
+    --user-sub:#6e7681;
+    --section-title-color:#4493f8;
+    --section-count:#6e7681;
+    --strip-follow-border:#0d1117;
+    --strip-name:#8b949e;
+    --empty-title:#8b949e;
+    --empty-sub:#6e7681;
+    --hot-chip-bg:#1f3a56;
+    --hot-chip-text:#4493f8;
+    --bnav-bg:rgba(13,17,23,.96);
+    --bnav-border:#21262d;
+    --bnav-icon:#6e7681;
+    --bnav-label:#6e7681;
+    --image-label-color:rgba(13,17,23,0.9);
+    --upgrade-mid:#4493f8;
+    --error:#f87171;
+    --state-success:#4caf50;
+    --state-online:#4caf50;
+    --rank-1-fg:#f87171;
+    --rank-2-fg:#fb923c;
+    --rank-3-fg:#fbbf24;
+    --rank-hot-bg:rgba(248,113,113,0.18);
+    --rank-warm-bg:rgba(251,146,60,0.18);
+    --divider-soft:#21262d;
+    --device-bezel-dark:#000;
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: 22px; line-height: 1; user-select: none;
+  }
+  body { min-height: 100dvh; background: var(--body-bg); }
+  .phone-shell { width: 375px; flex-shrink: 0; }
+  .phone-inner {
+    width: 375px; height: 812px;
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+  }
+  @media (max-width: 430px) {
+    body { background: var(--body-mq-bg); align-items: flex-start; }
+    .phone-shell { width: 100vw; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; position: static !important; }
+    .phone-inner { width: 100vw; height: 100dvh; min-height: unset; }
+  }
+  .phone-shell {
+    margin-top: 1.25rem; margin-bottom: 1.25rem;
+    border-radius: 44px;
+    box-shadow: 0 0 0 10px var(--shell-sh-1), 0 0 0 12px var(--shell-sh-2), 0 36px 72px var(--shell-sh-3);
+    overflow: hidden; background: var(--surface);
+    position: sticky; top: 1.25rem; align-self: flex-start;
+  }
+  .island { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 124px; height: 36px; background: #000; border-radius: 20px; z-index: 100; }
+  .status-bar {
+    height: 54px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 24px;
+    flex-shrink: 0; position: relative; z-index: 2;
+  }
+  .sb-time { font-family: Manrope, sans-serif; font-size: 15px; font-weight: 700; }
+  .sb-icons { display: flex; align-items: center; gap: 5px; }
+
+  /* ── Top header ── */
+  .topic-top {
+    background: linear-gradient(175deg, #003d7a 0%, var(--search-mid-stop) 55%, #1a7fc4 100%);
+    padding: 0 16px 0;
+    flex-shrink: 0;
+  }
+  .back-row {
+    display: flex; align-items: center; gap: 6px;
+    color: rgba(255,255,255,0.75);
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 14px; cursor: pointer;
+  }
+  .back-row .material-symbols-outlined { font-size: 20px; color: rgba(255,255,255,0.75); }
+
+  /* Topic hero */
+  .topic-hero {
+    display: flex; align-items: flex-end; gap: 14px;
+    padding-bottom: 20px;
+  }
+  .topic-hero-hash {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: rgba(255,255,255,0.18);
+    border: 1.5px solid rgba(255,255,255,0.32);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 800; color: #fff;
+    font-family: Manrope, sans-serif; flex-shrink: 0;
+    backdrop-filter: blur(8px);
+  }
+  .topic-hero-info { flex: 1; min-width: 0; }
+  .topic-hero-name {
+    font-size: 20px; font-weight: 800; color: #fff;
+    font-family: Manrope, sans-serif; line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .topic-hero-stats { display: flex; align-items: center; gap: 12px; }
+  .topic-stat-item { font-size: 11px; color: rgba(255,255,255,0.72); display: flex; align-items: center; gap: 3px; }
+  .topic-stat-item .material-symbols-outlined { font-size: 13px; }
+
+  /* Follow topic btn */
+  .topic-follow-btn {
+    padding: 7px 16px; border-radius: 999px;
+    background: rgba(255,255,255,0.18);
+    border: 1.5px solid rgba(255,255,255,0.45);
+    color: #fff; font-size: 12px; font-weight: 700;
+    font-family: Inter, sans-serif; cursor: pointer;
+    backdrop-filter: blur(8px); white-space: nowrap; flex-shrink: 0;
+    transition: background .15s;
+  }
+  .topic-follow-btn.followed {
+    background: rgba(255,255,255,0.30);
+  }
+
+  /* Tab bar */
+  .results-body {
+    background: var(--background);
+    border-radius: 22px 22px 0 0;
+    flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .topic-feed { flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding-top: 10px; border-radius: 22px 22px 0 0; }
+  .topic-feed::-webkit-scrollbar { display: none; }
+
+  /* Sort bar */
+  .sort-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 14px 10px; flex-shrink: 0;
+  }
+  .sort-chip {
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    border: 1.5px solid var(--outline-variant);
+    color: var(--on-surface-variant); background: transparent;
+    font-family: Inter, sans-serif; transition: all .15s;
+  }
+  .sort-chip.active {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+
+  /* Post card */
+  .result-card {
+    background: var(--result-card-bg); border-radius: 10px;
+    padding: 14px; margin: 0 12px 12px;
+    box-shadow: 0 4px 16px var(--result-card-shadow); flex-shrink: 0;
+  }
+  .card-user-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .card-user-left { display: flex; align-items: center; gap: 10px; }
+  .card-avatar-wrap { position: relative; }
+  .card-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, #93c5fd, #3b82f6); }
+  .card-avatar.official { background: linear-gradient(135deg, #bae6fd, #0284c7); }
+  .card-online-dot { position: absolute; bottom: -2px; right: -2px; width: 14px; height: 14px; background: var(--primary); border: 2px solid var(--card-online-border); border-radius: 50%; }
+  .card-user-info { display: flex; flex-direction: column; gap: 2px; }
+  .card-name-row { display: flex; align-items: center; gap: 6px; }
+  .card-username { font-size: 14px; font-weight: 700; color: var(--card-username); }
+  .card-lv { font-size: 10px; font-weight: 700; background: var(--card-lv-bg); color: var(--primary); padding: 2px 6px; border-radius: 999px; }
+  .card-badge-row { display: flex; align-items: center; gap: 6px; }
+  .official-badge { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 500; color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 2px 5px; border-radius: 4px; }
+  .official-badge .material-symbols-outlined { font-size: 10px; }
+  .card-pin { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 700; color: var(--primary); background: var(--card-lv-bg); padding: 2px 6px; border-radius: 4px; }
+  .card-pin .material-symbols-outlined { font-size: 11px; font-variation-settings: 'FILL' 1; }
+  .card-time { font-size: 10px; color: var(--card-time); }
+  .card-body { margin-bottom: 12px; }
+  .card-body p { font-size: 14px; line-height: 1.6; color: var(--card-body-text); }
+  .card-single-img { width: 100%; border-radius: 8px; margin-top: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--image-label-color); height: 160px; }
+  .card-stats { display: flex; align-items: center; gap: 20px; padding-top: 10px; border-top: 1px solid var(--card-stats-border); font-size: 12px; color: var(--card-stats-text); font-weight: 600; }
+  .card-stats-item { display: flex; align-items: center; gap: 6px; }
+  .card-stats-item .material-symbols-outlined { font-size: 18px; }
+  .card-like-btn { position: relative; cursor: pointer; overflow: visible; user-select: none; -webkit-tap-highlight-color: transparent; transition: color .18s, transform .18s; }
+  .card-like-btn::before { content: ""; position: absolute; left: 0; top: 50%; z-index: 2; width: 18px; height: 18px; border-radius: 50%; opacity: 0; pointer-events: none; background-image: var(--football-like-ball); background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(0 3px 4px rgba(30,45,60,.24)); transform: translateY(-50%) scale(.22) rotate(-90deg); transition: opacity .14s, transform .32s cubic-bezier(.34,1.56,.64,1); }
+  .card-like-btn .material-symbols-outlined { position: relative; z-index: 1; transition: opacity .16s, transform .26s cubic-bezier(.34,1.56,.64,1), color .18s; }
+  .card-like-btn:active { transform: scale(.96); }
+  .card-like-btn.is-liked { color: var(--primary); }
+  .card-like-btn.is-liked::before { opacity: 1; transform: translateY(-50%) scale(1.04) rotate(0deg); }
+  .card-like-btn.is-liked .material-symbols-outlined { color: var(--primary); opacity: 0; transform: scale(.5) rotate(-18deg); font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24; }
+  .card-like-btn.is-playing::before { animation: card-football-like-pop .62s cubic-bezier(.2,.9,.24,1) both; }
+  .card-like-pop { position: absolute; left: calc(100% + 2px); top: 50%; z-index: 3; transform: translate(-3px,-50%) scale(.82); font-size: 12px; font-weight: 800; color: var(--primary); pointer-events: none; opacity: 0; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,97,164,.25); animation: card-like-pop-up .9s ease-out forwards; }
+  @keyframes card-like-pop-up { 0%{opacity:0;transform:translate(-3px,-50%) scale(.82)} 25%{opacity:1;transform:translate(0,-50%) scale(1.08)} 100%{opacity:0;transform:translate(12px,-50%) scale(.96)} }
+  @keyframes card-football-like-pop { 0%{opacity:0;transform:translateY(-50%) scale(.2) rotate(-90deg)} 24%{opacity:1;transform:translateY(-50%) scale(1.28) rotate(180deg)} 52%{opacity:1;transform:translateY(-50%) scale(.88) rotate(300deg)} 100%{opacity:1;transform:translateY(-50%) scale(1.04) rotate(360deg)} }
+
+  /* Follow button */
+  .follow-btn { padding: 6px 16px; border-radius: 999px; background: var(--secondary-container); color: var(--on-secondary-container); font-size: 12px; font-weight: 700; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: Inter, sans-serif; }
+
+  /* Related topics chips */
+  .related-topic-chips { display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 14px; }
+  .related-topic-chips::-webkit-scrollbar { display: none; }
+  .rtchip { padding: 5px 12px; border-radius: 999px; background: var(--hot-chip-bg); color: var(--hot-chip-text); font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; font-family: Inter, sans-serif; flex-shrink: 0; }
+
+  /* Section title */
+  .section-title { font-size: 12px; font-weight: 700; color: var(--section-title-color); padding: 4px 14px 8px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .section-count { font-size: 11px; font-weight: 400; color: var(--section-count); }
+
+  /* Bottom nav */
+  .bnav { height: 82px; background: var(--bnav-bg); backdrop-filter: blur(14px); border-top: 1px solid var(--bnav-border); display: flex; align-items: flex-start; padding-top: 8px; flex-shrink: 0; }
+  .bi { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding-top: 4px; }
+  .bi .material-symbols-outlined { font-size: 24px; color: var(--bnav-icon); }
+  .bi.on .material-symbols-outlined { color: var(--primary); font-variation-settings: 'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24; }
+  .bi-label { font-size: 10px; color: var(--bnav-label); font-weight: 500; font-family: Inter, sans-serif; }
+  .bi.on .bi-label { color: var(--primary); }
+  .bpub { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; }
+  .bpub-btn { width: 46px; height: 46px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,97,164,.35); margin-top: -10px; }
+  .bpub-btn .material-symbols-outlined { font-size: 22px; color: #fff; }
+
+  /* Theme toggle */
+  .theme-toggle{position:fixed;top:24px;right:24px;z-index:9999;width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;background:rgba(255,255,255,.92);color:#2a3439;box-shadow:0 4px 14px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;transition:transform .15s,background .2s,color .2s;}
+  .theme-toggle:hover{transform:scale(1.08);}
+  .theme-toggle .material-symbols-outlined{font-size:22px;}
+  .theme-toggle .icon-dark{display:inline-block;}
+  .theme-toggle .icon-light{display:none;}
+  [data-theme="dark"] .theme-toggle{background:rgba(33,38,45,.92);color:#e6edf3;}
+  [data-theme="dark"] .theme-toggle .icon-dark{display:none;}
+  [data-theme="dark"] .theme-toggle .icon-light{display:inline-block;}
+
+  /* Empty */
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px 24px;text-align:center;}
+  .empty-icon{font-size:48px;margin-bottom:12px;opacity:.45;}
+  .empty-title{font-size:15px;font-weight:600;color:var(--empty-title);margin-bottom:6px;}
+  .empty-sub{font-size:13px;color:var(--empty-sub);}
+</style>
+</head>
+<body class="font-body text-on-surface flex justify-center items-start">
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+  <span class="material-symbols-outlined icon-dark">dark_mode</span>
+  <span class="material-symbols-outlined icon-light">light_mode</span>
+</button>
+<nav id="sidebar" class="sidebar hidden"></nav>
+
+<div class="phone-shell">
+<div class="phone-inner">
+  <div class="island"></div>
+
+  <!-- Blue top -->
+  <div class="topic-top">
+    <div class="status-bar">
+      <span class="sb-time" style="color:#fff;">9:41</span>
+      <div class="sb-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#fff" opacity=".9"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1" fill="#fff" opacity=".9"/><rect x="9" y="2" width="3" height="10" rx="1" fill="#fff" opacity=".9"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#fff" opacity=".9"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#fff"/><path d="M2.2 6.3A8.3 8.3 0 0 1 8 4a8.3 8.3 0 0 1 5.8 2.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M0 3.5A11.8 11.8 0 0 1 8 0a11.8 11.8 0 0 1 8 3.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="#fff" stroke-width="1.2" fill="none"/><rect x="22" y="4" width="3" height="4" rx="1" fill="#fff"/><rect x="1.5" y="2.5" width="16" height="7" rx="1.5" fill="#fff"/></svg>
+      </div>
+    </div>
+    <div class="back-row" onclick="history.length>1?history.back():location.href='search-results-en.html'">
+      <span class="material-symbols-outlined">arrow_back</span>
+      <span>Back</span>
+    </div>
+    <div class="topic-hero">
+      <div class="topic-hero-hash">#</div>
+      <div class="topic-hero-info">
+        <div class="topic-hero-name" id="topic-title">#StarSpirit</div>
+        <div class="topic-hero-stats">
+          <span class="topic-stat-item"><span class="material-symbols-outlined">visibility</span><span id="topic-views">2.3M views</span></span>
+          <span class="topic-stat-item"><span class="material-symbols-outlined">article</span><span id="topic-posts">4.1K posts</span></span>
+        </div>
+      </div>
+      <button class="topic-follow-btn" id="topic-follow-btn" onclick="toggleTopicFollow(this)">+ Follow</button>
+    </div>
+  </div>
+
+  <!-- Results area -->
+  <div class="results-body">
+    <div class="topic-feed" id="topic-feed"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bnav">
+    <div class="bi on" onclick="location.href='home-en.html'"><span class="material-symbols-outlined">home</span><span class="bi-label">Home</span></div>
+    <div class="bi" onclick="location.href='../news/news-en.html'"><span class="material-symbols-outlined">article</span><span class="bi-label">News</span></div>
+    <div class="bpub"><div class="bpub-btn"><span class="material-symbols-outlined">add</span></div><span class="bi-label">Post</span></div>
+    <div class="bi" onclick="location.href='../feed/feed-en.html'"><span class="material-symbols-outlined">groups</span><span class="bi-label">Community</span></div>
+    <div class="bi" onclick="location.href='../profile/profile-en.html'"><span class="material-symbols-outlined">person</span><span class="bi-label">Profile</span></div>
+  </nav>
+</div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const topicRaw = params.get('topic') || '#StarSpirit';
+const topicName = topicRaw.startsWith('#') ? topicRaw : '#' + topicRaw;
+document.getElementById('topic-title').textContent = topicName;
+
+/* Randomise slightly per topic for demo variety */
+function hashCode(s){ let h=0; for(let c of s){h=(h*31+c.charCodeAt(0))|0;} return Math.abs(h); }
+const seed = hashCode(topicName);
+const viewCounts = ['341K','890K','1.2M','2.3M','4.7M'];
+const postCounts = ['820','1.4K','2.8K','4.1K','9.3K'];
+document.getElementById('topic-views').textContent = viewCounts[seed%5] + ' views';
+document.getElementById('topic-posts').textContent = postCounts[seed%5] + ' posts';
+
+function toggleTopicFollow(btn) {
+  const followed = btn.classList.toggle('followed');
+  btn.textContent = followed ? '✓ Following' : '+ Follow';
+}
+
+const UPGRADE_MID = getComputedStyle(document.documentElement).getPropertyValue('--upgrade-mid').trim() || '#0061a4';
+
+const MOCK_POSTS_TOP = [
+  {
+    id: 1, official: true, pinned: true,
+    username: 'BigPlayer Official', level: 'lv14', time: '1y ago',
+    avatar: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg',
+    text: '【Community Upgrade Plan 3.0】Dear Adventurers, have you completed today\'s upgrade tasks?',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#f97316,#dc2626)', imageLabel: 'Blazing Phoenix',
+    likes: 1703, comments: 218
+  },
+  {
+    id: 2, official: false,
+    username: 'StarVoyager', level: 'lv9', time: '3d ago',
+    avatar: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
+    text: 'Finally reached StarSpirit Tier 5! The grind was worth it — community is so supportive here!',
+    hasImage: false, likes: 312, comments: 47
+  },
+  {
+    id: 3, official: false,
+    username: 'NightWalker', level: 'lv7', time: '1w ago',
+    avatar: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg',
+    text: 'My #StarSpirit build guide — saved 3 hours of grinding with this setup. Check the comments!',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#7c3aed,#db2777)', imageLabel: 'Build Guide',
+    likes: 890, comments: 134
+  },
+];
+
+const MOCK_POSTS_LATEST = [
+  {
+    id: 4, official: false,
+    username: 'MoonChaser', level: 'lv5', time: '12m ago',
+    avatar: 'https://opsoss.q1.com/club/avatar/2023/04/24/1682273688227_14f2f9f4-37b9-4c17-a9dc-4cfb55df04a4.jpg',
+    text: 'Just joined the StarSpirit event — anyone else struggling with stage 3?',
+    hasImage: false, likes: 2, comments: 5
+  },
+  {
+    id: 5, official: false,
+    username: 'IronShadow', level: 'lv11', time: '34m ago',
+    avatar: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png',
+    text: 'StarSpirit Season 6 update confirmed! New abilities incoming 🔥',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#0061a4,#0891b2)', imageLabel: 'Season 6 Teaser',
+    likes: 28, comments: 9
+  },
+  {
+    id: 6, official: true,
+    username: 'BigPlayer Official', level: 'lv14', time: '2h ago',
+    avatar: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg',
+    text: 'StarSpirit Fan Art Contest results are in! Top 10 entries announced below.',
+    hasImage: true, imageBg: 'linear-gradient(135deg,#f59e0b,#ef4444)', imageLabel: 'Fan Art Winners',
+    likes: 741, comments: 88
+  },
+];
+
+const RELATED_TOPICS = [
+  { name: '#StarSpiritFan', views: '890K views', posts: '1.4K posts' },
+  { name: '#StarSpiritGuide', views: '341K views', posts: '820 posts' },
+  { name: '#StarRise', views: '210K views', posts: '512 posts' },
+  { name: '#StarWatcher', views: '178K views', posts: '430 posts' },
+  { name: '#BlazingPhoenix', views: '4.7M views', posts: '9.3K posts' },
+  { name: '#Season6', views: '1.2M views', posts: '2.8K posts' },
+];
+
+function postCardHTML(post) {
+  const avatarClass = post.official ? 'card-avatar official' : 'card-avatar';
+  const lvNum = parseInt((post.level||'lv1').replace('lv',''))||1;
+  const pinTag = post.pinned ? `<span class="card-pin"><span class="material-symbols-outlined">push_pin</span>Top</span>` : '';
+  const badgeRow = post.official
+    ? `<div class="card-badge-row">${pinTag}<span class="official-badge"><span class="material-symbols-outlined">verified</span>Official</span><span class="card-time">${post.time}</span></div>`
+    : `<div class="card-badge-row">${pinTag}<span class="card-time">${post.time}</span></div>`;
+  const imageHTML = post.hasImage
+    ? `<div class="card-single-img" style="background:${post.imageBg};">${post.imageLabel}</div>`
+    : '';
+  return `
+    <div class="result-card">
+      <div class="card-user-row">
+        <div class="card-user-left">
+          <div class="card-avatar-wrap">
+            <img class="${avatarClass}" src="${post.avatar}" alt="${post.username}" style="object-fit:cover;cursor:pointer;" onclick="location.href='../profile/profile-other-en.html'"/>
+            <div class="card-online-dot"></div>
+          </div>
+          <div class="card-user-info">
+            <div class="card-name-row">
+              <span class="card-username">${post.username}</span>
+              <span class="card-lv">LV.${lvNum}</span>
+            </div>
+            ${badgeRow}
+          </div>
+        </div>
+        <button class="follow-btn">Follow</button>
+      </div>
+      <div class="card-body"><p>${post.text}</p>${imageHTML}</div>
+      <div class="card-stats">
+        <div class="card-stats-item card-like-btn" role="button" tabindex="0" data-count="${post.likes}" onclick="toggleLike(event,this)" onkeydown="if(event.key==='Enter'||event.key===' ')toggleLike(event,this)">
+          <span class="material-symbols-outlined">thumb_up</span><span class="card-like-count">${post.likes}</span>
+        </div>
+        <div class="card-stats-item"><span class="material-symbols-outlined">chat_bubble</span><span>${post.comments}</span></div>
+        <div class="card-stats-item"><span class="material-symbols-outlined">share</span><span>Share</span></div>
+      </div>
+    </div>`;
+}
+
+function toggleLike(ev, el) {
+  ev.preventDefault(); ev.stopPropagation();
+  const liked = !el.classList.contains('is-liked');
+  let count = parseInt(el.getAttribute('data-count')||'0')||0;
+  count = liked ? count+1 : Math.max(0,count-1);
+  if(el._likeTimer) clearTimeout(el._likeTimer);
+  el.classList.toggle('is-liked', liked);
+  el.setAttribute('data-count', count);
+  const countEl = el.querySelector('.card-like-count');
+  if(countEl) countEl.textContent = count;
+  if(liked){
+    el.classList.remove('is-playing'); void el.offsetWidth; el.classList.add('is-playing');
+    const pop = document.createElement('span'); pop.className='card-like-pop'; pop.textContent='+1'; el.appendChild(pop);
+    setTimeout(()=>{if(pop.parentNode)pop.parentNode.removeChild(pop);},950);
+    el._likeTimer = setTimeout(()=>el.classList.remove('is-playing'),720);
+  } else { el.classList.remove('is-playing'); }
+}
+
+function renderFeed() {
+  const pinned = MOCK_POSTS_TOP;
+  const rest = MOCK_POSTS_LATEST;
+
+  const topSection =
+    `<div class="section-title">Top Posts <span class="section-count">${pinned.length} pinned</span></div>` +
+    pinned.map(postCardHTML).join('');
+
+  const restSection =
+    `<div class="section-title">More Posts <span class="section-count">${rest.length} posts</span></div>` +
+    rest.map(postCardHTML).join('');
+
+  const chips = RELATED_TOPICS.map(t => `<span class="rtchip" onclick="location.href='topic-search-en.html?topic=${encodeURIComponent(t.name)}'">${t.name}</span>`).join('');
+  const relatedSection = `
+    <div class="section-title">Related Topics</div>
+    <div class="related-topic-chips">${chips}</div>`;
+
+  document.getElementById('topic-feed').innerHTML = topSection + restSection + relatedSection;
+}
+
+renderFeed();
+</script>
+
+<!-- ══ Page Nav v3.1.1 ══ -->
+<style>
+#pnav-fab{position:fixed;left:16px;top:80px;z-index:9998;width:36px;height:36px;border-radius:10px;background:var(--primary);box-shadow:0 3px 12px rgba(0,97,164,.35);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
+#pnav-fab:hover{transform:scale(1.08);}
+#pnav-fab svg{width:18px;height:18px;stroke:var(--on-primary);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;}
+#pnav-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:9997;opacity:0;pointer-events:none;transition:opacity .2s;}
+#pnav-overlay.open{opacity:1;pointer-events:auto;}
+#pnav-drawer{position:fixed;top:0;left:-300px;width:280px;height:100vh;background:var(--surface-container-lowest,#f7f9fb);z-index:9998;box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:left .24s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+#pnav-drawer.open{left:0;}
+#pnav-head{padding:20px 16px 12px;border-bottom:1px solid var(--surface-container-high);flex-shrink:0;}
+#pnav-head h3{font-family:Manrope,system-ui,sans-serif;font-size:14px;font-weight:800;color:var(--primary);margin:0 0 2px;}
+#pnav-head p{font-family:Inter,system-ui,sans-serif;font-size:11px;color:var(--outline-variant);margin:0;}
+#pnav-close{position:absolute;top:14px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-container-low);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#pnav-close svg{width:14px;height:14px;stroke:var(--on-surface-variant);stroke-width:2.5;stroke-linecap:round;fill:none;}
+#pnav-list{flex:1;overflow-y:auto;padding:8px 0 24px;}
+.pnav-section{padding:12px 16px 4px;}
+.pnav-section-label{font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:700;color:var(--outline-variant);letter-spacing:.08em;text-transform:uppercase;}
+.pnav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:500;color:var(--on-surface);transition:background .12s;}
+.pnav-item:hover{background:#f0f4f7;}
+.pnav-item.current{background:var(--secondary-container);color:var(--primary);font-weight:700;}
+.pnav-item .pnav-dot{width:6px;height:6px;border-radius:50%;background:var(--surface-variant);flex-shrink:0;}
+.pnav-item.current .pnav-dot{background:#0061a4;}
+.pnav-item .pnav-num{font-size:10px;font-weight:700;color:var(--outline-variant);width:16px;flex-shrink:0;text-align:right;}
+.pnav-item.current .pnav-num{color:#0061a4;}
+</style>
+<button id="pnav-fab" onclick="openPnav()" title="页面目录">
+  <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="16" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div id="pnav-overlay" onclick="closePnav()"></div>
+<div id="pnav-drawer">
+  <div id="pnav-head">
+    <h3>Overseas · 页面目录</h3>
+    <p>共 16 页 · 主题可切换</p>
+    <button id="pnav-close" onclick="closePnav()">
+      <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
+    </button>
+  </div>
+  <nav id="pnav-list">
+    <div class="pnav-section"><span class="pnav-section-label">Home · 首页模块</span></div>
+    <a class="pnav-item" href="../home/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
+    <a class="pnav-item" href="../home/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
+    <a class="pnav-item" href="../home/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
+    <a class="pnav-item" href="../home/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
+    <a class="pnav-item" href="../home/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
+    <a class="pnav-item" href="../home/topic-search-en.html" data-file="topic-search-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>话题搜索结果页</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
+    <a class="pnav-item" href="../feed/feed-en.html" data-file="feed-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>Feed 流</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">News · 资讯模块</span></div>
+    <a class="pnav-item" href="../news/news-en.html" data-file="news-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>资讯列表</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
+    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>我的主页</a>
+    <a class="pnav-item" href="../profile/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>他人主页</a>
+    <a class="pnav-item" href="../profile/settings-en.html" data-file="settings-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>设置页</a>
+    <a class="pnav-item" href="../profile/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>通知页</a>
+    <a class="pnav-item" href="../profile/chat-en.html" data-file="chat-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>聊天页</a>
+    <a class="pnav-item" href="../profile/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>草稿箱</a>
+
+    <div class="pnav-section"><span class="pnav-section-label">Publish · 发布模块</span></div>
+    <a class="pnav-item" href="../publish/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发帖页</a>
+    <a class="pnav-item" href="../publish/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">16</span><span class="pnav-dot"></span>发心情页</a>
+  </nav>
+</div>
+<script>
+(function(){
+  var cur = location.pathname.split('/').pop();
+  document.querySelectorAll('.pnav-item').forEach(function(a){
+    if(a.getAttribute('data-file')===cur){a.classList.add('current');}
+  });
+})();
+function openPnav(){ document.getElementById('pnav-drawer').classList.add('open'); document.getElementById('pnav-overlay').classList.add('open'); }
+function closePnav(){ document.getElementById('pnav-drawer').classList.remove('open'); document.getElementById('pnav-overlay').classList.remove('open'); }
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();});
+</script>
+<!-- ══ /Page Nav ══ -->
+
+<!-- ══ Spec Panel v3.1.2 ══ -->
+<style>
+#spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:var(--primary);box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
+#spec-fab:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(0,97,164,.50);}
+#spec-fab svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+#spec-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;opacity:0;pointer-events:none;transition:opacity .22s;}
+#spec-overlay.open{opacity:1;pointer-events:auto;}
+#spec-panel{position:fixed;top:0;right:-560px;width:540px;max-width:90vw;height:100vh;background:var(--surface-container-low);z-index:9999;box-shadow:-4px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1);}
+#spec-panel.open{right:0;}
+#spec-panel-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 16px;border-bottom:1px solid var(--surface-container-high);flex-shrink:0;}
+#spec-panel-title{font-family:Manrope,system-ui,sans-serif;font-size:16px;font-weight:800;color:var(--primary);margin:0;}
+#spec-panel-ver{font-size:11px;font-weight:600;color:var(--outline-variant);margin-left:8px;}
+#spec-panel-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-container);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#spec-panel-close svg{width:16px;height:16px;stroke:var(--on-surface-variant);stroke-width:2.5;stroke-linecap:round;fill:none;}
+#spec-body{flex:1;overflow-y:auto;padding:20px 24px 32px;font-family:Inter,system-ui,sans-serif;font-size:13px;color:var(--on-surface);line-height:1.7;}
+#spec-body h2{font-family:Manrope,sans-serif;font-size:15px;font-weight:800;color:var(--primary);margin:24px 0 8px;border-bottom:2px solid var(--surface-container-high);padding-bottom:6px;}
+#spec-body h3{font-family:Manrope,sans-serif;font-size:13px;font-weight:700;color:var(--on-surface);margin:16px 0 6px;}
+#spec-body h4{font-size:12px;font-weight:700;color:var(--on-surface-variant);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em;}
+#spec-body p{margin:4px 0 8px;}
+#spec-body ul,#spec-body ol{padding-left:18px;margin:4px 0 8px;}
+#spec-body li{margin-bottom:3px;}
+#spec-body li.sub{margin-left:16px;list-style:circle;color:#566166;}
+#spec-body table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:12px;}
+#spec-body th{background:var(--surface-container);color:var(--on-surface-variant);font-weight:700;padding:6px 10px;text-align:left;border:1px solid var(--outline-variant);}
+#spec-body td{padding:5px 10px;border:1px solid var(--surface-container-high);color:var(--on-surface);vertical-align:top;}
+#spec-body tr:nth-child(even) td{background:var(--surface-container-low);}
+#spec-body code{background:var(--surface-container);padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:Consolas,monospace;color:var(--primary);}
+#spec-body pre{background:var(--surface-container);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0 12px;}
+#spec-body pre code{background:none;padding:0;color:var(--on-surface);font-size:12px;}
+#spec-body strong{color:var(--on-surface);}
+#spec-body blockquote{border-left:3px solid var(--primary);margin:8px 0;padding:6px 12px;background:var(--secondary-container);border-radius:0 6px 6px 0;color:var(--on-surface-variant);font-size:12px;}
+#spec-body hr{border:none;border-top:1px solid var(--surface-container-high);margin:16px 0;}
+</style>
+<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.2">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+</button>
+<div id="spec-overlay" onclick="closeSpecPanel()"></div>
+<div id="spec-panel">
+  <div id="spec-panel-head">
+    <div style="display:flex;align-items:baseline;gap:0">
+      <span id="spec-panel-title">海外版 UI 变更需求说明</span>
+      <span id="spec-panel-ver">v3.1.2</span>
+    </div>
+    <button id="spec-panel-close" onclick="closeSpecPanel()">
+      <svg viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
+    </button>
+  </div>
+  <div id="spec-body"></div>
+</div>
+<script>
+(function(){
+  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **16 个页面**，每个页面同时支持亮色（Light）和深色（Dark）两套模式，通过同一份 HTML + CSS 变量切换。\n\n### 首页模块（Home）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n| 6 | 话题搜索结果页（v3.1.2 新增） | home/topic-search-en.html |\n\n### Feed 模块\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 7 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 8 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 9 | 我的主页 | profile/profile-en.html |\n| 10 | 他人主页 | profile/profile-other-en.html |\n| 11 | 设置页 | profile/settings-en.html |\n| 12 | 通知页 | profile/notifications-en.html |\n| 13 | 聊天页 | profile/chat-en.html |\n| 14 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 15 | 发帖页 | publish/post_publish-en.html |\n| 16 | 发心情页 | publish/mood_publish-en.html |\n\n> **主题切换说明**：每个页面通过 `<html data-theme=\"dark|light\">` 控制，CSS 变量驱动；首次访问跟随系统 prefers-color-scheme，用户手动切换后写入 localStorage 持久化。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器 | #f0f4f7 |\n| 分隔线 | #e1e9ee |\n| 主文字/标题 | #2a3439 |\n| 次级文字 | #566166 |\n| 占位符/禁用文字 | #a9b4b9 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片 | 12-16px |\n| 搜索框/输入框 | 8-10px |\n| 标签/Chip | 4-6px |\n| 胶囊按钮 | 999px |\n\n---\n\n## 五、开发注意事项\n\n1. 所有颜色使用 CSS 变量，避免硬编码；切换主题只通过 `<html data-theme>` 实现\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n\n---\n\n## 六、v3.1.2 迭代变更\n\n> 版本：**v3.1.2** ｜ 范围：搜索与话题体验、个人中心关注话题\n\n### 6.1 搜索结果页（search-results-en.html）— 话题能力\n\n**背景**：用户在搜索社区内容时，话题（# Topic）是高频且独立的实体，旧版仅能搜到用户与帖子，话题需求未被满足。\n\n**变更点**：\n\n1. **All 标签页新增「Related Topics」模块**：位于 Related Users 上方，模块体量介于用户条与帖子卡之间；最多展示 3 条匹配话题，每条含 `#` 徽标、话题名、浏览量；底部提供「More Topics」按钮跳转话题搜索结果页。\n2. **Tab 栏新增「Topics」标签**：位于 Users 右侧；点击后展示全部匹配话题，按匹配度由高到低排列，行内额外显示帖子数；样式与 All 页话题模块一致（主色左竖条 + `#` 徽标行）。\n3. 话题左竖条统一使用主色（不再按话题区分颜色），话题图标统一为 `#` 字符。\n\n### 6.2 话题搜索结果页（topic-search-en.html）— 全新页面（本页）\n\n**目标**：承接话题点击，作为话题聚合落地页，沉淀话题下的内容与关系。\n\n**结构**：\n\n1. **顶部话题信息区**：蓝色渐变头部，含 `#` 话题徽标、话题名、浏览量 / 帖子数、Follow / Following 关注切换。\n2. **内容流（单页连续滚动，无 Tab）**：依次为 **Top Posts**（置顶 / 精选帖，带「Top」徽标标识）→ **More Posts**（非置顶帖文）→ **Related Topics**（相关话题快捷入口）。\n3. 置顶帖与普通帖**卡片样式完全一致**，仅以用户名行的「Top」徽标区分，避免视觉割裂。\n\n> 设计决策：原 Top / Latest / Related 三 Tab 切换改为单页瀑布流，降低话题页的操作成本，让用户一屏纵览精华与最新内容。\n\n### 6.3 个人主页（profile-en.html）— 关注话题模块\n\n**背景**：关注的话题是用户的核心资产与活跃入口，需在个人主页可见、可达。\n\n**变更点**：\n\n1. **Tab 栏上方新增「Followed Topics」模块**，展示用户已关注话题，点击话题跳转对应话题搜索结果页。\n2. **两种展示形态**，可由用户切换：\n   - **多卡模式**：封面大卡横向滑动，卡片图上叠加渐变遮罩 + 话题名 + 浏览量，末尾带「Explore」探索入口；\n   - **单条模式**：整宽封面 Banner，含话题名、浏览量 / 帖子数与 Following 态。\n   - 两种形态高度一致，切换不跳动。\n3. **空 / 少状态保障**：仅关注 1 个话题时强制单条模式且不显空；关注 0 个话题时整模块隐藏。\n4. **无封面话题兜底**：话题无封面图时，使用主色渐变底 + 大号 `#` 字符占位。\n5. 模块整体保持轻量克制（字号、卡片尺寸、间距收敛），不喧宾夺主。\n\n### 6.4 页面清单变化\n\n- 总页面数 **15 → 16**，新增 `home/topic-search-en.html`。";
+  function md2html(t){
+    var h = t
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      .replace(/`([^`]+)`/g,'<code>$1</code>');
+    var lines = h.split('\n');
+    var out = [];
+    var inTable = false;
+    var tableRows = [];
+    function flushTable(){
+      if(!tableRows.length) return;
+      var html = '<table>';
+      var firstDataRow = true;
+      tableRows.forEach(function(r){
+        var cells = r.split('|').slice(1,-1).map(function(c){return c.trim();});
+        if(cells.every(function(c){return /^[-: ]+$/.test(c);})){firstDataRow=false;return;}
+        if(firstDataRow){html+='<tr>'+cells.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr>';firstDataRow=false;}
+        else{html+='<tr>'+cells.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';}
+      });
+      html += '</table>';
+      out.push(html);
+      tableRows = [];
+      inTable = false;
+    }
+    lines.forEach(function(line){
+      if(/^\| /.test(line)){inTable=true;tableRows.push(line);return;}
+      if(inTable){flushTable();}
+      if(/^#### /.test(line)){out.push('<h4>'+line.slice(5)+'</h4>');}
+      else if(/^### /.test(line)){out.push('<h3>'+line.slice(4)+'</h3>');}
+      else if(/^## /.test(line)){out.push('<h2>'+line.slice(3)+'</h2>');}
+      else if(/^---$/.test(line)){out.push('<hr>');}
+      else if(/^> /.test(line)){out.push('<blockquote>'+line.slice(2)+'</blockquote>');}
+      else if(/^\s*[\d]+\. /.test(line)){out.push('<li>'+line.replace(/^\s*\d+\. /,'')+'</li>');}
+      else if(/^\s*[*-] /.test(line)){out.push('<li'+(/^\s/.test(line)?' class="sub"':'')+'>'+line.replace(/^\s*[*-] /,'')+'</li>');}
+      else if(line.trim()===''){out.push('');}
+      else{out.push('<p>'+line+'</p>');}
+    });
+    if(inTable) flushTable();
+    var joined = out.join('\n');
+    joined = joined.replace(/(<li>[\s\S]*?<\/li>)/g, function(m){ return '<ul>'+m+'</ul>'; });
+    return joined;
+  }
+  document.getElementById('spec-body').innerHTML = md2html(raw);
+})();
+function openSpecPanel(){
+  document.getElementById('spec-panel').classList.add('open');
+  document.getElementById('spec-overlay').classList.add('open');
+}
+function closeSpecPanel(){
+  document.getElementById('spec-panel').classList.remove('open');
+  document.getElementById('spec-overlay').classList.remove('open');
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSpecPanel();});
+</script>
+<!-- ══ /Spec Panel ══ -->
+</body>
+</html>

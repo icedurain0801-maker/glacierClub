@@ -37,6 +37,8 @@ tailwind.config = {
   :root{
     --on-surface-variant:#566166;
     --primary:#0061a4;
+    --on-primary:#f5f8ff;
+    --surface-container-lowest:#ffffff;
     --football-like-ball:url("https://opsoss.q1.com/club/images/2026/05/25/1779701020162_09d36666-b9a1-4d47-9387-bc43fbabc6b2_159780.png");
     --secondary-container:#cbe6ff;
     --on-secondary-container:#0a5780;
@@ -112,6 +114,8 @@ tailwind.config = {
   [data-theme="dark"]{
     --on-surface-variant:#8b949e;
     --primary:#4493f8;
+    --on-primary:#0d1117;
+    --surface-container-lowest:#0d1117;
     --secondary-container:#1f3a56;
     --on-secondary-container:#79c0ff;
     --surface-container-low:#161b22;
@@ -509,6 +513,19 @@ tailwind.config = {
   [data-theme="dark"] .theme-toggle{background:rgba(33,38,45,.92);color:#e6edf3;}
   [data-theme="dark"] .theme-toggle .icon-dark{display:none;}
   [data-theme="dark"] .theme-toggle .icon-light{display:inline-block;}
+
+  /* ── Topic block (Design D — unified) ── */
+  .topic-accent-list{display:flex;flex-direction:column;gap:6px;padding:0 12px 4px;}
+  .topic-accent-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--result-card-bg);border-left:3px solid var(--primary);box-shadow:0 2px 6px var(--result-card-shadow);cursor:pointer;transition:opacity .15s;}
+  .topic-accent-item:active{opacity:.75;}
+  .topic-hash-icon{width:28px;height:28px;border-radius:6px;background:var(--secondary-container);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;font-weight:800;color:var(--primary);font-family:Manrope,sans-serif;line-height:1;}
+  .topic-accent-name{flex:1;font-size:13px;font-weight:700;color:var(--on-surface);}
+  .topic-accent-views{font-size:11px;color:var(--on-surface-variant);white-space:nowrap;}
+  .topic-accent-chev{font-size:18px!important;color:var(--outline-variant);flex-shrink:0;}
+  /* More button */
+  .topic-more-btn{display:flex;align-items:center;justify-content:center;gap:4px;margin:6px 12px 12px;padding:8px;border-radius:10px;border:1.5px solid var(--outline-variant);background:transparent;cursor:pointer;font-size:12px;font-weight:600;color:var(--primary);font-family:Inter,sans-serif;transition:background .15s;}
+  .topic-more-btn:hover{background:var(--secondary-container);}
+  .topic-more-btn .material-symbols-outlined{font-size:15px!important;}
 </style>
 </head>
 <body class="font-body text-on-surface flex justify-center items-start">
@@ -550,10 +567,12 @@ tailwind.config = {
       <div class="tab-item active" data-tab="all" onclick="switchTab('all')">All</div>
       <div class="tab-item" data-tab="posts" onclick="switchTab('posts')">Posts</div>
       <div class="tab-item" data-tab="users" onclick="switchTab('users')">Users</div>
+      <div class="tab-item" data-tab="topics" onclick="switchTab('topics')">Topics</div>
     </div>
     <div class="tab-panel active" id="panel-all"></div>
     <div class="tab-panel" id="panel-posts"></div>
     <div class="tab-panel" id="panel-users"></div>
+    <div class="tab-panel" id="panel-topics"></div>
   </div>
 
   <!-- Bottom nav -->
@@ -740,12 +759,43 @@ function handleSearchResultLikeKey(ev, el) {
   if (ev.key === 'Enter' || ev.key === ' ') toggleSearchResultLike(ev, el);
 }
 
+/* ─── Mock topic data (sorted by match relevance desc) ─── */
+const MOCK_TOPICS = [
+  { name: '#StarSpirit',        views: '2.3M views',  posts: '4.1K posts',  match: 1.00 },
+  { name: '#StarSpiritFan',     views: '890K views',  posts: '1.4K posts',  match: 0.92 },
+  { name: '#StarSpiritGuide',   views: '341K views',  posts: '820 posts',   match: 0.85 },
+  { name: '#StarSpiritSeason6', views: '178K views',  posts: '430 posts',   match: 0.78 },
+  { name: '#StarSpiritBuild',   views: '124K views',  posts: '305 posts',   match: 0.72 },
+  { name: '#StarSpiritEvent',   views: '96K views',   posts: '218 posts',   match: 0.65 },
+];
+
+function topicSlug(name) {
+  return name.replace(/^#/,'').toLowerCase();
+}
+
+function topicBlockHTML() {
+  const items = MOCK_TOPICS.slice(0, 3).map(tp => `
+    <div class="topic-accent-item" onclick="location.href='topic-search-en.html?topic=${encodeURIComponent(tp.name)}'">
+      <div class="topic-hash-icon">#</div>
+      <span class="topic-accent-name">${tp.name}</span>
+      <span class="topic-accent-views">${tp.views}</span>
+      <span class="material-symbols-outlined topic-accent-chev">chevron_right</span>
+    </div>`).join('');
+  return `
+    <div class="section-title">Related Topics</div>
+    <div class="topic-accent-list">${items}</div>
+    <button class="topic-more-btn" onclick="switchTab('topics')">
+      <span class="material-symbols-outlined">expand_more</span>More Topics
+    </button>`;
+}
+
 function renderAll() {
   if (query.toLowerCase().includes('empty')) {
     ['all','posts','users'].forEach(id => document.getElementById('panel-'+id).innerHTML = emptyStateHTML());
     return;
   }
-  let html = userStripHTML();
+  let html = topicBlockHTML();
+  html += userStripHTML();
   if (MOCK_POSTS.length) {
     html += `<div class="section-title">Related Posts</div>`;
     html += MOCK_POSTS.map(postCardHTML).join('');
@@ -780,10 +830,28 @@ function renderUsers() {
 renderAll();
 renderPosts();
 renderUsers();
+renderTopics();
+
+function renderTopics() {
+  if (query.toLowerCase().includes('empty')) return;
+  const sorted = [...MOCK_TOPICS].sort((a, b) => b.match - a.match);
+  const items = sorted.map(tp => `
+    <div class="topic-accent-item" onclick="location.href='topic-search-en.html?topic=${encodeURIComponent(tp.name)}'">
+      <div class="topic-hash-icon">#</div>
+      <div style="flex:1;min-width:0;">
+        <div class="topic-accent-name">${tp.name}</div>
+        <div style="font-size:10px;color:var(--on-surface-variant);margin-top:2px;">${tp.views} · ${tp.posts}</div>
+      </div>
+      <span class="material-symbols-outlined topic-accent-chev">chevron_right</span>
+    </div>`).join('');
+  document.getElementById('panel-topics').innerHTML =
+    `<div class="section-title">Topics <span class="section-count">${sorted.length} results</span></div>` +
+    `<div class="topic-accent-list">${items}</div>`;
+}
 </script>
 
 
-<!-- ══ Page Nav v3.1.1 ══ -->
+<!-- ══ Page Nav v3.1.2 ══ -->
 <style>
 #pnav-fab{position:fixed;left:16px;top:80px;z-index:9998;width:36px;height:36px;border-radius:10px;background:var(--primary);box-shadow:0 3px 12px rgba(0,97,164,.35);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
 #pnav-fab:hover{transform:scale(1.08);}
@@ -816,7 +884,7 @@ renderUsers();
 <div id="pnav-drawer">
   <div id="pnav-head">
     <h3>Overseas · 页面目录</h3>
-    <p>共 15 页 · 主题可切换</p>
+    <p>共 16 页 · 主题可切换</p>
     <button id="pnav-close" onclick="closePnav()">
       <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
     </button>
@@ -828,24 +896,25 @@ renderUsers();
     <a class="pnav-item" href="../home/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
     <a class="pnav-item" href="../home/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
     <a class="pnav-item" href="../home/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
+    <a class="pnav-item" href="../home/topic-search-en.html" data-file="topic-search-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>话题搜索结果页</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
-    <a class="pnav-item" href="../feed/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
+    <a class="pnav-item" href="../feed/feed-en.html" data-file="feed-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>Feed 流</a>
 
     <div class="pnav-section"><span class="pnav-section-label">News · 资讯模块</span></div>
-    <a class="pnav-item" href="../news/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
+    <a class="pnav-item" href="../news/news-en.html" data-file="news-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>资讯列表</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
-    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
-    <a class="pnav-item" href="../profile/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
-    <a class="pnav-item" href="../profile/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
-    <a class="pnav-item" href="../profile/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
-    <a class="pnav-item" href="../profile/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
-    <a class="pnav-item" href="../profile/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
+    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>我的主页</a>
+    <a class="pnav-item" href="../profile/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>他人主页</a>
+    <a class="pnav-item" href="../profile/settings-en.html" data-file="settings-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>设置页</a>
+    <a class="pnav-item" href="../profile/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>通知页</a>
+    <a class="pnav-item" href="../profile/chat-en.html" data-file="chat-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>聊天页</a>
+    <a class="pnav-item" href="../profile/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>草稿箱</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Publish · 发布模块</span></div>
-    <a class="pnav-item" href="../publish/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
-    <a class="pnav-item" href="../publish/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
+    <a class="pnav-item" href="../publish/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发帖页</a>
+    <a class="pnav-item" href="../publish/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">16</span><span class="pnav-dot"></span>发心情页</a>
   </nav>
 </div>
 <script>
@@ -867,7 +936,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </script>
 <!-- ══ /Page Nav ══ -->
 
-<!-- ══ Spec Panel v3.1.1 ══ -->
+<!-- ══ Spec Panel v3.1.2 ══ -->
 <style>
 #spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:var(--primary);box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
 #spec-fab:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(0,97,164,.50);}
@@ -888,6 +957,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 #spec-body p{margin:4px 0 8px;}
 #spec-body ul,#spec-body ol{padding-left:18px;margin:4px 0 8px;}
 #spec-body li{margin-bottom:3px;}
+#spec-body li.sub{margin-left:16px;list-style:circle;color:#566166;}
 #spec-body table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:12px;}
 #spec-body th{background:#f0f4f7;color:#566166;font-weight:700;padding:6px 10px;text-align:left;border:1px solid #e1e9ee;}
 #spec-body td{padding:5px 10px;border:1px solid #e8eff3;color:#2a3439;vertical-align:top;}
@@ -899,7 +969,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 #spec-body blockquote{border-left:3px solid #0061a4;margin:8px 0;padding:6px 12px;background:#eff6ff;border-radius:0 6px 6px 0;color:#566166;font-size:12px;}
 #spec-body hr{border:none;border-top:1px solid #e8eff3;margin:16px 0;}
 </style>
-<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.1">
+<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.2">
   <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
 </button>
 <div id="spec-overlay" onclick="closeSpecPanel()"></div>
@@ -907,7 +977,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
   <div id="spec-panel-head">
     <div style="display:flex;align-items:baseline;gap:0">
       <span id="spec-panel-title">海外版 UI 变更需求说明</span>
-      <span id="spec-panel-ver">v3.1.1</span>
+      <span id="spec-panel-ver">v3.1.2</span>
     </div>
     <button id="spec-panel-close" onclick="closeSpecPanel()">
       <svg viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
@@ -917,7 +987,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </div>
 <script>
 (function(){
-  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面同时支持亮色（Light）和深色（Dark）两套模式，通过同一份 HTML + CSS 变量切换。\n\n### 首页模块（Home）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n\n### Feed 模块\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 6 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 7 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 8 | 我的主页 | profile/profile-en.html |\n| 9 | 他人主页 | profile/profile-other-en.html |\n| 10 | 设置页 | profile/settings-en.html |\n| 11 | 通知页 | profile/notifications-en.html |\n| 12 | 聊天页 | profile/chat-en.html |\n| 13 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 14 | 发帖页 | publish/post_publish-en.html |\n| 15 | 发心情页 | publish/mood_publish-en.html |\n\n> **主题切换说明**：每个页面通过 `<html data-theme=\"dark|light\">` 控制，CSS 变量驱动；首次访问跟随系统 prefers-color-scheme，用户手动切换后写入 localStorage 持久化。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器 | #f0f4f7 |\n| 分隔线 | #e1e9ee |\n| 主文字/标题 | #2a3439 |\n| 次级文字 | #566166 |\n| 占位符/禁用文字 | #a9b4b9 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片 | 12-16px |\n| 搜索框/输入框 | 8-10px |\n| 标签/Chip | 4-6px |\n| 胶囊按钮 | 999px |\n\n---\n\n## 五、开发注意事项\n\n1. 所有颜色使用 CSS 变量，避免硬编码；切换主题只通过 `<html data-theme>` 实现\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动";
+  var raw = "## 六、v3.1.2 迭代变更\n\n> 版本：**v3.1.2** ｜ 范围：搜索与话题体验、个人中心关注话题\n\n### 6.1 搜索结果页（search-results-en.html）— 话题能力\n\n**背景**：用户在搜索社区内容时，话题（# Topic）是高频且独立的实体，旧版仅能搜到用户与帖子，话题需求未被满足。\n\n**变更点**：\n\n1. **All 标签页新增「Related Topics」模块**：位于 Related Users 上方，模块体量介于用户条与帖子卡之间；最多展示 3 条匹配话题，每条含 `#` 徽标、话题名、浏览量；底部提供「More Topics」按钮跳转话题搜索结果页。\n2. **Tab 栏新增「Topics」标签**：位于 Users 右侧；点击后展示全部匹配话题，按匹配度由高到低排列，行内额外显示帖子数；样式与 All 页话题模块一致（主色左竖条 + `#` 徽标行）。\n3. 话题左竖条统一使用主色（不再按话题区分颜色），话题图标统一为 `#` 字符。\n\n### 6.2 话题搜索结果页（topic-search-en.html）— 全新页面\n\n**目标**：承接话题点击，作为话题聚合落地页，沉淀话题下的内容与关系。\n\n**结构**：\n\n1. **顶部话题信息区**：蓝色渐变头部，含 `#` 话题徽标、话题名、浏览量 / 帖子数、Follow / Following 关注切换。\n2. **内容流（单页连续滚动，无 Tab）**：依次为 **Top Posts**（置顶 / 精选帖，带「Top」徽标标识）→ **More Posts**（非置顶帖文）→ **Related Topics**（相关话题快捷入口）。\n3. 置顶帖与普通帖**卡片样式完全一致**，仅以用户名行的「Top」徽标区分，避免视觉割裂。\n\n> 设计决策：原 Top / Latest / Related 三 Tab 切换改为单页瀑布流，降低话题页的操作成本，让用户一屏纵览精华与最新内容。\n\n### 6.3 个人主页（profile-en.html）— 关注话题模块\n\n**背景**：关注的话题是用户的核心资产与活跃入口，需在个人主页可见、可达。\n\n**变更点**：\n\n1. **Tab 栏上方新增「Followed Topics」模块**，展示用户已关注话题，点击话题跳转对应话题搜索结果页。\n2. **两种展示形态**，可由用户切换：\n   - **多卡模式**：封面大卡横向滑动，卡片图上叠加渐变遮罩 + 话题名 + 浏览量，末尾带「Explore」探索入口；\n   - **单条模式**：整宽封面 Banner，含话题名、浏览量 / 帖子数与 Following 态。\n   - 两种形态高度一致，切换不跳动。\n3. **空 / 少状态保障**：仅关注 1 个话题时强制单条模式且不显空；关注 0 个话题时整模块隐藏。\n4. **无封面话题兜底**：话题无封面图时，使用主色渐变底 + 大号 `#` 字符占位。\n5. 模块整体保持轻量克制（字号、卡片尺寸、间距收敛），不喧宾夺主。\n\n### 6.4 页面清单变化\n\n- 总页面数 **15 → 16**，新增 `home/topic-search-en.html`。\n\n---\n\n## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **16 个页面**，每个页面同时支持亮色（Light）和深色（Dark）两套模式，通过同一份 HTML + CSS 变量切换。\n\n### 首页模块（Home）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n| 6 | 话题搜索结果页（v3.1.2 新增） | home/topic-search-en.html |\n\n### Feed 模块\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 7 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 8 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 9 | 我的主页 | profile/profile-en.html |\n| 10 | 他人主页 | profile/profile-other-en.html |\n| 11 | 设置页 | profile/settings-en.html |\n| 12 | 通知页 | profile/notifications-en.html |\n| 13 | 聊天页 | profile/chat-en.html |\n| 14 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 15 | 发帖页 | publish/post_publish-en.html |\n| 16 | 发心情页 | publish/mood_publish-en.html |\n\n> **主题切换说明**：每个页面通过 `<html data-theme=\"dark|light\">` 控制，CSS 变量驱动；首次访问跟随系统 prefers-color-scheme，用户手动切换后写入 localStorage 持久化。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器 | #f0f4f7 |\n| 分隔线 | #e1e9ee |\n| 主文字/标题 | #2a3439 |\n| 次级文字 | #566166 |\n| 占位符/禁用文字 | #a9b4b9 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片 | 12-16px |\n| 搜索框/输入框 | 8-10px |\n| 标签/Chip | 4-6px |\n| 胶囊按钮 | 999px |\n\n---\n\n## 五、开发注意事项\n\n1. 所有颜色使用 CSS 变量，避免硬编码；切换主题只通过 `<html data-theme>` 实现\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动";
   function md2html(t){
     var h = t
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -950,8 +1020,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
       else if(/^## /.test(line)){out.push('<h2>'+line.slice(3)+'</h2>');}
       else if(/^---$/.test(line)){out.push('<hr>');}
       else if(/^> /.test(line)){out.push('<blockquote>'+line.slice(2)+'</blockquote>');}
-      else if(/^[\d]+\. /.test(line)){out.push('<li>'+line.replace(/^\d+\. /,'')+'</li>');}
-      else if(/^[*-] /.test(line)){out.push('<li>'+line.slice(2)+'</li>');}
+      else if(/^\s*[\d]+\. /.test(line)){out.push('<li>'+line.replace(/^\s*\d+\. /,'')+'</li>');}
+      else if(/^\s*[*-] /.test(line)){out.push('<li'+(/^\s/.test(line)?' class="sub"':'')+'>'+line.replace(/^\s*[*-] /,'')+'</li>');}
       else if(line.trim()===''){out.push('');}
       else{out.push('<p>'+line+'</p>');}
     });

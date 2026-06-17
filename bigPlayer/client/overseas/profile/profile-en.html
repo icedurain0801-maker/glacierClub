@@ -21,6 +21,8 @@
   --bg-track:#edf1f4;
   --bg-bnav:rgba(255,255,255,.96);
   --primary:#0061a4;
+    --on-primary:#f5f8ff;
+    --surface-container-lowest:#ffffff;
   --text-strong:#2a3439;
   --text-strong-2:#1a2a34;
   --text-muted:#566166;
@@ -61,6 +63,8 @@
   --bg-track:#21262d;
   --bg-bnav:rgba(13,17,23,.96);
   --primary:#4493f8;
+    --on-primary:#0d1117;
+    --surface-container-lowest:#0d1117;
   --text-strong:#e6edf3;
   --text-strong-2:#e6edf3;
   --text-muted:#8b949e;
@@ -128,7 +132,7 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
 .si-num.accent{color:var(--primary);}
 
 /* Quick actions: horizontal scrollable pill strip */
-.quick-pills{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;flex-shrink:0;background:var(--bg-page);}
+.quick-pills{display:flex;gap:8px;padding:12px 16px 6px;overflow-x:auto;flex-shrink:0;background:var(--bg-page);}
 .quick-pills::-webkit-scrollbar{display:none;}
 .qpill{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;
   background:var(--bg-card);border:1px solid var(--bg-divider);border-radius:18px;cursor:pointer;
@@ -142,6 +146,47 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
 .qpill.active .qpill-lbl{color:#fff;}
 
 /* ── end redesign ── */
+
+/* ── Followed Topics (Variant C: cover cards with overlay) ── */
+.ft-sec{background:var(--bg-page);flex-shrink:0;padding-top:0;}
+.ft-head{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 5px;}
+.ft-title{display:flex;align-items:center;gap:5px;font-family:Manrope;font-size:13px;font-weight:700;color:var(--text-strong);}
+.ft-title .material-symbols-outlined{font-size:16px;color:var(--primary);}
+.ft-title .ft-cnt{font-family:Inter;font-size:11px;font-weight:600;color:var(--text-faint);}
+/* external floating single/multi toggle (lives outside the phone shell) */
+.ft-mode-toggle{position:fixed;top:74px;right:24px;z-index:9999;display:flex;background:rgba(255,255,255,.92);border-radius:9px;padding:3px;gap:3px;box-shadow:0 4px 14px rgba(0,0,0,.15);}
+.ft-mode-toggle button{border:none;background:none;cursor:pointer;width:30px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#8a9ba3;transition:background .15s,color .15s;}
+.ft-mode-toggle button .material-symbols-outlined{font-size:17px;}
+.ft-mode-toggle button.on{background:var(--primary);color:#fff;}
+[data-theme="dark"] .ft-mode-toggle{background:rgba(33,38,45,.92);}
+[data-theme="dark"] .ft-mode-toggle button{color:#8b949e;}
+/* multi-topic: landscape cover cards */
+.ft-scroll{display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto;}
+.ft-scroll::-webkit-scrollbar{display:none;}
+.ft-vc{width:124px;height:64px;border-radius:12px;overflow:hidden;position:relative;flex-shrink:0;cursor:pointer;}
+.ft-vc img{width:100%;height:100%;object-fit:cover;}
+/* generic # cover fallback */
+.ft-vc-gen{width:100%;height:100%;background:linear-gradient(135deg,var(--primary),#0a4d7a);display:flex;align-items:center;justify-content:center;}
+.ft-vc-gen span{font-family:Manrope;font-size:34px;font-weight:800;color:rgba(255,255,255,.35);line-height:1;}
+.ft-vc-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(8,14,22,.86) 0%,rgba(8,14,22,.18) 60%,transparent 100%);}
+.ft-vc-tag{position:absolute;top:6px;left:7px;background:rgba(255,255,255,.22);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.3);color:#fff;font-family:Manrope;font-size:11px;font-weight:800;width:19px;height:19px;border-radius:6px;display:flex;align-items:center;justify-content:center;}
+.ft-vc-bot{position:absolute;left:8px;right:8px;bottom:6px;}
+.ft-vc-nm{font-family:Manrope;font-size:12px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ft-vc-mt{font-size:9px;color:rgba(255,255,255,.82);margin-top:1px;}
+.ft-add{width:64px;height:64px;border-radius:12px;border:1.5px dashed var(--bg-divider);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--text-faint);flex-shrink:0;cursor:pointer;}
+.ft-add .material-symbols-outlined{font-size:20px;}
+.ft-add .ft-add-lbl{font-size:9px;font-weight:600;}
+/* single-topic mode: static full-width banner — SAME height as multi cards (64px) */
+.ft-solo{margin:0 16px 10px;height:64px;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;}
+.ft-solo img{width:100%;height:100%;object-fit:cover;}
+.ft-solo-gen{width:100%;height:100%;background:linear-gradient(135deg,var(--primary),#0a4d7a);display:flex;align-items:center;justify-content:center;}
+.ft-solo-gen span{font-family:Manrope;font-size:40px;font-weight:800;color:rgba(255,255,255,.3);line-height:1;}
+.ft-solo-ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,14,22,.85) 0%,rgba(8,14,22,.45) 55%,rgba(8,14,22,.15) 100%);}
+.ft-solo-in{position:absolute;left:12px;top:50%;transform:translateY(-50%);}
+.ft-solo-nm{font-family:Manrope;font-size:15px;font-weight:800;color:#fff;}
+.ft-solo-mt{font-size:10px;color:rgba(255,255,255,.85);margin-top:2px;}
+.ft-solo-fl{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.92);color:var(--primary);font-size:10px;font-weight:700;font-family:Inter;padding:4px 11px;border-radius:999px;}
+.ft-sec-divider{height:1px;background:var(--bg-divider-soft);}
 
 .body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;}
 .body::-webkit-scrollbar{display:none;}
@@ -271,6 +316,15 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
   <span class="material-symbols-outlined icon-dark">dark_mode</span>
   <span class="material-symbols-outlined icon-light">light_mode</span>
 </button>
+<!-- Followed Topics single/multi toggle (demo control, outside the shell) -->
+<div class="ft-mode-toggle" id="ftModeToggle">
+  <button data-mode="single" onclick="setFtMode('single')" title="Single banner">
+    <span class="material-symbols-outlined">crop_16_9</span>
+  </button>
+  <button data-mode="multi" onclick="setFtMode('multi')" title="Multiple cards">
+    <span class="material-symbols-outlined">grid_view</span>
+  </button>
+</div>
 <div class="shell">
   <div class="island"></div>
   <div class="hero-cover" style="flex-shrink:0;">
@@ -325,6 +379,9 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
     <div class="qpill"><span class="material-symbols-outlined">history</span><span class="qpill-lbl">History</span></div>
     <div class="qpill" onclick="location.href='settings-en.html'" style="cursor:pointer;"><span class="material-symbols-outlined">settings</span><span class="qpill-lbl">Settings</span></div>
   </div>
+
+  <!-- Followed Topics (Variant A) -->
+  <div class="ft-sec" id="ftSec"></div>
 
   <div class="body">
     <div class="tabs-block">
@@ -490,6 +547,88 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
   </nav>
 </div><!-- /.shell -->
 <script>
+/* ── Followed Topics data + render (Variant C) ── */
+const FOLLOWED_TOPICS = [
+  { name: '#StarSpirit', views: '2.3M views', posts: '4.1K posts', cover: 'https://opsoss.q1.com/club/images/2026/03/29/1774764915128_3e09aa58-9f41-4738-a06e-fce62281e69d.jpg' },
+  { name: '#HonorOfKings', views: '1.2M views', posts: '2.8K posts', cover: 'https://opsoss.q1.com/club/images/2024/09/19/1726796473771_4cca4887-30eb-4743-b8e9-e6bf8e353a8f_423966.png' },
+  { name: '#SSRTrade', views: '341K views', posts: '820 posts', cover: '' },
+  { name: '#SpiritFire', views: '178K views', posts: '430 posts', cover: 'https://opsoss.q1.com/club/images/2023/07/04/1688480500787_17fa7411-8d7b-47c1-9c69-d112fc7c2493_381156.jpeg' },
+  { name: '#Phoenix', views: '96K views', posts: '218 posts', cover: '' },
+];
+
+// display mode: 'single' = full-width banner (first topic), 'multi' = scrollable cover cards
+let ftMode = 'multi';
+
+function topicHref(name){ return '../home/topic-search-en.html?topic=' + encodeURIComponent(name); }
+
+function ftSoloHTML(t) {
+  const cover = t.cover
+    ? `<img src="${t.cover}" alt="">`
+    : `<div class="ft-solo-gen"><span>#</span></div>`;
+  return `
+    <div class="ft-solo" onclick="location.href='${topicHref(t.name)}'">
+      ${cover}
+      <div class="ft-solo-ov"></div>
+      <div class="ft-solo-in">
+        <div class="ft-solo-nm">${t.name}</div>
+        <div class="ft-solo-mt">${t.views} · ${t.posts}</div>
+      </div>
+      <div class="ft-solo-fl">Following</div>
+    </div>`;
+}
+
+function ftMultiHTML(topics) {
+  const cards = topics.map(t => {
+    const cover = t.cover
+      ? `<img src="${t.cover}" alt="">`
+      : `<div class="ft-vc-gen"><span>#</span></div>`;
+    return `
+      <div class="ft-vc" onclick="location.href='${topicHref(t.name)}'">
+        ${cover}
+        <div class="ft-vc-ov"></div>
+        <div class="ft-vc-bot">
+          <div class="ft-vc-nm">${t.name}</div>
+          <div class="ft-vc-mt">${t.views}</div>
+        </div>
+      </div>`;
+  }).join('');
+  const add = `
+    <div class="ft-add" onclick="location.href='../home/search-en.html'">
+      <span class="material-symbols-outlined">add</span>
+      <span class="ft-add-lbl">Explore</span>
+    </div>`;
+  return `<div class="ft-scroll">${cards}${add}</div>`;
+}
+
+function renderFollowedTopics() {
+  const sec = document.getElementById('ftSec');
+  const topics = FOLLOWED_TOPICS;
+  if (!topics.length) { sec.style.display = 'none'; return; }
+
+  // only one topic → force single mode
+  const onlyOne = topics.length === 1;
+  const effMode = onlyOne ? 'single' : ftMode;
+
+  const head = `
+    <div class="ft-head">
+      <div class="ft-title"><span class="material-symbols-outlined">tag</span>Followed Topics <span class="ft-cnt">${topics.length}</span></div>
+    </div>`;
+
+  const inner = effMode === 'single' ? ftSoloHTML(topics[0]) : ftMultiHTML(topics);
+  sec.innerHTML = head + inner + `<div class="ft-sec-divider"></div>`;
+
+  // sync the external demo toggle (hidden when only one topic)
+  const ext = document.getElementById('ftModeToggle');
+  if (ext) {
+    ext.style.display = onlyOne ? 'none' : 'flex';
+    ext.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === effMode));
+  }
+}
+
+function setFtMode(m) { ftMode = m; renderFollowedTopics(); }
+
+renderFollowedTopics();
+
 function switchTab(name, el) {
   ['posts','comments','likes','saves'].forEach(t => {
     document.getElementById('panel-'+t).style.display = t===name ? '' : 'none';
@@ -503,7 +642,7 @@ function filterPosts(q){document.querySelectorAll('#postList .post-row').forEach
 </script>
 
 
-<!-- ══ Page Nav v3.1.1 ══ -->
+<!-- ══ Page Nav v3.1.2 ══ -->
 <style>
 #pnav-fab{position:fixed;left:16px;top:80px;z-index:9998;width:36px;height:36px;border-radius:10px;background:var(--primary);box-shadow:0 3px 12px rgba(0,97,164,.35);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
 #pnav-fab:hover{transform:scale(1.08);}
@@ -587,7 +726,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </script>
 <!-- ══ /Page Nav ══ -->
 
-<!-- ══ Spec Panel v3.1.1 ══ -->
+<!-- ══ Spec Panel v3.1.2 ══ -->
 <style>
 #spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:var(--primary);box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
 #spec-fab:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(0,97,164,.50);}
@@ -608,6 +747,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 #spec-body p{margin:4px 0 8px;}
 #spec-body ul,#spec-body ol{padding-left:18px;margin:4px 0 8px;}
 #spec-body li{margin-bottom:3px;}
+#spec-body li.sub{margin-left:16px;list-style:circle;color:#566166;}
 #spec-body table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:12px;}
 #spec-body th{background:#f0f4f7;color:#566166;font-weight:700;padding:6px 10px;text-align:left;border:1px solid #e1e9ee;}
 #spec-body td{padding:5px 10px;border:1px solid #e8eff3;color:#2a3439;vertical-align:top;}
@@ -619,7 +759,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 #spec-body blockquote{border-left:3px solid #0061a4;margin:8px 0;padding:6px 12px;background:#eff6ff;border-radius:0 6px 6px 0;color:#566166;font-size:12px;}
 #spec-body hr{border:none;border-top:1px solid #e8eff3;margin:16px 0;}
 </style>
-<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.1">
+<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.2">
   <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
 </button>
 <div id="spec-overlay" onclick="closeSpecPanel()"></div>
@@ -627,7 +767,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
   <div id="spec-panel-head">
     <div style="display:flex;align-items:baseline;gap:0">
       <span id="spec-panel-title">海外版 UI 变更需求说明</span>
-      <span id="spec-panel-ver">v3.1.1</span>
+      <span id="spec-panel-ver">v3.1.2</span>
     </div>
     <button id="spec-panel-close" onclick="closeSpecPanel()">
       <svg viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
@@ -637,7 +777,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 </div>
 <script>
 (function(){
-  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **15 个页面**，每个页面同时支持亮色（Light）和深色（Dark）两套模式，通过同一份 HTML + CSS 变量切换。\n\n### 首页模块（Home）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n\n### Feed 模块\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 6 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 7 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 8 | 我的主页 | profile/profile-en.html |\n| 9 | 他人主页 | profile/profile-other-en.html |\n| 10 | 设置页 | profile/settings-en.html |\n| 11 | 通知页 | profile/notifications-en.html |\n| 12 | 聊天页 | profile/chat-en.html |\n| 13 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 14 | 发帖页 | publish/post_publish-en.html |\n| 15 | 发心情页 | publish/mood_publish-en.html |\n\n> **主题切换说明**：每个页面通过 `<html data-theme=\"dark|light\">` 控制，CSS 变量驱动；首次访问跟随系统 prefers-color-scheme，用户手动切换后写入 localStorage 持久化。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器 | #f0f4f7 |\n| 分隔线 | #e1e9ee |\n| 主文字/标题 | #2a3439 |\n| 次级文字 | #566166 |\n| 占位符/禁用文字 | #a9b4b9 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片 | 12-16px |\n| 搜索框/输入框 | 8-10px |\n| 标签/Chip | 4-6px |\n| 胶囊按钮 | 999px |\n\n---\n\n## 五、开发注意事项\n\n1. 所有颜色使用 CSS 变量，避免硬编码；切换主题只通过 `<html data-theme>` 实现\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动";
+  var raw = "## 一、本次变更概览\n\n本次对海外版社区进行全面 UI 重设计，涵盖所有用户可见页面。开发需**以各页面原型为唯一 UI 标准**进行还原，不得沿用旧版样式。\n\n**唯一例外**：已出品的美术 ICON（话题达人标识、官方认证标识等）保持现有资源不变，其余全部按本次原型执行。\n\n---\n\n## 二、变更页面清单\n\n共 **16 个页面**，每个页面同时支持亮色（Light）和深色（Dark）两套模式，通过同一份 HTML + CSS 变量切换。\n\n### 首页模块（Home）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 1 | 首页（社区主页） | home/home-en.html |\n| 2 | 帖子详情 | home/post-detail-en.html |\n| 3 | 心情详情 | home/mood-detail-en.html |\n| 4 | 搜索页 | home/search-en.html |\n| 5 | 搜索结果页 | home/search-results-en.html |\n| 6 | 话题搜索结果页（v3.1.2 新增） | home/topic-search-en.html |\n\n### Feed 模块\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 7 | Feed 流 | feed/feed-en.html |\n\n### 资讯模块（News）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 8 | 资讯列表 | news/news-en.html |\n\n### 个人中心模块（Profile）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 9 | 我的主页 | profile/profile-en.html |\n| 10 | 他人主页 | profile/profile-other-en.html |\n| 11 | 设置页 | profile/settings-en.html |\n| 12 | 通知页 | profile/notifications-en.html |\n| 13 | 聊天页 | profile/chat-en.html |\n| 14 | 草稿箱 | profile/drafts-en.html |\n\n### 发布模块（Publish）\n\n| # | 页面 | 文件 |\n|---|------|------|\n| 15 | 发帖页 | publish/post_publish-en.html |\n| 16 | 发心情页 | publish/mood_publish-en.html |\n\n> **主题切换说明**：每个页面通过 `<html data-theme=\"dark|light\">` 控制，CSS 变量驱动；首次访问跟随系统 prefers-color-scheme，用户手动切换后写入 localStorage 持久化。\n\n---\n\n## 三、美术资源说明\n\n| 资源类型 | 处理方式 |\n|---------|---------|\n| 话题达人 ICON | 保留现有美术资源，不替换 |\n| 官方认证 ICON | 保留现有美术资源，不替换 |\n| 其他所有业务图标 | 废弃旧版，统一替换为 Material Symbols Outlined |\n| 用户头像/封面图 | 图片资源来源不变，样式按本次规范执行 |\n\n---\n\n## 四、前端设计规范\n\n### 4.1 字体\n\n- Manrope（700/800/900）— 标题、CTA 按钮、大数字\n- Inter（400/500/600/700）— 正文、标签、表单\n\n### 4.2 颜色色号 — 亮色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #0061a4 |\n| 页面背景 | #f7f9fb |\n| 卡片/顶栏/底栏背景 | #ffffff |\n| 次级容器 | #f0f4f7 |\n| 分隔线 | #e1e9ee |\n| 主文字/标题 | #2a3439 |\n| 次级文字 | #566166 |\n| 占位符/禁用文字 | #a9b4b9 |\n\n### 4.3 颜色色号 — 深色模式\n\n| 用途 | 色号 |\n|------|------|\n| 主色 / CTA / 选中态 | #4493f8 |\n| 页面背景 | #0d1117 |\n| 卡片/顶栏/底栏背景 | #161b22 |\n| 次级容器 | #1c2128 |\n| 分隔线/边框 | #21262d |\n| 主文字/标题 | #e6edf3 |\n| 次级文字 | #8b949e |\n| 辅助文字/禁用 | #6e7681 |\n\n### 4.4 圆角规范\n\n| 用途 | 圆角值 |\n|------|--------|\n| 手机壳外框 | 44px |\n| 大容器/抽屉 | 32px |\n| 基础卡片/通用容器 | 16px |\n| 内容卡片 | 12-16px |\n| 搜索框/输入框 | 8-10px |\n| 标签/Chip | 4-6px |\n| 胶囊按钮 | 999px |\n\n---\n\n## 五、开发注意事项\n\n1. 所有颜色使用 CSS 变量，避免硬编码；切换主题只通过 `<html data-theme>` 实现\n2. 图标统一使用 Material Symbols Outlined，保留的美术 ICON 除外\n3. 封面图、头像使用 object-fit: cover\n4. 底部导航栏固定在屏幕底部，不随页面内容滚动\n\n---\n\n## 六、v3.1.2 迭代变更\n\n> 版本：**v3.1.2** ｜ 范围：搜索与话题体验、个人中心关注话题\n\n### 6.1 搜索结果页（search-results-en.html）— 话题能力\n\n**背景**：用户在搜索社区内容时，话题（# Topic）是高频且独立的实体，旧版仅能搜到用户与帖子，话题需求未被满足。\n\n**变更点**：\n\n1. **All 标签页新增「Related Topics」模块**：位于 Related Users 上方，模块体量介于用户条与帖子卡之间；最多展示 3 条匹配话题，每条含 `#` 徽标、话题名、浏览量；底部提供「More Topics」按钮跳转话题搜索结果页。\n2. **Tab 栏新增「Topics」标签**：位于 Users 右侧；点击后展示全部匹配话题，按匹配度由高到低排列，行内额外显示帖子数；样式与 All 页话题模块一致（主色左竖条 + `#` 徽标行）。\n3. 话题左竖条统一使用主色（不再按话题区分颜色），话题图标统一为 `#` 字符。\n\n### 6.2 话题搜索结果页（topic-search-en.html）— 全新页面\n\n**目标**：承接话题点击，作为话题聚合落地页，沉淀话题下的内容与关系。\n\n**结构**：\n\n1. **顶部话题信息区**：蓝色渐变头部，含 `#` 话题徽标、话题名、浏览量 / 帖子数、Follow / Following 关注切换。\n2. **内容流（单页连续滚动，无 Tab）**：依次为 **Top Posts**（置顶 / 精选帖，带「Top」徽标标识）→ **More Posts**（非置顶帖文）→ **Related Topics**（相关话题快捷入口）。\n3. 置顶帖与普通帖**卡片样式完全一致**，仅以用户名行的「Top」徽标区分，避免视觉割裂。\n\n> 设计决策：原 Top / Latest / Related 三 Tab 切换改为单页瀑布流，降低话题页的操作成本，让用户一屏纵览精华与最新内容。\n\n### 6.3 个人主页（profile-en.html）— 关注话题模块\n\n**背景**：关注的话题是用户的核心资产与活跃入口，需在个人主页可见、可达。\n\n**变更点**：\n\n1. **Tab 栏上方新增「Followed Topics」模块**，展示用户已关注话题，点击话题跳转对应话题搜索结果页。\n2. **两种展示形态**，可由用户切换：\n   - **多卡模式**：封面大卡横向滑动，卡片图上叠加渐变遮罩 + 话题名 + 浏览量，末尾带「Explore」探索入口；\n   - **单条模式**：整宽封面 Banner，含话题名、浏览量 / 帖子数与 Following 态。\n   - 两种形态高度一致，切换不跳动。\n3. **空 / 少状态保障**：仅关注 1 个话题时强制单条模式且不显空；关注 0 个话题时整模块隐藏。\n4. **无封面话题兜底**：话题无封面图时，使用主色渐变底 + 大号 `#` 字符占位。\n5. 模块整体保持轻量克制（字号、卡片尺寸、间距收敛），不喧宾夺主。\n\n### 6.4 页面清单变化\n\n- 总页面数 **15 → 16**，新增 `home/topic-search-en.html`。";
   function md2html(t){
     var h = t
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -670,8 +810,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
       else if(/^## /.test(line)){out.push('<h2>'+line.slice(3)+'</h2>');}
       else if(/^---$/.test(line)){out.push('<hr>');}
       else if(/^> /.test(line)){out.push('<blockquote>'+line.slice(2)+'</blockquote>');}
-      else if(/^[\d]+\. /.test(line)){out.push('<li>'+line.replace(/^\d+\. /,'')+'</li>');}
-      else if(/^[*-] /.test(line)){out.push('<li>'+line.slice(2)+'</li>');}
+      else if(/^\s*[\d]+\. /.test(line)){out.push('<li>'+line.replace(/^\s*\d+\. /,'')+'</li>');}
+      else if(/^\s*[*-] /.test(line)){out.push('<li'+(/^\s/.test(line)?' class="sub"':'')+'>'+line.replace(/^\s*[*-] /,'')+'</li>');}
       else if(line.trim()===''){out.push('');}
       else{out.push('<p>'+line+'</p>');}
     });
