@@ -128,6 +128,18 @@ const SIDEBAR_DATA = [
       },
       {
         type: 'dir',
+        label: '内容治理',
+        children: [
+          {
+            type: 'item',
+            label: '灌水判定配置',
+            version: 'v1.0.0',
+            href: 'admin/content-governance/SpamRuleConfig.html'
+          }
+        ]
+      },
+      {
+        type: 'dir',
         label: '社区功能',
         children: [
           {
