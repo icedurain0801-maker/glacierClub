@@ -198,6 +198,40 @@ body {
   color: #bfbfbf;
   padding: 8px 0;
 }
+/* ── 词库分页 ── */
+.word-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.word-pager:empty { display: none; }
+.word-pager-total {
+  font-size: 13px;
+  color: #8c8c8c;
+  margin-right: auto;
+}
+.word-pager-btn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  color: #595959;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.word-pager-btn:hover:not(:disabled):not(.active) { border-color: #1890ff; color: #1890ff; }
+.word-pager-btn.active { border-color: #1890ff; background: #1890ff; color: #fff; cursor: default; }
+.word-pager-btn:disabled { color: #bfbfbf; cursor: not-allowed; background: #f5f5f5; }
+.word-pager-ellipsis {
+  font-size: 13px;
+  color: #bfbfbf;
+  padding: 0 2px;
+}
 /* ── 弹窗 ── */
 .modal-overlay {
   display: none; position: fixed; inset: 0;
@@ -322,6 +356,47 @@ body {
 .content-type-btn:last-child { border-right: none; }
 .content-type-btn:hover { color: #1890ff; background: #f0f7ff; }
 .content-type-btn.active { background: #1890ff; color: #fff; }
+/* ── 数据分析 ── */
+.stats-filter-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 0 16px; flex-wrap: wrap;
+}
+.stats-date-btns { display: flex; gap: 0; border: 1px solid #d9d9d9; border-radius: 4px; overflow: hidden; }
+.stats-date-btn {
+  height: 32px; padding: 0 14px; font-size: 13px;
+  color: #595959; background: #fff; border: none;
+  border-right: 1px solid #d9d9d9; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.stats-date-btn:last-child { border-right: none; }
+.stats-date-btn:hover { color: #1890ff; background: #f0f7ff; }
+.stats-date-btn.active { background: #1890ff; color: #fff; }
+.stats-date-input {
+  height: 32px; border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 0 8px; font-size: 13px; color: #262626; outline: none;
+}
+.stats-date-input:focus { border-color: #1890ff; }
+.stats-section-title {
+  font-size: 13px; font-weight: 600; color: #262626;
+  padding: 4px 0 12px; border-bottom: 1px solid #f0f0f0; margin-bottom: 14px;
+}
+.stats-cards { display: flex; gap: 12px; }
+.stats-card {
+  flex: 1; border: 1px solid #e8e8e8; border-radius: 6px;
+  padding: 18px 20px; background: #fff;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.stats-card-label { font-size: 12px; color: #8c8c8c; }
+.stats-card-count { font-size: 28px; font-weight: 600; line-height: 1; }
+.stats-card-pct { font-size: 12px; color: #8c8c8c; }
+.stats-card-bar { height: 4px; border-radius: 2px; background: #f0f0f0; margin-top: 4px; }
+.stats-card-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+.stats-card.normal .stats-card-count { color: #52c41a; }
+.stats-card.normal .stats-card-bar-fill { background: #52c41a; }
+.stats-card.marked .stats-card-count { color: #fa8c16; }
+.stats-card.marked .stats-card-bar-fill { background: #fa8c16; }
+.stats-card.spam .stats-card-count { color: #ff4d4f; }
+.stats-card.spam .stats-card-bar-fill { background: #ff4d4f; }
 </style>
 </head>
 <body>
@@ -368,6 +443,7 @@ body {
     <div class="tab-bar">
       <div class="tab-item active" onclick="switchMainTab('words')">词库管理</div>
       <div class="tab-item" onclick="switchMainTab('rules')">规则配置</div>
+      <div class="tab-item" onclick="switchMainTab('stats')">数据分析</div>
     </div>
 
     <!-- Tab 1: 词库管理 -->
@@ -381,6 +457,7 @@ body {
           <a class="btn-link" onclick="downloadTemplate()">下载导入模板</a>
         </div>
         <div class="word-chip-wrap" id="spam-chip-wrap"></div>
+        <div class="word-pager" id="spam-pager"></div>
       </div>
     </div>
 
@@ -480,6 +557,33 @@ body {
           <button class="btn-sm btn-primary" onclick="saveRules()">保存配置</button>
         </div>
       </div>
+    </div>
+    <!-- Tab 3: 数据分析 -->
+    <div class="tab-panel" id="panel-stats">
+      <!-- 时间筛选栏 -->
+      <div class="stats-filter-bar">
+        <span class="threshold-label">时间范围：</span>
+        <div class="stats-date-btns">
+          <button class="stats-date-btn active" onclick="switchDateRange('7d', this)">近7天</button>
+          <button class="stats-date-btn" onclick="switchDateRange('30d', this)">近30天</button>
+          <button class="stats-date-btn" onclick="switchDateRange('90d', this)">近90天</button>
+          <button class="stats-date-btn" onclick="switchDateRange('custom', this)">自定义</button>
+        </div>
+        <div id="stats-custom-range" style="display:none;align-items:center;gap:6px;">
+          <input type="date" id="stats-date-start" class="stats-date-input" onchange="renderStats()">
+          <span style="font-size:12px;color:#8c8c8c;">至</span>
+          <input type="date" id="stats-date-end" class="stats-date-input" onchange="renderStats()">
+        </div>
+        <button class="btn-sm btn-primary" style="margin-left:8px;" onclick="renderStats()">查询</button>
+      </div>
+
+      <!-- 帖子/动态 -->
+      <div class="stats-section-title">帖子 / 动态</div>
+      <div class="stats-cards" id="stats-cards-post"></div>
+
+      <!-- 评论 -->
+      <div class="stats-section-title" style="margin-top:20px;">评论</div>
+      <div class="stats-cards" id="stats-cards-comment"></div>
     </div>
     </div><!-- /#config-area -->
 
@@ -755,12 +859,78 @@ initSidebar({
 // ── 主 Tab 切换 ──
 function switchMainTab(id) {
   document.querySelectorAll('.tab-bar .tab-item').forEach((el, i) => {
-    const ids = ['words', 'rules'];
+    const ids = ['words', 'rules', 'stats'];
     el.classList.toggle('active', ids[i] === id);
   });
   document.querySelectorAll('.tab-panel').forEach(el => {
     el.classList.toggle('active', el.id === 'panel-' + id);
   });
+  if (id === 'stats') renderStats();
+}
+
+// ── 数据分析 ──
+let _dateRange = '7d';
+
+function switchDateRange(range, btn) {
+  _dateRange = range;
+  document.querySelectorAll('.stats-date-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const customEl = document.getElementById('stats-custom-range');
+  customEl.style.display = range === 'custom' ? 'flex' : 'none';
+  if (range !== 'custom') renderStats();
+}
+
+// mock 数据生成（按版块+时间范围随机）
+function mockStatsData(ctype, range) {
+  const seed = (_currentSection + ctype + range).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const rng = (n) => { return ((seed * 9301 + 49297 * n) % 233280) / 233280; };
+  const total = Math.floor(rng(1) * 8000 + 500);
+  const spamPct = rng(2) * 0.15 + 0.02;
+  const markedPct = rng(3) * 0.12 + 0.03;
+  const spam = Math.round(total * spamPct);
+  const marked = Math.round(total * markedPct);
+  const normal = total - spam - marked;
+  return { total, normal, marked, spam };
+}
+
+function renderStatCards(containerId, data) {
+  const { total, normal, marked, spam } = data;
+  const fmt = n => n >= 10000 ? (n / 10000).toFixed(1) + '万' : n.toLocaleString();
+  const pct = n => total > 0 ? (n / total * 100).toFixed(1) + '%' : '0%';
+  const w = n => total > 0 ? (n / total * 100).toFixed(1) + '%' : '0%';
+  document.getElementById(containerId).innerHTML = `
+    <div class="stats-card normal">
+      <div class="stats-card-label">正常（normal）</div>
+      <div class="stats-card-count">${fmt(normal)}</div>
+      <div class="stats-card-pct">占比 ${pct(normal)}</div>
+      <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(normal)}"></div></div>
+    </div>
+    <div class="stats-card marked">
+      <div class="stats-card-label">嫌疑（marked）</div>
+      <div class="stats-card-count">${fmt(marked)}</div>
+      <div class="stats-card-pct">占比 ${pct(marked)}</div>
+      <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(marked)}"></div></div>
+    </div>
+    <div class="stats-card spam">
+      <div class="stats-card-label">灌水（spam）</div>
+      <div class="stats-card-count">${fmt(spam)}</div>
+      <div class="stats-card-pct">占比 ${pct(spam)}</div>
+      <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(spam)}"></div></div>
+    </div>
+    <div class="stats-card" style="border-color:#f0f0f0;background:#fafafa;flex:0 0 160px;">
+      <div class="stats-card-label">合计</div>
+      <div class="stats-card-count" style="color:#262626;">${fmt(total)}</div>
+      <div class="stats-card-pct" style="color:#bfbfbf;">100%</div>
+      <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:100%;background:#e8e8e8;"></div></div>
+    </div>`;
+}
+
+function renderStats() {
+  const range = _dateRange === 'custom'
+    ? (document.getElementById('stats-date-start').value + '~' + document.getElementById('stats-date-end').value)
+    : _dateRange;
+  renderStatCards('stats-cards-post',    mockStatsData('post',    range));
+  renderStatCards('stats-cards-comment', mockStatsData('comment', range));
 }
 
 // ── 按版块存储配置 ──
@@ -857,21 +1027,63 @@ function toggleGlobal() {
   refreshAllUI();
 }
 
-// ── 渲染词库（chip 标签） ──
+// ── 词库分页状态 ──
+const WORD_PAGE_SIZE = 20;
+let _wordPage = 1;
+
+// ── 渲染词库（chip 标签，最新添加在前 + 分页） ──
 function renderWordTable(type) {
   const cfg = getConfig();
   const list = cfg.spamWords;
   const wrap = document.getElementById('spam-chip-wrap');
+  const pager = document.getElementById('spam-pager');
   if (!list.length) {
     wrap.innerHTML = '<span class="word-chip-empty">暂无词条</span>';
+    pager.innerHTML = '';
     return;
   }
-  wrap.innerHTML = list.map((item, idx) => `
+  // 最新添加在前：按数组下标倒序展示
+  const ordered = list.map((item, idx) => ({ item, idx })).reverse();
+  const totalPages = Math.ceil(ordered.length / WORD_PAGE_SIZE);
+  if (_wordPage > totalPages) _wordPage = totalPages;
+  if (_wordPage < 1) _wordPage = 1;
+  const start = (_wordPage - 1) * WORD_PAGE_SIZE;
+  const pageItems = ordered.slice(start, start + WORD_PAGE_SIZE);
+  wrap.innerHTML = pageItems.map(({ item, idx }) => `
     <span class="word-chip" title="${item.createdAt}">
       ${item.word}
       <button class="word-chip-del" onclick="deleteWord('${type}',${idx})" title="删除">×</button>
     </span>
   `).join('');
+  renderWordPager(ordered.length, totalPages);
+}
+
+// ── 渲染分页器 ──
+function renderWordPager(total, totalPages) {
+  const pager = document.getElementById('spam-pager');
+  if (totalPages <= 1) {
+    pager.innerHTML = `<span class="word-pager-total">共 ${total} 条</span>`;
+    return;
+  }
+  // 计算需要展示的页码（首页、末页、当前页 ±1，省略号补齐）
+  const pages = new Set([1, totalPages, _wordPage, _wordPage - 1, _wordPage + 1]);
+  const visible = [...pages].filter(p => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  let html = `<span class="word-pager-total">共 ${total} 条</span>`;
+  html += `<button class="word-pager-btn" onclick="gotoWordPage(${_wordPage - 1})" ${_wordPage === 1 ? 'disabled' : ''}>上一页</button>`;
+  let prev = 0;
+  visible.forEach(p => {
+    if (p - prev > 1) html += `<span class="word-pager-ellipsis">…</span>`;
+    html += `<button class="word-pager-btn ${p === _wordPage ? 'active' : ''}" onclick="gotoWordPage(${p})">${p}</button>`;
+    prev = p;
+  });
+  html += `<button class="word-pager-btn" onclick="gotoWordPage(${_wordPage + 1})" ${_wordPage === totalPages ? 'disabled' : ''}>下一页</button>`;
+  pager.innerHTML = html;
+}
+
+// ── 跳转页码 ──
+function gotoWordPage(page) {
+  _wordPage = page;
+  renderWordTable('spam');
 }
 
 // ── 添加词条 ──
@@ -887,6 +1099,7 @@ function addWord(type) {
   const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   list.push({ word: val, createdAt: ts });
   input.value = '';
+  _wordPage = 1; // 新增后回到第一页，最新词条在最前
   renderWordTable(type);
 }
 
@@ -962,6 +1175,7 @@ function confirmImport() {
     if (!list.some(x => x.word === w)) { list.push({ word: w, createdAt: ts }); added++; }
   });
   closeImportModal();
+  _wordPage = 1; // 导入后回到第一页，最新词条在最前
   renderWordTable(_importType);
   alert(`导入完成，新增 ${added} 条词语（重复跳过 ${_importWords.length - added} 条）`);
 }
