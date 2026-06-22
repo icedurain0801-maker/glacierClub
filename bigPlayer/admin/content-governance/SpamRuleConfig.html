@@ -75,6 +75,27 @@ body {
 }
 .sub-tab-panel { display: none; }
 .sub-tab-panel.active { display: block; }
+/* ── Toggle 开关 ── */
+.toggle-track {
+  width: 36px; height: 20px;
+  border-radius: 20px;
+  background: #1890ff;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-track.off { background: #d9d9d9; }
+.toggle-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 3px; left: 19px;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-track.off .toggle-thumb { left: 3px; }
 </style>
 </head>
 <body>
@@ -91,7 +112,18 @@ body {
 
     <!-- Tab 1: 总开关 -->
     <div class="tab-panel active" id="panel-switch">
-      <!-- Task 3 填充 -->
+      <div style="max-width:600px;">
+        <div style="display:flex;align-items:center;gap:16px;padding:8px 0;">
+          <span style="font-size:14px;color:#262626;font-weight:500;">内容治理功能</span>
+          <div class="toggle-track" id="global-toggle" onclick="toggleGlobal()" title="点击切换开关">
+            <div class="toggle-thumb"></div>
+          </div>
+          <span id="global-status" style="font-size:13px;color:#52c41a;">已开启</span>
+        </div>
+        <p style="font-size:12px;color:#8c8c8c;margin-top:8px;line-height:1.8;">
+          关闭后所有判定规则停止运行，已有打标数据不受影响。
+        </p>
+      </div>
     </div>
 
     <!-- Tab 2: 词库管理 -->
@@ -125,6 +157,38 @@ function switchMainTab(id) {
   document.querySelectorAll('.tab-panel').forEach(el => {
     el.classList.toggle('active', el.id === 'panel-' + id);
   });
+}
+
+// ── CONFIG 数据对象 ──
+const CONFIG = {
+  globalEnabled: true,
+  spamWords: [
+    { word: 'good', createdAt: '2026-06-01 10:00:00' },
+    { word: 'nice', createdAt: '2026-06-01 10:00:00' },
+    { word: '顶',   createdAt: '2026-06-01 10:00:00' },
+    { word: '赞',   createdAt: '2026-06-01 10:00:00' },
+    { word: '666',  createdAt: '2026-06-01 10:00:00' }
+  ],
+  maliciousWords: [
+    { word: '垃圾', createdAt: '2026-06-01 10:00:00' },
+    { word: '骗子', createdAt: '2026-06-01 10:00:00' },
+    { word: '滚',   createdAt: '2026-06-01 10:00:00' }
+  ],
+  rules: {
+    R1: true, R2: true, R3: true, R4: true, R5: true,
+    R6: true, R7: true, R8: true, R9: true
+  },
+  spamThreshold: 2,
+  markedThreshold: 1
+};
+
+function toggleGlobal() {
+  CONFIG.globalEnabled = !CONFIG.globalEnabled;
+  const track = document.getElementById('global-toggle');
+  const status = document.getElementById('global-status');
+  track.classList.toggle('off', !CONFIG.globalEnabled);
+  status.textContent = CONFIG.globalEnabled ? '已开启' : '已关闭';
+  status.style.color = CONFIG.globalEnabled ? '#52c41a' : '#8c8c8c';
 }
 </script>
 </body>
