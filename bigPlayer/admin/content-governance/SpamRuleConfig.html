@@ -421,7 +421,6 @@ body {
               <th style="width:140px;">规则名称</th>
               <th>说明</th>
               <th style="width:150px;">参数</th>
-              <th class="col-verdict" style="width:120px;display:none;">命中判定</th>
               <th style="width:280px;">示例</th>
             </tr>
           </thead>
@@ -801,15 +800,8 @@ function makeDefaultConfig() {
         markedThreshold: 1
       },
       comment: {
-        // 评论场景：每条规则独立判定，无累积阈值
-        // verdict: spam=命中即灌水  marked=命中即嫌疑  ignore=不参与判定
-        rules: {
-          R1: { enabled: true,  verdict: 'spam',   desc: '词库命中，强信号' },
-          R2: { enabled: true,  verdict: 'ignore',  desc: '短评天然字数少，不判定' },
-          R4: { enabled: true,  verdict: 'marked',  desc: '表情堆砌，列为嫌疑' },
-          R5: { enabled: true,  verdict: 'marked',  desc: '单字符重复，列为嫌疑' },
-          R6: { enabled: true,  verdict: 'spam',   desc: '整条复读，强信号' }
-        },
+        // 评论场景：勾选的规则任意命中一条即判 spam，无阈值累积
+        rules: { R1: true, R2: true, R4: true, R5: true, R6: true },
         ruleParams: { R2: 2, R4: 70, R5: 80, R6: 2 }
       }
     }
@@ -1009,8 +1001,6 @@ const RULE_DEFS = [
   { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串',            hit: 'asdfgh｜qwerty', miss: 'hello' },
 ];
 
-const VERDICT_LABELS = { spam: '灌水（spam）', marked: '嫌疑（marked）', ignore: '不参与判定' };
-const VERDICT_COLORS = { spam: '#ff4d4f', marked: '#fa8c16', ignore: '#bfbfbf' };
 
 function renderRulesTable() {
   const rc = getRuleConfig();
@@ -1018,15 +1008,11 @@ function renderRulesTable() {
   const tbody = document.getElementById('rules-table-body');
   const applicable = RULE_DEFS.filter(r => r.id in rc.rules);
 
-  // 控制判定结果列和阈值卡片的显隐
-  document.querySelectorAll('.col-verdict').forEach(el => el.style.display = isComment ? '' : 'none');
+  // 评论视角隐藏阈值卡片
   document.getElementById('threshold-card').style.display = isComment ? 'none' : '';
 
   tbody.innerHTML = applicable.map(r => {
-    const ruleEntry = rc.rules[r.id];
-    const enabled = isComment ? ruleEntry.enabled : ruleEntry;
-    const verdict = isComment ? ruleEntry.verdict : null;
-
+    const enabled = rc.rules[r.id];
     const paramVal = r.paramKey ? rc.ruleParams[r.paramKey] : null;
     const descFull = r.paramKey
       ? `${r.desc} <span style="color:#1890ff;font-weight:500;">${paramVal}${r.paramUnit}</span>`
@@ -1041,43 +1027,22 @@ function renderRulesTable() {
          </div>`
       : `<span style="color:#d9d9d9;font-size:13px;">—</span>`;
 
-    const verdictCell = isComment
-      ? `<select class="verdict-select" onchange="saveVerdict('${r.id}', this.value)"
-           style="height:28px;border:1px solid #d9d9d9;border-radius:4px;padding:0 6px;font-size:12px;color:${VERDICT_COLORS[verdict]};outline:none;cursor:pointer;">
-           ${Object.entries(VERDICT_LABELS).map(([v, label]) =>
-             `<option value="${v}" ${v === verdict ? 'selected' : ''} style="color:${VERDICT_COLORS[v]}">${label}</option>`
-           ).join('')}
-         </select>`
-      : '';
-
-    const onchangeExpr = isComment
-      ? `getRuleConfig().rules['${r.id}'].enabled = this.checked`
-      : `getRuleConfig().rules['${r.id}'] = this.checked`;
-
     return `
     <tr>
       <td style="text-align:center;">
         <input type="checkbox" class="rule-checkbox" ${enabled ? 'checked' : ''}
-          onchange="${onchangeExpr}">
+          onchange="getRuleConfig().rules['${r.id}'] = this.checked">
       </td>
       <td style="font-weight:500;color:#262626;">${r.id}</td>
       <td>${r.name}</td>
       <td style="color:#8c8c8c;">${descFull}</td>
       <td>${paramCell}</td>
-      <td class="col-verdict" style="display:${isComment ? '' : 'none'}">${verdictCell}</td>
       <td style="font-size:12px;line-height:1.9;">
         <span style="color:#52c41a;">命中：</span>${r.hit}<br>
         <span style="color:#bfbfbf;">不命中：</span><span style="color:#bfbfbf;">${r.miss}</span>
       </td>
     </tr>`;
   }).join('');
-}
-
-// ── 保存评论规则的判定结果 ──
-function saveVerdict(ruleId, verdict) {
-  getRuleConfig().rules[ruleId].verdict = verdict;
-  // 同步 select 颜色
-  renderRulesTable();
 }
 
 // ── 实时校验两个阈值的大小关系 ──
