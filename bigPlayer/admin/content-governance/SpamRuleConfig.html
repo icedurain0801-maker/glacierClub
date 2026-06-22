@@ -900,7 +900,12 @@ function deleteWord(type, idx) {
 
 // ── 下载导入模板 ──
 function downloadTemplate() {
-  const csv = 'word\ngood\nnice\n顶';
+  const csv = '灌水词
+word
+string
+good
+nice
+顶';
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -934,7 +939,7 @@ function handleFileUpload(e) {
   reader.onload = function(ev) {
     const text = ev.target.result;
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const start = lines[0].toLowerCase() === 'word' ? 1 : 0;
+    const start = 3; // 前3行为字段描述/字段名/字段类型
     _importWords = lines.slice(start).map(l => l.split(',')[0].trim()).filter(Boolean);
     const preview = _importWords.slice(0, 5);
     document.getElementById('preview-count').textContent = `共解析到 ${_importWords.length} 条词语`;
