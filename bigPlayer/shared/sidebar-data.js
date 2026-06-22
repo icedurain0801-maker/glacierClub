@@ -133,7 +133,7 @@ const SIDEBAR_DATA = [
           {
             type: 'item',
             label: '灌水判定配置',
-            version: 'v1.1.0',
+            version: 'v3.1.3',
             href: 'admin/content-governance/SpamRuleConfig.html'
           }
         ]
