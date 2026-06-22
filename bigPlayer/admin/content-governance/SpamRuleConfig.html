@@ -96,6 +96,75 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .toggle-track.off .toggle-thumb { left: 3px; }
+/* ── 词库操作栏 ── */
+.word-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.word-input {
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #262626;
+  outline: none;
+  min-width: 220px;
+  cursor: text;
+}
+.word-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.15); }
+.btn-sm {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #d9d9d9;
+}
+.btn-primary { background: #1890ff; color: #fff; border-color: #1890ff; }
+.btn-primary:hover { background: #40a9ff; border-color: #40a9ff; }
+.btn-default { background: #fff; color: #595959; }
+.btn-default:hover { border-color: #1890ff; color: #1890ff; }
+.btn-link {
+  font-size: 13px;
+  color: #1890ff;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0 4px;
+}
+.btn-link:hover { color: #40a9ff; }
+/* ── 词库表格 ── */
+.word-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.word-table th {
+  padding: 12px;
+  font-weight: 500;
+  color: #262626;
+  border-bottom: 1px solid #e8e8e8;
+  text-align: left;
+  background: #fafafa;
+}
+.word-table td {
+  padding: 12px;
+  color: #595959;
+  border-bottom: 1px solid #f0f0f0;
+}
+.word-table tr:hover td { background: #fafeff; }
+.btn-del {
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: #ff4d4f;
+  cursor: pointer;
+  padding: 0;
+}
+.btn-del:hover { color: #ff7875; }
 </style>
 </head>
 <body>
@@ -128,7 +197,39 @@ body {
 
     <!-- Tab 2: 词库管理 -->
     <div class="tab-panel" id="panel-words">
-      <!-- Task 4 填充 -->
+      <!-- 子 Tab 栏 -->
+      <div class="sub-tab-bar">
+        <div class="sub-tab-item active" onclick="switchWordTab('spam')">灌水词库</div>
+        <div class="sub-tab-item" onclick="switchWordTab('malicious')">恶意词库</div>
+      </div>
+
+      <!-- 灌水词库面板 -->
+      <div class="sub-tab-panel active" id="word-panel-spam">
+        <div class="word-action-bar">
+          <input class="word-input" id="spam-input" type="text" placeholder="输入词语，按 Enter 添加" onkeydown="if(event.key==='Enter')addWord('spam')">
+          <button class="btn-sm btn-primary" onclick="addWord('spam')">添加</button>
+          <button class="btn-sm btn-default" onclick="openImportModal('spam')">导入</button>
+          <a class="btn-link" onclick="downloadTemplate()">下载导入模板</a>
+        </div>
+        <table class="word-table">
+          <thead><tr><th>词语</th><th style="width:180px;">创建时间</th><th style="width:80px;">操作</th></tr></thead>
+          <tbody id="spam-table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- 恶意词库面板 -->
+      <div class="sub-tab-panel" id="word-panel-malicious">
+        <div class="word-action-bar">
+          <input class="word-input" id="malicious-input" type="text" placeholder="输入词语，按 Enter 添加" onkeydown="if(event.key==='Enter')addWord('malicious')">
+          <button class="btn-sm btn-primary" onclick="addWord('malicious')">添加</button>
+          <button class="btn-sm btn-default" onclick="openImportModal('malicious')">导入</button>
+          <a class="btn-link" onclick="downloadTemplate()">下载导入模板</a>
+        </div>
+        <table class="word-table">
+          <thead><tr><th>词语</th><th style="width:180px;">创建时间</th><th style="width:80px;">操作</th></tr></thead>
+          <tbody id="malicious-table-body"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Tab 3: 规则配置 -->
@@ -190,6 +291,64 @@ function toggleGlobal() {
   status.textContent = CONFIG.globalEnabled ? '已开启' : '已关闭';
   status.style.color = CONFIG.globalEnabled ? '#52c41a' : '#8c8c8c';
 }
+
+// ── 子 Tab 切换 ──
+function switchWordTab(type) {
+  document.querySelectorAll('.sub-tab-item').forEach((el, i) => {
+    el.classList.toggle('active', i === (type === 'spam' ? 0 : 1));
+  });
+  document.getElementById('word-panel-spam').classList.toggle('active', type === 'spam');
+  document.getElementById('word-panel-malicious').classList.toggle('active', type === 'malicious');
+}
+
+// ── 渲染词库表格 ──
+function renderWordTable(type) {
+  const list = type === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  const tbody = document.getElementById(type + '-table-body');
+  tbody.innerHTML = list.map((item, idx) => `
+    <tr>
+      <td>${item.word}</td>
+      <td>${item.createdAt}</td>
+      <td><button class="btn-del" onclick="deleteWord('${type}',${idx})">删除</button></td>
+    </tr>
+  `).join('');
+}
+
+// ── 添加词条 ──
+function addWord(type) {
+  const input = document.getElementById(type + '-input');
+  const val = input.value.trim();
+  if (!val) return;
+  const list = type === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  if (list.some(w => w.word === val)) { alert('词条已存在'); return; }
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  list.push({ word: val, createdAt: ts });
+  input.value = '';
+  renderWordTable(type);
+}
+
+// ── 删除词条 ──
+function deleteWord(type, idx) {
+  const list = type === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  list.splice(idx, 1);
+  renderWordTable(type);
+}
+
+// ── 下载导入模板 ──
+function downloadTemplate() {
+  const csv = 'word\ngood\nnice\n顶';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = '词库导入模板.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 初始渲染
+renderWordTable('spam');
+renderWordTable('malicious');
 </script>
 </body>
 </html>
