@@ -298,6 +298,30 @@ body {
   width: 16px; height: 16px; cursor: pointer;
   accent-color: #1890ff;
 }
+/* ── 内容类型切换 ── */
+.content-type-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+}
+.content-type-btn {
+  height: 32px;
+  padding: 0 20px;
+  font-size: 13px;
+  color: #595959;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  border-right: 1px solid #d9d9d9;
+  transition: background 0.15s, color 0.15s;
+}
+.content-type-btn:last-child { border-right: none; }
+.content-type-btn:hover { color: #1890ff; background: #f0f7ff; }
+.content-type-btn.active { background: #1890ff; color: #fff; }
 </style>
 </head>
 <body>
@@ -379,6 +403,13 @@ body {
 
     <!-- Tab 2: 规则配置 -->
     <div class="tab-panel" id="panel-rules">
+
+      <!-- 内容类型切换 -->
+      <div class="content-type-bar">
+        <button class="content-type-btn active" id="ctype-post" onclick="switchContentType('post')">帖子 / 动态</button>
+        <button class="content-type-btn" id="ctype-comment" onclick="switchContentType('comment')">评论</button>
+      </div>
+
       <!-- 规则列表卡片 -->
       <div class="rule-card">
         <div class="rule-card-title">规则启用</div>
@@ -760,27 +791,48 @@ function makeDefaultConfig() {
       { word: '骗子', createdAt: '2026-06-01 10:00:00' },
       { word: '滚',   createdAt: '2026-06-01 10:00:00' }
     ],
-    rules: {
-      R1: true, R2: true, R3: true, R4: true, R5: true,
-      R6: true, R7: true, R8: true, R9: true
-    },
-    ruleParams: {
-      R2: 4,   // 有效字数少于 N 个
-      R4: 70,  // 表情+符号占比 ≥ P%
-      R5: 80,  // 单字符占比 ≥ Q%
-      R6: 3    // 子串重复 ≥ K 次
-    },
-    spamThreshold: 2,
-    markedThreshold: 1
+    // 规则配置按内容类型独立：post（帖子/动态）/ comment（评论）
+    ruleConfig: {
+      post: {
+        rules: { R1: true, R2: true, R3: true, R4: true, R5: true, R6: true, R7: true, R8: true, R9: true },
+        ruleParams: { R2: 4, R4: 70, R5: 80, R6: 3 },
+        spamThreshold: 2,
+        markedThreshold: 1
+      },
+      comment: {
+        rules: { R1: true, R2: true, R3: true, R4: true, R5: true, R6: true, R7: true, R8: true, R9: true },
+        // 评论普遍短，字数阈值更低；复读次数收紧；整体判定阈值更高避免误杀
+        ruleParams: { R2: 2, R4: 70, R5: 80, R6: 2 },
+        spamThreshold: 3,
+        markedThreshold: 1
+      }
+    }
   };
 }
 
 const CONFIGS = {};
 let _currentSection = '超能世界';
+let _currentCtype = 'post'; // 当前规则配置视角：post | comment
 
 function getConfig() {
   if (!CONFIGS[_currentSection]) CONFIGS[_currentSection] = makeDefaultConfig();
   return CONFIGS[_currentSection];
+}
+
+function getRuleConfig() {
+  return getConfig().ruleConfig[_currentCtype];
+}
+
+// ── 切换内容类型 ──
+function switchContentType(ctype) {
+  _currentCtype = ctype;
+  document.getElementById('ctype-post').classList.toggle('active', ctype === 'post');
+  document.getElementById('ctype-comment').classList.toggle('active', ctype === 'comment');
+  renderRulesTable();
+  const rc = getRuleConfig();
+  document.getElementById('spam-threshold').value = rc.spamThreshold;
+  document.getElementById('marked-threshold').value = rc.markedThreshold;
+  validateThresholds();
 }
 
 // ── 切换版块 ──
@@ -803,10 +855,15 @@ function refreshAllUI() {
   renderWordTable('malicious');
   // 规则
   renderRulesTable();
-  // 阈值
-  document.getElementById('spam-threshold').value = cfg.spamThreshold;
-  document.getElementById('marked-threshold').value = cfg.markedThreshold;
+  // 阈值（按当前内容类型）
+  const rc = getRuleConfig();
+  document.getElementById('spam-threshold').value = rc.spamThreshold;
+  document.getElementById('marked-threshold').value = rc.markedThreshold;
   validateThresholds();
+  // 重置内容类型选择到 post
+  _currentCtype = 'post';
+  document.getElementById('ctype-post').classList.add('active');
+  document.getElementById('ctype-comment').classList.remove('active');
   // 开关关闭时隐藏整个规则配置区
   document.getElementById('config-area').style.display = cfg.globalEnabled ? '' : 'none';
   document.getElementById('config-disabled-tip').style.display = cfg.globalEnabled ? 'none' : 'block';
@@ -945,10 +1002,10 @@ const RULE_DEFS = [
 ];
 
 function renderRulesTable() {
-  const cfg = getConfig();
+  const rc = getRuleConfig();
   const tbody = document.getElementById('rules-table-body');
   tbody.innerHTML = RULE_DEFS.map(r => {
-    const paramVal = r.paramKey ? cfg.ruleParams[r.paramKey] : null;
+    const paramVal = r.paramKey ? rc.ruleParams[r.paramKey] : null;
     const descFull = r.paramKey
       ? `${r.desc} <span style="color:#1890ff;font-weight:500;">${paramVal}${r.paramUnit}</span>`
       : r.desc;
@@ -964,8 +1021,8 @@ function renderRulesTable() {
     return `
     <tr>
       <td style="text-align:center;">
-        <input type="checkbox" class="rule-checkbox" ${cfg.rules[r.id] ? 'checked' : ''}
-          onchange="getConfig().rules['${r.id}'] = this.checked">
+        <input type="checkbox" class="rule-checkbox" ${rc.rules[r.id] ? 'checked' : ''}
+          onchange="getRuleConfig().rules['${r.id}'] = this.checked">
       </td>
       <td style="font-weight:500;color:#262626;">${r.id}</td>
       <td>${r.name}</td>
@@ -998,9 +1055,9 @@ function saveRules() {
   if (spamVal <= markedVal) {
     alert('灌水阈值必须大于嫌疑阈值'); return;
   }
-  const cfg = getConfig();
-  cfg.spamThreshold = spamVal;
-  cfg.markedThreshold = markedVal;
+  const rc = getRuleConfig();
+  rc.spamThreshold = spamVal;
+  rc.markedThreshold = markedVal;
   alert('保存成功');
 }
 
@@ -1009,10 +1066,10 @@ function saveRuleParam(key, input) {
   const val = parseInt(input.value, 10);
   if (isNaN(val) || val < 1) {
     alert('参数必须为正整数');
-    input.value = getConfig().ruleParams[key];
+    input.value = getRuleConfig().ruleParams[key];
     return;
   }
-  getConfig().ruleParams[key] = val;
+  getRuleConfig().ruleParams[key] = val;
   // 同步更新该行说明列的蓝色数字
   renderRulesTable();
 }
