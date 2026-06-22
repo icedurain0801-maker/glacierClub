@@ -338,6 +338,8 @@ body {
       <span style="font-size:12px;color:#8c8c8c;margin-left:8px;">关闭后所有判定规则停止运行，已有打标数据不受影响。</span>
     </div>
 
+    <!-- 规则配置区（开关关闭时整体隐藏） -->
+    <div id="config-area">
     <!-- 主 Tab 栏 -->
     <div class="tab-bar">
       <div class="tab-item active" onclick="switchMainTab('words')">词库管理</div>
@@ -415,6 +417,12 @@ body {
           <button class="btn-sm btn-primary" onclick="saveRules()">保存配置</button>
         </div>
       </div>
+    </div>
+    </div><!-- /#config-area -->
+
+    <!-- 开关关闭时的占位提示 -->
+    <div id="config-disabled-tip" style="display:none;padding:48px 20px;text-align:center;color:#bfbfbf;font-size:13px;">
+      内容治理功能已关闭，开启后可配置词库与规则。
     </div>
   </div>
 </div>
@@ -641,16 +649,15 @@ function refreshAllUI() {
   // 阈值
   document.getElementById('spam-threshold').value = cfg.spamThreshold;
   document.getElementById('marked-threshold').value = cfg.markedThreshold;
+  // 开关关闭时隐藏整个规则配置区
+  document.getElementById('config-area').style.display = cfg.globalEnabled ? '' : 'none';
+  document.getElementById('config-disabled-tip').style.display = cfg.globalEnabled ? 'none' : 'block';
 }
 
 function toggleGlobal() {
   const cfg = getConfig();
   cfg.globalEnabled = !cfg.globalEnabled;
-  const track = document.getElementById('global-toggle');
-  const status = document.getElementById('global-status');
-  track.classList.toggle('off', !cfg.globalEnabled);
-  status.textContent = cfg.globalEnabled ? '已开启' : '已关闭';
-  status.style.color = cfg.globalEnabled ? '#52c41a' : '#8c8c8c';
+  refreshAllUI();
 }
 
 // ── 子 Tab 切换 ──
@@ -712,9 +719,6 @@ function downloadTemplate() {
   a.href = url; a.download = '词库导入模板.csv'; a.click();
   URL.revokeObjectURL(url);
 }
-
-// 初始渲染
-refreshAllUI();
 
 // ── 导入弹窗状态 ──
 let _importType = 'spam';
@@ -821,6 +825,9 @@ function closeHelp() {
   document.getElementById('help-panel').classList.remove('open');
   document.getElementById('help-panel-overlay').classList.remove('open');
 }
+
+// ── 初始渲染（须在所有函数与常量定义之后执行）──
+refreshAllUI();
 </script>
 </body>
 </html>
