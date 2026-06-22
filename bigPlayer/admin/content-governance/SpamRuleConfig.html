@@ -1113,12 +1113,7 @@ function deleteWord(type, idx) {
 
 // ── 下载导入模板 ──
 function downloadTemplate() {
-  const csv = '灌水词
-word
-string
-good
-nice
-顶';
+  const csv = '灌水词\nword\nstring\ngood\nnice\n顶';
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1189,7 +1184,6 @@ const RULE_DEFS = [
   { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥',           hit: '啊啊啊啊啊啊',   miss: '今天去钓鱼',            paramKey: 'R5', paramUnit: '%' },
   { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥',                 hit: '顶顶顶｜好的好的好的', miss: '好的好的（仅×2）',   paramKey: 'R6', paramUnit: '次' },
   { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字',              hit: '666｜8888',      miss: '第3关怎么过' },
-  { id: 'R8', name: '词库词堆砌',  desc: '所有切分片段均属于词库词条',          hit: 'good nice 顶',   miss: '赞，这攻略真不错' },
   { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串',            hit: 'asdfgh｜qwerty', miss: 'hello' },
 ];
 
