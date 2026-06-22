@@ -400,22 +400,64 @@ body {
       <!-- 阈值配置卡片 -->
       <div class="rule-card" style="margin-top:16px;">
         <div class="rule-card-title">判定阈值</div>
-        <div class="threshold-row">
-          <span class="threshold-label">命中以下数量规则，判定为</span>
-          <strong style="color:#ff4d4f;">灌水（spam）</strong>
-          <span class="threshold-label">：≥</span>
-          <input class="threshold-input" id="spam-threshold" type="number" min="1" value="2">
-          <span class="threshold-label">条</span>
+        <div style="padding:16px 16px 0;">
+          <!-- 层级说明 -->
+          <div style="display:flex;flex-direction:column;gap:0;">
+
+            <!-- 灌水行 -->
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:12px;flex-shrink:0;"></div>
+              <span class="threshold-label">命中</span>
+              <input class="threshold-input" id="spam-threshold" type="number" min="1" value="2"
+                oninput="validateThresholds()">
+              <span class="threshold-label">条及以上规则，判定为</span>
+              <strong style="color:#ff4d4f;">灌水（spam）</strong>
+            </div>
+
+            <!-- 连接线 -->
+            <div style="display:flex;align-items:stretch;gap:8px;margin:2px 0;">
+              <div style="width:12px;flex-shrink:0;display:flex;justify-content:center;">
+                <div style="width:1px;background:#e8e8e8;flex:1;"></div>
+              </div>
+              <div style="height:16px;"></div>
+            </div>
+
+            <!-- 嫌疑行 -->
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:12px;flex-shrink:0;display:flex;justify-content:center;align-items:center;">
+                <div style="width:8px;height:8px;border-radius:50%;background:#e8e8e8;flex-shrink:0;"></div>
+              </div>
+              <span class="threshold-label">命中</span>
+              <input class="threshold-input" id="marked-threshold" type="number" min="1" value="1"
+                oninput="validateThresholds()">
+              <span class="threshold-label">条及以上规则，判定为</span>
+              <strong style="color:#fa8c16;">嫌疑（marked）</strong>
+            </div>
+
+            <!-- 连接线 -->
+            <div style="display:flex;align-items:stretch;gap:8px;margin:2px 0;">
+              <div style="width:12px;flex-shrink:0;display:flex;justify-content:center;">
+                <div style="width:1px;background:#e8e8e8;flex:1;"></div>
+              </div>
+              <div style="height:16px;"></div>
+            </div>
+
+            <!-- 正常行 -->
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:12px;flex-shrink:0;display:flex;justify-content:center;align-items:center;">
+                <div style="width:8px;height:8px;border-radius:50%;background:#e8e8e8;flex-shrink:0;"></div>
+              </div>
+              <span style="font-size:13px;color:#8c8c8c;">低于嫌疑阈值，判定为</span>
+              <strong style="color:#52c41a;font-size:13px;">正常（normal）</strong>
+            </div>
+          </div>
+
+          <!-- 校验提示 -->
+          <div id="threshold-error" style="display:none;margin-top:10px;font-size:12px;color:#ff4d4f;">
+            ⚠ 灌水阈值必须大于嫌疑阈值
+          </div>
         </div>
-        <div class="threshold-row" style="margin-top:10px;">
-          <span class="threshold-label">命中以下数量规则，判定为</span>
-          <strong style="color:#fa8c16;">嫌疑（marked）</strong>
-          <span class="threshold-label">：≥</span>
-          <input class="threshold-input" id="marked-threshold" type="number" min="1" value="1">
-          <span class="threshold-label">条</span>
-        </div>
-        <p style="font-size:12px;color:#8c8c8c;margin-top:12px;padding:0 16px;">低于嫌疑阈值的内容判定为正常（normal）</p>
-        <div style="margin-top:20px;padding:0 16px 16px;">
+        <div style="margin-top:16px;padding:0 16px 16px;">
           <button class="btn-sm btn-primary" onclick="saveRules()">保存配置</button>
         </div>
       </div>
@@ -764,6 +806,7 @@ function refreshAllUI() {
   // 阈值
   document.getElementById('spam-threshold').value = cfg.spamThreshold;
   document.getElementById('marked-threshold').value = cfg.markedThreshold;
+  validateThresholds();
   // 开关关闭时隐藏整个规则配置区
   document.getElementById('config-area').style.display = cfg.globalEnabled ? '' : 'none';
   document.getElementById('config-disabled-tip').style.display = cfg.globalEnabled ? 'none' : 'block';
@@ -934,6 +977,16 @@ function renderRulesTable() {
       </td>
     </tr>`;
   }).join('');
+}
+
+// ── 实时校验两个阈值的大小关系 ──
+function validateThresholds() {
+  const spam = parseInt(document.getElementById('spam-threshold').value, 10);
+  const marked = parseInt(document.getElementById('marked-threshold').value, 10);
+  const err = document.getElementById('threshold-error');
+  const invalid = !isNaN(spam) && !isNaN(marked) && spam <= marked;
+  err.style.display = invalid ? 'block' : 'none';
+  document.querySelector('#panel-rules .btn-primary').disabled = invalid;
 }
 
 function saveRules() {
