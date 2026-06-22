@@ -1177,7 +1177,7 @@ function confirmImport() {
 
 // ── 规则定义 ──
 const RULE_DEFS = [
-  { id: 'R1', name: '词库命中',    desc: '内容归一化后完全等于词库中某个词',   hit: 'good｜顶',       miss: '这攻略很有用，顶一个' },
+  { id: 'R1', name: '词库命中',    desc: '整条内容去除大小写、空格、标点后，与词库中某个词完全一致（如单独发一个顶、good）',   hit: 'good｜顶',       miss: '这攻略很有用，顶一个' },
   { id: 'R2', name: '有效字数不足', desc: '有效字数（去连续重复后）少于',        hit: '好的｜收到',      miss: '这关怎么过',           paramKey: 'R2', paramUnit: '个' },
   { id: 'R3', name: '无文字内容',  desc: '无任何文字或数字字符（纯表情/符号）', hit: '😂😂｜。。。',  miss: '666 哈😂' },
   { id: 'R4', name: '表情符号占比高', desc: '表情+符号字符占总字符比 ≥',       hit: '好👍😂😂😂😂😂', miss: '今天天气不错😂',        paramKey: 'R4', paramUnit: '%' },
