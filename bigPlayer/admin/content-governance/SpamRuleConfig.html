@@ -372,7 +372,124 @@ body {
   </div>
 </div>
 
-<!-- FAB + 需求说明面板（Task 7 填充）-->
+<!-- ══ 需求说明 FAB ══ -->
+<style>
+.help-fab {
+  position: fixed; right: 24px; bottom: 24px;
+  width: 120px; height: 120px; border-radius: 16px;
+  background: linear-gradient(145deg, #1890ff 0%, #096dd9 100%);
+  color: #fff; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; box-shadow: 0 4px 16px rgba(24,144,255,0.4);
+  z-index: 800; user-select: none;
+  transition: box-shadow 0.2s;
+}
+.help-fab:hover { box-shadow: 0 6px 24px rgba(24,144,255,0.55); }
+.help-fab-icon { font-size: 32px; }
+.help-fab-text { font-size: 12px; font-weight: 500; }
+.help-panel {
+  position: fixed; top: 0; right: -500px; width: 480px; height: 100vh;
+  background: #fff; box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  z-index: 850; display: flex; flex-direction: column;
+  transition: right 0.3s cubic-bezier(.4,0,.2,1);
+}
+.help-panel.open { right: 0; }
+.help-panel-overlay { display: none; position: fixed; inset: 0; z-index: 849; }
+.help-panel-overlay.open { display: block; }
+.help-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px; border-bottom: 1px solid #e8e8e8; flex-shrink: 0;
+}
+.help-panel-title {
+  font-size: 16px; font-weight: 600; color: #262626;
+  display: flex; align-items: center; gap: 8px;
+}
+.help-panel-title::before {
+  content: ''; width: 4px; height: 18px;
+  background: #1890ff; border-radius: 2px;
+}
+.help-panel-close {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f5f5f5; font-size: 16px; color: #888;
+  cursor: pointer; border: none; transition: background 0.15s;
+}
+.help-panel-close:hover { background: #e0e0e0; color: #333; }
+.help-panel-body { flex: 1; overflow-y: auto; padding: 20px; }
+.help-version-block { border: 1px solid #e8e8e8; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.help-version-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer; background: #fff; user-select: none;
+  transition: background 0.15s;
+}
+.help-version-hd:hover { background: #f0f7ff; }
+.help-version-hd.is-latest { background: #e6f7ff; }
+.help-version-num { font-size: 13px; font-weight: 700; color: #262626; }
+.help-version-date { font-size: 11px; color: #aaa; margin-left: 4px; }
+.help-version-badge { font-size: 10px; font-weight: 600; color: #fff; background: #1890ff; border-radius: 8px; padding: 1px 7px; margin-left: 4px; }
+.help-version-arrow { margin-left: auto; font-size: 11px; color: #bbb; transition: transform 0.2s; }
+.help-version-block.open .help-version-arrow { transform: rotate(180deg); }
+.help-version-body { display: none; padding: 14px 16px; border-top: 1px solid #e8e8e8; background: #fafcfe; }
+.help-version-block.open .help-version-body { display: block; }
+.help-section { margin-bottom: 14px; }
+.help-section:last-child { margin-bottom: 0; }
+.help-section-title { font-size: 12px; font-weight: 600; color: #1890ff; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+.help-section-title::before { content: ''; width: 3px; height: 12px; background: #1890ff; border-radius: 2px; flex-shrink: 0; }
+.help-section p { font-size: 12px; color: #555; line-height: 1.9; }
+.help-section ul { padding-left: 16px; }
+.help-section ul li { font-size: 12px; color: #555; line-height: 2; }
+</style>
+
+<div class="help-fab" id="help-fab" onclick="openHelp()">
+  <div class="help-fab-icon">📋</div>
+  <div class="help-fab-text">需求说明</div>
+</div>
+
+<div class="help-panel-overlay" id="help-panel-overlay" onclick="closeHelp()"></div>
+<div class="help-panel" id="help-panel">
+  <div class="help-panel-header">
+    <div class="help-panel-title">灌水判定配置 — 需求说明</div>
+    <button class="help-panel-close" onclick="closeHelp()">×</button>
+  </div>
+  <div class="help-panel-body">
+    <div class="help-version-block open">
+      <div class="help-version-hd is-latest" onclick="this.parentElement.classList.toggle('open')">
+        <span class="help-version-num">v1.0.0</span>
+        <span class="help-version-date">2026-06-18</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+        <div class="help-section">
+          <div class="help-section-title">背景与目标</div>
+          <p>社区积分体系催生大量灌水内容。本期只做「判定」，不做惩罚：对每条新发布内容输出 normal / marked / spam 三档状态标记。</p>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">总开关</div>
+          <ul>
+            <li>关闭后所有判定规则停止运行，已有打标数据不受影响。</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">词库管理</div>
+          <ul>
+            <li>灌水词库与恶意词库独立维护，互不影响。</li>
+            <li>支持单条输入添加与 CSV 批量导入（word 列）。</li>
+            <li>下载导入模板可获得标准格式示例。</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">规则配置</div>
+          <ul>
+            <li>R1~R9 每条规则可独立启用/禁用。</li>
+            <li>灌水阈值：命中规则数 ≥ N 判定为 spam（默认 2）。</li>
+            <li>嫌疑阈值：命中规则数 ≥ M 判定为 marked（默认 1）。</li>
+            <li>灌水阈值必须大于嫌疑阈值。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="../../shared/sidebar-data.js"></script>
 <script src="../../shared/sidebar.js"></script>
@@ -578,6 +695,15 @@ function saveRules() {
 }
 
 renderRulesTable();
+
+function openHelp() {
+  document.getElementById('help-panel').classList.add('open');
+  document.getElementById('help-panel-overlay').classList.add('open');
+}
+function closeHelp() {
+  document.getElementById('help-panel').classList.remove('open');
+  document.getElementById('help-panel-overlay').classList.remove('open');
+}
 </script>
 </body>
 </html>
