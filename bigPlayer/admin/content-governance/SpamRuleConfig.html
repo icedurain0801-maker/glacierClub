@@ -724,48 +724,12 @@ body {
   </div>
   <div class="help-panel-body">
 
-    <!-- ───────── v3.1.4 ───────── -->
+    <!-- ───────── v3.1.3 ───────── -->
     <div class="help-version-block open">
       <div class="help-version-hd is-latest" onclick="this.parentElement.classList.toggle('open')">
-        <span class="help-version-num">v3.1.4</span>
-        <span class="help-version-date">2026-06-22</span>
-        <span class="help-version-badge">最新</span>
-        <span class="help-version-arrow">▼</span>
-      </div>
-      <div class="help-version-body">
-        <div class="help-section">
-          <div class="help-section-title">1. 本次范围</div>
-          <p><strong>背景 / 目标：</strong>随着各版块灌水词库持续扩充，单页平铺全部词条会越来越长、查找困难。本次仅针对<strong>「词库管理」</strong>做一次易用性增强，<strong>不改动</strong>机审链路、规则判定与阈值逻辑（仍以 v3.1.3 为准）。</p>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">2. 词库管理 · 分页与排序（本次新增）</div>
-          <ul>
-            <li><strong>分页：</strong>词条列表按<strong>每页 20 条</strong>分页展示，右下角提供分页器（共 N 条 + 上一页 / 页码 / 下一页）。词条数 ≤ 20 时不显示页码、仅显示「共 N 条」。</li>
-            <li><strong>页码收敛：</strong>页数较多时页码以「首页 + 末页 + 当前页 ±1 + 省略号」紧凑展示，避免一排页码撑满。</li>
-            <li><strong>最新在前：</strong>词条按<strong>添加时间倒序</strong>排列，最近添加的排在最前、停在第 1 页首位。</li>
-            <li><strong>新增 / 导入后回首页：</strong>单条添加或 CSV 批量导入成功后，自动跳回<strong>第 1 页</strong>，便于即时确认刚加入的词条。</li>
-            <li><strong>删除后页码兜底：</strong>删除导致当前页为空时，自动回退到最后一个有效页；删除按钮始终指向词条本身，分页不影响删除准确性。</li>
-            <li><strong>分版块独立：</strong>分页与排序行为对每个版块的词库各自独立，沿用 v3.1.3「分版块互不影响」。</li>
-          </ul>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">3. 不在本次范围</div>
-          <ul>
-            <li>机审三道关顺序、R1~R9 判定逻辑、阈值与档位（normal / marked / spam）：维持 v3.1.3。</li>
-            <li>词库搜索 / 按关键词过滤、词条编辑、批量删除：本次未做，后续视需要再排。</li>
-            <li>词库数量上限、入库归一化口径（大小写 / 繁简 / 全半角）：评审中提出，<strong>待产品对齐后另行迭代</strong>。</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- ───────── v3.1.3 ───────── -->
-    <div class="help-version-block">
-      <div class="help-version-hd" onclick="this.parentElement.classList.toggle('open')">
         <span class="help-version-num">v3.1.3</span>
         <span class="help-version-date">2026-06-22</span>
+        <span class="help-version-badge">最新</span>
         <span class="help-version-arrow">▼</span>
       </div>
       <div class="help-version-body">
@@ -788,8 +752,8 @@ body {
           <div class="help-section-title">3. 配置能力</div>
           <ul>
             <li><strong>总开关：</strong>关闭后灌水库审查不运行（机审仅保留屏蔽词 + 阿里云两道），已有打标数据不受影响。</li>
-            <li><strong>词库管理：</strong>灌水词库与恶意词库独立维护；支持单条添加与 CSV 批量导入（word 列）；可下载导入模板。</li>
-            <li><strong>规则配置：</strong>R1~R9 每条可独立启用 / 禁用；灌水阈值（命中数 ≥ N 判「灌水」，默认 2）与嫌疑阈值（≥ M 判「嫌疑」，默认 1）可配，灌水阈值须大于嫌疑阈值。</li>
+            <li><strong>词库管理：</strong>灌水词库与恶意词库独立维护；支持单条添加与 CSV 批量导入（word 列）；可下载导入模板。词条列表<strong>每页 20 条分页</strong>展示（右下角「共 N 条 + 上一页 / 页码 / 下一页」，≤20 条仅显示「共 N 条」、页数多时页码以「首末页 + 当前页 ±1 + 省略号」收敛），并按<strong>添加时间倒序</strong>（最新在前）；单条添加或导入成功后自动回到第 1 页便于确认，删除导致当前页为空时自动回退到有效页。</li>
+            <li><strong>规则配置：</strong>R1~R8 每条可独立启用 / 禁用；灌水阈值（命中数 ≥ N 判「灌水」，默认 2）与嫌疑阈值（≥ M 判「嫌疑」，默认 1）可配，灌水阈值须大于嫌疑阈值。</li>
             <li><strong>分版块：</strong>总开关、词库、规则、阈值均按所属版块各自配置，互不影响。</li>
           </ul>
         </div>
@@ -803,7 +767,7 @@ body {
             <div class="help-flow-arrow">↓ 通过　（未过→机审不通过）</div>
             <div class="help-flow-node">② 图片 / 视频阿里云审查　通过？</div>
             <div class="help-flow-arrow">↓ 通过　（未过→机审不通过）</div>
-            <div class="help-flow-node">③ 灌水库审查：跑 R1~R9（仅含文本时），按命中数定档</div>
+            <div class="help-flow-node">③ 灌水库审查：跑 R1~R8（仅含文本时），按命中数定档</div>
             <div class="help-flow-branch">
               <div>
                 <div class="help-flow-label">是，灌水（命中 ≥ 灌水阈值）</div>
@@ -852,9 +816,9 @@ body {
           <div class="help-section-title">6. 功能逻辑要点</div>
           <ul>
             <li><strong>优先级串行：</strong>屏蔽词 → 阿里云 → 灌水库，前序未过即短路返回，不再跑后序，灌水库永远是最后一道。</li>
-            <li><strong>灌水适用范围：</strong>只要内容含任何文本（标题 / 正文 / 评论文字）即跑 R1~R9；纯图片 / 纯视频无文本则跳过灌水检测。</li>
+            <li><strong>灌水适用范围：</strong>只要内容含任何文本（标题 / 正文 / 评论文字）即跑 R1~R8；纯图片 / 纯视频无文本则跳过灌水检测。</li>
             <li><strong>地区分流：</strong>国内机审仅建议、全量人工定夺；海外机审直接决定对外与否。</li>
-            <li><strong>备注受众：</strong>auditRemark 取规则名称（非编号）快照，多条按 R1→R9 顺序、以「、」连接，<strong>仅审核员可见</strong>。</li>
+            <li><strong>备注受众：</strong>auditRemark 取规则名称（非编号）快照，多条按 R1→R8 顺序、以「、」连接，<strong>仅审核员可见</strong>。</li>
             <li><strong>作者感知：</strong>作者可见自己内容被拒 / 审核中，但<strong>不显示具体命中规则</strong>（防绕过），仅给笼统提示文案。</li>
             <li><strong>联动：</strong>总开关关闭 / 规则停用 / 阈值调整均只对调整后的新内容生效，<strong>不回溯</strong>已判定内容。</li>
           </ul>
@@ -878,6 +842,49 @@ body {
             <li>被拒内容的发帖经验值是否发放 / 扣回？是否计入用户发帖数？</li>
             <li>海外机审不通过是否对作者开放申诉入口？（海外无人工兜底，需明确申诉链路）</li>
           </ul>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">9. 规则算法说明</div>
+          <p style="font-size:12px;color:#8c8c8c;margin-bottom:8px;">所有规则以「字符分类」为基础：将内容按 Unicode 码点拆分，分为文字字符（中英文等）、数字字符、表情符号（emoji / 颜文字 / 平台自定义表情）、符号/标点/空白四类。有效字符 = 文字 + 数字。字符分类只跑一次，R1~R8 全部复用。</p>
+          <table class="help-table">
+            <thead><tr><th style="width:32px;">编号</th><th style="width:100px;">规则名称</th><th>算法要点</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>R1</td><td>词库命中</td>
+                <td>对内容做归一化（转小写 → 去空白/标点/表情/符号 → 合并连续重复字符），归一化串与词库 Set 做哈希查表（O(1)）。完全等于某词则命中；「包含」不算命中，靠 R1 不能绕过。</td>
+              </tr>
+              <tr>
+                <td>R2</td><td>有效字数不足</td>
+                <td>取有效字符串，将连续相同字符合并为1个后计算长度（如「好好好的」→「好的」= 2），长度 &lt; 配置阈值 N 则命中。</td>
+              </tr>
+              <tr>
+                <td>R3</td><td>无文字内容</td>
+                <td>文字字符数 = 0 且数字字符数 = 0，即整条内容无任何可读文字或数字，则命中（如纯 emoji、纯标点）。</td>
+              </tr>
+              <tr>
+                <td>R4</td><td>表情符号占比高</td>
+                <td>（表情符号数 + 符号/标点数）/ 总字符数 ≥ 配置阈值 P%，则命中。emoji 识别用 Intl.Segmenter + emoji-regex，避免漏判组合字符、肤色修饰。</td>
+              </tr>
+              <tr>
+                <td>R5</td><td>单字符占比高</td>
+                <td>统计全部字符频次，取最高频单字符出现次数 / 总字符数 ≥ 配置阈值 Q%，则命中（如「啊啊啊啊」）。</td>
+              </tr>
+              <tr>
+                <td>R6</td><td>整条复读</td>
+                <td>对有效字符串求最小重复周期（KMP failure 函数，O(L)）：若内容可被某子串整除且重复次数 ≥ 配置阈值 K 次，则命中（如「好的好的好的」周期=「好的」×3）。</td>
+              </tr>
+              <tr>
+                <td>R7</td><td>纯数字</td>
+                <td>去除标点/符号/空白后，剩余字符全为数字字符（0-9 及全角数字），则命中（如「666」「8888」）。</td>
+              </tr>
+              <tr>
+                <td>R8</td><td>键盘乱码</td>
+                <td>两路启发式，任一命中即触发：① 键位序列检测：有效字母串是否为键盘某行连续子串（正/反向，如 qwerty、asdfgh）；② 可读性检测：字母串中元音字母占比低于阈值，或连续辅音字符超过阈值（如 qwrtp）。R8 误判率最高，建议上线后单独观测命中样本。</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size:12px;color:#8c8c8c;margin-top:8px;"><strong>推荐执行顺序（节省算力）：</strong>R3/R7 最便宜先跑 → R1 查词库 → R2/R4/R5/R6 计数统计 → R8 最贵放最后。词库一次性加载进内存 Set，O(1) 查表，后台更新后热刷新。</p>
         </div>
       </div>
     </div>
