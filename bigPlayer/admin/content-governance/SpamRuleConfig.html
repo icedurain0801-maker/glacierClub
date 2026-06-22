@@ -421,6 +421,7 @@ body {
               <th style="width:140px;">规则名称</th>
               <th>说明</th>
               <th style="width:150px;">参数</th>
+              <th class="col-verdict" style="width:120px;display:none;">命中判定</th>
               <th style="width:280px;">示例</th>
             </tr>
           </thead>
@@ -428,8 +429,8 @@ body {
         </table>
       </div>
 
-      <!-- 阈值配置卡片 -->
-      <div class="rule-card" style="margin-top:16px;">
+      <!-- 阈值配置卡片（评论视角隐藏） -->
+      <div class="rule-card" id="threshold-card" style="margin-top:16px;">
         <div class="rule-card-title">判定阈值</div>
         <div style="padding:16px 16px 0;">
           <!-- 层级说明 -->
@@ -800,11 +801,16 @@ function makeDefaultConfig() {
         markedThreshold: 1
       },
       comment: {
-        // 评论场景：仅 R1/R2/R4/R5/R6 适用，其余不参与判定
-        rules: { R1: true, R2: true, R4: true, R5: true, R6: true },
-        ruleParams: { R2: 2, R4: 70, R5: 80, R6: 2 },
-        spamThreshold: 3,
-        markedThreshold: 1
+        // 评论场景：每条规则独立判定，无累积阈值
+        // verdict: spam=命中即灌水  marked=命中即嫌疑  ignore=不参与判定
+        rules: {
+          R1: { enabled: true,  verdict: 'spam',   desc: '词库命中，强信号' },
+          R2: { enabled: true,  verdict: 'ignore',  desc: '短评天然字数少，不判定' },
+          R4: { enabled: true,  verdict: 'marked',  desc: '表情堆砌，列为嫌疑' },
+          R5: { enabled: true,  verdict: 'marked',  desc: '单字符重复，列为嫌疑' },
+          R6: { enabled: true,  verdict: 'spam',   desc: '整条复读，强信号' }
+        },
+        ruleParams: { R2: 2, R4: 70, R5: 80, R6: 2 }
       }
     }
   };
@@ -828,11 +834,13 @@ function switchContentType(ctype) {
   _currentCtype = ctype;
   document.getElementById('ctype-post').classList.toggle('active', ctype === 'post');
   document.getElementById('ctype-comment').classList.toggle('active', ctype === 'comment');
-  renderRulesTable();
-  const rc = getRuleConfig();
-  document.getElementById('spam-threshold').value = rc.spamThreshold;
-  document.getElementById('marked-threshold').value = rc.markedThreshold;
-  validateThresholds();
+  renderRulesTable(); // 内部已处理阈值卡片显隐
+  if (ctype === 'post') {
+    const rc = getRuleConfig();
+    document.getElementById('spam-threshold').value = rc.spamThreshold;
+    document.getElementById('marked-threshold').value = rc.markedThreshold;
+    validateThresholds();
+  }
 }
 
 // ── 切换版块 ──
@@ -855,8 +863,8 @@ function refreshAllUI() {
   renderWordTable('malicious');
   // 规则
   renderRulesTable();
-  // 阈值（按当前内容类型）
-  const rc = getRuleConfig();
+  // 阈值（重置到 post 视角）
+  const rc = getConfig().ruleConfig.post;
   document.getElementById('spam-threshold').value = rc.spamThreshold;
   document.getElementById('marked-threshold').value = rc.markedThreshold;
   validateThresholds();
@@ -1001,11 +1009,24 @@ const RULE_DEFS = [
   { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串',            hit: 'asdfgh｜qwerty', miss: 'hello' },
 ];
 
+const VERDICT_LABELS = { spam: '灌水（spam）', marked: '嫌疑（marked）', ignore: '不参与判定' };
+const VERDICT_COLORS = { spam: '#ff4d4f', marked: '#fa8c16', ignore: '#bfbfbf' };
+
 function renderRulesTable() {
   const rc = getRuleConfig();
+  const isComment = _currentCtype === 'comment';
   const tbody = document.getElementById('rules-table-body');
   const applicable = RULE_DEFS.filter(r => r.id in rc.rules);
+
+  // 控制判定结果列和阈值卡片的显隐
+  document.querySelectorAll('.col-verdict').forEach(el => el.style.display = isComment ? '' : 'none');
+  document.getElementById('threshold-card').style.display = isComment ? 'none' : '';
+
   tbody.innerHTML = applicable.map(r => {
+    const ruleEntry = rc.rules[r.id];
+    const enabled = isComment ? ruleEntry.enabled : ruleEntry;
+    const verdict = isComment ? ruleEntry.verdict : null;
+
     const paramVal = r.paramKey ? rc.ruleParams[r.paramKey] : null;
     const descFull = r.paramKey
       ? `${r.desc} <span style="color:#1890ff;font-weight:500;">${paramVal}${r.paramUnit}</span>`
@@ -1019,16 +1040,31 @@ function renderRulesTable() {
            <span style="font-size:12px;color:#8c8c8c;">${r.paramUnit}</span>
          </div>`
       : `<span style="color:#d9d9d9;font-size:13px;">—</span>`;
+
+    const verdictCell = isComment
+      ? `<select class="verdict-select" onchange="saveVerdict('${r.id}', this.value)"
+           style="height:28px;border:1px solid #d9d9d9;border-radius:4px;padding:0 6px;font-size:12px;color:${VERDICT_COLORS[verdict]};outline:none;cursor:pointer;">
+           ${Object.entries(VERDICT_LABELS).map(([v, label]) =>
+             `<option value="${v}" ${v === verdict ? 'selected' : ''} style="color:${VERDICT_COLORS[v]}">${label}</option>`
+           ).join('')}
+         </select>`
+      : '';
+
+    const onchangeExpr = isComment
+      ? `getRuleConfig().rules['${r.id}'].enabled = this.checked`
+      : `getRuleConfig().rules['${r.id}'] = this.checked`;
+
     return `
     <tr>
       <td style="text-align:center;">
-        <input type="checkbox" class="rule-checkbox" ${rc.rules[r.id] ? 'checked' : ''}
-          onchange="getRuleConfig().rules['${r.id}'] = this.checked">
+        <input type="checkbox" class="rule-checkbox" ${enabled ? 'checked' : ''}
+          onchange="${onchangeExpr}">
       </td>
       <td style="font-weight:500;color:#262626;">${r.id}</td>
       <td>${r.name}</td>
       <td style="color:#8c8c8c;">${descFull}</td>
       <td>${paramCell}</td>
+      <td class="col-verdict" style="display:${isComment ? '' : 'none'}">${verdictCell}</td>
       <td style="font-size:12px;line-height:1.9;">
         <span style="color:#52c41a;">命中：</span>${r.hit}<br>
         <span style="color:#bfbfbf;">不命中：</span><span style="color:#bfbfbf;">${r.miss}</span>
@@ -1037,8 +1073,16 @@ function renderRulesTable() {
   }).join('');
 }
 
+// ── 保存评论规则的判定结果 ──
+function saveVerdict(ruleId, verdict) {
+  getRuleConfig().rules[ruleId].verdict = verdict;
+  // 同步 select 颜色
+  renderRulesTable();
+}
+
 // ── 实时校验两个阈值的大小关系 ──
 function validateThresholds() {
+  if (_currentCtype === 'comment') return; // 评论无阈值
   const spam = parseInt(document.getElementById('spam-threshold').value, 10);
   const marked = parseInt(document.getElementById('marked-threshold').value, 10);
   const err = document.getElementById('threshold-error');
@@ -1048,6 +1092,7 @@ function validateThresholds() {
 }
 
 function saveRules() {
+  if (_currentCtype === 'comment') { alert('保存成功'); return; }
   const spamVal = parseInt(document.getElementById('spam-threshold').value, 10);
   const markedVal = parseInt(document.getElementById('marked-threshold').value, 10);
   if (isNaN(spamVal) || isNaN(markedVal) || spamVal < 1 || markedVal < 1) {
