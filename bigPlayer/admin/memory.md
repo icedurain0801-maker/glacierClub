@@ -10,6 +10,7 @@
 |------|------|----------|----------|
 | 徽章管理 | `admin/community/BadgeManage.html` | v3.0.9 | 2026-04-07 |
 | 攻略组管理 | `admin/community/GuideGroupManage.html` | v3.1.0 | 2026-05-07 |
+| 灌水判定配置 | `admin/content-governance/SpamRuleConfig.html` | v1.0.0 | 2026-06-22 |
 
 ---
 
@@ -42,6 +43,8 @@ admin/
 ├── community/              # 社区功能
 │   └── BadgeManage.html    ✓ 已完成
 ├── content-management/     # 内容管理（待开发）
+├── content-governance/     # 内容治理
+│   └── SpamRuleConfig.html  ✓ 已完成
 ├── user-management/        # 用户管理（待开发）
 ├── log-management/         # 日志管理（待开发）
 ├── analytics/              # 数据分析（待开发）
@@ -56,6 +59,7 @@ admin/
 |------|------|----------|
 | v3.1.0 | 2026-05-07 | 攻略组管理新增海外版块多语种支持：依据玩家 languageId 自动匹配攻略站，未命中时降级展示英文；英文为固定语种不可删除；可选语种由配置中心 LanguageClub 下发 |
 | v3.0.9 | 2026-04-07 | 徽章管理新增奖品选择字段，支持游戏道具和头像框配置 |
+| v1.0.0 | 2026-06-22 | 新增内容治理目录，灌水判定配置页：总开关 / 词库管理（灌水+恶意词库，支持增删导入）/ 规则配置（R1-R9 + spam/marked 阈值可配） |
 
 ---
 
