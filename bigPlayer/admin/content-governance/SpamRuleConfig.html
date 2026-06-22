@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灌水判定配置 - 大玩家后台</title>
+<link rel="stylesheet" href="../../shared/sidebar.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #f5f7fa;
+  min-height: 100vh;
+  display: flex;
+}
+.admin-main {
+  flex: 1;
+  min-height: 100vh;
+  padding: 24px;
+  overflow-y: auto;
+}
+.page-card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 0 20px;
+}
+.tab-item {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #595959;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+.tab-item.active { color: #1890ff; font-weight: 500; }
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+  border-radius: 1px 1px 0 0;
+}
+.tab-panel { display: none; padding: 20px; }
+.tab-panel.active { display: block; }
+/* 子 Tab */
+.sub-tab-bar {
+  display: flex;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+.sub-tab-item {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #595959;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+.sub-tab-item.active { color: #1890ff; font-weight: 500; }
+.sub-tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: #1890ff;
+  border-radius: 1px 1px 0 0;
+}
+.sub-tab-panel { display: none; }
+.sub-tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+<nav id="sidebar" class="sidebar"></nav>
+
+<div class="admin-main" id="admin-main">
+  <div class="page-card">
+    <!-- 主 Tab 栏 -->
+    <div class="tab-bar">
+      <div class="tab-item active" onclick="switchMainTab('switch')">总开关</div>
+      <div class="tab-item" onclick="switchMainTab('words')">词库管理</div>
+      <div class="tab-item" onclick="switchMainTab('rules')">规则配置</div>
+    </div>
+
+    <!-- Tab 1: 总开关 -->
+    <div class="tab-panel active" id="panel-switch">
+      <!-- Task 3 填充 -->
+    </div>
+
+    <!-- Tab 2: 词库管理 -->
+    <div class="tab-panel" id="panel-words">
+      <!-- Task 4 填充 -->
+    </div>
+
+    <!-- Tab 3: 规则配置 -->
+    <div class="tab-panel" id="panel-rules">
+      <!-- Task 6 填充 -->
+    </div>
+  </div>
+</div>
+
+<!-- FAB + 需求说明面板（Task 7 填充）-->
+
+<script src="../../shared/sidebar-data.js"></script>
+<script src="../../shared/sidebar.js"></script>
+<script>
+initSidebar({
+  root: '../..',
+  currentHref: 'admin/content-governance/SpamRuleConfig.html'
+});
+
+// ── 主 Tab 切换 ──
+function switchMainTab(id) {
+  document.querySelectorAll('.tab-bar .tab-item').forEach((el, i) => {
+    const ids = ['switch', 'words', 'rules'];
+    el.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.tab-panel').forEach(el => {
+    el.classList.toggle('active', el.id === 'panel-' + id);
+  });
+}
+</script>
+</body>
+</html>
