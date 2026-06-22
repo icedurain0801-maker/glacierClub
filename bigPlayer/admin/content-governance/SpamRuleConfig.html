@@ -201,6 +201,29 @@ body {
   transition: border-color 0.2s;
 }
 .upload-zone:hover { border-color: #1890ff; }
+/* ── 版块选择栏 ── */
+.section-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+}
+.section-label { font-size: 13px; color: #595959; }
+.section-select {
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #262626;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  min-width: 160px;
+}
+.section-select:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.15); }
 /* ── 规则配置卡片 ── */
 .rule-card {
   border: 1px solid #e8e8e8;
@@ -240,6 +263,29 @@ body {
 
 <div class="admin-main" id="admin-main">
   <div class="page-card">
+    <!-- 版块选择栏 -->
+    <div class="section-bar">
+      <span class="section-label"><span style="color:#ff4d4f;">*</span> 所属版块：</span>
+      <select class="section-select" id="section-select" onchange="switchSection(this.value)">
+        <optgroup label="国内">
+          <option value="圣魂纷争">圣魂纷争</option>
+          <option value="超能世界" selected>超能世界</option>
+          <option value="逍遥情缘">逍遥情缘</option>
+          <option value="太初界">太初界</option>
+          <option value="钓鱼世界">钓鱼世界</option>
+          <option value="泰坦降临">泰坦降临</option>
+          <option value="天墙传说">天墙传说</option>
+          <option value="择日飞仙">择日飞仙</option>
+        </optgroup>
+        <optgroup label="海外">
+          <option value="Saint Soul Strife">Saint Soul Strife</option>
+          <option value="Super World">Super World</option>
+          <option value="Titan's Fall">Titan's Fall</option>
+          <option value="Eternal Bonds">Eternal Bonds</option>
+        </optgroup>
+      </select>
+    </div>
+
     <!-- 主 Tab 栏 -->
     <div class="tab-bar">
       <div class="tab-item active" onclick="switchMainTab('switch')">总开关</div>
@@ -510,36 +556,72 @@ function switchMainTab(id) {
   });
 }
 
-// ── CONFIG 数据对象 ──
-const CONFIG = {
-  globalEnabled: true,
-  spamWords: [
-    { word: 'good', createdAt: '2026-06-01 10:00:00' },
-    { word: 'nice', createdAt: '2026-06-01 10:00:00' },
-    { word: '顶',   createdAt: '2026-06-01 10:00:00' },
-    { word: '赞',   createdAt: '2026-06-01 10:00:00' },
-    { word: '666',  createdAt: '2026-06-01 10:00:00' }
-  ],
-  maliciousWords: [
-    { word: '垃圾', createdAt: '2026-06-01 10:00:00' },
-    { word: '骗子', createdAt: '2026-06-01 10:00:00' },
-    { word: '滚',   createdAt: '2026-06-01 10:00:00' }
-  ],
-  rules: {
-    R1: true, R2: true, R3: true, R4: true, R5: true,
-    R6: true, R7: true, R8: true, R9: true
-  },
-  spamThreshold: 2,
-  markedThreshold: 1
-};
+// ── 按版块存储配置 ──
+function makeDefaultConfig() {
+  return {
+    globalEnabled: true,
+    spamWords: [
+      { word: 'good', createdAt: '2026-06-01 10:00:00' },
+      { word: 'nice', createdAt: '2026-06-01 10:00:00' },
+      { word: '顶',   createdAt: '2026-06-01 10:00:00' },
+      { word: '赞',   createdAt: '2026-06-01 10:00:00' },
+      { word: '666',  createdAt: '2026-06-01 10:00:00' }
+    ],
+    maliciousWords: [
+      { word: '垃圾', createdAt: '2026-06-01 10:00:00' },
+      { word: '骗子', createdAt: '2026-06-01 10:00:00' },
+      { word: '滚',   createdAt: '2026-06-01 10:00:00' }
+    ],
+    rules: {
+      R1: true, R2: true, R3: true, R4: true, R5: true,
+      R6: true, R7: true, R8: true, R9: true
+    },
+    spamThreshold: 2,
+    markedThreshold: 1
+  };
+}
 
-function toggleGlobal() {
-  CONFIG.globalEnabled = !CONFIG.globalEnabled;
+const CONFIGS = {};
+let _currentSection = '超能世界';
+
+function getConfig() {
+  if (!CONFIGS[_currentSection]) CONFIGS[_currentSection] = makeDefaultConfig();
+  return CONFIGS[_currentSection];
+}
+
+// ── 切换版块 ──
+function switchSection(section) {
+  _currentSection = section;
+  refreshAllUI();
+}
+
+// ── 刷新整页 UI ──
+function refreshAllUI() {
+  const cfg = getConfig();
+  // 总开关
   const track = document.getElementById('global-toggle');
   const status = document.getElementById('global-status');
-  track.classList.toggle('off', !CONFIG.globalEnabled);
-  status.textContent = CONFIG.globalEnabled ? '已开启' : '已关闭';
-  status.style.color = CONFIG.globalEnabled ? '#52c41a' : '#8c8c8c';
+  track.classList.toggle('off', !cfg.globalEnabled);
+  status.textContent = cfg.globalEnabled ? '已开启' : '已关闭';
+  status.style.color = cfg.globalEnabled ? '#52c41a' : '#8c8c8c';
+  // 词库
+  renderWordTable('spam');
+  renderWordTable('malicious');
+  // 规则
+  renderRulesTable();
+  // 阈值
+  document.getElementById('spam-threshold').value = cfg.spamThreshold;
+  document.getElementById('marked-threshold').value = cfg.markedThreshold;
+}
+
+function toggleGlobal() {
+  const cfg = getConfig();
+  cfg.globalEnabled = !cfg.globalEnabled;
+  const track = document.getElementById('global-toggle');
+  const status = document.getElementById('global-status');
+  track.classList.toggle('off', !cfg.globalEnabled);
+  status.textContent = cfg.globalEnabled ? '已开启' : '已关闭';
+  status.style.color = cfg.globalEnabled ? '#52c41a' : '#8c8c8c';
 }
 
 // ── 子 Tab 切换 ──
@@ -553,7 +635,8 @@ function switchWordTab(type) {
 
 // ── 渲染词库表格 ──
 function renderWordTable(type) {
-  const list = type === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  const cfg = getConfig();
+  const list = type === 'spam' ? cfg.spamWords : cfg.maliciousWords;
   const tbody = document.getElementById(type + '-table-body');
   tbody.innerHTML = list.map((item, idx) => `
     <tr>
@@ -569,7 +652,8 @@ function addWord(type) {
   const input = document.getElementById(type + '-input');
   const val = input.value.trim();
   if (!val) return;
-  const list = type === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  const cfg = getConfig();
+  const list = type === 'spam' ? cfg.spamWords : cfg.maliciousWords;
   if (list.some(w => w.word === val)) { alert('词条已存在'); return; }
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
@@ -581,7 +665,8 @@ function addWord(type) {
 
 // ── 删除词条 ──
 function deleteWord(type, idx) {
-  const list = type === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  const cfg = getConfig();
+  const list = type === 'spam' ? cfg.spamWords : cfg.maliciousWords;
   list.splice(idx, 1);
   renderWordTable(type);
 }
@@ -597,8 +682,7 @@ function downloadTemplate() {
 }
 
 // 初始渲染
-renderWordTable('spam');
-renderWordTable('malicious');
+refreshAllUI();
 
 // ── 导入弹窗状态 ──
 let _importType = 'spam';
@@ -639,7 +723,8 @@ function handleFileUpload(e) {
 
 function confirmImport() {
   if (!_importWords.length) return;
-  const list = _importType === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  const cfg = getConfig();
+  const list = _importType === 'spam' ? cfg.spamWords : cfg.maliciousWords;
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
   const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
@@ -666,12 +751,13 @@ const RULE_DEFS = [
 ];
 
 function renderRulesTable() {
+  const cfg = getConfig();
   const tbody = document.getElementById('rules-table-body');
   tbody.innerHTML = RULE_DEFS.map(r => `
     <tr>
       <td style="text-align:center;">
-        <input type="checkbox" class="rule-checkbox" ${CONFIG.rules[r.id] ? 'checked' : ''}
-          onchange="CONFIG.rules['${r.id}'] = this.checked">
+        <input type="checkbox" class="rule-checkbox" ${cfg.rules[r.id] ? 'checked' : ''}
+          onchange="getConfig().rules['${r.id}'] = this.checked">
       </td>
       <td style="font-weight:500;color:#262626;">${r.id}</td>
       <td>${r.name}</td>
@@ -689,12 +775,11 @@ function saveRules() {
   if (spamVal <= markedVal) {
     alert('灌水阈值必须大于嫌疑阈值'); return;
   }
-  CONFIG.spamThreshold = spamVal;
-  CONFIG.markedThreshold = markedVal;
+  const cfg = getConfig();
+  cfg.spamThreshold = spamVal;
+  cfg.markedThreshold = markedVal;
   alert('保存成功');
 }
-
-renderRulesTable();
 
 function openHelp() {
   document.getElementById('help-panel').classList.add('open');
