@@ -800,9 +800,8 @@ function makeDefaultConfig() {
         markedThreshold: 1
       },
       comment: {
-        // 评论场景：R3纯表情/R7纯数字(666、88正常)/R8词堆砌(短评易误判)/R9键盘乱码(缩写误判) 默认关闭
-        rules: { R1: true, R2: true, R3: false, R4: true, R5: true, R6: true, R7: false, R8: false, R9: false },
-        // 字数阈值更低；复读次数收紧；整体判定阈值更高避免误杀
+        // 评论场景：仅 R1/R2/R4/R5/R6 适用，其余不参与判定
+        rules: { R1: true, R2: true, R4: true, R5: true, R6: true },
         ruleParams: { R2: 2, R4: 70, R5: 80, R6: 2 },
         spamThreshold: 3,
         markedThreshold: 1
@@ -1005,7 +1004,8 @@ const RULE_DEFS = [
 function renderRulesTable() {
   const rc = getRuleConfig();
   const tbody = document.getElementById('rules-table-body');
-  tbody.innerHTML = RULE_DEFS.map(r => {
+  const applicable = RULE_DEFS.filter(r => r.id in rc.rules);
+  tbody.innerHTML = applicable.map(r => {
     const paramVal = r.paramKey ? rc.ruleParams[r.paramKey] : null;
     const descFull = r.paramKey
       ? `${r.desc} <span style="color:#1890ff;font-weight:500;">${paramVal}${r.paramUnit}</span>`
