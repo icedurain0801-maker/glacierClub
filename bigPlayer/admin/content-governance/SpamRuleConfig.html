@@ -156,15 +156,48 @@ body {
   border-bottom: 1px solid #f0f0f0;
 }
 .word-table tr:hover td { background: #fafeff; }
-.btn-del {
-  background: none;
-  border: none;
+.word-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0 8px;
+  min-height: 48px;
+}
+.word-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  background: #f0f7ff;
+  border: 1px solid #bae0ff;
+  border-radius: 14px;
   font-size: 13px;
-  color: #ff4d4f;
+  color: #262626;
+  white-space: nowrap;
+}
+.word-chip-del {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #c0d8f0;
+  border: none;
+  font-size: 11px;
+  line-height: 1;
+  color: #5a8fbf;
   cursor: pointer;
   padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
 }
-.btn-del:hover { color: #ff7875; }
+.word-chip-del:hover { background: #ff4d4f; color: #fff; }
+.word-chip-empty {
+  font-size: 13px;
+  color: #bfbfbf;
+  padding: 8px 0;
+}
 /* ── 弹窗 ── */
 .modal-overlay {
   display: none; position: fixed; inset: 0;
@@ -327,10 +360,7 @@ body {
           <button class="btn-sm btn-default" onclick="openImportModal('spam')">导入</button>
           <a class="btn-link" onclick="downloadTemplate()">下载导入模板</a>
         </div>
-        <table class="word-table">
-          <thead><tr><th>词语</th><th style="width:180px;">创建时间</th><th style="width:80px;">操作</th></tr></thead>
-          <tbody id="spam-table-body"></tbody>
-        </table>
+        <div class="word-chip-wrap" id="spam-chip-wrap"></div>
       </div>
 
       <!-- 恶意词库面板 -->
@@ -341,10 +371,7 @@ body {
           <button class="btn-sm btn-default" onclick="openImportModal('malicious')">导入</button>
           <a class="btn-link" onclick="downloadTemplate()">下载导入模板</a>
         </div>
-        <table class="word-table">
-          <thead><tr><th>词语</th><th style="width:180px;">创建时间</th><th style="width:80px;">操作</th></tr></thead>
-          <tbody id="malicious-table-body"></tbody>
-        </table>
+        <div class="word-chip-wrap" id="malicious-chip-wrap"></div>
       </div>
     </div>
 
@@ -635,17 +662,20 @@ function switchWordTab(type) {
   document.getElementById('word-panel-malicious').classList.toggle('active', type === 'malicious');
 }
 
-// ── 渲染词库表格 ──
+// ── 渲染词库（chip 标签） ──
 function renderWordTable(type) {
   const cfg = getConfig();
   const list = type === 'spam' ? cfg.spamWords : cfg.maliciousWords;
-  const tbody = document.getElementById(type + '-table-body');
-  tbody.innerHTML = list.map((item, idx) => `
-    <tr>
-      <td>${item.word}</td>
-      <td>${item.createdAt}</td>
-      <td><button class="btn-del" onclick="deleteWord('${type}',${idx})">删除</button></td>
-    </tr>
+  const wrap = document.getElementById(type + '-chip-wrap');
+  if (!list.length) {
+    wrap.innerHTML = '<span class="word-chip-empty">暂无词条</span>';
+    return;
+  }
+  wrap.innerHTML = list.map((item, idx) => `
+    <span class="word-chip" title="${item.createdAt}">
+      ${item.word}
+      <button class="word-chip-del" onclick="deleteWord('${type}',${idx})" title="删除">×</button>
+    </span>
   `).join('');
 }
 
