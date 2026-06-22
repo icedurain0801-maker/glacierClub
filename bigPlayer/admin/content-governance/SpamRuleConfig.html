@@ -507,7 +507,7 @@ body {
               <input class="threshold-input" id="spam-threshold" type="number" min="1" value="2"
                 oninput="validateThresholds()">
               <span class="threshold-label">条及以上规则，判定为</span>
-              <strong style="color:#ff4d4f;">灌水（spam）</strong>
+              <strong style="color:#ff4d4f;">灌水</strong>
             </div>
 
             <!-- 连接线 -->
@@ -527,7 +527,7 @@ body {
               <input class="threshold-input" id="marked-threshold" type="number" min="1" value="1"
                 oninput="validateThresholds()">
               <span class="threshold-label">条及以上规则，判定为</span>
-              <strong style="color:#fa8c16;">嫌疑（marked）</strong>
+              <strong style="color:#fa8c16;">嫌疑</strong>
             </div>
 
             <!-- 连接线 -->
@@ -544,7 +544,7 @@ body {
                 <div style="width:8px;height:8px;border-radius:50%;background:#e8e8e8;flex-shrink:0;"></div>
               </div>
               <span style="font-size:13px;color:#8c8c8c;">低于嫌疑阈值，判定为</span>
-              <strong style="color:#52c41a;font-size:13px;">正常（normal）</strong>
+              <strong style="color:#52c41a;font-size:13px;">正常</strong>
             </div>
           </div>
 
@@ -724,20 +724,56 @@ body {
   </div>
   <div class="help-panel-body">
 
-    <!-- ───────── v3.1.3 ───────── -->
+    <!-- ───────── v3.1.4 ───────── -->
     <div class="help-version-block open">
       <div class="help-version-hd is-latest" onclick="this.parentElement.classList.toggle('open')">
-        <span class="help-version-num">v3.1.3</span>
+        <span class="help-version-num">v3.1.4</span>
         <span class="help-version-date">2026-06-22</span>
         <span class="help-version-badge">最新</span>
         <span class="help-version-arrow">▼</span>
       </div>
       <div class="help-version-body">
         <div class="help-section">
+          <div class="help-section-title">1. 本次范围</div>
+          <p><strong>背景 / 目标：</strong>随着各版块灌水词库持续扩充，单页平铺全部词条会越来越长、查找困难。本次仅针对<strong>「词库管理」</strong>做一次易用性增强，<strong>不改动</strong>机审链路、规则判定与阈值逻辑（仍以 v3.1.3 为准）。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">2. 词库管理 · 分页与排序（本次新增）</div>
+          <ul>
+            <li><strong>分页：</strong>词条列表按<strong>每页 20 条</strong>分页展示，右下角提供分页器（共 N 条 + 上一页 / 页码 / 下一页）。词条数 ≤ 20 时不显示页码、仅显示「共 N 条」。</li>
+            <li><strong>页码收敛：</strong>页数较多时页码以「首页 + 末页 + 当前页 ±1 + 省略号」紧凑展示，避免一排页码撑满。</li>
+            <li><strong>最新在前：</strong>词条按<strong>添加时间倒序</strong>排列，最近添加的排在最前、停在第 1 页首位。</li>
+            <li><strong>新增 / 导入后回首页：</strong>单条添加或 CSV 批量导入成功后，自动跳回<strong>第 1 页</strong>，便于即时确认刚加入的词条。</li>
+            <li><strong>删除后页码兜底：</strong>删除导致当前页为空时，自动回退到最后一个有效页；删除按钮始终指向词条本身，分页不影响删除准确性。</li>
+            <li><strong>分版块独立：</strong>分页与排序行为对每个版块的词库各自独立，沿用 v3.1.3「分版块互不影响」。</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">3. 不在本次范围</div>
+          <ul>
+            <li>机审三道关顺序、R1~R9 判定逻辑、阈值与档位（normal / marked / spam）：维持 v3.1.3。</li>
+            <li>词库搜索 / 按关键词过滤、词条编辑、批量删除：本次未做，后续视需要再排。</li>
+            <li>词库数量上限、入库归一化口径（大小写 / 繁简 / 全半角）：评审中提出，<strong>待产品对齐后另行迭代</strong>。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────── v3.1.3 ───────── -->
+    <div class="help-version-block">
+      <div class="help-version-hd" onclick="this.parentElement.classList.toggle('open')">
+        <span class="help-version-num">v3.1.3</span>
+        <span class="help-version-date">2026-06-22</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+        <div class="help-section">
           <div class="help-section-title">1. 需求概述</div>
-          <p><strong>背景 / 目标：</strong>社区积分体系催生大量灌水内容。本期在<strong>机审环节</strong>新增「灌水库规则审查」，作为机审的第三道关，对每条新发布内容跑 R1~R9 输出 normal / marked / spam 三档；被判 spam 的内容在机审中作为「不通过」处理，备注自动填命中规则名称。</p>
+          <p><strong>背景 / 目标：</strong>社区积分体系催生大量灌水内容。本期在<strong>机审环节</strong>新增「灌水库规则审查」，作为机审的第三道关，对每条新发布内容跑 R1~R9 输出「正常 / 嫌疑 / 灌水」三档；被判「灌水」的内容在机审中作为「不通过」处理，备注自动填命中规则名称。</p>
           <p style="margin-top:6px;"><strong>机审三道关（按优先级串行）：</strong>① 文本屏蔽词过滤 → ② 图片 / 视频阿里云云审查 → ③ <strong>灌水库审查（本期新增，优先级最低）</strong>。前两道<strong>都通过</strong>才跑灌水检测；任一道未过则直接判不通过，不再往后跑。</p>
-          <p style="margin-top:6px;"><strong>边界：</strong>仅 spam 在机审中视为不通过；marked / normal 视为机审通过。灌水检测仅对<strong>含文本</strong>（标题 / 正文 / 评论文字）的内容生效，纯图片 / 纯视频跳过。仅作用于<strong>新发布内容</strong>，不回溯历史。</p>
+          <p style="margin-top:6px;"><strong>边界：</strong>仅「灌水」在机审中视为不通过；「嫌疑」/「正常」视为机审通过。灌水检测仅对<strong>含文本</strong>（标题 / 正文 / 评论文字）的内容生效，纯图片 / 纯视频跳过。仅作用于<strong>新发布内容</strong>，不回溯历史。</p>
         </div>
 
         <div class="help-section">
@@ -753,7 +789,7 @@ body {
           <ul>
             <li><strong>总开关：</strong>关闭后灌水库审查不运行（机审仅保留屏蔽词 + 阿里云两道），已有打标数据不受影响。</li>
             <li><strong>词库管理：</strong>灌水词库与恶意词库独立维护；支持单条添加与 CSV 批量导入（word 列）；可下载导入模板。</li>
-            <li><strong>规则配置：</strong>R1~R9 每条可独立启用 / 禁用；灌水阈值（命中数 ≥ N 判 spam，默认 2）与嫌疑阈值（≥ M 判 marked，默认 1）可配，灌水阈值须大于嫌疑阈值。</li>
+            <li><strong>规则配置：</strong>R1~R9 每条可独立启用 / 禁用；灌水阈值（命中数 ≥ N 判「灌水」，默认 2）与嫌疑阈值（≥ M 判「嫌疑」，默认 1）可配，灌水阈值须大于嫌疑阈值。</li>
             <li><strong>分版块：</strong>总开关、词库、规则、阈值均按所属版块各自配置，互不影响。</li>
           </ul>
         </div>
@@ -770,12 +806,12 @@ body {
             <div class="help-flow-node">③ 灌水库审查：跑 R1~R9（仅含文本时），按命中数定档</div>
             <div class="help-flow-branch">
               <div>
-                <div class="help-flow-label">spam（命中≥灌水阈值）</div>
+                <div class="help-flow-label">是，灌水（命中 ≥ 灌水阈值）</div>
                 <div class="help-flow-arrow">↓</div>
                 <div class="help-flow-node reject">机审不通过<br>auditRemark = 命中规则名称</div>
               </div>
               <div>
-                <div class="help-flow-label">marked / normal</div>
+                <div class="help-flow-label">嫌疑 / 正常</div>
                 <div class="help-flow-arrow">↓</div>
                 <div class="help-flow-node pass">机审通过</div>
               </div>
@@ -790,7 +826,7 @@ body {
               <div>
                 <div class="help-flow-label">海外</div>
                 <div class="help-flow-arrow">↓</div>
-                <div class="help-flow-node">机审直接决定<br>通过→对外<br>不通过→不对外</div>
+                <div class="help-flow-node">机审直接决定<br>通过 → 对外<br>不通过 → 不对外</div>
               </div>
             </div>
           </div>
@@ -801,7 +837,7 @@ body {
           <table class="help-table">
             <thead><tr><th>字段</th><th>取值 / 说明</th></tr></thead>
             <tbody>
-              <tr><td>spamStatus</td><td>灌水判定状态：<code>normal</code> / <code>marked</code> / <code>spam</code>，由命中条数与阈值决定</td></tr>
+              <tr><td>spamStatus</td><td>灌水判定状态：<code>正常</code> / <code>嫌疑</code> / <code>灌水</code>，由命中条数与阈值决定</td></tr>
               <tr><td>hitRules</td><td>命中的规则编号数组，如 <code>["R2","R5"]</code></td></tr>
               <tr><td>machineResult</td><td>机审结论：<code>通过</code> / <code>不通过</code>。屏蔽词、阿里云、灌水三道任一不过即<code>不通过</code></td></tr>
               <tr><td>machineFailReason</td><td>机审不通过的原因来源：<code>屏蔽词</code> / <code>阿里云</code> / <code>灌水库</code>，定位是哪道关拦截</td></tr>
@@ -828,10 +864,10 @@ body {
           <div class="help-section-title">7. 异常与边界</div>
           <ul>
             <li><strong>灌水服务异常 / 超时：</strong>不阻断机审，灌水库这道<strong>降级为通过</strong>（屏蔽词与阿里云结论不受影响），记录失败日志并告警，避免误杀与卡死。</li>
-            <li><strong>命中规则为空却判为 spam：</strong>逻辑矛盾，按系统异常、不拦截，并告警排查。</li>
+            <li><strong>命中规则为空却判为「灌水」：</strong>逻辑矛盾，按系统异常、不拦截，并告警排查。</li>
             <li><strong>编辑后重判：</strong>内容编辑后重新提交，重跑完整机审三道关，覆盖旧的 spamStatus / 备注。</li>
             <li><strong>多端一致：</strong>机审在服务端统一处理；海外作者的被拒提示文案需覆盖英 / 繁 / 韩。</li>
-            <li><strong>误杀兜底：</strong>spam 需命中 ≥ 灌水阈值（默认 2 条）方触发，单条短回复通常仅命中 1 条停在 marked，不会被灌水库拦截。</li>
+            <li><strong>误杀兜底：</strong>「灌水」需命中 ≥ 灌水阈值（默认 2 条）方触发，单条短回复通常仅命中 1 条停在「嫌疑」，不会被灌水库拦截。</li>
           </ul>
         </div>
 
@@ -900,19 +936,19 @@ function renderStatCards(containerId, data) {
   const w = n => total > 0 ? (n / total * 100).toFixed(1) + '%' : '0%';
   document.getElementById(containerId).innerHTML = `
     <div class="stats-card normal">
-      <div class="stats-card-label">正常（normal）</div>
+      <div class="stats-card-label">正常</div>
       <div class="stats-card-count">${fmt(normal)}</div>
       <div class="stats-card-pct">占比 ${pct(normal)}</div>
       <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(normal)}"></div></div>
     </div>
     <div class="stats-card marked">
-      <div class="stats-card-label">嫌疑（marked）</div>
+      <div class="stats-card-label">嫌疑</div>
       <div class="stats-card-count">${fmt(marked)}</div>
       <div class="stats-card-pct">占比 ${pct(marked)}</div>
       <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(marked)}"></div></div>
     </div>
     <div class="stats-card spam">
-      <div class="stats-card-label">灌水（spam）</div>
+      <div class="stats-card-label">灌水</div>
       <div class="stats-card-count">${fmt(spam)}</div>
       <div class="stats-card-pct">占比 ${pct(spam)}</div>
       <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(spam)}"></div></div>
