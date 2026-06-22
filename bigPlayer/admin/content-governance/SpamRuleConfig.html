@@ -165,6 +165,42 @@ body {
   padding: 0;
 }
 .btn-del:hover { color: #ff7875; }
+/* ── 弹窗 ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 1000;
+}
+.modal-overlay.open { display: block; }
+.modal-box {
+  display: none; position: fixed;
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 572px; background: #fff;
+  border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  z-index: 1001; overflow: hidden;
+}
+.modal-box.open { display: block; }
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid #e8e8e8;
+}
+.modal-title { font-size: 16px; font-weight: 600; color: #262626; }
+.modal-close {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #f0f0f0; border: none; font-size: 16px;
+  color: #888; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.modal-close:hover { background: #e0e0e0; color: #333; }
+.modal-body { padding: 20px; }
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px; border-top: 1px solid #e8e8e8;
+}
+.upload-zone {
+  border: 2px dashed #d9d9d9; border-radius: 8px;
+  padding: 32px; text-align: center; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.upload-zone:hover { border-color: #1890ff; }
 </style>
 </head>
 <body>
@@ -236,6 +272,34 @@ body {
     <div class="tab-panel" id="panel-rules">
       <!-- Task 6 填充 -->
     </div>
+  </div>
+</div>
+
+<!-- ══ 导入弹窗 ══ -->
+<div class="modal-overlay" id="import-overlay" onclick="closeImportModal()"></div>
+<div class="modal-box" id="import-modal">
+  <div class="modal-header">
+    <span class="modal-title">导入词库</span>
+    <button class="modal-close" onclick="closeImportModal()">×</button>
+  </div>
+  <div class="modal-body">
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+      <div style="font-size:32px;color:#bfbfbf;margin-bottom:8px;">📂</div>
+      <div style="font-size:13px;color:#595959;">点击选择文件，支持 .xlsx / .csv</div>
+      <div style="font-size:11px;color:#8c8c8c;margin-top:4px;">文件须包含 word 列</div>
+    </div>
+    <input type="file" id="file-input" accept=".csv,.xlsx" style="display:none;" onchange="handleFileUpload(event)">
+    <div id="preview-area" style="display:none;margin-top:14px;">
+      <div style="font-size:13px;color:#595959;margin-bottom:8px;" id="preview-count"></div>
+      <table class="word-table">
+        <thead><tr><th>词语（前5条预览）</th></tr></thead>
+        <tbody id="preview-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-sm btn-default" onclick="closeImportModal()">取消</button>
+    <button class="btn-sm btn-primary" id="btn-confirm-import" onclick="confirmImport()" disabled>确认导入</button>
   </div>
 </div>
 
@@ -349,6 +413,58 @@ function downloadTemplate() {
 // 初始渲染
 renderWordTable('spam');
 renderWordTable('malicious');
+
+// ── 导入弹窗状态 ──
+let _importType = 'spam';
+let _importWords = [];
+
+function openImportModal(type) {
+  _importType = type;
+  _importWords = [];
+  document.getElementById('preview-area').style.display = 'none';
+  document.getElementById('file-input').value = '';
+  document.getElementById('btn-confirm-import').disabled = true;
+  document.getElementById('import-overlay').classList.add('open');
+  document.getElementById('import-modal').classList.add('open');
+}
+
+function closeImportModal() {
+  document.getElementById('import-overlay').classList.remove('open');
+  document.getElementById('import-modal').classList.remove('open');
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const text = ev.target.result;
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const start = lines[0].toLowerCase() === 'word' ? 1 : 0;
+    _importWords = lines.slice(start).map(l => l.split(',')[0].trim()).filter(Boolean);
+    const preview = _importWords.slice(0, 5);
+    document.getElementById('preview-count').textContent = `共解析到 ${_importWords.length} 条词语`;
+    document.getElementById('preview-table-body').innerHTML = preview.map(w => `<tr><td>${w}</td></tr>`).join('');
+    document.getElementById('preview-area').style.display = 'block';
+    document.getElementById('btn-confirm-import').disabled = _importWords.length === 0;
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function confirmImport() {
+  if (!_importWords.length) return;
+  const list = _importType === 'spam' ? CONFIG.spamWords : CONFIG.maliciousWords;
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  let added = 0;
+  _importWords.forEach(w => {
+    if (!list.some(x => x.word === w)) { list.push({ word: w, createdAt: ts }); added++; }
+  });
+  closeImportModal();
+  renderWordTable(_importType);
+  alert(`导入完成，新增 ${added} 条词语（重复跳过 ${_importWords.length - added} 条）`);
+}
 </script>
 </body>
 </html>
