@@ -428,6 +428,11 @@ body {
         </table>
       </div>
 
+      <!-- 评论视角保存按钮（帖子时隐藏，帖子的保存在阈值卡片里）-->
+      <div id="comment-save-bar" style="display:none;margin-top:16px;">
+        <button class="btn-sm btn-primary" onclick="saveRules()">保存配置</button>
+      </div>
+
       <!-- 阈值配置卡片（评论视角隐藏） -->
       <div class="rule-card" id="threshold-card" style="margin-top:16px;">
         <div class="rule-card-title">判定阈值</div>
@@ -1008,8 +1013,9 @@ function renderRulesTable() {
   const tbody = document.getElementById('rules-table-body');
   const applicable = RULE_DEFS.filter(r => r.id in rc.rules);
 
-  // 评论视角隐藏阈值卡片
+  // 评论视角隐藏阈值卡片，显示独立保存按钮
   document.getElementById('threshold-card').style.display = isComment ? 'none' : '';
+  document.getElementById('comment-save-bar').style.display = isComment ? '' : 'none';
 
   tbody.innerHTML = applicable.map(r => {
     const enabled = rc.rules[r.id];
