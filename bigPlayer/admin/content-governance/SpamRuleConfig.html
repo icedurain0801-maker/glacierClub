@@ -389,6 +389,7 @@ body {
               <th style="width:80px;">规则编号</th>
               <th style="width:140px;">规则名称</th>
               <th>说明</th>
+              <th style="width:280px;">示例</th>
             </tr>
           </thead>
           <tbody id="rules-table-body"></tbody>
@@ -775,15 +776,15 @@ function confirmImport() {
 
 // ── 规则定义 ──
 const RULE_DEFS = [
-  { id: 'R1', name: '词库命中',    desc: '内容归一化后完全等于词库中某个词' },
-  { id: 'R2', name: '有效字数不足', desc: '有效字数（去连续重复后）少于 4 个' },
-  { id: 'R3', name: '无文字内容',  desc: '无任何文字或数字字符（纯表情/符号）' },
-  { id: 'R4', name: '表情符号占比高', desc: '表情+符号字符占总字符比 ≥ 70%' },
-  { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥ 80%' },
-  { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥ 3 次' },
-  { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字' },
-  { id: 'R8', name: '词库词堆砌',  desc: '所有切分片段均属于词库词条' },
-  { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串' },
+  { id: 'R1', name: '词库命中',    desc: '内容归一化后完全等于词库中某个词', hit: 'good｜顶', miss: '这攻略很有用，顶一个' },
+  { id: 'R2', name: '有效字数不足', desc: '有效字数（去连续重复后）少于 4 个', hit: '好的｜收到', miss: '这关怎么过' },
+  { id: 'R3', name: '无文字内容',  desc: '无任何文字或数字字符（纯表情/符号）', hit: '😂😂｜。。。', miss: '666 哈😂' },
+  { id: 'R4', name: '表情符号占比高', desc: '表情+符号字符占总字符比 ≥ 70%', hit: '好👍😂😂😂😂😂', miss: '今天天气不错😂' },
+  { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥ 80%', hit: '啊啊啊啊啊啊', miss: '今天去钓鱼' },
+  { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥ 3 次', hit: '顶顶顶｜好的好的好的', miss: '好的好的（仅×2）' },
+  { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字', hit: '666｜8888', miss: '第3关怎么过' },
+  { id: 'R8', name: '词库词堆砌',  desc: '所有切分片段均属于词库词条', hit: 'good nice 顶', miss: '赞，这攻略真不错' },
+  { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串', hit: 'asdfgh｜qwerty', miss: 'hello' },
 ];
 
 function renderRulesTable() {
@@ -798,6 +799,10 @@ function renderRulesTable() {
       <td style="font-weight:500;color:#262626;">${r.id}</td>
       <td>${r.name}</td>
       <td style="color:#8c8c8c;">${r.desc}</td>
+      <td style="font-size:12px;line-height:1.9;">
+        <span style="color:#52c41a;">命中：</span>${r.hit}<br>
+        <span style="color:#bfbfbf;">不命中：</span><span style="color:#bfbfbf;">${r.miss}</span>
+      </td>
     </tr>
   `).join('');
 }
