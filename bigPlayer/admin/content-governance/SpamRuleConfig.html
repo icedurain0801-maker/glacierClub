@@ -201,6 +201,38 @@ body {
   transition: border-color 0.2s;
 }
 .upload-zone:hover { border-color: #1890ff; }
+/* ── 规则配置卡片 ── */
+.rule-card {
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.rule-card-title {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #262626;
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+}
+.threshold-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 0;
+}
+.threshold-label { font-size: 13px; color: #595959; }
+.threshold-input {
+  width: 64px; height: 32px;
+  border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 0 8px; font-size: 13px; color: #262626;
+  outline: none; text-align: center;
+}
+.threshold-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.15); }
+.rule-checkbox {
+  width: 16px; height: 16px; cursor: pointer;
+  accent-color: #1890ff;
+}
 </style>
 </head>
 <body>
@@ -270,7 +302,44 @@ body {
 
     <!-- Tab 3: 规则配置 -->
     <div class="tab-panel" id="panel-rules">
-      <!-- Task 6 填充 -->
+      <!-- 规则列表卡片 -->
+      <div class="rule-card">
+        <div class="rule-card-title">规则启用</div>
+        <table class="word-table">
+          <thead>
+            <tr>
+              <th style="width:48px;">启用</th>
+              <th style="width:80px;">规则编号</th>
+              <th style="width:140px;">规则名称</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody id="rules-table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- 阈值配置卡片 -->
+      <div class="rule-card" style="margin-top:16px;">
+        <div class="rule-card-title">判定阈值</div>
+        <div class="threshold-row">
+          <span class="threshold-label">命中以下数量规则，判定为</span>
+          <strong style="color:#ff4d4f;">灌水（spam）</strong>
+          <span class="threshold-label">：≥</span>
+          <input class="threshold-input" id="spam-threshold" type="number" min="1" value="2">
+          <span class="threshold-label">条</span>
+        </div>
+        <div class="threshold-row" style="margin-top:10px;">
+          <span class="threshold-label">命中以下数量规则，判定为</span>
+          <strong style="color:#fa8c16;">嫌疑（marked）</strong>
+          <span class="threshold-label">：≥</span>
+          <input class="threshold-input" id="marked-threshold" type="number" min="1" value="1">
+          <span class="threshold-label">条</span>
+        </div>
+        <p style="font-size:12px;color:#8c8c8c;margin-top:12px;padding:0 16px;">低于嫌疑阈值的内容判定为正常（normal）</p>
+        <div style="margin-top:20px;padding:0 16px 16px;">
+          <button class="btn-sm btn-primary" onclick="saveRules()">保存配置</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -465,6 +534,50 @@ function confirmImport() {
   renderWordTable(_importType);
   alert(`导入完成，新增 ${added} 条词语（重复跳过 ${_importWords.length - added} 条）`);
 }
+
+// ── 规则定义 ──
+const RULE_DEFS = [
+  { id: 'R1', name: '词库命中',    desc: '内容归一化后完全等于词库中某个词' },
+  { id: 'R2', name: '有效字数不足', desc: '有效字数（去连续重复后）少于 4 个' },
+  { id: 'R3', name: '无文字内容',  desc: '无任何文字或数字字符（纯表情/符号）' },
+  { id: 'R4', name: '表情符号占比高', desc: '表情+符号字符占总字符比 ≥ 70%' },
+  { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥ 80%' },
+  { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥ 3 次' },
+  { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字' },
+  { id: 'R8', name: '词库词堆砌',  desc: '所有切分片段均属于词库词条' },
+  { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串' },
+];
+
+function renderRulesTable() {
+  const tbody = document.getElementById('rules-table-body');
+  tbody.innerHTML = RULE_DEFS.map(r => `
+    <tr>
+      <td style="text-align:center;">
+        <input type="checkbox" class="rule-checkbox" ${CONFIG.rules[r.id] ? 'checked' : ''}
+          onchange="CONFIG.rules['${r.id}'] = this.checked">
+      </td>
+      <td style="font-weight:500;color:#262626;">${r.id}</td>
+      <td>${r.name}</td>
+      <td style="color:#8c8c8c;">${r.desc}</td>
+    </tr>
+  `).join('');
+}
+
+function saveRules() {
+  const spamVal = parseInt(document.getElementById('spam-threshold').value, 10);
+  const markedVal = parseInt(document.getElementById('marked-threshold').value, 10);
+  if (isNaN(spamVal) || isNaN(markedVal) || spamVal < 1 || markedVal < 1) {
+    alert('阈值必须为正整数'); return;
+  }
+  if (spamVal <= markedVal) {
+    alert('灌水阈值必须大于嫌疑阈值'); return;
+  }
+  CONFIG.spamThreshold = spamVal;
+  CONFIG.markedThreshold = markedVal;
+  alert('保存成功');
+}
+
+renderRulesTable();
 </script>
 </body>
 </html>
