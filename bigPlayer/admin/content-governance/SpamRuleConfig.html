@@ -569,67 +569,89 @@ body {
       <div class="help-version-body">
         <div class="help-section">
           <div class="help-section-title">1. 需求概述</div>
-          <p><strong>背景 / 目标：</strong>社区积分体系催生大量灌水内容。本期对每条新发布内容跑规则判定，输出 normal / marked / spam 三档状态；并将 spam（灌水）结果<strong>接入内容审核流程</strong>：当帖子 / 动态 / 评论被判定为灌水时，机审给出<strong>建议拒绝</strong>，审核备注自动填入命中的规则名称，内容进入<strong>人工审核队列</strong>由人工最终定夺。</p>
-          <p style="margin-top:6px;"><strong>边界：</strong>仅 spam 触发机审建议拒绝；marked（嫌疑）与 normal（正常）不拦截，走原有审核流程。本期仅作用于<strong>新发布内容</strong>，不回溯历史数据。</p>
-          <p style="margin-top:6px;"><strong>用户对象：</strong>① 系统（自动判定与打标）；② B 端审核 / 运营人员（查看机审结论、备注，人工复核）；③ 内容作者。</p>
+          <p><strong>背景 / 目标：</strong>社区积分体系催生大量灌水内容。本期在<strong>机审环节</strong>新增「灌水库规则审查」，作为机审的第三道关，对每条新发布内容跑 R1~R9 输出 normal / marked / spam 三档；被判 spam 的内容在机审中作为「不通过」处理，备注自动填命中规则名称。</p>
+          <p style="margin-top:6px;"><strong>机审三道关（按优先级串行）：</strong>① 文本屏蔽词过滤 → ② 图片 / 视频阿里云云审查 → ③ <strong>灌水库审查（本期新增，优先级最低）</strong>。前两道<strong>都通过</strong>才跑灌水检测；任一道未过则直接判不通过，不再往后跑。</p>
+          <p style="margin-top:6px;"><strong>边界：</strong>仅 spam 在机审中视为不通过；marked / normal 视为机审通过。灌水检测仅对<strong>含文本</strong>（标题 / 正文 / 评论文字）的内容生效，纯图片 / 纯视频跳过。仅作用于<strong>新发布内容</strong>，不回溯历史。</p>
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">2. 配置能力</div>
+          <div class="help-section-title">2. 国内 vs 海外：机审结论的处置差异</div>
           <ul>
-            <li><strong>总开关：</strong>关闭后所有判定规则停止运行，已有打标数据不受影响。</li>
-            <li><strong>词库管理：</strong>灌水词库与恶意词库独立维护，互不影响；支持单条添加与 CSV 批量导入（word 列）；可下载导入模板。</li>
+            <li><strong>国内：</strong>机审结论<strong>仅作建议</strong>，所有内容<strong>全量过人工审核</strong>，是否对外由人工最终决定。灌水命中 → 机审建议拒绝 + 备注规则名 → 人工复核定夺。</li>
+            <li><strong>海外：</strong>机审结论<strong>直接决定是否对外</strong>。机审通过 → 直接对外；机审不通过（含灌水 spam）→ <strong>直接拒绝、不对外</strong>，无人工兜底。</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">3. 配置能力</div>
+          <ul>
+            <li><strong>总开关：</strong>关闭后灌水库审查不运行（机审仅保留屏蔽词 + 阿里云两道），已有打标数据不受影响。</li>
+            <li><strong>词库管理：</strong>灌水词库与恶意词库独立维护；支持单条添加与 CSV 批量导入（word 列）；可下载导入模板。</li>
             <li><strong>规则配置：</strong>R1~R9 每条可独立启用 / 禁用；灌水阈值（命中数 ≥ N 判 spam，默认 2）与嫌疑阈值（≥ M 判 marked，默认 1）可配，灌水阈值须大于嫌疑阈值。</li>
             <li><strong>分版块：</strong>总开关、词库、规则、阈值均按所属版块各自配置，互不影响。</li>
           </ul>
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">3. 处理流程</div>
+          <div class="help-section-title">4. 处理流程</div>
           <div class="help-flow">
             <div class="help-flow-node start">用户发布 帖子 / 动态 / 评论</div>
-            <div class="help-flow-arrow">↓ 提交成功后</div>
-            <div class="help-flow-node">归一化内容 → 跑 R1~R9 规则，记录命中项 hitRules</div>
-            <div class="help-flow-arrow">↓ 按命中条数定档</div>
-            <div class="help-flow-node">命中数 ≥ 灌水阈值 → spam？</div>
+            <div class="help-flow-arrow">↓ 机审 · 第一道</div>
+            <div class="help-flow-node">① 文本屏蔽词过滤　通过？</div>
+            <div class="help-flow-arrow">↓ 通过　（未过→机审不通过）</div>
+            <div class="help-flow-node">② 图片 / 视频阿里云审查　通过？</div>
+            <div class="help-flow-arrow">↓ 通过　（未过→机审不通过）</div>
+            <div class="help-flow-node">③ 灌水库审查：跑 R1~R9（仅含文本时），按命中数定档</div>
             <div class="help-flow-branch">
               <div>
-                <div class="help-flow-label">是（spam）</div>
+                <div class="help-flow-label">spam（命中≥灌水阈值）</div>
                 <div class="help-flow-arrow">↓</div>
-                <div class="help-flow-node reject">机审建议拒绝<br>auditResult = 待人工复核<br>auditRemark = 命中规则名称</div>
+                <div class="help-flow-node reject">机审不通过<br>auditRemark = 命中规则名称</div>
               </div>
               <div>
-                <div class="help-flow-label">否（marked / normal）</div>
+                <div class="help-flow-label">marked / normal</div>
                 <div class="help-flow-arrow">↓</div>
-                <div class="help-flow-node pass">不拦截<br>走原审核流程</div>
+                <div class="help-flow-node pass">机审通过</div>
               </div>
             </div>
-            <div class="help-flow-arrow">↓</div>
-            <div class="help-flow-node">进入人工审核队列 → 人工最终通过 / 拒绝</div>
+            <div class="help-flow-arrow">↓ 机审结论产出后，按地区分流</div>
+            <div class="help-flow-branch">
+              <div>
+                <div class="help-flow-label">国内</div>
+                <div class="help-flow-arrow">↓</div>
+                <div class="help-flow-node">机审仅建议<br>全量进人工审核<br>人工定是否对外</div>
+              </div>
+              <div>
+                <div class="help-flow-label">海外</div>
+                <div class="help-flow-arrow">↓</div>
+                <div class="help-flow-node">机审直接决定<br>通过→对外<br>不通过→不对外</div>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">4. 字段说明（审核记录新增 / 联动）</div>
+          <div class="help-section-title">5. 字段说明（审核记录新增 / 联动）</div>
           <table class="help-table">
             <thead><tr><th>字段</th><th>取值 / 说明</th></tr></thead>
             <tbody>
-              <tr><td>spamStatus</td><td>判定状态：<code>normal</code> / <code>marked</code> / <code>spam</code>，由命中条数与阈值决定</td></tr>
+              <tr><td>spamStatus</td><td>灌水判定状态：<code>normal</code> / <code>marked</code> / <code>spam</code>，由命中条数与阈值决定</td></tr>
               <tr><td>hitRules</td><td>命中的规则编号数组，如 <code>["R2","R5"]</code></td></tr>
-              <tr><td>machineSuggestion</td><td>机审建议。spam 时为<code>建议拒绝</code>；非 spam 为空</td></tr>
-              <tr><td>auditResult</td><td>审核结论。spam 命中时进入<code>待人工复核</code>，由人工最终置<code>通过</code> / <code>拒绝</code></td></tr>
-              <tr><td>auditRemark</td><td>审核备注（<strong>仅 B 端审核员可见</strong>）。填入命中规则名称快照，如<code>有效字数不足、单字符占比高</code>（多条以、连接）</td></tr>
-              <tr><td>auditType</td><td>审核方式：<code>机审</code> / <code>人工</code></td></tr>
+              <tr><td>machineResult</td><td>机审结论：<code>通过</code> / <code>不通过</code>。屏蔽词、阿里云、灌水三道任一不过即<code>不通过</code></td></tr>
+              <tr><td>machineFailReason</td><td>机审不通过的原因来源：<code>屏蔽词</code> / <code>阿里云</code> / <code>灌水库</code>，定位是哪道关拦截</td></tr>
+              <tr><td>auditResult</td><td>最终结论。<strong>国内</strong>由人工置<code>通过</code> / <code>拒绝</code>；<strong>海外</strong>直接取 machineResult</td></tr>
+              <tr><td>auditRemark</td><td>审核备注（<strong>仅 B 端审核员可见</strong>）。灌水拦截时填命中规则名称快照，如<code>有效字数不足、单字符占比高</code>（多条以、连接）</td></tr>
               <tr><td>contentType</td><td>内容类型：<code>帖子</code> / <code>动态</code> / <code>评论</code>，三类统一适用</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">5. 功能逻辑要点</div>
+          <div class="help-section-title">6. 功能逻辑要点</div>
           <ul>
-            <li><strong>触发时机：</strong>插在「发布提交成功之后、内容对外可见之前」。spam 内容待人工复核期间不对外公开（比照审批中：仅作者 + 管理员可见）。</li>
-            <li><strong>机审非终态：</strong>机审仅给「建议拒绝」并入人工队列，人工结论<strong>覆盖</strong>机审，auditType 更新为「人工」，保留 hitRules 供追溯。</li>
+            <li><strong>优先级串行：</strong>屏蔽词 → 阿里云 → 灌水库，前序未过即短路返回，不再跑后序，灌水库永远是最后一道。</li>
+            <li><strong>灌水适用范围：</strong>只要内容含任何文本（标题 / 正文 / 评论文字）即跑 R1~R9；纯图片 / 纯视频无文本则跳过灌水检测。</li>
+            <li><strong>地区分流：</strong>国内机审仅建议、全量人工定夺；海外机审直接决定对外与否。</li>
             <li><strong>备注受众：</strong>auditRemark 取规则名称（非编号）快照，多条按 R1→R9 顺序、以「、」连接，<strong>仅审核员可见</strong>。</li>
             <li><strong>作者感知：</strong>作者可见自己内容被拒 / 审核中，但<strong>不显示具体命中规则</strong>（防绕过），仅给笼统提示文案。</li>
             <li><strong>联动：</strong>总开关关闭 / 规则停用 / 阈值调整均只对调整后的新内容生效，<strong>不回溯</strong>已判定内容。</li>
@@ -637,21 +659,22 @@ body {
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">6. 异常与边界</div>
+          <div class="help-section-title">7. 异常与边界</div>
           <ul>
-            <li><strong>判定服务异常 / 超时：</strong>不阻断发布，该内容<strong>降级为不拦截</strong>（走原审核流程），记录失败日志并告警，避免误杀与发布卡死。</li>
-            <li><strong>命中规则为空却判为 spam：</strong>逻辑矛盾，按系统异常处理、不拒绝，并告警排查。</li>
-            <li><strong>编辑后重判：</strong>内容被编辑后重新提交，按编辑后的内容重新跑判定，覆盖旧的 spamStatus / 备注，旧队列记录关联更新。</li>
-            <li><strong>多端一致：</strong>判定与拒绝均在服务端统一处理，App / H5 / 各语种版块结论一致；作者提示文案需覆盖中 / 英 / 繁 / 韩。</li>
-            <li><strong>误杀兜底：</strong>spam 需命中 ≥ 灌水阈值（默认 2 条）方触发，单条短回复通常仅命中 1 条停在 marked，不会被机审拦截。</li>
+            <li><strong>灌水服务异常 / 超时：</strong>不阻断机审，灌水库这道<strong>降级为通过</strong>（屏蔽词与阿里云结论不受影响），记录失败日志并告警，避免误杀与卡死。</li>
+            <li><strong>命中规则为空却判为 spam：</strong>逻辑矛盾，按系统异常、不拦截，并告警排查。</li>
+            <li><strong>编辑后重判：</strong>内容编辑后重新提交，重跑完整机审三道关，覆盖旧的 spamStatus / 备注。</li>
+            <li><strong>多端一致：</strong>机审在服务端统一处理；海外作者的被拒提示文案需覆盖英 / 繁 / 韩。</li>
+            <li><strong>误杀兜底：</strong>spam 需命中 ≥ 灌水阈值（默认 2 条）方触发，单条短回复通常仅命中 1 条停在 marked，不会被灌水库拦截。</li>
           </ul>
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">7. 待澄清（开发前需对齐）</div>
+          <div class="help-section-title">8. 待澄清（开发前需对齐）</div>
           <ul>
-            <li>评论现有是否有审核流？三类内容是否共用同一状态机？（若评论原无审核流，本期对评论为「新增」而非「接入」）</li>
+            <li>评论现有是否有机审 / 审核流？三类内容是否共用同一机审链路？（若评论原无审核流，本期对评论为「新增」而非「接入」）</li>
             <li>被拒内容的发帖经验值是否发放 / 扣回？是否计入用户发帖数？</li>
+            <li>海外机审不通过是否对作者开放申诉入口？（海外无人工兜底，需明确申诉链路）</li>
           </ul>
         </div>
       </div>
