@@ -800,8 +800,9 @@ function makeDefaultConfig() {
         markedThreshold: 1
       },
       comment: {
-        rules: { R1: true, R2: true, R3: true, R4: true, R5: true, R6: true, R7: true, R8: true, R9: true },
-        // 评论普遍短，字数阈值更低；复读次数收紧；整体判定阈值更高避免误杀
+        // 评论场景：R3纯表情/R7纯数字(666、88正常)/R8词堆砌(短评易误判)/R9键盘乱码(缩写误判) 默认关闭
+        rules: { R1: true, R2: true, R3: false, R4: true, R5: true, R6: true, R7: false, R8: false, R9: false },
+        // 字数阈值更低；复读次数收紧；整体判定阈值更高避免误杀
         ruleParams: { R2: 2, R4: 70, R5: 80, R6: 2 },
         spamThreshold: 3,
         markedThreshold: 1
