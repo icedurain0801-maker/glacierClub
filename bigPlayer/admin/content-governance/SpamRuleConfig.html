@@ -389,6 +389,7 @@ body {
               <th style="width:80px;">规则编号</th>
               <th style="width:140px;">规则名称</th>
               <th>说明</th>
+              <th style="width:150px;">参数</th>
               <th style="width:280px;">示例</th>
             </tr>
           </thead>
@@ -721,6 +722,12 @@ function makeDefaultConfig() {
       R1: true, R2: true, R3: true, R4: true, R5: true,
       R6: true, R7: true, R8: true, R9: true
     },
+    ruleParams: {
+      R2: 4,   // 有效字数少于 N 个
+      R4: 70,  // 表情+符号占比 ≥ P%
+      R5: 80,  // 单字符占比 ≥ Q%
+      R6: 3    // 子串重复 ≥ K 次
+    },
     spamThreshold: 2,
     markedThreshold: 1
   };
@@ -883,21 +890,35 @@ function confirmImport() {
 
 // ── 规则定义 ──
 const RULE_DEFS = [
-  { id: 'R1', name: '词库命中',    desc: '内容归一化后完全等于词库中某个词', hit: 'good｜顶', miss: '这攻略很有用，顶一个' },
-  { id: 'R2', name: '有效字数不足', desc: '有效字数（去连续重复后）少于 4 个', hit: '好的｜收到', miss: '这关怎么过' },
-  { id: 'R3', name: '无文字内容',  desc: '无任何文字或数字字符（纯表情/符号）', hit: '😂😂｜。。。', miss: '666 哈😂' },
-  { id: 'R4', name: '表情符号占比高', desc: '表情+符号字符占总字符比 ≥ 70%', hit: '好👍😂😂😂😂😂', miss: '今天天气不错😂' },
-  { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥ 80%', hit: '啊啊啊啊啊啊', miss: '今天去钓鱼' },
-  { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥ 3 次', hit: '顶顶顶｜好的好的好的', miss: '好的好的（仅×2）' },
-  { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字', hit: '666｜8888', miss: '第3关怎么过' },
-  { id: 'R8', name: '词库词堆砌',  desc: '所有切分片段均属于词库词条', hit: 'good nice 顶', miss: '赞，这攻略真不错' },
-  { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串', hit: 'asdfgh｜qwerty', miss: 'hello' },
+  { id: 'R1', name: '词库命中',    desc: '内容归一化后完全等于词库中某个词',   hit: 'good｜顶',       miss: '这攻略很有用，顶一个' },
+  { id: 'R2', name: '有效字数不足', desc: '有效字数（去连续重复后）少于',        hit: '好的｜收到',      miss: '这关怎么过',           paramKey: 'R2', paramUnit: '个' },
+  { id: 'R3', name: '无文字内容',  desc: '无任何文字或数字字符（纯表情/符号）', hit: '😂😂｜。。。',  miss: '666 哈😂' },
+  { id: 'R4', name: '表情符号占比高', desc: '表情+符号字符占总字符比 ≥',       hit: '好👍😂😂😂😂😂', miss: '今天天气不错😂',        paramKey: 'R4', paramUnit: '%' },
+  { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥',           hit: '啊啊啊啊啊啊',   miss: '今天去钓鱼',            paramKey: 'R5', paramUnit: '%' },
+  { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥',                 hit: '顶顶顶｜好的好的好的', miss: '好的好的（仅×2）',   paramKey: 'R6', paramUnit: '次' },
+  { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字',              hit: '666｜8888',      miss: '第3关怎么过' },
+  { id: 'R8', name: '词库词堆砌',  desc: '所有切分片段均属于词库词条',          hit: 'good nice 顶',   miss: '赞，这攻略真不错' },
+  { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串',            hit: 'asdfgh｜qwerty', miss: 'hello' },
 ];
 
 function renderRulesTable() {
   const cfg = getConfig();
   const tbody = document.getElementById('rules-table-body');
-  tbody.innerHTML = RULE_DEFS.map(r => `
+  tbody.innerHTML = RULE_DEFS.map(r => {
+    const paramVal = r.paramKey ? cfg.ruleParams[r.paramKey] : null;
+    const descFull = r.paramKey
+      ? `${r.desc} <span style="color:#1890ff;font-weight:500;">${paramVal}${r.paramUnit}</span>`
+      : r.desc;
+    const paramCell = r.paramKey
+      ? `<div style="display:flex;align-items:center;gap:4px;">
+           <input type="number" class="rule-param-input" value="${paramVal}" min="1"
+             onchange="saveRuleParam('${r.paramKey}', this)"
+             style="width:60px;height:28px;border:1px solid #d9d9d9;border-radius:4px;padding:0 6px;font-size:13px;text-align:center;outline:none;"
+             onfocus="this.style.borderColor='#1890ff'" onblur="this.style.borderColor='#d9d9d9'">
+           <span style="font-size:12px;color:#8c8c8c;">${r.paramUnit}</span>
+         </div>`
+      : `<span style="color:#d9d9d9;font-size:13px;">—</span>`;
+    return `
     <tr>
       <td style="text-align:center;">
         <input type="checkbox" class="rule-checkbox" ${cfg.rules[r.id] ? 'checked' : ''}
@@ -905,13 +926,14 @@ function renderRulesTable() {
       </td>
       <td style="font-weight:500;color:#262626;">${r.id}</td>
       <td>${r.name}</td>
-      <td style="color:#8c8c8c;">${r.desc}</td>
+      <td style="color:#8c8c8c;">${descFull}</td>
+      <td>${paramCell}</td>
       <td style="font-size:12px;line-height:1.9;">
         <span style="color:#52c41a;">命中：</span>${r.hit}<br>
         <span style="color:#bfbfbf;">不命中：</span><span style="color:#bfbfbf;">${r.miss}</span>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 function saveRules() {
@@ -927,6 +949,19 @@ function saveRules() {
   cfg.spamThreshold = spamVal;
   cfg.markedThreshold = markedVal;
   alert('保存成功');
+}
+
+// ── 保存单条规则参数（即时） ──
+function saveRuleParam(key, input) {
+  const val = parseInt(input.value, 10);
+  if (isNaN(val) || val < 1) {
+    alert('参数必须为正整数');
+    input.value = getConfig().ruleParams[key];
+    return;
+  }
+  getConfig().ruleParams[key] = val;
+  // 同步更新该行说明列的蓝色数字
+  renderRulesTable();
 }
 
 function openHelp() {
