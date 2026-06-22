@@ -372,14 +372,8 @@ body {
 
     <!-- Tab 1: 词库管理 -->
     <div class="tab-panel active" id="panel-words">
-      <!-- 子 Tab 栏 -->
-      <div class="sub-tab-bar">
-        <div class="sub-tab-item active" onclick="switchWordTab('spam')">灌水词库</div>
-        <div class="sub-tab-item" onclick="switchWordTab('malicious')">恶意词库</div>
-      </div>
-
       <!-- 灌水词库面板 -->
-      <div class="sub-tab-panel active" id="word-panel-spam">
+      <div id="word-panel-spam">
         <div class="word-action-bar">
           <input class="word-input" id="spam-input" type="text" placeholder="输入词语，按 Enter 添加" onkeydown="if(event.key==='Enter')addWord('spam')">
           <button class="btn-sm btn-primary" onclick="addWord('spam')">添加</button>
@@ -387,17 +381,6 @@ body {
           <a class="btn-link" onclick="downloadTemplate()">下载导入模板</a>
         </div>
         <div class="word-chip-wrap" id="spam-chip-wrap"></div>
-      </div>
-
-      <!-- 恶意词库面板 -->
-      <div class="sub-tab-panel" id="word-panel-malicious">
-        <div class="word-action-bar">
-          <input class="word-input" id="malicious-input" type="text" placeholder="输入词语，按 Enter 添加" onkeydown="if(event.key==='Enter')addWord('malicious')">
-          <button class="btn-sm btn-primary" onclick="addWord('malicious')">添加</button>
-          <button class="btn-sm btn-default" onclick="openImportModal('malicious')">导入</button>
-          <a class="btn-link" onclick="downloadTemplate()">下载导入模板</a>
-        </div>
-        <div class="word-chip-wrap" id="malicious-chip-wrap"></div>
       </div>
     </div>
 
@@ -791,11 +774,6 @@ function makeDefaultConfig() {
       { word: '赞',   createdAt: '2026-06-01 10:00:00' },
       { word: '666',  createdAt: '2026-06-01 10:00:00' }
     ],
-    maliciousWords: [
-      { word: '垃圾', createdAt: '2026-06-01 10:00:00' },
-      { word: '骗子', createdAt: '2026-06-01 10:00:00' },
-      { word: '滚',   createdAt: '2026-06-01 10:00:00' }
-    ],
     // 规则配置按内容类型独立：post（帖子/动态）/ comment（评论）
     ruleConfig: {
       post: {
@@ -857,7 +835,6 @@ function refreshAllUI() {
   status.style.color = cfg.globalEnabled ? '#52c41a' : '#8c8c8c';
   // 词库
   renderWordTable('spam');
-  renderWordTable('malicious');
   // 规则
   renderRulesTable();
   // 阈值（重置到 post 视角）
@@ -880,20 +857,11 @@ function toggleGlobal() {
   refreshAllUI();
 }
 
-// ── 子 Tab 切换 ──
-function switchWordTab(type) {
-  document.querySelectorAll('.sub-tab-item').forEach((el, i) => {
-    el.classList.toggle('active', i === (type === 'spam' ? 0 : 1));
-  });
-  document.getElementById('word-panel-spam').classList.toggle('active', type === 'spam');
-  document.getElementById('word-panel-malicious').classList.toggle('active', type === 'malicious');
-}
-
 // ── 渲染词库（chip 标签） ──
 function renderWordTable(type) {
   const cfg = getConfig();
-  const list = type === 'spam' ? cfg.spamWords : cfg.maliciousWords;
-  const wrap = document.getElementById(type + '-chip-wrap');
+  const list = cfg.spamWords;
+  const wrap = document.getElementById('spam-chip-wrap');
   if (!list.length) {
     wrap.innerHTML = '<span class="word-chip-empty">暂无词条</span>';
     return;
@@ -912,7 +880,7 @@ function addWord(type) {
   const val = input.value.trim();
   if (!val) return;
   const cfg = getConfig();
-  const list = type === 'spam' ? cfg.spamWords : cfg.maliciousWords;
+  const list = cfg.spamWords;
   if (list.some(w => w.word === val)) { alert('词条已存在'); return; }
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
@@ -925,7 +893,7 @@ function addWord(type) {
 // ── 删除词条 ──
 function deleteWord(type, idx) {
   const cfg = getConfig();
-  const list = type === 'spam' ? cfg.spamWords : cfg.maliciousWords;
+  const list = cfg.spamWords;
   list.splice(idx, 1);
   renderWordTable(type);
 }
@@ -980,7 +948,7 @@ function handleFileUpload(e) {
 function confirmImport() {
   if (!_importWords.length) return;
   const cfg = getConfig();
-  const list = _importType === 'spam' ? cfg.spamWords : cfg.maliciousWords;
+  const list = cfg.spamWords;
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
   const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
