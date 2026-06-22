@@ -521,6 +521,28 @@ body {
 .help-section p { font-size: 12px; color: #555; line-height: 1.9; }
 .help-section ul { padding-left: 16px; }
 .help-section ul li { font-size: 12px; color: #555; line-height: 2; }
+/* 需求说明 — 流程图 */
+.help-flow { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 4px 0; }
+.help-flow-node {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid #91caff; background: #f0f7ff; border-radius: 6px;
+  padding: 7px 10px; font-size: 12px; color: #262626; text-align: center; line-height: 1.5;
+}
+.help-flow-node.start { border-color: #b7eb8f; background: #f6ffed; }
+.help-flow-node.reject { border-color: #ffccc7; background: #fff2f0; color: #cf1322; font-weight: 600; }
+.help-flow-node.pass { border-color: #d9d9d9; background: #fafafa; color: #595959; }
+.help-flow-arrow { color: #bbb; font-size: 12px; line-height: 1.6; }
+.help-flow-label { font-size: 11px; color: #888; }
+.help-flow-branch { display: flex; gap: 6px; width: 100%; }
+.help-flow-branch > div { flex: 1; }
+/* 需求说明 — 字段表 */
+.help-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.help-table th, .help-table td {
+  border: 1px solid #e8e8e8; padding: 5px 7px; text-align: left; vertical-align: top; line-height: 1.6;
+}
+.help-table th { background: #fafafa; color: #262626; font-weight: 600; white-space: nowrap; }
+.help-table td { color: #555; }
+.help-table td code { background: #f5f5f5; padding: 0 4px; border-radius: 3px; font-size: 10px; color: #c41d7f; }
 </style>
 
 <div class="help-fab" id="help-fab" onclick="openHelp()">
@@ -535,11 +557,96 @@ body {
     <button class="help-panel-close" onclick="closeHelp()">×</button>
   </div>
   <div class="help-panel-body">
+
+    <!-- ───────── v1.1.0 ───────── -->
     <div class="help-version-block open">
       <div class="help-version-hd is-latest" onclick="this.parentElement.classList.toggle('open')">
+        <span class="help-version-num">v1.1.0</span>
+        <span class="help-version-date">2026-06-22</span>
+        <span class="help-version-badge">最新</span>
+        <span class="help-version-arrow">▼</span>
+      </div>
+      <div class="help-version-body">
+        <div class="help-section">
+          <div class="help-section-title">1. 需求概述</div>
+          <p><strong>背景 / 目标：</strong>v1.0.0 仅对内容做 normal / marked / spam 打标，不触发任何动作。本期将 spam 判定结果接入<strong>内容审核流程</strong>：当一条帖子 / 动态 / 评论被判定为<strong>灌水（spam）</strong>时，系统在审核环节自动给出<strong>机审拒绝</strong>结论，审核备注自动填入<strong>命中的规则名称</strong>，供人工复核与申诉追溯。</p>
+          <p style="margin-top:6px;"><strong>边界：</strong>仅 spam 触发机审拒绝；marked（嫌疑）与 normal（正常）不拦截，仍走原有审核流程。本期仅作用于<strong>新发布内容</strong>，不回溯历史数据。</p>
+          <p style="margin-top:6px;"><strong>用户对象：</strong>① 系统（自动判定与打标）；② 内容审核 / 运营人员（查看机审结论、备注，处理申诉）。</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">2. 处理流程</div>
+          <div class="help-flow">
+            <div class="help-flow-node start">用户发布 帖子 / 动态 / 评论</div>
+            <div class="help-flow-arrow">↓ 提交成功后</div>
+            <div class="help-flow-node">归一化内容 → 跑 R1~R9 规则，记录命中项 hitRules</div>
+            <div class="help-flow-arrow">↓ 按命中条数定档</div>
+            <div class="help-flow-node">命中数 ≥ 灌水阈值 → spam？</div>
+            <div class="help-flow-branch">
+              <div>
+                <div class="help-flow-label">是（spam）</div>
+                <div class="help-flow-arrow">↓</div>
+                <div class="help-flow-node reject">机审拒绝<br>auditResult = 机审拒绝<br>auditRemark = 命中规则名称</div>
+              </div>
+              <div>
+                <div class="help-flow-label">否（marked / normal）</div>
+                <div class="help-flow-arrow">↓</div>
+                <div class="help-flow-node pass">不拦截<br>走原审核流程</div>
+              </div>
+            </div>
+            <div class="help-flow-arrow">↓</div>
+            <div class="help-flow-node">写入内容审核记录 → 人工可复核 / 用户可申诉</div>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">3. 字段说明（审核记录新增 / 联动）</div>
+          <table class="help-table">
+            <thead><tr><th>字段</th><th>取值 / 说明</th></tr></thead>
+            <tbody>
+              <tr><td>spamStatus</td><td>判定状态：<code>normal</code> / <code>marked</code> / <code>spam</code>，由命中条数与阈值决定</td></tr>
+              <tr><td>hitRules</td><td>命中的规则编号数组，如 <code>["R2","R5"]</code></td></tr>
+              <tr><td>auditResult</td><td>审核结论。spam 时自动置为<code>机审拒绝</code>；其余维持原结论（待审核 / 通过等）</td></tr>
+              <tr><td>auditRemark</td><td>审核备注。机审拒绝时自动填入命中规则名称，如<code>有效字数不足、单字符占比高</code>（多条以、连接）</td></tr>
+              <tr><td>auditType</td><td>审核方式：<code>机审</code> / <code>人工</code>。本场景为机审</td></tr>
+              <tr><td>auditTime</td><td>机审判定的时间戳，与内容提交近实时</td></tr>
+              <tr><td>contentType</td><td>内容类型：<code>帖子</code> / <code>动态</code> / <code>评论</code>，三类统一适用</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">4. 功能逻辑要点</div>
+          <ul>
+            <li><strong>触发时机：</strong>插在「发布提交成功之后、内容对外可见之前」，机审拒绝的内容不进入公开展示。</li>
+            <li><strong>备注规则：</strong>auditRemark 取 hitRules 对应的<strong>规则名称</strong>（非编号），多条按 R1→R9 顺序、以「、」连接，便于审核人员直读。</li>
+            <li><strong>总开关联动：</strong>内容治理总开关关闭时，不跑判定、不产生机审拒绝，所有内容走原审核流程。</li>
+            <li><strong>规则联动：</strong>被停用的规则不参与命中计数，自然不会出现在 hitRules 与备注中。</li>
+            <li><strong>阈值联动：</strong>调整灌水阈值会改变 spam 的判定口径，进而影响机审拒绝的触发范围；调整仅对调整后的新内容生效。</li>
+            <li><strong>分版块：</strong>判定与拒绝口径按内容所属版块各自的配置执行。</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">5. 异常与边界</div>
+          <ul>
+            <li><strong>判定服务异常 / 超时：</strong>不阻断发布，该内容<strong>降级为不拦截</strong>（走原审核流程），记录失败日志，避免误杀与发布卡死。</li>
+            <li><strong>命中规则为空却判为 spam：</strong>逻辑矛盾，按系统异常处理、不拒绝，并告警排查。</li>
+            <li><strong>人工复核优先级：</strong>机审拒绝后人工可二次改判，人工结论<strong>覆盖</strong>机审结论，auditType 更新为「人工」，保留原 hitRules 供追溯。</li>
+            <li><strong>申诉：</strong>用户对机审拒绝可申诉，进入人工队列；申诉通过则内容恢复可见。</li>
+            <li><strong>编辑后重判：</strong>内容被编辑后重新提交，按编辑后的内容重新跑判定，覆盖旧的 spamStatus / 备注。</li>
+            <li><strong>多端一致：</strong>判定与拒绝均在服务端统一处理，App / H5 / 各语种版块结论一致。</li>
+            <li><strong>误杀兜底：</strong>spam 需命中≥灌水阈值（默认 2 条）方触发，单条短回复通常仅命中 1 条停在 marked，不会被机审拒绝。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────── v1.0.0 ───────── -->
+    <div class="help-version-block">
+      <div class="help-version-hd" onclick="this.parentElement.classList.toggle('open')">
         <span class="help-version-num">v1.0.0</span>
         <span class="help-version-date">2026-06-18</span>
-        <span class="help-version-badge">最新</span>
         <span class="help-version-arrow">▼</span>
       </div>
       <div class="help-version-body">
