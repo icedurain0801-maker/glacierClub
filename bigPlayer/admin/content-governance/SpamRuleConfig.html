@@ -797,23 +797,7 @@ body {
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">5. 字段说明（审核记录新增 / 联动）</div>
-          <table class="help-table">
-            <thead><tr><th>字段</th><th>取值 / 说明</th></tr></thead>
-            <tbody>
-              <tr><td>spamStatus</td><td>灌水判定状态：<code>正常</code> / <code>嫌疑</code> / <code>灌水</code>，由命中条数与阈值决定</td></tr>
-              <tr><td>hitRules</td><td>命中的规则编号数组，如 <code>["R2","R5"]</code></td></tr>
-              <tr><td>machineResult</td><td>机审结论：<code>通过</code> / <code>不通过</code>。屏蔽词、阿里云、灌水三道任一不过即<code>不通过</code></td></tr>
-              <tr><td>machineFailReason</td><td>机审不通过的原因来源：<code>屏蔽词</code> / <code>阿里云</code> / <code>灌水库</code>，定位是哪道关拦截</td></tr>
-              <tr><td>auditResult</td><td>最终结论。<strong>国内</strong>由人工置<code>通过</code> / <code>拒绝</code>；<strong>海外</strong>直接取 machineResult</td></tr>
-              <tr><td>auditRemark</td><td>审核备注（<strong>仅 B 端审核员可见</strong>）。灌水拦截时填命中规则名称快照，如<code>有效字数不足、单字符占比高</code>（多条以、连接）</td></tr>
-              <tr><td>contentType</td><td>内容类型：<code>帖子</code> / <code>动态</code> / <code>评论</code>，三类统一适用</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">6. 功能逻辑要点</div>
+          <div class="help-section-title">5. 功能逻辑要点</div>
           <ul>
             <li><strong>优先级串行：</strong>屏蔽词 → 阿里云 → 灌水库，前序未过即短路返回，不再跑后序，灌水库永远是最后一道。</li>
             <li><strong>灌水适用范围：</strong>只要内容含任何文本（标题 / 正文 / 评论文字）即跑 R1~R8；纯图片 / 纯视频无文本则跳过灌水检测。</li>
@@ -825,13 +809,25 @@ body {
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">7. 异常与边界</div>
+          <div class="help-section-title">6. 异常与边界</div>
           <ul>
             <li><strong>灌水服务异常 / 超时：</strong>不阻断机审，灌水库这道<strong>降级为通过</strong>（屏蔽词与阿里云结论不受影响），记录失败日志并告警，避免误杀与卡死。</li>
             <li><strong>命中规则为空却判为「灌水」：</strong>逻辑矛盾，按系统异常、不拦截，并告警排查。</li>
             <li><strong>编辑后重判：</strong>内容编辑后重新提交，重跑完整机审三道关，覆盖旧的 spamStatus / 备注。</li>
             <li><strong>多端一致：</strong>机审在服务端统一处理；海外作者的被拒提示文案需覆盖英 / 繁 / 韩。</li>
             <li><strong>误杀兜底：</strong>「灌水」需命中 ≥ 灌水阈值（默认 2 条）方触发，单条短回复通常仅命中 1 条停在「嫌疑」，不会被灌水库拦截。</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">7. 数据分析</div>
+          <p>灌水判定结果的统计看板，用于评估规则效果与调参，<strong>仅查看、不参与线上判定</strong>。</p>
+          <ul>
+            <li><strong>时间筛选：</strong>「近 7 天 / 近 30 天 / 近 90 天 / 自定义」四选一，默认「近 7 天」；选「自定义」时展开起止日期选择器，点「查询」刷新。</li>
+            <li><strong>分内容类型：</strong>「帖子 / 动态」与「评论」<strong>分两区</strong>各自统计，与规则配置的两套内容类型口径一致。</li>
+            <li><strong>统计卡片：</strong>每区展示<strong>正常 / 嫌疑 / 灌水 / 合计</strong>四张卡，含数量、占比与占比条；万级数量做「万」单位中文化。</li>
+            <li><strong>分版块：</strong>统计随顶部「所属版块」切换，各版块数据独立。</li>
+            <li><strong>口径待对齐：</strong>占比按<strong>判定时点</strong>还是<strong>当前状态</strong>统计（国内人工把「灌水」改判通过后计入哪档）需产品确认。</li>
           </ul>
         </div>
 
