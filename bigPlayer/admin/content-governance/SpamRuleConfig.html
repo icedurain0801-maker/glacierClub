@@ -735,7 +735,7 @@ body {
       <div class="help-version-body">
         <div class="help-section">
           <div class="help-section-title">1. 需求概述</div>
-          <p><strong>背景 / 目标：</strong>社区积分体系催生大量灌水内容。本期在<strong>机审环节</strong>新增「灌水库规则审查」，作为机审的第三道关，对每条新发布内容跑 R1~R9 输出「正常 / 嫌疑 / 灌水」三档；被判「灌水」的内容在机审中作为「不通过」处理，备注自动填命中规则名称。</p>
+          <p><strong>背景 / 目标：</strong>社区积分体系催生大量灌水内容。本期在<strong>机审环节</strong>新增「灌水库规则审查」，作为机审的第三道关，对每条新发布内容跑 R1~R8 输出「正常 / 嫌疑 / 灌水」三档；被判「灌水」的内容在机审中作为「不通过」处理，备注自动填命中规则名称。</p>
           <p style="margin-top:6px;"><strong>机审三道关（按优先级串行）：</strong>① 文本屏蔽词过滤 → ② 图片 / 视频阿里云云审查 → ③ <strong>灌水库审查（本期新增，优先级最低）</strong>。前两道<strong>都通过</strong>才跑灌水检测；任一道未过则直接判不通过，不再往后跑。</p>
           <p style="margin-top:6px;"><strong>边界：</strong>仅「灌水」在机审中视为不通过；「嫌疑」/「正常」视为机审通过。灌水检测仅对<strong>含文本</strong>（标题 / 正文 / 评论文字）的内容生效，纯图片 / 纯视频跳过。仅作用于<strong>新发布内容</strong>，不回溯历史。</p>
         </div>
@@ -752,7 +752,7 @@ body {
           <div class="help-section-title">3. 配置能力</div>
           <ul>
             <li><strong>总开关：</strong>关闭后灌水库审查不运行（机审仅保留屏蔽词 + 阿里云两道），已有打标数据不受影响。</li>
-            <li><strong>词库管理：</strong>灌水词库与恶意词库独立维护；支持单条添加与 CSV 批量导入（word 列）；可下载导入模板。词条列表<strong>每页 20 条分页</strong>展示（右下角「共 N 条 + 上一页 / 页码 / 下一页」，≤20 条仅显示「共 N 条」、页数多时页码以「首末页 + 当前页 ±1 + 省略号」收敛），并按<strong>添加时间倒序</strong>（最新在前）；单条添加或导入成功后自动回到第 1 页便于确认，删除导致当前页为空时自动回退到有效页。</li>
+            <li><strong>词库管理：</strong>维护灌水词库；支持单条添加与 CSV 批量导入（word 列）；可下载导入模板。词条列表<strong>每页 20 条分页</strong>展示（右下角「共 N 条 + 上一页 / 页码 / 下一页」，≤20 条仅显示「共 N 条」、页数多时页码以「首末页 + 当前页 ±1 + 省略号」收敛），并按<strong>添加时间倒序</strong>（最新在前）；单条添加或导入成功后自动回到第 1 页便于确认，删除导致当前页为空时自动回退到有效页。</li>
             <li><strong>规则配置：</strong>R1~R8 每条可独立启用 / 禁用；灌水阈值（命中数 ≥ N 判「灌水」，默认 2）与嫌疑阈值（≥ M 判「嫌疑」，默认 1）可配，灌水阈值须大于嫌疑阈值。</li>
             <li><strong>分版块：</strong>总开关、词库、规则、阈值均按所属版块各自配置，互不影响。</li>
           </ul>
@@ -811,8 +811,8 @@ body {
         <div class="help-section">
           <div class="help-section-title">6. 异常与边界</div>
           <ul>
-            <li><strong>灌水服务异常 / 超时：</strong>不阻断机审，灌水库这道<strong>降级为通过</strong>（屏蔽词与阿里云结论不受影响），记录失败日志并告警，避免误杀与卡死。</li>
-            <li><strong>命中规则为空却判为「灌水」：</strong>逻辑矛盾，按系统异常、不拦截，并告警排查。</li>
+            <li><strong>灌水服务异常 / 超时：</strong>不阻断机审，灌水库这道<strong>降级为通过</strong>（屏蔽词与阿里云结论不受影响），避免误杀与卡死。</li>
+            <li><strong>命中规则为空却判为「灌水」：</strong>逻辑矛盾，按系统异常、不拦截。</li>
             <li><strong>编辑后重判：</strong>内容编辑后重新提交，重跑完整机审三道关，覆盖旧的 spamStatus / 备注。</li>
             <li><strong>多端一致：</strong>机审在服务端统一处理；海外作者的被拒提示文案需覆盖英 / 繁 / 韩。</li>
             <li><strong>误杀兜底：</strong>「灌水」需命中 ≥ 灌水阈值（默认 2 条）方触发，单条短回复通常仅命中 1 条停在「嫌疑」，不会被灌水库拦截。</li>
@@ -986,7 +986,7 @@ function makeDefaultConfig() {
     // 规则配置按内容类型独立：post（帖子/动态）/ comment（评论）
     ruleConfig: {
       post: {
-        rules: { R1: true, R2: true, R3: true, R4: true, R5: true, R6: true, R7: true, R8: true, R9: true },
+        rules: { R1: true, R2: true, R3: true, R4: true, R5: true, R6: true, R7: true, R8: true },
         ruleParams: { R2: 4, R4: 70, R5: 80, R6: 3 },
         spamThreshold: 2,
         markedThreshold: 1
@@ -1223,7 +1223,7 @@ const RULE_DEFS = [
   { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥',           hit: '啊啊啊啊啊啊',   miss: '今天去钓鱼',            paramKey: 'R5', paramUnit: '%' },
   { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥',                 hit: '顶顶顶｜好的好的好的', miss: '好的好的（仅×2）',   paramKey: 'R6', paramUnit: '次' },
   { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字',              hit: '666｜8888',      miss: '第3关怎么过' },
-  { id: 'R9', name: '键盘乱码',    desc: '连续键位串或无元音字母串',            hit: 'asdfgh｜qwerty', miss: 'hello' },
+  { id: 'R8', name: '键盘乱码',    desc: '连续键位串或无元音字母串',            hit: 'asdfgh｜qwerty', miss: 'hello' },
 ];
 
 
