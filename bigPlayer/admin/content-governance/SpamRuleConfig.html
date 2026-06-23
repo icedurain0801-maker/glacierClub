@@ -854,12 +854,38 @@ body {
             <li><strong>分内容类型：</strong>「帖子」「动态」「评论」<strong>分三区</strong>各自统计。</li>
             <li><strong>统计卡片：</strong>帖子 / 动态展示<strong>正常 / 嫌疑 / 灌水 / 合计</strong>；<strong>评论无「嫌疑」档</strong>（命中即灌水），仅展示<strong>正常 / 灌水 / 合计</strong>。各卡含数量、占比与占比条，万级数量做「万」单位中文化。</li>
             <li><strong>分版块：</strong>统计随顶部「所属版块」切换，各版块数据独立。</li>
-            <li><strong>口径待对齐：</strong>占比按<strong>判定时点</strong>还是<strong>当前状态</strong>统计（国内人工把「灌水」改判通过后计入哪档）需产品确认。</li>
+            <li><strong>统计口径：</strong>按<strong>机审判定时的结果</strong>统计，人工改判不影响数据。国内内容即使被人工改判通过，数据分析中仍计入「灌水」档，反映机审的判断质量。</li>
           </ul>
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">8. 规则算法说明</div>
+          <div class="help-section-title">8. 提示语一览（场景 / 提示语）</div>
+          <table class="help-table">
+            <thead><tr><th style="width:140px;">场景</th><th>提示语</th></tr></thead>
+            <tbody>
+              <tr><td>总开关 · 开启态</td><td>已开启</td></tr>
+              <tr><td>总开关 · 关闭态</td><td>已关闭</td></tr>
+              <tr><td>总开关 · 说明文案</td><td>关闭后所有判定规则停止运行，已有打标数据不受影响。</td></tr>
+              <tr><td>总开关关闭 · 配置区占位</td><td>内容治理功能已关闭，开启后可配置词库与规则。</td></tr>
+              <tr><td>词条输入框 · 占位符</td><td>输入词语，按 Enter 添加</td></tr>
+              <tr><td>添加重复词条</td><td>词条已存在</td></tr>
+              <tr><td>词库为空</td><td>暂无词条</td></tr>
+              <tr><td>导入弹窗 · 上传区</td><td>点击选择文件，支持 .csv</td></tr>
+              <tr><td>导入弹窗 · 上传区副文案</td><td>文件须包含 word 列</td></tr>
+              <tr><td>导入弹窗 · 解析计数</td><td>共解析到 N 条词语</td></tr>
+              <tr><td>导入完成</td><td>导入完成，新增 N 条词语（重复跳过 M 条）</td></tr>
+              <tr><td>阈值校验 · 大小关系（页面常驻）</td><td>⚠ 灌水阈值必须大于嫌疑阈值</td></tr>
+              <tr><td>保存 · 阈值非正整数</td><td>阈值必须为正整数</td></tr>
+              <tr><td>保存 · 阈值大小关系</td><td>灌水阈值必须大于嫌疑阈值</td></tr>
+              <tr><td>保存 · 规则参数非正整数</td><td>参数必须为正整数</td></tr>
+              <tr><td>保存成功</td><td>保存成功</td></tr>
+              <tr><td>数据分析 · 未选自定义时间</td><td>请选择自定义时间范围</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">9. 规则算法说明</div>
           <p style="font-size:12px;color:#8c8c8c;margin-bottom:8px;">所有规则以「字符分类」为基础：将内容按 Unicode 码点拆分，分为文字字符（中英文等）、数字字符、表情符号（emoji / 颜文字 / 平台自定义表情）、符号/标点/空白四类。有效字符 = 文字 + 数字。字符分类只跑一次，R1~R8 全部复用。</p>
           <table class="help-table">
             <thead><tr><th style="width:32px;">编号</th><th style="width:100px;">规则名称</th><th>算法要点</th></tr></thead>
