@@ -816,7 +816,7 @@ body {
             <li><strong>灌水适用范围：</strong>只要内容含任何文本（标题 / 正文 / 评论文字）即跑 R1~R8；纯图片 / 纯视频无文本则跳过灌水检测。</li>
             <li><strong>地区分流：</strong>国内机审仅建议、全量人工定夺；海外机审直接决定对外与否。</li>
             <li><strong>备注受众：</strong>auditRemark 取规则名称（非编号）快照，多条按 R1→R8 顺序、以「、」连接，<strong>仅审核员可见</strong>。</li>
-            <li><strong>作者感知：</strong>作者可见自己内容被拒 / 审核中，但<strong>不显示具体命中规则</strong>（防绕过），仅给笼统提示文案。</li>
+            <li><strong>作者感知：</strong>作者可见自己内容被拒 / 审核中，但<strong>不显示具体命中规则</strong>（防绕过）。C 端提示文案统一为：<strong>「您的内容未通过社区规范审查，请修改后重新发布」</strong>，需覆盖中 / 英 / 繁 / 韩四语言。</li>
             <li><strong>联动：</strong>总开关关闭 / 规则停用 / 阈值调整均只对调整后的新内容生效，<strong>不回溯</strong>已判定内容。</li>
           </ul>
         </div>
@@ -845,16 +845,7 @@ body {
         </div>
 
         <div class="help-section">
-          <div class="help-section-title">8. 已确认规则（原待澄清项）</div>
-          <ul>
-            <li><strong>评论审核链路：</strong>评论与帖子 / 动态<strong>一致</strong>，三类内容共用同一审核流程，均走<strong>机审 + 人审两道</strong>（评论为接入既有机审链路，非独立处理）。</li>
-            <li><strong>经验值处理：</strong>内容被拒<strong>不回扣</strong>已发放的发帖经验值。</li>
-            <li><strong>海外申诉：</strong>海外机审不通过<strong>不开放</strong>作者申诉入口。</li>
-          </ul>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">9. 规则算法说明</div>
+          <div class="help-section-title">8. 规则算法说明</div>
           <p style="font-size:12px;color:#8c8c8c;margin-bottom:8px;">所有规则以「字符分类」为基础：将内容按 Unicode 码点拆分，分为文字字符（中英文等）、数字字符、表情符号（emoji / 颜文字 / 平台自定义表情）、符号/标点/空白四类。有效字符 = 文字 + 数字。字符分类只跑一次，R1~R8 全部复用。</p>
           <table class="help-table">
             <thead><tr><th style="width:32px;">编号</th><th style="width:100px;">规则名称</th><th>算法要点</th></tr></thead>
