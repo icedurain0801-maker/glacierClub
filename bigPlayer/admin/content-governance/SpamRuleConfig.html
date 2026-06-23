@@ -328,10 +328,20 @@ body {
   outline: none; text-align: center;
 }
 .threshold-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.15); }
-.rule-checkbox {
-  width: 16px; height: 16px; cursor: pointer;
-  accent-color: #1890ff;
+.rule-toggle {
+  width: 36px; height: 20px; border-radius: 20px;
+  background: #1890ff; position: relative;
+  cursor: pointer; transition: background 0.2s;
+  flex-shrink: 0; display: inline-block;
 }
+.rule-toggle.off { background: #d9d9d9; }
+.rule-toggle-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; position: absolute;
+  top: 3px; left: 19px; transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.rule-toggle.off .rule-toggle-thumb { left: 3px; }
 /* ── 内容类型切换 ── */
 .content-type-bar {
   display: flex;
@@ -476,7 +486,7 @@ body {
         <table class="word-table">
           <thead>
             <tr>
-              <th style="width:48px;">启用</th>
+              <th style="width:56px;">启用</th>
               <th style="width:80px;">规则编号</th>
               <th style="width:140px;">规则名称</th>
               <th>说明</th>
@@ -1287,8 +1297,9 @@ function renderRulesTable() {
     return `
     <tr>
       <td style="text-align:center;">
-        <input type="checkbox" class="rule-checkbox" ${enabled ? 'checked' : ''}
-          onchange="getRuleConfig().rules['${r.id}'] = this.checked">
+        <div class="rule-toggle ${enabled ? '' : 'off'}" onclick="getRuleConfig().rules['${r.id}']=!getRuleConfig().rules['${r.id}'];this.classList.toggle('off',!getRuleConfig().rules['${r.id}'])">
+          <div class="rule-toggle-thumb"></div>
+        </div>
       </td>
       <td style="font-weight:500;color:#262626;">${r.id}</td>
       <td>${r.name}</td>
