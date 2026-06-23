@@ -590,9 +590,13 @@ body {
         <span><strong style="color:#ff4d4f;">■ 灌水：</strong>命中规则数达到灌水阈值，机审判不通过的内容</span>
       </div>
 
-      <!-- 帖子/动态 -->
-      <div class="stats-section-title">帖子 / 动态</div>
+      <!-- 帖子 -->
+      <div class="stats-section-title">帖子</div>
       <div class="stats-cards" id="stats-cards-post"></div>
+
+      <!-- 动态 -->
+      <div class="stats-section-title" style="margin-top:20px;">动态</div>
+      <div class="stats-cards" id="stats-cards-dynamic"></div>
 
       <!-- 评论 -->
       <div class="stats-section-title" style="margin-top:20px;">评论</div>
@@ -816,7 +820,7 @@ body {
             <li><strong>灌水适用范围：</strong>只要内容含任何文本（标题 / 正文 / 评论文字）即跑 R1~R8；纯图片 / 纯视频无文本则跳过灌水检测。</li>
             <li><strong>地区分流：</strong>国内机审仅建议、全量人工定夺；海外机审直接决定对外与否。</li>
             <li><strong>备注受众：</strong>auditRemark 取规则名称（非编号）快照，多条按 R1→R8 顺序、以「、」连接，<strong>仅审核员可见</strong>。</li>
-            <li><strong>作者感知：</strong>作者可见自己内容被拒 / 审核中，但<strong>不显示具体命中规则</strong>（防绕过）。C 端提示文案统一为：<strong>「您的内容未通过社区规范审查，请修改后重新发布」</strong>，需覆盖中 / 英 / 繁 / 韩四语言。</li>
+            <li><strong>作者感知：</strong>作者可见自己内容被拒 / 审核中，但<strong>不显示具体命中规则</strong>（防绕过）。C 端提示文案按内容类型区分：帖子 / 动态为<strong>「您的内容未通过社区规范审查，请修改后重新发布」</strong>；评论因不支持编辑，为<strong>「评论未通过社区规范审查」</strong>。两套文案均需覆盖中 / 英 / 繁 / 韩四语言。</li>
             <li><strong>联动：</strong>总开关关闭 / 规则停用 / 阈值调整均只对调整后的新内容生效，<strong>不回溯</strong>已判定内容。</li>
           </ul>
         </div>
@@ -837,8 +841,8 @@ body {
           <p>灌水判定结果的统计看板，用于评估规则效果与调参，<strong>仅查看、不参与线上判定</strong>。</p>
           <ul>
             <li><strong>时间筛选：</strong>「近 7 天 / 近 30 天 / 近 90 天 / 自定义」四选一，默认「近 7 天」；选「自定义」时展开起止日期选择器，点「查询」刷新。</li>
-            <li><strong>分内容类型：</strong>「帖子 / 动态」与「评论」<strong>分两区</strong>各自统计，与规则配置的两套内容类型口径一致。</li>
-            <li><strong>统计卡片：</strong>每区展示<strong>正常 / 嫌疑 / 灌水 / 合计</strong>四张卡，含数量、占比与占比条；万级数量做「万」单位中文化。</li>
+            <li><strong>分内容类型：</strong>「帖子」「动态」「评论」<strong>分三区</strong>各自统计。</li>
+            <li><strong>统计卡片：</strong>帖子 / 动态展示<strong>正常 / 嫌疑 / 灌水 / 合计</strong>；<strong>评论无「嫌疑」档</strong>（命中即灌水），仅展示<strong>正常 / 灌水 / 合计</strong>。各卡含数量、占比与占比条，万级数量做「万」单位中文化。</li>
             <li><strong>分版块：</strong>统计随顶部「所属版块」切换，各版块数据独立。</li>
             <li><strong>口径待对齐：</strong>占比按<strong>判定时点</strong>还是<strong>当前状态</strong>统计（国内人工把「灌水」改判通过后计入哪档）需产品确认。</li>
           </ul>
@@ -929,8 +933,12 @@ function mockStatsData(ctype, range) {
   const rng = (n) => { return ((seed * 9301 + 49297 * n) % 233280) / 233280; };
   const total = Math.floor(rng(1) * 8000 + 500);
   const spamPct = rng(2) * 0.15 + 0.02;
-  const markedPct = rng(3) * 0.12 + 0.03;
   const spam = Math.round(total * spamPct);
+  // 评论无「嫌疑」档：命中即灌水，只有正常 / 灌水两档
+  if (ctype === 'comment') {
+    return { total, normal: total - spam, marked: null, spam };
+  }
+  const markedPct = rng(3) * 0.12 + 0.03;
   const marked = Math.round(total * markedPct);
   const normal = total - spam - marked;
   return { total, normal, marked, spam };
@@ -941,19 +949,21 @@ function renderStatCards(containerId, data) {
   const fmt = n => n >= 10000 ? (n / 10000).toFixed(1) + '万' : n.toLocaleString();
   const pct = n => total > 0 ? (n / total * 100).toFixed(1) + '%' : '0%';
   const w = n => total > 0 ? (n / total * 100).toFixed(1) + '%' : '0%';
+  // marked 为 null 时不渲染嫌疑卡（评论场景）
+  const markedCard = marked === null ? '' : `
+    <div class="stats-card marked">
+      <div class="stats-card-label">嫌疑</div>
+      <div class="stats-card-count">${fmt(marked)}</div>
+      <div class="stats-card-pct">占比 ${pct(marked)}</div>
+      <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(marked)}"></div></div>
+    </div>`;
   document.getElementById(containerId).innerHTML = `
     <div class="stats-card normal">
       <div class="stats-card-label">正常</div>
       <div class="stats-card-count">${fmt(normal)}</div>
       <div class="stats-card-pct">占比 ${pct(normal)}</div>
       <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(normal)}"></div></div>
-    </div>
-    <div class="stats-card marked">
-      <div class="stats-card-label">嫌疑</div>
-      <div class="stats-card-count">${fmt(marked)}</div>
-      <div class="stats-card-pct">占比 ${pct(marked)}</div>
-      <div class="stats-card-bar"><div class="stats-card-bar-fill" style="width:${w(marked)}"></div></div>
-    </div>
+    </div>${markedCard}
     <div class="stats-card spam">
       <div class="stats-card-label">灌水</div>
       <div class="stats-card-count">${fmt(spam)}</div>
@@ -989,6 +999,7 @@ function renderStats() {
     ? (document.getElementById('stats-date-start').value + '~' + document.getElementById('stats-date-end').value)
     : _dateRange;
   renderStatCards('stats-cards-post',    mockStatsData('post',    range));
+  renderStatCards('stats-cards-dynamic', mockStatsData('dynamic', range));
   renderStatCards('stats-cards-comment', mockStatsData('comment', range));
 }
 
