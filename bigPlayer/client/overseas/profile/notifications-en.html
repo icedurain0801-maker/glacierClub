@@ -342,6 +342,60 @@
   /* ── List end ── */
   .list-end { text-align: center; padding: 28px 0 12px; color: var(--text-faint); font-size: 11px; }
 
+  /* ── System screen: date group header ── */
+  .sys-date-header {
+    padding: 10px 16px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-faint);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    background: var(--bg-page);
+    position: sticky; top: 0; z-index: 5;
+  }
+
+  /* ── System screen: row ── */
+  .sys-row {
+    display: flex; align-items: flex-start;
+    gap: 10px; padding: 10px 16px;
+    cursor: pointer; transition: background .12s;
+    position: relative;
+  }
+  .sys-row:active { background: var(--row-active-bg); }
+  .sys-row.unread { background: var(--row-unread-bg); }
+  .sys-unread-bar {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--primary);
+    border-radius: 0 2px 2px 0;
+  }
+  .sys-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 17px;
+    background: var(--row-unread-bg);
+  }
+  .sys-icon.green { background: linear-gradient(135deg,#e8f5e9,#c8e6c9); }
+  .sys-icon.pink  { background: linear-gradient(135deg,#fce4ec,#f8bbd0); }
+  [data-theme="dark"] .sys-icon.green { background: rgba(76,175,80,0.15); }
+  [data-theme="dark"] .sys-icon.pink  { background: rgba(244,67,54,0.15); }
+  .sys-icon.img   { background: transparent; padding: 0; overflow: hidden; }
+  .sys-icon.img img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+  .sys-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+  }
+  .sys-body { flex: 1; min-width: 0; }
+  .sys-line {
+    font-size: 12.5px; color: var(--text-strong);
+    line-height: 1.5;
+  }
+  .sys-line .hl  { color: var(--primary); font-weight: 700; }
+  .sys-line .hlg { color: var(--ps-published); font-weight: 700; }
+  .sys-line .hlr { color: var(--tag-important); font-weight: 700; }
+  .sys-meta { font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
+  .sys-divider { height: 1px; background: var(--bg-divider-soft); margin: 0 16px 0 62px; }
+
   /* ── Announcement detail body ── */
   .detail-body { padding: 20px 16px; }
 
@@ -830,74 +884,88 @@
     <!-- ══ SCREEN: system ══ -->
     <div id="screen-system" class="screen">
 
-      <div class="msg-row" style="background:var(--row-unread-bg)">
-        <div class="flex items-start gap-3">
-          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">⬆️</div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div class="text-[13px] font-bold text-on-surface font-headline leading-snug flex-1">Congrats — Silver Player unlocked!</div>
-              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">just now</span>
-            </div>
-            <div class="text-xs text-on-surface-variant leading-relaxed">Your community contribution score hit the upgrade threshold!</div>
-          </div>
-          <div class="w-2 h-2 rounded-full bg-[var(--state-badge-red)] flex-shrink-0 mt-1"></div>
+      <!-- Jun 26 -->
+      <div class="sys-date-header">June 26</div>
+
+      <div class="sys-row unread">
+        <div class="sys-unread-bar"></div>
+        <div class="sys-icon">📣</div>
+        <div class="sys-body">
+          <div class="sys-line">Congrats! Your post in "Korean Drama" has been <span class="hl">featured</span>. Thanks for creating!</div>
+          <div class="sys-meta">15:10</div>
         </div>
       </div>
-      <div class="divider"></div>
+      <div class="sys-divider"></div>
 
-      <div class="msg-row" style="background:var(--row-unread-bg)">
-        <div class="flex items-start gap-3">
-          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#fff3e0,#ffe0b2)">⚠️</div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div class="text-[13px] font-bold text-on-surface font-headline leading-snug flex-1">Account security alert</div>
-              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">10m ago</span>
-            </div>
-            <div class="text-xs text-on-surface-variant leading-relaxed">New device login detected — was this you?</div>
-          </div>
-          <div class="w-2 h-2 rounded-full bg-[var(--state-badge-red)] flex-shrink-0 mt-1"></div>
+      <div class="sys-row unread">
+        <div class="sys-unread-bar"></div>
+        <div class="sys-icon green">📣</div>
+        <div class="sys-body">
+          <div class="sys-line">Congrats! Your post in "Korean Drama" has been <span class="hlg">pinned</span>. Thanks for creating!</div>
+          <div class="sys-meta">15:00</div>
         </div>
       </div>
-      <div class="divider"></div>
+      <div class="sys-divider"></div>
 
-      <div class="msg-row">
-        <div class="flex items-start gap-3">
-          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">📋</div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div class="text-[13px] font-medium text-on-surface font-headline leading-snug flex-1">Post approved</div>
-              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">1h ago</span>
-            </div>
-            <div class="text-xs text-on-surface-variant leading-relaxed">「New patch hero tier list」 passed review</div>
-          </div>
+      <div class="sys-row unread">
+        <div class="sys-unread-bar"></div>
+        <div class="sys-icon">📣</div>
+        <div class="sys-body">
+          <div class="sys-line">Congrats! Your post in "Korean Drama" has been <span class="hl">featured</span>. Thanks for creating!</div>
+          <div class="sys-meta">15:00</div>
         </div>
       </div>
-      <div class="divider"></div>
+      <div class="sys-divider"></div>
 
-      <div class="msg-row">
-        <div class="flex items-start gap-3">
-          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">💰</div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div class="text-[13px] font-medium text-on-surface font-headline leading-snug flex-1">Reward earned: +50 points</div>
-              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">yesterday</span>
-            </div>
-            <div class="text-xs text-on-surface-variant leading-relaxed">Completed「7-day login streak」achievement</div>
-          </div>
+      <div class="sys-row unread">
+        <div class="sys-unread-bar"></div>
+        <div class="sys-icon pink">📣</div>
+        <div class="sys-body">
+          <div class="sys-line">Congrats! Your post in "Korean Drama" has been <span class="hlr">featured as Premium</span>. Thanks for creating!</div>
+          <div class="sys-meta">11:35</div>
         </div>
       </div>
-      <div class="divider"></div>
+      <div class="sys-divider"></div>
 
-      <div class="msg-row">
-        <div class="flex items-start gap-3">
-          <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">📣</div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div class="text-[13px] font-medium text-on-surface font-headline leading-snug flex-1">Feature update</div>
-              <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">3 days ago</span>
-            </div>
-            <div class="text-xs text-on-surface-variant leading-relaxed">Topic tags are now live — go explore!</div>
-          </div>
+      <div class="sys-row unread">
+        <div class="sys-unread-bar"></div>
+        <div class="sys-icon">📣</div>
+        <div class="sys-body">
+          <div class="sys-line">Congrats! [Zero-to-Go Dev] achieved <span class="hl">[5-Day Login Streak]</span>! [Streak Master] badge earned! Tap to view →</div>
+          <div class="sys-meta">11:23</div>
+        </div>
+      </div>
+
+      <!-- Apr 16 -->
+      <div class="sys-date-header">April 16</div>
+
+      <div class="sys-row">
+        <div class="sys-icon img"><img src="https://i.pravatar.cc/80?img=60" alt="badge"/></div>
+        <div class="sys-body">
+          <div class="sys-line">Congrats! [Zero-to-Go Dev] achieved <span class="hl">[Reading Master]</span> badge! Tap to view details →</div>
+          <div class="sys-meta">12:05</div>
+        </div>
+      </div>
+
+      <!-- Nov 25 -->
+      <div class="sys-date-header">November 25</div>
+
+      <div class="sys-row">
+        <img src="https://i.pravatar.cc/80?img=45" class="sys-avatar" alt="user"/>
+        <div class="sys-body">
+          <div class="sys-line">"Player418793537" <span style="color:var(--text-muted)">followed you</span></div>
+          <div class="sys-meta">19:24</div>
+        </div>
+      </div>
+
+      <!-- Nov 13 -->
+      <div class="sys-date-header">November 13</div>
+
+      <div class="sys-row">
+        <div class="sys-icon">📣</div>
+        <div class="sys-body">
+          <div class="sys-line">Congrats! [Zero-to-Go Dev] achieved <span class="hl">[3-Day Login Streak]</span>! [Streak Master] badge earned!</div>
+          <div class="sys-meta">08:58</div>
         </div>
       </div>
 
@@ -1122,6 +1190,7 @@ fetch('../../shared/sidebar.js').then(r => r.text()).then(t => {
 .pnav-item.current .pnav-dot{background:#0061a4;}
 .pnav-item .pnav-num{font-size:10px;font-weight:700;color:var(--outline-variant);width:16px;flex-shrink:0;text-align:right;}
 .pnav-item.current .pnav-num{color:#0061a4;}
+.pnav-ver{font-size:9px;font-weight:700;color:var(--primary);background:var(--secondary-container);border-radius:4px;padding:1px 5px;margin-left:auto;flex-shrink:0;letter-spacing:.02em;}
 </style>
 
 <button id="pnav-fab" onclick="openPnav()" title="页面目录">
@@ -1142,7 +1211,7 @@ fetch('../../shared/sidebar.js').then(r => r.text()).then(t => {
     <a class="pnav-item" href="../home/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
     <a class="pnav-item" href="../home/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
     <a class="pnav-item" href="../home/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
-    <a class="pnav-item" href="../home/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
+    <a class="pnav-item" href="../home/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页<span class="pnav-ver">v3.1.2</span></a>
 
     <div class="pnav-section"><span class="pnav-section-label">Feed · 动态模块</span></div>
     <a class="pnav-item" href="../feed/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>Feed 流</a>
@@ -1151,7 +1220,7 @@ fetch('../../shared/sidebar.js').then(r => r.text()).then(t => {
     <a class="pnav-item" href="../news/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
 
     <div class="pnav-section"><span class="pnav-section-label">Profile · 个人中心</span></div>
-    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
+    <a class="pnav-item" href="../profile/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页<span class="pnav-ver">v3.1.2</span></a>
     <a class="pnav-item" href="../profile/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
     <a class="pnav-item" href="../profile/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
     <a class="pnav-item" href="../profile/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
