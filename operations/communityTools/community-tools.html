@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大玩家社区工具台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%234f6ef7'/><stop offset='1' stop-color='%237c3aed'/></linearGradient></defs><text x='16' y='22' text-anchor='middle' font-size='18' font-family='system-ui,sans-serif' font-weight='700' fill='white'>大</text></svg>">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;color:#1a1f2e;font-size:13px;min-height:100vh}
+
+/* 顶部栏 */
+.header{background:#fff;border-bottom:1px solid #e8ebf0;padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.header-left{display:flex;align-items:center;gap:12px;cursor:pointer}
+.logo-mark{width:28px;height:28px;background:linear-gradient(135deg,#4f6ef7,#7c3aed);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700}
+.header-title{font-size:15px;font-weight:600;color:#1a1f2e}
+.header-sub{font-size:12px;color:#8994a3;margin-left:4px}
+.header-badge{background:#f0f4ff;color:#4f6ef7;border:1px solid #c7d4fd;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:500}
+.breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;color:#8994a3}
+.breadcrumb span{cursor:pointer;transition:color .15s}
+.breadcrumb span:hover{color:#4f6ef7}
+.breadcrumb .sep{color:#d0d5dd}
+.breadcrumb .cur{color:#1a1f2e;font-weight:500}
+
+/* 返回按钮 */
+.btn-back{display:none;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid #e8ebf0;border-radius:8px;background:#fff;font-size:13px;font-weight:500;color:#4a5568;cursor:pointer;transition:all .15s;margin-right:12px}
+.btn-back:hover{border-color:#4f6ef7;color:#4f6ef7;background:#f5f8ff}
+.btn-back.visible{display:flex}
+
+/* ===== 首页 ===== */
+#page-home{padding:48px 24px 24px}
+.home-hero{text-align:center;margin-bottom:48px}
+.home-hero h1{font-size:26px;font-weight:700;color:#1a1f2e;margin-bottom:8px}
+.home-hero p{font-size:14px;color:#8994a3}
+
+.tool-cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px;margin:0 auto}
+.tool-card{background:#fff;border:1.5px solid #e8ebf0;border-radius:16px;padding:32px 28px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.tool-card::after{content:'';position:absolute;inset:0;border-radius:16px;opacity:0;transition:opacity .2s}
+.tool-card:hover{border-color:#4f6ef7;box-shadow:0 8px 28px rgba(79,110,247,.12);transform:translateY(-2px)}
+.tool-card.orange:hover{border-color:#f97316;box-shadow:0 8px 28px rgba(249,115,22,.12)}
+
+.tool-card-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:20px}
+.tool-card-icon.blue{background:linear-gradient(135deg,#eff4ff,#e0e7ff)}
+.tool-card-icon.orange{background:linear-gradient(135deg,#fff7ed,#ffedd5)}
+
+.tool-card-title{font-size:18px;font-weight:700;color:#1a1f2e;margin-bottom:8px}
+.tool-card-desc{font-size:13px;color:#8994a3;line-height:1.7;margin-bottom:20px}
+.tool-card-tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{display:inline-block;background:#f5f7fa;border:1px solid #e8ebf0;border-radius:4px;padding:2px 8px;font-size:11px;color:#4a5568}
+.tool-card-arrow{position:absolute;right:24px;bottom:28px;font-size:18px;color:#d0d5dd;transition:all .2s}
+.tool-card:hover .tool-card-arrow{color:#4f6ef7;transform:translateX(4px)}
+.tool-card.orange:hover .tool-card-arrow{color:#f97316}
+
+.ai-note{max-width:800px;margin:24px auto 0;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e8ebf0;border-radius:10px;padding:12px 16px}
+.ai-note-icon{width:30px;height:30px;background:linear-gradient(135deg,#818cf8,#a78bfa);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ai-note-text{font-size:12px;color:#8994a3;line-height:1.6}
+.ai-note-text strong{color:#4a5568}
+
+/* ===== 通用子页布局 ===== */
+#page-link, #page-diagnose{display:none;padding:20px 24px;max-width:900px;margin:0 auto}
+
+.panel{background:#fff;border-radius:12px;border:1px solid #e8ebf0;overflow:hidden}
+.panel-header{padding:18px 24px 16px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;gap:12px}
+.panel-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.panel-icon.blue{background:#eff4ff}
+.panel-icon.orange{background:#fff7ed}
+.panel-title{font-size:15px;font-weight:700;color:#1a1f2e}
+.panel-desc{font-size:12px;color:#8994a3;margin-top:1px}
+.panel-body{padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+
+/* 表单 */
+.form-row{display:flex;flex-direction:column;gap:5px}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{font-size:12px;color:#4a5568;font-weight:500}
+label span{color:#e53e3e;margin-left:2px}
+input,select,textarea{width:100%;height:36px;border:1px solid #dde1e9;border-radius:8px;padding:0 12px;font-size:13px;color:#1a1f2e;background:#fafbfc;outline:none;transition:border-color .15s,box-shadow .15s}
+textarea{height:80px;padding:10px 12px;resize:none;line-height:1.6}
+input:focus,select:focus,textarea:focus{border-color:#4f6ef7;box-shadow:0 0 0 3px rgba(79,110,247,.1);background:#fff}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238994a3' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+
+/* 子类型切换 */
+.type-tabs{display:flex;gap:0;background:#f5f7fa;border-radius:8px;padding:3px}
+.type-tab{flex:1;height:32px;border:none;background:transparent;border-radius:6px;font-size:13px;font-weight:500;color:#8994a3;cursor:pointer;transition:all .15s}
+.type-tab.blue.active{background:#fff;color:#4f6ef7;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.type-tab.orange.active{background:#fff;color:#f97316;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+
+/* 按钮 */
+.btn-generate{height:38px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;width:100%;transition:all .15s;margin-top:4px}
+.btn-blue{background:linear-gradient(135deg,#4f6ef7,#6366f1);color:#fff}
+.btn-blue:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(79,110,247,.3)}
+.btn-orange{background:linear-gradient(135deg,#f97316,#fb923c);color:#fff}
+.btn-orange:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(249,115,22,.3)}
+.btn-generate:disabled{opacity:.6;transform:none;cursor:not-allowed}
+
+/* 进度条 */
+.gen-progress{display:none;margin-top:12px;padding:10px 14px;background:#f5f7ff;border:1px solid #dde4fd;border-radius:10px}
+.gen-progress.visible{display:block}
+.gen-progress-label{font-size:12px;font-weight:600;color:#4f6ef7;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.gen-progress-label::before{content:"";width:6px;height:6px;border-radius:50%;background:#4f6ef7;animation:pulseDot 1s ease-in-out infinite}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+.gen-progress-track{height:5px;background:#dde4fd;border-radius:99px;overflow:hidden}
+.gen-progress-bar{height:100%;background:linear-gradient(90deg,#4f6ef7,#818cf8);border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+#diagnose-progress{background:#fff8f3;border-color:#fed7aa}
+#diagnose-progress .gen-progress-label{color:#ea580c}
+#diagnose-progress .gen-progress-label::before{background:#ea580c}
+#diagnose-progress .gen-progress-track{background:#fed7aa}
+#diagnose-progress .gen-progress-bar{background:linear-gradient(90deg,#f97316,#fb923c)}
+
+/* AI 输出区 */
+.ai-section{border-top:1px solid #f0f2f5;padding:18px 24px;background:#fafbfc}
+.ai-section-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#4a5568;margin-bottom:12px}
+.ai-chip{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#eff4ff,#f0f0ff);border:1px solid #c7d4fd;border-radius:20px;padding:2px 10px 2px 7px;font-size:11px;color:#4f6ef7;font-weight:600}
+.ai-chip::before{content:"✦";font-size:10px}
+
+/* 链接结果 */
+.link-result{background:#fff;border:1px solid #e8ebf0;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.link-result-label{font-size:11px;color:#8994a3;font-weight:500}
+.link-result-url{font-size:12px;color:#1a1f2e;word-break:break-all;background:#f5f7fa;border-radius:6px;padding:10px 12px;font-family:ui-monospace,"SFMono-Regular",monospace;line-height:1.7;border:1px solid #eaecf0}
+.link-result-actions{display:flex;gap:7px}
+.btn-sm{height:30px;padding:0 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #dde1e9;background:#fff;color:#4a5568;transition:all .1s}
+.btn-sm:hover{background:#f5f7fa;border-color:#c5cbda}
+.btn-sm.primary{background:#4f6ef7;border-color:#4f6ef7;color:#fff}
+.btn-sm.primary:hover{background:#3d5ce6}
+.ai-footer{display:flex;align-items:center;gap:6px;font-size:11px;color:#a0aab8;margin-top:2px}
+.ai-footer::before{content:"";width:14px;height:14px;background:linear-gradient(135deg,#818cf8,#a78bfa);border-radius:4px;display:inline-block;flex-shrink:0}
+
+/* AI 排查结果 */
+.ai-analysis{display:flex;flex-direction:column;gap:8px}
+.ai-result-item{background:#fff;border:1px solid #e8ebf0;border-radius:10px;padding:12px 14px}
+.ai-result-title{font-size:12px;font-weight:600;color:#1a1f2e;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot.red{background:#ef4444}
+.dot.yellow{background:#f59e0b}
+.dot.green{background:#10b981}
+.ai-result-body{font-size:12px;color:#4a5568;line-height:1.8}
+.ai-steps{padding-left:16px;margin-top:4px}
+.ai-steps li{margin-bottom:2px}
+
+/* 单选按钮组 */
+.radio-group{display:flex;gap:6px;flex-wrap:wrap}
+.radio-btn{display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:7px;border:1px solid #dde1e9;background:#fafbfc;font-size:12px;font-weight:500;color:#4a5568;cursor:pointer;transition:all .15s;user-select:none}
+.radio-btn:hover{border-color:#a5b4fc;background:#f5f7ff}
+.radio-btn.active{background:#eff4ff;border-color:#4f6ef7;color:#4f6ef7;font-weight:600}
+
+/* 三列布局 */
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* 分割线 */
+.divider-line{height:1px;background:#f0f2f5;margin:2px 0}
+
+/* Toggle 开关 */
+.toggle{width:36px;height:20px;background:#dde1e9;border-radius:10px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:2px;left:2px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle.on{background:#4f6ef7}
+.toggle.on::after{transform:translateX(16px)}
+
+/* 空态 */
+.empty-ai{text-align:center;padding:28px 0;color:#c5ccd8}
+.empty-ai .ei{font-size:32px;margin-bottom:8px;opacity:.5}
+.empty-ai p{font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<header class="header">
+  <div class="header-left" onclick="goHome()">
+    <div class="logo-mark">大</div>
+    <div>
+      <span class="header-title">大玩家社区工具台</span>
+      <span class="header-sub">Club Operations Tools</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center">
+    <div id="breadcrumb-area"></div>
+  </div>
+  <div class="header-badge">仅供社区开发/运营人员使用</div>
+</header>
+
+<!-- ===== 首页 ===== -->
+<div id="page-home">
+  <div class="home-hero">
+    <h1>选择你需要的工具</h1>
+    <p>大玩家社区运营工具台，内嵌 AI 辅助分析</p>
+  </div>
+
+  <div class="tool-cards">
+    <!-- 链接生成 -->
+    <div class="tool-card" onclick="goPage('link')">
+      <div class="tool-card-icon blue">🔗</div>
+      <div class="tool-card-title">链接生成器</div>
+      <div class="tool-card-desc">生成社区 App 内跳转链接（Deep Link）和带参数的 H5 分享链接，AI 自动校验参数合法性</div>
+      <div class="tool-card-tags">
+        <span class="tag">Deep Link</span>
+        <span class="tag">H5 分享链接</span>
+        <span class="tag">参数校验</span>
+      </div>
+      <div class="tool-card-arrow">→</div>
+    </div>
+
+    <!-- 错误排查 -->
+    <div class="tool-card orange" onclick="goPage('diagnose')">
+      <div class="tool-card-icon orange">🔍</div>
+      <div class="tool-card-title">错误排查</div>
+      <div class="tool-card-desc">粘贴链接，AI 自动分析可能原因并给出排查步骤</div>
+      <div class="tool-card-tags">
+        <span class="tag">用户问题</span>
+        <span class="tag">链接异常</span>
+        <span class="tag">AI 诊断</span>
+      </div>
+      <div class="tool-card-arrow">→</div>
+    </div>
+  </div>
+
+  <div class="ai-note">
+    <div class="ai-note-icon">✦</div>
+    <div class="ai-note-text"><strong>AI 辅助说明：</strong>本工具台内嵌 AI 机器人，将在你填写完信息后自动分析并输出结果。AI 输出仅供参考，操作前请人工确认。</div>
+  </div>
+</div>
+
+<!-- ===== 链接生成页 ===== -->
+<div id="page-link">
+  <button class="btn-back visible" onclick="goHome()" style="margin-bottom:14px">← 返回首页</button>
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-icon blue">🔗</div>
+      <div>
+        <div class="panel-title">链接生成器</div>
+        <div class="panel-desc">生成 App 内跳转链接 / H5 分享链接，AI 自动校验参数</div>
+      </div>
+    </div>
+    <div class="panel-body">
+
+      <!-- 社区类型（单选按钮组） -->
+      <div class="form-row">
+        <label>社区类型 <span>*</span></label>
+        <div class="radio-group">
+          <label class="radio-btn active" onclick="selectRadio(this,'community-type');toggleBoardId()"><input type="radio" name="community-type" value="embedded" checked hidden>游戏内嵌</label>
+          <label class="radio-btn" onclick="selectRadio(this,'community-type');toggleBoardId()"><input type="radio" name="community-type" value="web" hidden>网页</label>
+          <label class="radio-btn" onclick="selectRadio(this,'community-type');toggleBoardId()"><input type="radio" name="community-type" value="miniapp" hidden>小程序</label>
+          <label class="radio-btn" onclick="selectRadio(this,'community-type');toggleBoardId()"><input type="radio" name="community-type" value="app" hidden>APP</label>
+        </div>
+      </div>
+
+      <!-- 三列单选 -->
+      <div class="form-row-3">
+        <div class="form-row">
+          <label>部署环境 <span>*</span></label>
+          <div class="radio-group">
+            <label class="radio-btn active" onclick="selectRadio(this,'env')"><input type="radio" name="env" value="prod" checked hidden>正式服</label>
+            <label class="radio-btn" onclick="selectRadio(this,'env')"><input type="radio" name="env" value="test" hidden>测试服</label>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>发行地区 <span>*</span></label>
+          <div class="radio-group">
+            <label class="radio-btn active" onclick="selectRadio(this,'region');toggleLangField()"><input type="radio" name="region" value="domestic" checked hidden>境内</label>
+            <label class="radio-btn" id="btn-overseas" onclick="selectRadio(this,'region');toggleLangField()"><input type="radio" name="region" value="overseas" hidden>境外</label>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>游戏类型 <span>*</span></label>
+          <div class="radio-group">
+            <label class="radio-btn active" onclick="selectRadio(this,'game-type')"><input type="radio" name="game-type" value="official" checked hidden>官方渠道</label>
+            <label class="radio-btn" onclick="selectRadio(this,'game-type')"><input type="radio" name="game-type" value="channel" hidden>联运渠道</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 境外语种选择（仅境外显示） -->
+      <div class="form-row" id="lang-field" style="display:none">
+        <label>语种 <span>*</span> <code style="font-size:10px;color:#8994a3;font-weight:400;margin-left:4px">languageId</code></label>
+        <select id="lang-select">
+          <option value="2">英文（2）</option>
+          <option value="1">中文（1）</option>
+          <option value="3">繁体（3）</option>
+          <option value="4">印度尼西亚语（4）</option>
+          <option value="5">菲律宾语（5）</option>
+          <option value="6">越南语（6）</option>
+          <option value="7">泰语（7）</option>
+          <option value="8">葡萄牙语（8）</option>
+          <option value="9">韩语（9）</option>
+          <option value="10">法语（10）</option>
+          <option value="11">德语（11）</option>
+          <option value="12">马来语（12）</option>
+          <option value="13">俄语（13）</option>
+          <option value="14">西班牙语（14）</option>
+          <option value="15">印度语（15）</option>
+          <option value="16">日语（16）</option>
+        </select>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>游戏 ID <code style="font-size:10px;color:#8994a3;font-weight:400;margin-left:4px">gameId</code> <span>*</span></label>
+          <input type="text" placeholder="如 2131" value="2131">
+        </div>
+        <div class="form-row">
+          <label>游戏版本 <code style="font-size:10px;color:#8994a3;font-weight:400;margin-left:4px">gameversion</code> <span>*</span></label>
+          <input type="text" placeholder="如 2131-CN-ZS" value="2131-CN-ZS">
+        </div>
+      </div>
+
+      <!-- APP 专属：boardId（仅 APP 显示） -->
+      <div class="form-row" id="board-id-field" style="display:none">
+        <label>板块 ID 数组 <code style="font-size:10px;color:#8994a3;font-weight:400;margin-left:4px">boardId</code></label>
+        <input type="text" id="board-id-input" placeholder="多个用英文逗号分隔，如 1,2,3,4">
+      </div>
+
+      <div class="divider-line"></div>
+
+      <div class="form-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+          <div class="toggle" id="post-toggle" onclick="togglePostField()"></div>
+          定位到指定帖子
+        </label>
+      </div>
+      <div id="post-id-field" style="display:none">
+        <div class="form-row">
+          <label>帖子 ID <span>*</span></label>
+          <input type="text" placeholder="如 102584">
+        </div>
+      </div>
+
+      <button class="btn-generate btn-blue" id="btn-link" onclick="generateLink()">生成链接</button>
+      <div class="gen-progress" id="link-progress">
+        <div class="gen-progress-label" id="link-progress-label">准备中…</div>
+        <div class="gen-progress-track"><div class="gen-progress-bar" id="link-progress-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="ai-section">
+      <div class="ai-section-title">
+        <div class="ai-chip">AI 输出</div>
+        生成结果
+      </div>
+      <div id="link-output">
+        <div class="empty-ai">
+          <div class="ei">🔗</div>
+          <p>填写参数后点击「生成链接」，AI 将自动校验并输出结果</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 错误排查页 ===== -->
+<div id="page-diagnose">
+  <button class="btn-back visible" onclick="goHome()" style="margin-bottom:14px">← 返回首页</button>
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-icon orange">🔍</div>
+      <div>
+        <div class="panel-title">错误排查</div>
+        <div class="panel-desc">粘贴链接，AI 分析可能原因并给出排查步骤</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="form-row">
+        <label>链接 <span>*</span></label>
+        <textarea id="diagnose-link-input" placeholder="粘贴 Deep Link 或 H5 链接" style="height:160px;resize:vertical"></textarea>
+      </div>
+      <button class="btn-generate btn-orange" id="btn-diagnose" onclick="diagnose()">开始排查</button>
+      <div class="gen-progress" id="diagnose-progress">
+        <div class="gen-progress-label" id="diagnose-progress-label">准备中…</div>
+        <div class="gen-progress-track"><div class="gen-progress-bar" id="diagnose-progress-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="ai-section">
+      <div class="ai-section-title">
+        <div class="ai-chip">AI 输出</div>
+        排查结果
+      </div>
+      <div id="diagnose-output">
+        <div class="empty-ai">
+          <div class="ei">🔍</div>
+          <p>填写信息后点击「开始排查」，AI 将分析可能原因并给出排查步骤</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const pages = ['home','link','diagnose'];
+const pageTitles = {link:'链接生成器', diagnose:'错误排查'};
+
+function goPage(name) {
+  pages.forEach(p => document.getElementById('page-'+p).style.display = 'none');
+  document.getElementById('page-'+name).style.display = 'block';
+
+  const bc = document.getElementById('breadcrumb-area');
+  if (name === 'home') {
+    bc.innerHTML = '';
+  } else {
+    bc.innerHTML = `<div class="breadcrumb">
+      <span onclick="goHome()">首页</span>
+      <span class="sep">/</span>
+      <span class="cur">${pageTitles[name]}</span>
+    </div>`;
+  }
+}
+
+function goHome() { goPage('home'); }
+
+// tab 切换（两个页面各自独立）
+function selectRadio(el, name) {
+  document.querySelectorAll(`[onclick*="${name}"]`).forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function togglePostField() {
+  const t = document.getElementById('post-toggle');
+  const f = document.getElementById('post-id-field');
+  t.classList.toggle('on');
+  f.style.display = t.classList.contains('on') ? 'block' : 'none';
+}
+
+function toggleBoardId() {
+  const type = document.querySelector('input[name="community-type"]:checked')?.value;
+  document.getElementById('board-id-field').style.display = type === 'app' ? 'block' : 'none';
+
+  const overseasBtn = document.getElementById('btn-overseas');
+  if (type === 'miniapp') {
+    overseasBtn.style.display = 'none';
+    const overseasRadio = document.querySelector('input[name="region"][value="overseas"]');
+    if (overseasRadio && overseasRadio.checked) {
+      overseasBtn.previousElementSibling.click();
+    }
+  } else {
+    overseasBtn.style.display = '';
+  }
+}
+
+function toggleLangField() {
+  const overseas = document.querySelector('input[name="region"]:checked')?.value === 'overseas';
+  document.getElementById('lang-field').style.display = overseas ? 'block' : 'none';
+}
+
+function switchTab(el, targetId, color) {
+  const parent = el.parentNode;
+  parent.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  // 找到兄弟节点中所有 form-* 层
+  const panel = parent.closest('.panel-body');
+  panel.querySelectorAll('[id^="form-"],[id$="-form"]').forEach(f => f.style.display = 'none');
+  document.getElementById(targetId).style.display = '';
+}
+
+// ── AI 配置（填入你的 API Key 和接口地址）──────────────────────
+const AI_CONFIG = {
+  apiKey: 'sk-c3e4d8f1680e0ca386c1ca0ef1ea45643bcaa33d',
+  baseUrl: 'https://chat-test.q1.com/v1',
+  model: 'claude-sonnet-4-5-20251001',
+};
+
+async function callAI(systemPrompt, userPrompt) {
+  const res = await fetch(AI_CONFIG.baseUrl + '/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + AI_CONFIG.apiKey,
+    },
+    body: JSON.stringify({
+      model: AI_CONFIG.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 1024,
+    }),
+  });
+  if (!res.ok) throw new Error('API 请求失败：' + res.status + ' ' + res.statusText);
+  const data = await res.json();
+  return data.choices[0].message.content.trim();
+}
+
+// ── 大玩家社区接入文档知识库 ──────────────────────────────────────────
+const COMMUNITY_KB = `
+=== 大玩家社区 游戏内/渠道 接入文档知识库 ===
+
+## 一、URL 模板规则
+
+### 参数说明
+- type      主体类型：1=官方渠道 2=联运渠道 3+=其他
+- platform  接入类型：1=官方渠道, 2=U8, 3=硬接
+- pid       渠道Id（海外建议填写，可防止混服；官方渠道可为空）
+- userId    用户id（官方渠道可为空）
+- gameId    游戏id（海外必填，官方渠道可为空）
+- token     sdk token 或 U8 Token（必填）
+- env       环境变量：game=游戏内置, web=网页, wechatMiniProgram=小程序（必填）
+- gameVersion  游戏版本（选填）
+- actorId   角色Id（选填）
+- lang      语言：zh-CN中文简体, zh-TW繁体, en-US英文, ja-jp日文, ko-KR韩文（不填则浏览器自带；系统自带标识，仅作展示参考，无需与 languageId 保持一致，两者不匹配不算问题）
+- languageId  语言ID整数，海外必填（国内不填）
+
+### 快速接入参数（游戏内嵌，官方渠道）
+?type=1&platform=1&env=game&gameId={gameId}&token={token}&gameVersion={gameVersion}
+
+---
+
+## 二、域名对照表
+
+### 测试环境（test）
+| 地区/渠道 | 域名 |
+|---|---|
+| 国内 | http://club.test.q1.com |
+| 欧美+港澳台 | http://club-overseas.test.q1.com |
+
+### 正式环境（prod）
+| 地区/渠道 | 域名 |
+|---|---|
+| 国内（小渠官方） | https://club.q1.com |
+| 游翼（渠道） | https://club.youyi-game.com |
+| 海外小渠 | https://club.you03.com |
+| 海外诺泽 | https://club.hnlz168.cn |
+| 奥亚（代号A） | https://club.3zonegame.com |
+| 欧美+港澳台 | https://club-en.q1.com |
+| 代号M 丰趣渠道 | https://club.cool-play.com |
+
+---
+
+## 三、完整 URL 模板
+
+### 国内测试
+http://club.test.q1.com/?type={type}&platform={platform}&env=game&pid={pid}&gameId={gameId}&userId={userId}&token={token}&gameVersion={gameVersion}&actorId={actorId}
+
+### 海外测试（欧美+港澳台）
+http://club-overseas.test.q1.com/?type={type}&platform={platform}&env=game&pid={pid}&gameId={gameId}&userId={userId}&token={token}&gameVersion={gameVersion}&actorId={actorId}&lang={language}&languageId={languageId}
+
+### 国内正式（小渠官方）
+https://club.q1.com/?type={type}&platform={platform}&env=game&pid={pid}&gameId={gameId}&userId={userId}&token={token}&gameVersion={gameVersion}&actorId={actorId}
+
+### 海外正式（欧美+港澳台）
+https://club-en.q1.com/?type={type}&platform={platform}&env=game&pid={pid}&gameId={gameId}&userId={userId}&token={token}&gameVersion={gameVersion}&actorId={actorId}&lang={language}&languageId={languageId}
+
+### 定位到具体帖子（在基础URL后追加路径）
+路径替换为：/pages/post/detail/index?id={帖子ID}&{其他参数}
+- 国内测试：http://club.test.q1.com/pages/post/detail/index?id={postId}&type=1&platform=1&env=game&gameId={gameId}&token={token}&gameVersion={gameVersion}
+- 国内正式：http://club.q1.com/pages/post/detail/index?id={postId}&type=1&platform=1&env=game&gameId={gameId}&token={token}&gameVersion={gameVersion}
+- 海外测试：http://club-overseas.test.q1.com/pages/post/detail/index?id={postId}&type=1&platform=1&env=game&gameId={gameId}&token={token}&gameVersion={gameVersion}&languageId={languageId}&pid={pid}
+- 海外正式：http://club-en.q1.com/pages/post/detail/index?id={postId}&type=1&platform=1&env=game&gameId={gameId}&token={token}&gameVersion={gameVersion}&languageId={languageId}&pid={pid}
+
+---
+
+## 四、渠道接入特殊规则
+
+### 代号M 丰趣渠道（platform=2，U8接入）
+https://club.cool-play.com/?type=2&platform=2&env=game&gameId={gameId}&userId={userId}&token={token}&gameVersion={gameVersion}&lang=zh-CN
+- userId：U8获取token返回的UserId（注意不是SDKUserId）
+- token：U8返回的token
+- platform 固定填 2
+
+### 海外渠道
+- pid 建议填写（海外，不填可能导致混服）
+- languageId 必填（整数类型，根据玩家游戏语言设置传入）
+- lang 选填（zh-CN/zh-TW/en-US/ja-jp/ko-KR）
+
+### languageId 语言映射表
+| languageId | 语言 |
+|---|---|
+| 1 | 中文 |
+| 2 | 英文 |
+| 3 | 繁体 |
+| 4 | 印度尼西亚语 |
+| 5 | 菲律宾语 |
+| 6 | 越南语 |
+| 7 | 泰语 |
+| 8 | 葡萄牙语 |
+| 9 | 韩语 |
+| 10 | 法语 |
+| 11 | 德语 |
+| 12 | 马来语 |
+| 13 | 俄语 |
+| 14 | 西班牙语 |
+| 15 | 印度语 |
+| 16 | 日语 |
+
+---
+
+## 五、常见问题排查规则
+
+### 链接打不开
+1. 检查域名是否匹配环境（test域名=测试服，正式域名=正式服）
+2. 检查 token 是否有效（空token或过期token会导致鉴权失败）
+3. 检查 env 参数是否正确（游戏内嵌须填 env=game）
+
+### 海外链接异常
+1. pid 是否填写（海外建议填写，不填时玩家进入社区可能混服，与其他渠道玩家混淆）
+2. languageId 是否填写且为整数（海外必填）
+3. 域名是否用海外专用域名（club-en.q1.com 或 club-overseas.test.q1.com）
+
+### 渠道链接异常
+1. platform 是否匹配（官方渠道=1, U8=2, 硬接=3）
+2. 若为U8接入：userId 是U8返回的UserId还是SDKUserId（两者不同）
+3. pid（渠道Id）是否正确填写
+
+### 定位帖子失败
+1. 帖子ID格式是否正确（纯数字）
+2. 路径是否为 /pages/post/detail/index?id={id}
+3. 帖子是否已删除或未发布
+
+### 中括号参数未替换
+1. URL中出现 {xxx} 说明调用方未替换动态参数，需告知对接游戏方替换后再测试
+2. 注意：含%s的字段是游戏传值字段，如 token=%s 需由游戏传值
+
+### Token 内外网识别规则（高频错误）
+Token 解码后可从 userId 字段判断来源：
+- userId 以 **1** 开头（如 149721687、1XXXXXXX）→ **内网 token** → 必须配合**测试服域名**（club.test.q1.com）使用，这是正常的
+- userId 以 **3** 开头（如 3XXXXXXX）→ **外网 token** → 必须配合**正式服域名**（club.q1.com 等）使用，这是正常的
+
+**匹配关系（正确）：**
+- 内网 token（userId 1开头）+ 测试服域名 → ✅ 正常
+- 外网 token（userId 3开头）+ 正式服域名 → ✅ 正常
+
+**高频错误场景（不匹配，必须报警）：**
+- 外网 token（userId 3开头）+ 测试服域名（club.test.q1.com / club-overseas.test.q1.com）→ ❌ 鉴权失败
+- 内网 token（userId 1开头）+ 正式服域名（club.q1.com / club-en.q1.com 等）→ ❌ 鉴权失败
+
+排查时：若用户提供了 token 解码后的 userId，或链接中 userId 参数可见，务必与域名环境做交叉校验。发现**不匹配**才标记为【严重】问题，匹配则不需要报错。
+
+### Token 境内/境外识别规则（iss 字段，最权威）
+Token 解码后的 payload 含 **iss（签发域）** 字段，可直接判断该 token 属于境内还是境外，**与正式服/测试服无关**：
+- iss = **q1.com** → **境内 token** → 必须配合**境内域名**使用
+- iss = **overseas.q1.com** → **境外 token** → 必须配合**境外域名**使用
+
+**境内域名**（正式/测试均属境内）：club.q1.com、club.test.q1.com、club.youyi-game.com、club.you03.com、club.hnlz168.cn、club.3zonegame.com、club.cool-play.com 等
+**境外域名**（正式/测试均属境外）：club-en.q1.com、club-overseas.test.q1.com 等
+
+**核心原则：不管正式服还是测试服，token 的 iss 归属（境内/境外）必须与链接域名的归属一致。**
+
+**匹配关系（正确）：**
+- iss=q1.com（境内 token）+ 境内域名 → ✅ 正常
+- iss=overseas.q1.com（境外 token）+ 境外域名 → ✅ 正常
+
+**错误场景（不匹配，必须报警为【严重】）：**
+- iss=q1.com（境内 token）+ 境外域名（club-en.q1.com / club-overseas.test.q1.com）→ ❌ 鉴权失败/进错社区
+- iss=overseas.q1.com（境外 token）+ 境内域名（club.q1.com / club.test.q1.com 等）→ ❌ 鉴权失败/进错社区
+
+注意：iss 判断的是「境内/境外」维度；userId 1/3 开头判断的是「测试/正式」维度，两者相互独立，都要分别核查。
+
+---
+
+## 六、社区定位核心规则
+
+### 国内 vs 海外的社区定位方式不同
+- **海外链接**：优先从链接 URL 上的 pid 和 gameVersion 参数定位社区；若链接上没有这两个参数，则解析 token 获取
+- **国内链接**：通过**解析 token** 获取其中携带的 pid 和 gameVersion 来定位社区，链接上的 pid/gameVersion 为辅助参数
+
+### gameVersion 是社区系统核心参数（相当于"钥匙"）
+- gameVersion 决定进入哪个社区，必须与该社区注册时的版本号完全一致
+- 国内链接：token 内嵌的 gameVersion 优先级更高，链接参数与 token 内不一致时以 token 为准
+- 常见错误：gameVersion 填错（大小写、符号、多余空格）导致进错社区或进不去
+
+### Token 中的 pid 字段说明
+- Token 解码后 payload 中通常含有 pid（渠道ID）、userId、gameVersion 等字段
+- **排查国内链接时必须解析 token，列出 token 内的 userId、gameVersion、pid**
+- 海外链接的 pid：**非必填，建议填写**，填写后可防止混服（不同社区内容混淆）的情况
+- pid 位数规则（pid 命名规则一般为 4位gameId+3位数，共7位，如 2131001）：
+  - **5位数 pid**（如 10001、20003）→ 一定是**海外内网 pid**，对应海外社区域名（注意：只有恰好5位才适用此规则）
+  - 若 5位数 pid 出现在国内域名（club.q1.com）的链接上 → 高频错误：海外 token 用于国内链接
+  - 国内社区 pid 一般为 7 位数字（4位gameId+3位序号）
+- 发现 token 内的 pid 与链接域名不匹配时，立即标记为【严重】问题并说明原因
+`;
+
+
+
+function generateLink() {
+  const communityType = (document.querySelector('input[name="community-type"]:checked') || {}).value || 'embedded';
+  const envVal = (document.querySelector('input[name="env"]:checked') || {}).value || 'prod';
+  const region = (document.querySelector('input[name="region"]:checked') || {}).value || 'domestic';
+  const gameType = (document.querySelector('input[name="game-type"]:checked') || {}).value || 'official';
+  const gameIdInputs = document.querySelectorAll('#page-link input[type="text"]');
+  const gameId = gameIdInputs[0] ? gameIdInputs[0].value.trim() : '';
+  const gameVersion = gameIdInputs[1] ? gameIdInputs[1].value.trim() : '';
+  const postToggle = document.getElementById('post-toggle');
+  const postIdInput = document.querySelector('#post-id-field input');
+  const postEnabled = !!(postToggle && postToggle.classList.contains('on'));
+  const postId = (postEnabled && postIdInput) ? postIdInput.value.trim() : '';
+  const langSelect = document.getElementById('lang-select');
+  const languageId = (region === 'overseas' && langSelect) ? langSelect.value : '';
+
+  // 域名表
+  const DOMAINS = {
+    prod: { domestic: 'https://club.q1.com', overseas: 'https://club-en.q1.com' },
+    test: { domestic: 'http://club.test.q1.com', overseas: 'http://club-overseas.test.q1.com' },
+  };
+  const domain = DOMAINS[envVal][region];
+  const envParam = { embedded: 'game', web: 'web', miniapp: 'wechatMiniProgram', app: 'game' }[communityType] || 'game';
+  const isOverseas = region === 'overseas';
+  const gid = gameId || '{gameId}';
+  const gver = gameVersion || '{gameVersion}';
+  const lid = languageId || '{languageId}';
+
+  // 游戏内嵌才需要 token
+  const needToken = communityType === 'embedded';
+
+  // APP 的 boardId
+  const boardIdInput = document.getElementById('board-id-input');
+  const boardIdRaw = (communityType === 'app' && boardIdInput) ? boardIdInput.value.trim() : '';
+  const boardIdParam = boardIdRaw
+    ? '&boardId={' + boardIdRaw.split(',').map(s => s.trim()).filter(Boolean).join(',') + '}'
+    : '';
+
+  // type/platform 根据渠道类型决定
+  const typeVal = 1;
+  const platformVal = gameType === 'channel' ? 2 : 1;
+
+  // 拼接链接
+  const typePrefix = needToken ? `type=${typeVal}&platform=${platformVal}&` : '';
+  let params = `${typePrefix}env=${envParam}&gameId=${gid}${needToken ? '&token={token}' : ''}&gameVersion=${gver}${boardIdParam}`;
+  if (isOverseas) params += `&pid={pid}&languageId=${lid}`;
+  const mainLink = `${domain}/?${params}`;
+  const pidForPost = postId || '{postId}';
+  const postLink = postEnabled
+    ? `${domain}/pages/post/detail/index?id=${pidForPost}&${typePrefix}env=${envParam}&gameId=${gid}${needToken ? '&token={token}' : ''}&gameVersion=${gver}${boardIdParam}${isOverseas ? `&languageId=${lid}&pid={pid}` : ''}`
+    : null;
+
+  // 校验说明
+  const checkItems = [
+    ...(needToken ? [`✅ type=${typeVal}：${gameType === 'channel' ? '联运渠道' : '官方渠道'}主体类型（固定值）`, `✅ platform=${platformVal}：${gameType === 'channel' ? 'U8' : '官方渠道'}接入（固定值）`] : []),
+    `✅ env=${envParam}：游戏内置环境（固定值）`,
+    gameId ? `✅ gameId=${gameId}：已填写` : '🔧 gameId={gameId}：**需替换**为实际游戏ID（整数）',
+    ...(needToken ? ['🔧 token={token}：**需替换**为SDK返回的有效token（必填，用于鉴权）'] : []),
+    gameVersion ? `✅ gameVersion=${gameVersion}：已填写` : '🔧 gameVersion={gameVersion}：**需替换**为当前游戏版本号（选填）',
+    ...(communityType === 'app' && boardIdRaw ? [`✅ boardId={${boardIdRaw.split(',').map(s=>s.trim()).filter(Boolean).join(',')}}：已填写`] : []),
+    ...(communityType === 'app' && !boardIdRaw ? ['🔧 boardId：APP类型可选，填写后链接中将带入板块ID数组'] : []),
+  ];
+  if (isOverseas) {
+    checkItems.push('🔧 pid={pid}：建议填写（海外，不填可能导致混服）');
+    checkItems.push(languageId ? `✅ languageId=${languageId}：已选择` : '🔧 languageId={languageId}：**需替换**为语言ID整数（海外必填）');
+  }
+
+  // 注意事项
+  const notes = [];
+  if (isOverseas) notes.push('海外链接建议填写 pid，不填写可能导致混服；languageId 建议填写以确保语言正确');
+  if (envVal === 'test') notes.push('当前为测试服链接，上线前请切换为正式服重新生成');
+  if (gameType === 'channel') notes.push('联运渠道请确认使用对应渠道域名（如游翼：club.youyi-game.com），当前为官方域名');
+
+  function linkCard(label, url) {
+    return '<div class="link-result">'
+      + '<div class="link-result-label">' + label + '</div>'
+      + '<div class="link-result-url">' + url + '</div>'
+      + '<div class="link-result-actions">'
+      + '<button class="btn-sm primary" onclick="navigator.clipboard.writeText(this.dataset.link);this.textContent=\'已复制 ✓\';setTimeout(()=>this.textContent=\'复制链接\',1500)" data-link="' + url + '">复制链接</button>'
+      + '</div></div>';
+  }
+
+  document.getElementById('link-output').innerHTML =
+    (postLink ? linkCard('定位帖子链接', postLink) : linkCard('接入链接', mainLink))
+    + '<div class="link-result" style="margin-top:10px;background:#f8fafb">'
+    + '<div class="link-result-label">参数校验</div>'
+    + '<div class="ai-result-body" style="font-size:12px;line-height:1.8;color:#4a5568;padding:4px 0">' + checkItems.join('<br>') + '</div>'
+    + '</div>'
+    + (notes.length ? '<div class="link-result" style="margin-top:10px;background:#fffbeb;border-color:#fcd34d">'
+      + '<div class="link-result-label" style="color:#92400e">注意事项</div>'
+      + '<div class="ai-result-body" style="font-size:12px;line-height:1.8;color:#78350f;padding:4px 0">' + notes.join('<br>') + '</div>'
+      + '</div>' : '')
+    + '<div class="ai-footer" style="margin-top:10px"><span>规则引擎生成 · ' + new Date().toLocaleTimeString('zh-CN') + '</span></div>';
+}
+
+function parseTokenExpiry(tokenStr) {
+  if (!tokenStr || tokenStr.includes('{') || tokenStr === '%s') return null;
+  try {
+    const parts = tokenStr.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (typeof payload.exp !== 'number') return null;
+    const expMs = payload.exp * 1000;
+    const nowMs = Date.now();
+    const diffSec = Math.floor((expMs - nowMs) / 1000);
+    const absSec = Math.abs(diffSec);
+    return {
+      exp: payload.exp,
+      expDate: new Date(expMs).toLocaleString('zh-CN'),
+      expired: nowMs > expMs,
+      diffMin: Math.floor(absSec / 60),
+      diffHour: (absSec / 3600).toFixed(1),
+      payload,
+    };
+  } catch (e) { return null; }
+}
+
+async function diagnose() {
+  const btn = document.getElementById('btn-diagnose');
+  const linkInput = document.getElementById('diagnose-link-input');
+  const link = linkInput ? linkInput.value.trim() : '';
+
+  if (!link) { alert('请先粘贴需要排查的链接'); return; }
+
+  // ── 本地 token 过期检查 + 国内域名时解析 payload ──────────────
+  let tokenExpiryHtml = '';
+  let tokenFacts = '';
+  try {
+    const urlObj = new URL(link.split('\n')[0].trim());
+    const tokenVal = urlObj.searchParams.get('token');
+    const hostname = urlObj.hostname;
+    const isDomestic = hostname.includes('club.q1.com') || hostname.includes('club.test.q1.com') || hostname.includes('club.youyi') || hostname.includes('club.cool-play');
+    const isOverseasDomain = hostname.includes('overseas') || hostname.includes('club-en') || hostname.includes('club.you03') || hostname.includes('club.hnlz') || hostname.includes('club.3zone');
+
+    if (tokenVal && !tokenVal.includes('{') && tokenVal !== '%s') {
+      const exp = parseTokenExpiry(tokenVal);
+      if (exp) {
+        // 过期状态
+        let expiryLine = exp.expired
+          ? '<span style="color:#dc2626">⚠️ 已过期（过期 ' + (exp.diffMin < 60 ? exp.diffMin + ' 分钟' : exp.diffHour + ' 小时') + '），鉴权将失败，请重新获取 token</span>'
+          : '<span style="color:#16a34a">未过期，有效期至 ' + exp.expDate + '，距过期还有 ' + (exp.diffMin < 60 ? exp.diffMin + ' 分钟' : exp.diffHour + ' 小时') + '</span>';
+
+        // payload 关键字段
+        const p = exp.payload;
+        const tokenUserId = p.UserId || p.userId || p.user_id || p.uid || p.sub || '—';
+        const tokenGameVer = p.GameVersion || p.gameVersion || p.game_version || p.gv || '—';
+        const tokenPid = (p.Pid !== undefined ? String(p.Pid) : (p.pid !== undefined ? String(p.pid) : '—'));
+        const tokenIss = p.iss || '—';
+
+        // 把本地解析出的 token 事实交给 AI 做交叉校验
+        tokenFacts = '\n\n【本地已解析的 token 事实（请据此做交叉校验）】\n'
+          + '- 链接域名：' + hostname + '（' + (isOverseasDomain ? '境外域名' : (isDomestic ? '境内域名' : '未识别')) + '）\n'
+          + '- token.iss：' + tokenIss + '（' + (tokenIss === 'overseas.q1.com' ? '境外 token' : (tokenIss === 'q1.com' ? '境内 token' : '未提供或未知')) + '）\n'
+          + '- token.UserId：' + tokenUserId + '\n'
+          + '- token.Pid：' + tokenPid + '\n'
+          + '- token 过期情况：' + (exp.expired ? '已过期' : '未过期') + '（本地已检测）';
+
+        // pid 位数校验（国内域名时）
+        let pidWarn = '';
+        if (isDomestic && tokenPid !== '—' && tokenPid.length === 5) {
+          pidWarn = '<div style="margin-top:6px;padding:6px 10px;background:#fff5f5;border-radius:6px;border:1px solid #fca5a5;color:#dc2626;font-size:12px">'
+            + '⚠️ <strong>高频错误</strong>：token 内 pid 为 ' + tokenPid.length + ' 位数（' + tokenPid + '），疑似海外内网 pid，但当前链接使用了国内域名，可能是海外 token 用于了国内链接。'
+            + '</div>';
+        }
+
+        // 国内域名时展示 token 内字段
+        let payloadSection = '';
+        if (isDomestic || isOverseasDomain) {
+          const userId = p.UserId || p.userId || p.user_id || p.uid || p.sub || '—';
+          const pid    = p.Pid    !== undefined ? String(p.Pid)    : (p.pid !== undefined ? String(p.pid) : '—');
+          const iss    = p.iss    || '—';
+          const rows = [
+            { k: 'UserId', v: userId },
+            { k: 'Pid',    v: pid },
+            { k: 'iss',    v: iss },
+          ].map(({ k, v }) => '<div><span style="color:#8994a3;min-width:80px;display:inline-block">' + k + '：</span><strong>' + v + '</strong></div>').join('');
+          payloadSection = '<div style="margin-top:8px;padding:8px 10px;background:#f8faff;border-radius:6px;border:1px solid #dde4fd;font-size:12px;line-height:1.9">'
+            + '<div style="font-weight:600;color:#4a5568;margin-bottom:4px">Token 解析结果（payload 关键字段）</div>'
+            + rows
+            + pidWarn
+            + '</div>';
+        }
+
+        tokenExpiryHtml = '<div class="ai-result-item" style="background:' + (exp.expired ? '#fff5f5;border-color:#fca5a5' : '#f0fdf4;border-color:#86efac') + ';margin-bottom:10px">'
+          + '<div class="ai-result-title"><div class="dot ' + (exp.expired ? 'red' : 'green') + '"></div>Token 检测</div>'
+          + '<div class="ai-result-body" style="font-size:12px;line-height:1.8">'
+          + expiryLine
+          + payloadSection
+          + '</div></div>';
+      } else {
+        tokenExpiryHtml = '<div class="ai-result-item" style="background:#fffbeb;border-color:#fcd34d;margin-bottom:10px">'
+          + '<div class="ai-result-title"><div class="dot yellow"></div>Token 格式检测</div>'
+          + '<div class="ai-result-body" style="font-size:12px;line-height:1.8;color:#78350f">'
+          + '链接中的 token 非标准 JWT 格式，无法在本地判断过期时间，请人工向对接方确认 token 有效性。'
+          + '</div></div>';
+      }
+    }
+  } catch (e) { /* URL 解析失败时忽略 */ }
+  // ──────────────────────────────────────────────────────────────
+
+  btn.textContent = '排查中…';
+  btn.disabled = true;
+
+  // ── 进度条控制 ──────────────────────────────────────────────────
+  const progress = document.getElementById('diagnose-progress');
+  const progressLabel = document.getElementById('diagnose-progress-label');
+  const progressBar = document.getElementById('diagnose-progress-bar');
+  progress.classList.add('visible');
+
+  const steps = [
+    { label: '正在识别链接域名与环境…', pct: 20 },
+    { label: '逐字段核查参数完整性…', pct: 45 },
+    { label: '校验 token 与环境是否匹配…', pct: 70 },
+    { label: '正在生成结论…', pct: 88 },
+  ];
+  let stepIdx = 0;
+  function nextStep() {
+    if (stepIdx < steps.length) {
+      progressLabel.textContent = steps[stepIdx].label;
+      progressBar.style.width = steps[stepIdx].pct + '%';
+      stepIdx++;
+    }
+  }
+  nextStep();
+  const timer = setInterval(nextStep, 600);
+  // ──────────────────────────────────────────────────────────────
+
+  const systemPrompt = COMMUNITY_KB + '\n\n'
+    + '你是大玩家社区运营工具台的链接排查助手。依据知识库对链接做完整核查，只输出两个模块。\n'
+    + '\n'
+    + '## 核查规则\n'
+    + '\n'
+    + '**env=game 时必须核查以下所有字段：**\n'
+    + '- type（必填）：值必须为 1/2/3，官方渠道=1，U8=2，硬接=3\n'
+    + '- platform（必填）：值必须为 1/2/3，与 type 对应\n'
+    + '- env（必填）：必须为 game\n'
+    + '- gameId（必填）：必须存在且已替换（不含 {} 或 %s），必须为纯数字\n'
+    + '- token（必填）：必须存在且已替换（不含 {token} 或 %s），不得为空\n'
+    + '- gameVersion（选填）：若存在必须已替换\n'
+    + '- userId（选填）：官方渠道可空；U8接入时不能传 SDKUserId，必须是 U8 返回的 UserId\n'
+    + '- pid：国内可空；海外为建议填写项（非必填），不传 pid 时玩家进入社区可能混服（与其他渠道玩家混淆），若存在则必须已替换；pid 缺失仅输出建议提示，不计为错误\n'
+    + '- languageId：国内可空；海外必填且必须为纯数字，值须在 1-16 之间\n'
+    + '- actorId（选填）：若存在必须已替换\n'
+    + '- lang（选填）：lang 是系统/浏览器自带的语言标识，仅作展示语言参考，不影响社区定位与鉴权；**不要将 lang 与 languageId 做一致性校验，两者不匹配不算问题**；lang 存在与否、取值如何均不影响总结论\n'
+    + '\n'
+    + '**token 与环境交叉校验（env=game 时）：**\n'
+    + '维度一（测试/正式，看 userId 首位）：\n'
+    + '- 链接中 userId 参数以 1 开头 → 内网token → 必须配合测试服域名（club.test.q1.com / club-overseas.test.q1.com）\n'
+    + '- 链接中 userId 参数以 3 开头 → 外网token → 必须配合正式服域名（club.q1.com / club-en.q1.com 等）\n'
+    + '- 不匹配则为错误；无 userId 参数则无法校验，不算错误\n'
+    + '- 注意：内网 token（userId 以 1 开头）也可以是境外内网 token，userId 首位只反映测试/正式维度，与境内/境外无关，两个维度独立判断，不能混用\n'
+    + '维度二（境内/境外，看 token 解析出的 iss 字段，最权威，与正式/测试无关）：\n'
+    + '- iss=q1.com → 境内 token → 必须配合境内域名（club.q1.com / club.test.q1.com / club.youyi-game.com / club.you03.com / club.hnlz168.cn / club.3zonegame.com / club.cool-play.com 等）\n'
+    + '- iss=overseas.q1.com → 境外 token → 必须配合境外域名（club-en.q1.com / club-overseas.test.q1.com 等）\n'
+    + '- 不管正式服还是测试服，token 的 iss 归属（境内/境外）必须与链接域名的归属一致，不一致则为【严重】错误\n'
+    + '- iss 已由本地解析并在结果中提供，若未提供 iss 则此维度跳过、不算错误\n'
+    + '- 两个维度相互独立，都要分别核查，禁止将两个维度的判断结果混合推断出额外结论\n'
+    + '\n'
+    + '**其他规则：**\n'
+    + '- 任何仍为 {xxx} 或 %s 格式的字段 → 错误（动态参数未替换）\n'
+    + '- 定位帖子路径必须为 /pages/post/detail/index?id=...\n'
+    + '\n'
+    + '## 输出格式（严格按此顺序输出四个模块，禁止多余内容）\n'
+    + '\n'
+    + '【必填参数核查】\n'
+    + '逐项列出所有必填参数的检查结果，每行格式：✅/⚠️/❌ 参数名=值：说明\n'
+    + '- ✅ 正常；❌ 仅用于真正的错误；⚠️ 用于「建议项/提示」（非错误）\n'
+    + '- **pid 缺失时必须用 ⚠️ 前缀（不是 ❌），说明"海外链接建议填写 pid（非必填），不填时玩家进入社区可能与其他渠道玩家混服"，且此项不影响总结论**\n'
+    + '（选填参数若存在也列出，若不存在则不提）\n'
+    + '\n'
+    + '【Token与环境匹配】\n'
+    + '- token过期情况：（本地已检测，填写"已由本地检测"即可）\n'
+    + '- userId首位：X开头 → 内网/外网token（测试/正式维度）\n'
+    + '- iss字段：q1.com（境内）/ overseas.q1.com（境外）→ token 境内外归属；若无 iss 则填"未提供"\n'
+    + '- 当前域名：xxx → 境内/境外，测试服/正式服\n'
+    + '- 匹配结论：必须用完整的中文句子写清楚。格式示例：\n'
+    + '  ✅ 匹配正常：token 为境外 token（iss=overseas.q1.com），链接域名为境外域名，两者一致；userId 以 3 开头为外网 token，域名为正式服，两者一致。\n'
+    + '  ❌ 存在不匹配：【维度一（测试/正式）】userId 以 1 开头，属于内网 token，应配合测试服域名，但当前链接使用的是正式服域名 club.q1.com，两者不匹配。【维度二（境内/境外）】匹配正常。\n'
+    + '  禁止只写"存在严重错误"或"不匹配"之类无法让人理解的结论，必须说清楚是哪条规则不满足、具体值是什么、应该怎样才正确。\n'
+    + '\n'
+    + '【解决方案或建议】\n'
+    + '根据最终判断二选一输出：\n'
+    + '- 若存在真正错误：写出针对每个错误项的具体解决方案，逐条列出（格式：问题 → 具体怎么改）。不要写"联系平台产品"这类兜底话术。\n'
+    + '- 若无真正错误：只写这一句"如果以上均正常但仍出现错误或异常，可联系平台产品进一步排查。"\n'
+    + '\n'
+    + '【总结论】\n'
+    + '在看完以上所有分析后，最后输出总结论。\n'
+    + '正确 或 有问题（只写这两个词之一）\n'
+    + '注意：总结论只由「真正的错误」决定（必填字段缺失/非法、未替换的{}或%s、token与环境不匹配等）。\n'
+    + '**pid 缺失属于建议项、不是错误，绝对不能因此把总结论判为"有问题"；只有 pid 之外存在真正错误时总结论才为"有问题"。**';
+
+  try {
+    const aiText = await callAI(systemPrompt, '待排查链接：' + link + tokenFacts);
+
+    // AI 返回后：停止轮播，进度跳到 100%
+    clearInterval(timer);
+    progressLabel.textContent = '分析完成，正在渲染结果…';
+    progressBar.style.width = '100%';
+
+    console.log('[AI原始输出]', aiText);
+
+    // 解析四个模块（顺序：必填参数核查 → Token与环境匹配 → 解决方案或建议 → 总结论）
+    const paramsMatch     = aiText.match(/【必填参数核查】([\s\S]*?)(?=【Token与环境匹配】|$)/);
+    const tokenMatch      = aiText.match(/【Token与环境匹配】([\s\S]*?)(?=【解决方案或建议】|【建议】|$)/);
+    const adviceMatch     = aiText.match(/【解决方案或建议】([\s\S]*?)(?=【总结论】|$)/) || aiText.match(/【建议】([\s\S]*?)(?=【总结论】|$)/);
+    const conclusionMatch = aiText.match(/【总结论】\s*([\s\S]*)$/);
+
+    const paramsText = paramsMatch     ? paramsMatch[1].trim()     : '';
+    const tokenText  = tokenMatch      ? tokenMatch[1].trim()      : '';
+    const adviceText = adviceMatch     ? adviceMatch[1].trim()     : '';
+    const conclusion = conclusionMatch ? conclusionMatch[1].trim() : '';
+
+    // 解析失败时兜底展示原始内容
+    const parseFailed = !conclusionMatch && !paramsMatch && !tokenMatch;
+
+    const isOk = conclusion.indexOf('正确') !== -1;
+
+    function renderLines(text, borderColor) {
+      return text.split('\n').filter(function(s){ return s.trim(); }).map(function(s) {
+        var color = s.indexOf('❌') !== -1 ? '#dc2626'
+          : s.indexOf('⚠️') !== -1 ? '#d97706'
+          : s.indexOf('✅') !== -1 ? '#16a34a'
+          : '#4a5568';
+        return '<div style="padding:4px 0;line-height:1.8;font-size:12px;color:' + color + ';word-break:break-all;overflow-wrap:anywhere">' + s + '</div>';
+      }).join('');
+    }
+
+    setTimeout(function() {
+      progress.classList.remove('visible');
+      progressBar.style.width = '0%';
+
+      // 解析失败时直接展示原始 AI 输出
+      if (parseFailed) {
+        document.getElementById('diagnose-output').innerHTML =
+          '<div class="ai-result-item" style="background:#fffbeb;border-color:#fcd34d">'
+          + '<div class="ai-result-title"><div class="dot yellow"></div>AI 输出（原始）</div>'
+          + '<div class="ai-result-body" style="font-size:12px;color:#4a5568;white-space:pre-wrap;line-height:1.8;padding-top:6px">' + aiText + '</div>'
+          + '</div>'
+          + '<div class="ai-footer" style="margin-top:10px"><span>依据接入文档知识库分析 · ' + new Date().toLocaleTimeString('zh-CN') + '</span></div>';
+        return;
+      }
+      // 1. 总结论
+      var conclusionCard = isOk
+        ? '<div class="ai-result-item" style="background:#f0fdf4;border-color:#86efac">'
+          + '<div class="ai-result-title" style="font-size:14px;font-weight:700"><div class="dot green"></div>1. 总结论：链接正确 ✓</div>'
+          + '</div>'
+        : '<div class="ai-result-item" style="background:#fff5f5;border-color:#fca5a5">'
+          + '<div class="ai-result-title" style="font-size:14px;font-weight:700"><div class="dot red"></div>1. 总结论：链接有问题 ✗</div>'
+          + '</div>';
+
+      // 2. 必填参数核查
+      var paramsCard = paramsText
+        ? '<div class="ai-result-item" style="margin-top:10px">'
+          + '<div class="ai-result-title"><div class="dot' + (paramsText.indexOf('❌') !== -1 ? ' red' : ' green') + '"></div>2. 必填参数核查</div>'
+          + '<div class="ai-result-body" style="padding-top:6px">' + renderLines(paramsText) + '</div>'
+          + '</div>'
+        : '';
+
+      // 3. Token 与环境（含本地过期检测）
+      var tokenCard = '<div class="ai-result-item" style="margin-top:10px">'
+        + '<div class="ai-result-title"><div class="dot' + (tokenText.indexOf('❌') !== -1 ? ' red' : ' green') + '"></div>3. Token 与环境匹配</div>'
+        + '<div class="ai-result-body" style="padding-top:6px">'
+        + tokenExpiryHtml.replace(/class="ai-result-item"[^>]*>/g,'style="margin-bottom:6px">').replace(/<div class="ai-result-title"[^>]*>/g,'<div style="font-weight:600;font-size:12px;margin-bottom:2px">').replace(/<div class="dot[^"]*"><\/div>/g,'')
+        + renderLines(tokenText)
+        + '</div></div>';
+
+      // 4. 解决方案（错误时）/ 建议（正确时）
+      var adviceCard = isOk
+        ? '<div class="ai-result-item" style="margin-top:10px;background:#f8faff;border-color:#c7d4fd">'
+          + '<div class="ai-result-title"><div class="dot" style="background:#4f6ef7"></div>4. 建议</div>'
+          + '<div class="ai-result-body" style="font-size:12px;color:#4a5568;padding-top:4px;line-height:1.8">'
+          + (adviceText || '如果以上均正常但仍出现错误或异常，可联系平台产品进一步排查。')
+          + '</div></div>'
+        : '<div class="ai-result-item" style="margin-top:10px;background:#fff8f3;border-color:#fed7aa">'
+          + '<div class="ai-result-title"><div class="dot" style="background:#f97316"></div>4. 解决方案</div>'
+          + '<div class="ai-result-body" style="font-size:12px;color:#4a5568;padding-top:6px;line-height:1.8">'
+          + (adviceText ? renderLines(adviceText) : '请根据上方错误项逐条修正后重新排查。')
+          + '</div></div>';
+
+      document.getElementById('diagnose-output').innerHTML =
+        '<div class="ai-analysis">'
+        + conclusionCard
+        + paramsCard
+        + tokenCard
+        + adviceCard
+        + '</div>'
+        + '<div class="ai-footer" style="margin-top:10px"><span>依据接入文档知识库分析 · ' + new Date().toLocaleTimeString('zh-CN') + '</span></div>';
+    }, 400);
+
+  } catch (err) {
+    clearInterval(timer);
+    progress.classList.remove('visible');
+    progressBar.style.width = '0%';
+    document.getElementById('diagnose-output').innerHTML =
+      '<div class="ai-result-item" style="border-color:#fca5a5;background:#fff5f5">'
+      + '<div class="ai-result-title"><div class="dot red"></div>AI 调用失败</div>'
+      + '<div class="ai-result-body">' + err.message + '<br><small>请检查 AI_CONFIG 中的 apiKey / baseUrl / model 是否正确。</small></div>'
+      + '</div>';
+  } finally {
+    btn.textContent = '开始排查';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
