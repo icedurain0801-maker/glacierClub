@@ -549,6 +549,80 @@
   }
   .quick-item__label { font-size: 10px; color: var(--on-surface-variant); font-weight: 500; text-align: center; }
 
+  /* ── Home 顶部功能栏（金刚区）：仅「功能版」显示 ── */
+  /* 功能版支持两种布局，由 body[data-qb-layout] 控制：
+     · joined = 角色切换条 + 功能栏（两块合并成一张卡）
+     · solo   = 只有功能栏（独立完整卡） */
+  #home-quickbar { display: none; }
+  body[data-active-variant="quickbar"] #home-quickbar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    position: relative;
+    z-index: 2;
+    margin: 0 12px 10px;
+    padding: 10px 6px;
+    /* 无底色（裸浮层）：图标气泡+白字直接浮在 hero 立绘上，容器本身透明 */
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* —— solo 布局：隐藏角色条，功能栏独立成完整圆角卡 —— */
+  body[data-active-variant="quickbar"][data-qb-layout="solo"] #char-bind-strip-bound,
+  body[data-active-variant="quickbar"][data-qb-layout="solo"] #char-bind-strip-unbound {
+    display: none !important;
+  }
+  body[data-active-variant="quickbar"][data-qb-layout="solo"] #home-quickbar {
+    margin-top: 6px;
+  }
+
+  /* —— joined 布局：角色条保持独立圆角卡，透明功能栏浮在其下方 —— */
+  /* （功能栏无底色，故不再与角色条拼卡；角色条沿用基础样式即可）*/
+  .qb-item {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    cursor: pointer; border: none; background: transparent; padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .qb-item:active .qb-item__icon { transform: scale(0.92); }
+  .qb-item__icon {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.88);
+    color: var(--primary);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.14);
+    transition: transform 0.15s;
+  }
+  [data-theme="dark"] .qb-item__icon {
+    background: rgba(255,255,255,0.14); color: #fff;
+  }
+  .qb-item__icon .material-symbols-outlined {
+    font-size: 20px;
+    font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  }
+  .qb-item__label {
+    font-size: 10px; font-weight: 600; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+    text-align: center; line-height: 1.2;
+  }
+
+  /* 功能版布局切换器（joined / solo），仅功能版可见 */
+  #qbLayoutSwitcher { display: none; }
+  body[data-active-variant="quickbar"] #qbLayoutSwitcher {
+    position: fixed; top: 104px; right: 80px; z-index: 9999;
+    display: inline-flex; background: var(--surface-container-lowest);
+    border-radius: 999px; padding: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  #qbLayoutSwitcher button {
+    border: none; background: transparent;
+    font-family: Inter, sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--on-surface-variant);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  #qbLayoutSwitcher button.active { background: var(--primary); color: #fff; }
+
   /* ── Toolbox (Guides tab) ── */
   .toolbox-scroll {
     display: flex; gap: 14px;
@@ -1365,6 +1439,8 @@
   }
   /* APP 版多了角色绑定条，hero 高度加 ~64px */
   body[data-variant="app"]{ --hero-h:219px; }
+  /* 功能版 solo 布局没有角色条，hero 收矮一些以贴合功能栏 */
+  body[data-active-variant="quickbar"][data-qb-layout="solo"]{ --hero-h:196px; }
   .simple-hero-bg::after{
     content:''; position:absolute; inset:0;
     background:linear-gradient(180deg,
@@ -1659,6 +1735,11 @@
   <button data-variant="app" onclick="setVariant('app')">APP版</button>
   <button data-variant="miniprogram" onclick="setVariant('miniprogram')">小程序版</button>
   <button data-variant="simple" onclick="setVariant('simple')">简洁版</button>
+  <button data-variant="quickbar" onclick="setVariant('quickbar')">功能版</button>
+</div>
+<div id="qbLayoutSwitcher">
+  <button data-qb-layout="joined" class="active" onclick="setQbLayout('joined')">角色+功能</button>
+  <button data-qb-layout="solo" onclick="setQbLayout('solo')">仅功能栏</button>
 </div>
 
 <div class="phone-shell">
@@ -1798,6 +1879,30 @@
         <span class="char-bind-strip__bind-link">
           Bind <span class="material-symbols-outlined">chevron_right</span>
         </span>
+      </div>
+
+      <!-- ── Top function bar / 金刚区（仅「功能版」显示，位于 Tab 栏上方）── -->
+      <div id="home-quickbar">
+        <button class="qb-item" onclick="alert('Check-in')">
+          <span class="qb-item__icon qb-item__icon--checkin"><span class="material-symbols-outlined">calendar_today</span></span>
+          <span class="qb-item__label">Check-in</span>
+        </button>
+        <button class="qb-item" onclick="alert('Lottery')">
+          <span class="qb-item__icon qb-item__icon--lottery"><span class="material-symbols-outlined">casino</span></span>
+          <span class="qb-item__label">Lottery</span>
+        </button>
+        <button class="qb-item" onclick="alert('Store')">
+          <span class="qb-item__icon qb-item__icon--store"><span class="material-symbols-outlined">storefront</span></span>
+          <span class="qb-item__label">Store</span>
+        </button>
+        <button class="qb-item" onclick="alert('Customer Support')">
+          <span class="qb-item__icon qb-item__icon--support"><span class="material-symbols-outlined">support_agent</span></span>
+          <span class="qb-item__label">Support</span>
+        </button>
+        <button class="qb-item" onclick="alert('Gift Packs')">
+          <span class="qb-item__icon qb-item__icon--gift"><span class="material-symbols-outlined">card_giftcard</span></span>
+          <span class="qb-item__label">Gift Packs</span>
+        </button>
       </div>
 
       <div id="tab-nav" class="flex items-center gap-6 px-4 border-b border-outline-variant">
@@ -3198,8 +3303,9 @@
   /* 首屏按当前社区应用 banner：已配置显图，未配置回落兜底背景 */
   applyCommunityHero(COMMUNITIES.find(x => x.id === _activeCommunityId));
 
-  /* ── Variant Switcher（网页 / APP / 小程序 / 简洁 4 版本切换）── */
+  /* ── Variant Switcher（网页 / APP / 小程序 / 简洁 / 功能 5 版本切换）── */
   /* 小程序版样式与 APP 版基本一致，仅切换按钮高亮区分；小程序版隐藏角色绑定条 */
+  /* 功能版沿用网页版样式，额外在 Recommend 顶部显示金刚区功能栏 */
   function setBanner(mode) {
     const c = COMMUNITIES.find(x => x.id === _activeCommunityId);
     if (mode === 'fallback') {
@@ -3213,8 +3319,10 @@
   }
 
   function setVariant(variant) {
-    if (!['web', 'app', 'miniprogram', 'simple'].includes(variant)) variant = 'web';
-    const styleVariant = variant === 'miniprogram' ? 'app' : variant;
+    if (!['web', 'app', 'miniprogram', 'simple', 'quickbar'].includes(variant)) variant = 'web';
+    const styleVariant = variant === 'miniprogram' ? 'app'
+                       : variant === 'quickbar'    ? 'app'
+                       : variant;
     document.body.setAttribute('data-variant', styleVariant);
     document.body.setAttribute('data-active-variant', variant);
     document.querySelectorAll('#variantSwitcher button').forEach(b => {
@@ -3222,6 +3330,15 @@
     });
     syncRecCardPickClones(styleVariant === 'simple');
     try { localStorage.setItem('home-en-variant', variant); } catch (e) {}
+  }
+  /* 功能版布局：joined = 角色条+功能栏，solo = 仅功能栏 */
+  function setQbLayout(layout) {
+    if (!['joined', 'solo'].includes(layout)) layout = 'joined';
+    document.body.setAttribute('data-qb-layout', layout);
+    document.querySelectorAll('#qbLayoutSwitcher button').forEach(b => {
+      b.classList.toggle('active', b.dataset.qbLayout === layout);
+    });
+    try { localStorage.setItem('home-en-qb-layout', layout); } catch (e) {}
   }
   function syncRecCardPickClones(enable) {
     document.querySelectorAll('.rec-card').forEach(card => {
@@ -3242,6 +3359,9 @@
     let saved = 'web';
     try { saved = localStorage.getItem('home-en-variant') || 'web'; } catch (e) {}
     setVariant(saved);
+    let savedLayout = 'joined';
+    try { savedLayout = localStorage.getItem('home-en-qb-layout') || 'joined'; } catch (e) {}
+    setQbLayout(savedLayout);
   })();
 
   /* ── Character Bind Strip ── */
