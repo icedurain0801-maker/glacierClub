@@ -514,7 +514,7 @@ body {
             <div style="display:flex;align-items:center;gap:8px;">
               <div style="width:12px;flex-shrink:0;"></div>
               <span class="threshold-label">命中</span>
-              <input class="threshold-input" id="spam-threshold" type="number" min="1" value="2"
+              <input class="threshold-input" id="spam-threshold" type="number" min="1" value="3"
                 oninput="validateThresholds()">
               <span class="threshold-label">条及以上规则，判定为</span>
               <strong style="color:#ff4d4f;">灌水</strong>
@@ -534,7 +534,7 @@ body {
                 <div style="width:8px;height:8px;border-radius:50%;background:#e8e8e8;flex-shrink:0;"></div>
               </div>
               <span class="threshold-label">命中</span>
-              <input class="threshold-input" id="marked-threshold" type="number" min="1" value="1"
+              <input class="threshold-input" id="marked-threshold" type="number" min="1" value="2"
                 oninput="validateThresholds()">
               <span class="threshold-label">条及以上规则，判定为</span>
               <strong style="color:#fa8c16;">嫌疑</strong>
@@ -1170,14 +1170,15 @@ function makeDefaultConfig() {
     ruleConfig: {
       post: {
         rules: { R1: true, R2: true, R3: true, R4: true, R5: true, R6: true, R7: true, R8: true },
-        ruleParams: { R2: 4, R4: 70, R5: 80, R6: 3 },
-        spamThreshold: 2,
-        markedThreshold: 1
+        // 默认阈值取自 R1-R8 测试文档：R2=4 / R4=60 / R5=50 / R6=3
+        ruleParams: { R2: 4, R4: 60, R5: 50, R6: 3 },
+        spamThreshold: 3,   // 命中 ≥3 判灌水（测试文档默认）
+        markedThreshold: 2  // 命中 ≥2 判嫌疑（测试文档默认）
       },
       comment: {
-        // 评论场景：勾选的规则任意命中一条即判 spam，无阈值累积
+        // 评论场景：仅 R1/R2/R4/R5/R6，勾选的规则任意命中一条即判 spam，无阈值累积、无嫌疑档
         rules: { R1: true, R2: true, R4: true, R5: true, R6: true },
-        ruleParams: { R2: 2, R4: 70, R5: 80, R6: 2 }
+        ruleParams: { R2: 4, R4: 60, R5: 50, R6: 3 }
       }
     }
   };
@@ -1406,7 +1407,7 @@ const RULE_DEFS = [
   { id: 'R5', name: '单字符占比高', desc: '最高频单字符占总字符比 ≥',           hit: '啊啊啊啊啊啊',   miss: '今天去钓鱼',            paramKey: 'R5', paramUnit: '%' },
   { id: 'R6', name: '整条复读',    desc: '内容为某子串重复 ≥',                 hit: '顶顶顶｜好的好的好的', miss: '好的好的（仅×2）',   paramKey: 'R6', paramUnit: '次' },
   { id: 'R7', name: '纯数字',      desc: '去除标点后内容全为数字',              hit: '666｜8888',      miss: '第3关怎么过' },
-  { id: 'R8', name: '键盘乱码',    desc: '连续键位串或无元音字母串',            hit: 'asdfgh｜qwerty', miss: 'hello' },
+  { id: 'R8', name: '键盘乱码',    desc: '连续键位串或无元音字母串（有效字母<4不判）', hit: 'asdfgh｜qwerty', miss: 'hello' },
 ];
 
 
@@ -1576,6 +1577,8 @@ function classifyChars(text) {
   stats.effective = stats.letters + stats.digits; // 有效字符 = 文字 + 数字
   // 有效字符串（仅保留文字 + 数字，用于 R2/R6）
   stats.effectiveStr = graphemes.filter(g => letterRe.test(g) || digitRe.test(g)).join('');
+  // 去符号/标点/空白后的串（保留文字 + 数字 + 表情，用于 R7 纯数字判定）
+  stats.noSymbolStr = graphemes.filter(g => letterRe.test(g) || digitRe.test(g) || emojiRe.test(g)).join('');
   return stats;
 }
 
@@ -1603,22 +1606,35 @@ function normalizeForWordbank(text) {
   return collapseRepeats(kept);
 }
 
-// R8 键盘乱码启发式
-function isKeyboardMash(text) {
+// R8 键盘乱码启发式（返回命中详情，便于展示明细）
+// 对齐测试文档：有效字母不足 4 个时不判定（降误判）
+const KB_MIN_LETTERS = 4;
+function isKeyboardMash(text, vowelRatioMin = 15, maxConsonantRun = 4) {
   const letters = (text.toLowerCase().match(/[a-z]/g) || []).join('');
-  if (letters.length < 4) return false;
+  // 有效字母不足 4 个：两路都不判定
+  if (letters.length < KB_MIN_LETTERS) {
+    return { hit: false, path: '', reason: `有效字母 ${letters.length} 个 < ${KB_MIN_LETTERS}，R8 不判定` };
+  }
+  // ① 键位序列：整个字母串是键盘某行（正/反向）的连续子串
   const rows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
-  // ① 键位序列：letters 是否为某行的连续子串（正/反向）
   for (const row of rows) {
     const rev = [...row].reverse().join('');
-    if (row.includes(letters) || rev.includes(letters)) return true;
+    if (row.includes(letters) || rev.includes(letters)) {
+      return { hit: true, path: '键位序列', reason: `字母串「${letters}」是键盘行「${row}」的连续子串（正/反向）` };
+    }
   }
   // ② 可读性：元音占比过低 或 连续辅音过长
   const vowels = (letters.match(/[aeiou]/g) || []).length;
   const vowelRatio = vowels / letters.length;
+  const vowelPct = (vowelRatio * 100).toFixed(0);
   const maxConsonant = (letters.match(/[^aeiou]+/g) || []).reduce((m, s) => Math.max(m, s.length), 0);
-  if (vowelRatio < 0.15 || maxConsonant >= 5) return true;
-  return false;
+  if (vowelRatio * 100 < vowelRatioMin) {
+    return { hit: true, path: '可读性', reason: `元音占比 ${vowelPct}% < ${vowelRatioMin}%（元音 ${vowels}/${letters.length}）` };
+  }
+  if (maxConsonant > maxConsonantRun) {
+    return { hit: true, path: '可读性', reason: `最长连续辅音 ${maxConsonant} > ${maxConsonantRun}` };
+  }
+  return { hit: false, path: '', reason: `非键位连续串；元音占比 ${vowelPct}% ≥ ${vowelRatioMin}%、最长连续辅音 ${maxConsonant} ≤ ${maxConsonantRun}` };
 }
 
 // 跑单条规则，返回 { hit, detail }
@@ -1628,31 +1644,32 @@ function evalRule(id, text, stats, rc, wordSet) {
     case 'R1': {
       const norm = normalizeForWordbank(text);
       const hit = norm.length > 0 && wordSet.has(norm);
-      return { hit, detail: `归一化「${norm || '（空）'}」${hit ? ' 命中词库' : ' 未在词库'}` };
+      return { hit, detail: `归一化（小写·去空白标点表情·合并重复）→「${norm || '（空）'}」；与词库 ${wordSet.size} 词做等值查表 → ${hit ? '命中' : (norm ? '未在词库' : '归一化为空，跳过')}` };
     }
     case 'R2': {
       const collapsed = collapseRepeats(stats.effectiveStr);
       const len = [...collapsed].length;
       const hit = len < p.R2;
-      return { hit, detail: `去重后有效字数 ${len} ${hit ? '<' : '≥'} ${p.R2}` };
+      return { hit, detail: `有效串「${stats.effectiveStr || '（空）'}」→ 去连续重复「${collapsed || '（空）'}」= ${len} 字；${len} ${hit ? '<' : '≥'} 阈值 ${p.R2} → ${hit ? '命中' : '未命中'}` };
     }
     case 'R3': {
       const hit = stats.letters === 0 && stats.digits === 0;
-      return { hit, detail: `文字 ${stats.letters} + 数字 ${stats.digits}${hit ? '，无可读文字' : ''}` };
+      return { hit, detail: `文字 ${stats.letters} + 数字 ${stats.digits} = ${stats.effective} 个可读字符${hit ? '，无任何文字/数字（纯表情或符号）→ 命中' : ' → 未命中'}` };
     }
     case 'R4': {
-      const ratio = stats.total ? (stats.emoji + stats.symbols) / stats.total : 0;
-      const pct = (ratio * 100).toFixed(0);
+      const num = stats.emoji + stats.symbols;
+      const ratio = stats.total ? num / stats.total : 0;
+      const pct = (ratio * 100).toFixed(1);
       const hit = ratio * 100 >= p.R4;
-      return { hit, detail: `(表情 ${stats.emoji}+符号 ${stats.symbols})/${stats.total} = ${pct}% ${hit ? '≥' : '<'} ${p.R4}%` };
+      return { hit, detail: `(表情 ${stats.emoji} + 符号/标点 ${stats.symbols}) / 总字符 ${stats.total} = ${pct}%；${pct}% ${hit ? '≥' : '<'} 阈值 ${p.R4}% → ${hit ? '命中' : '未命中'}` };
     }
     case 'R5': {
       let maxCount = 0, maxCh = '';
       for (const ch in stats.freq) { if (stats.freq[ch] > maxCount) { maxCount = stats.freq[ch]; maxCh = ch; } }
       const ratio = stats.total ? maxCount / stats.total : 0;
-      const pct = (ratio * 100).toFixed(0);
+      const pct = (ratio * 100).toFixed(1);
       const hit = ratio * 100 >= p.R5;
-      return { hit, detail: `最高频「${maxCh}」×${maxCount}/${stats.total} = ${pct}% ${hit ? '≥' : '<'} ${p.R5}%` };
+      return { hit, detail: `最高频字符「${maxCh || '—'}」出现 ${maxCount} 次 / 总字符 ${stats.total} = ${pct}%；${pct}% ${hit ? '≥' : '<'} 阈值 ${p.R5}% → ${hit ? '命中' : '未命中'}` };
     }
     case 'R6': {
       const arr = [...stats.effectiveStr];
@@ -1667,18 +1684,23 @@ function evalRule(id, text, stats, rc, wordSet) {
           if (ok) { period = plen; times = L / plen; break; }
         }
       }
+      const unit = arr.slice(0, period).join('');
       const hit = L > 0 && times >= p.R6;
-      return { hit, detail: `周期长度 ${period} × ${times} 次 ${hit ? '≥' : '<'} ${p.R6} 次` };
+      return { hit, detail: L === 0 ? '有效串为空，跳过' : `有效串「${stats.effectiveStr}」最小重复单元「${unit}」× ${times} 次；${times} ${hit ? '≥' : '<'} 阈值 ${p.R6} 次 → ${hit ? '命中' : '未命中'}` };
     }
     case 'R7': {
-      const noSym = [...stats.effectiveStr]; // 有效串已去符号/空白
+      // 仅去标点/符号/空白，保留文字/数字/表情（表情不算数字，含表情不命中）
+      const src = stats.noSymbolStr;
+      const segs = (typeof Intl !== 'undefined' && Intl.Segmenter)
+        ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(src)].map(s => s.segment)
+        : [...src];
       const digitRe = /[0-9０-９]/;
-      const hit = noSym.length > 0 && noSym.every(c => digitRe.test(c));
-      return { hit, detail: hit ? '去符号后全为数字' : '含非数字字符' };
+      const hit = segs.length > 0 && segs.every(c => digitRe.test(c));
+      return { hit, detail: segs.length === 0 ? '去标点符号空白后无字符，跳过' : `去标点/符号/空白（保留表情）后「${src}」共 ${segs.length} 字，${hit ? '全部为数字 → 命中' : '含非数字字符（文字/表情）→ 未命中'}` };
     }
     case 'R8': {
-      const hit = isKeyboardMash(text);
-      return { hit, detail: hit ? '疑似键位序列或无元音字母串' : '未触发乱码启发式' };
+      const r = isKeyboardMash(text);
+      return { hit: r.hit, detail: r.hit ? `${r.path}：${r.reason}` : r.reason };
     }
     default:
       return { hit: false, detail: '' };
