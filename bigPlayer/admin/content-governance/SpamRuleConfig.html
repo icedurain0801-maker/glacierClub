@@ -936,6 +936,117 @@ body {
   </div>
 </div>
 
+<!-- ══ 判定测试 FAB（左下角）══ -->
+<style>
+.test-fab {
+  position: fixed; left: 24px; bottom: 24px;
+  width: 60px; height: 60px; border-radius: 50%;
+  background: linear-gradient(145deg, #722ed1 0%, #531dab 100%);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 4px 16px rgba(114,46,209,0.4);
+  z-index: 800; user-select: none; font-size: 26px;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.test-fab:hover { box-shadow: 0 6px 24px rgba(114,46,209,0.55); transform: translateY(-2px); }
+.test-panel {
+  position: fixed; top: 0; left: -540px; width: 500px; height: 100vh;
+  background: #fff; box-shadow: 4px 0 24px rgba(0,0,0,0.12);
+  z-index: 850; display: flex; flex-direction: column;
+  transition: left 0.3s cubic-bezier(.4,0,.2,1);
+}
+.test-panel.open { left: 0; }
+.test-panel-overlay { display: none; position: fixed; inset: 0; z-index: 849; }
+.test-panel-overlay.open { display: block; }
+.test-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px; border-bottom: 1px solid #e8e8e8; flex-shrink: 0;
+}
+.test-panel-title {
+  font-size: 16px; font-weight: 600; color: #262626;
+  display: flex; align-items: center; gap: 8px;
+}
+.test-panel-title::before { content: ''; width: 4px; height: 18px; background: #722ed1; border-radius: 2px; }
+.test-panel-close {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #f5f5f5; font-size: 16px; color: #888;
+  cursor: pointer; border: none; transition: background 0.15s;
+}
+.test-panel-close:hover { background: #e0e0e0; color: #333; }
+.test-panel-body { flex: 1; overflow-y: auto; padding: 20px; }
+.test-cfg-bar {
+  background: #f9f0ff; border: 1px solid #efdbff; border-radius: 6px;
+  padding: 10px 12px; font-size: 12px; color: #595959; line-height: 1.9; margin-bottom: 14px;
+}
+.test-cfg-bar b { color: #531dab; }
+.test-ctype-bar { display: flex; gap: 0; border: 1px solid #d9d9d9; border-radius: 4px; overflow: hidden; width: fit-content; margin-bottom: 12px; }
+.test-ctype-btn {
+  height: 32px; padding: 0 18px; font-size: 13px; color: #595959; background: #fff;
+  border: none; cursor: pointer; border-right: 1px solid #d9d9d9; transition: background .15s, color .15s;
+}
+.test-ctype-btn:last-child { border-right: none; }
+.test-ctype-btn.active { background: #722ed1; color: #fff; }
+.test-textarea {
+  width: 100%; min-height: 96px; border: 1px solid #d9d9d9; border-radius: 4px;
+  padding: 10px 12px; font-size: 13px; color: #262626; outline: none; resize: vertical;
+  font-family: inherit; line-height: 1.7;
+}
+.test-textarea:focus { border-color: #722ed1; box-shadow: 0 0 0 2px rgba(114,46,209,0.15); }
+.test-btn-bar { display: flex; gap: 8px; margin: 12px 0 4px; }
+.btn-test-run { background: #722ed1; color: #fff; border-color: #722ed1; }
+.btn-test-run:hover { background: #9254de; border-color: #9254de; }
+.test-verdict {
+  display: flex; align-items: center; gap: 12px; padding: 16px;
+  border-radius: 8px; margin: 18px 0 14px;
+}
+.test-verdict-badge { font-size: 22px; font-weight: 700; padding: 6px 18px; border-radius: 6px; color: #fff; flex-shrink: 0; }
+.test-verdict-sub { font-size: 12px; line-height: 1.7; }
+.test-verdict.normal { background: #f6ffed; border: 1px solid #b7eb8f; }
+.test-verdict.normal .test-verdict-badge { background: #52c41a; }
+.test-verdict.marked { background: #fff7e6; border: 1px solid #ffd591; }
+.test-verdict.marked .test-verdict-badge { background: #fa8c16; }
+.test-verdict.spam { background: #fff2f0; border: 1px solid #ffccc7; }
+.test-verdict.spam .test-verdict-badge { background: #ff4d4f; }
+.test-verdict.off { background: #fafafa; border: 1px solid #e8e8e8; }
+.test-verdict.off .test-verdict-badge { background: #bfbfbf; }
+.test-charstats {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #8c8c8c;
+  padding: 8px 12px; background: #fafafa; border-radius: 4px; margin-bottom: 14px;
+}
+.test-charstats b { color: #595959; }
+.test-rule-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.test-rule-table th, .test-rule-table td { border: 1px solid #f0f0f0; padding: 7px 8px; text-align: left; vertical-align: top; line-height: 1.6; }
+.test-rule-table th { background: #fafafa; color: #262626; font-weight: 600; }
+.test-rule-row.hit td { background: #fff2f0; }
+.test-rule-row.off td { color: #bfbfbf; }
+.test-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 8px; white-space: nowrap; }
+.test-tag.hit { background: #ff4d4f; color: #fff; }
+.test-tag.miss { background: #f0f0f0; color: #8c8c8c; }
+.test-tag.disabled { background: #f5f5f5; color: #bfbfbf; }
+.test-hint { font-size: 12px; color: #bfbfbf; padding: 24px 0; text-align: center; }
+</style>
+
+<div class="test-fab" id="test-fab" onclick="openTester()" title="灌水判定测试脚本">🧪</div>
+<div class="test-panel-overlay" id="test-panel-overlay" onclick="closeTester()"></div>
+<div class="test-panel" id="test-panel">
+  <div class="test-panel-header">
+    <div class="test-panel-title">灌水判定测试脚本</div>
+    <button class="test-panel-close" onclick="closeTester()">×</button>
+  </div>
+  <div class="test-panel-body">
+    <div class="test-cfg-bar" id="test-cfg-bar"></div>
+    <div class="test-ctype-bar">
+      <button class="test-ctype-btn active" id="test-ctype-post" onclick="setTestCtype('post')">帖子 / 动态</button>
+      <button class="test-ctype-btn" id="test-ctype-comment" onclick="setTestCtype('comment')">评论</button>
+    </div>
+    <textarea class="test-textarea" id="test-input" placeholder="粘贴或输入一段内容，点「开始判定」按当前版块 / 内容类型的规则配置跑 R1~R8。"></textarea>
+    <div class="test-btn-bar">
+      <button class="btn-sm btn-test-run" onclick="runTest()">开始判定</button>
+      <button class="btn-sm btn-default" onclick="clearTest()">清空</button>
+    </div>
+    <div id="test-result"><div class="test-hint">输入内容后点「开始判定」查看结果</div></div>
+  </div>
+</div>
+
 <script src="../../shared/sidebar-data.js"></script>
 <script src="../../shared/sidebar.js"></script>
 <script>
@@ -1391,6 +1502,282 @@ function openHelp() {
 function closeHelp() {
   document.getElementById('help-panel').classList.remove('open');
   document.getElementById('help-panel-overlay').classList.remove('open');
+}
+
+// ══════════════════════════════════════════════
+//  灌水判定测试脚本（读取当前版块 / 内容类型配置跑 R1~R8）
+// ══════════════════════════════════════════════
+let _testCtype = 'post';
+
+function openTester() {
+  _testCtype = _currentCtype; // 默认对齐当前规则视角
+  syncTestCtypeUI();
+  renderTestCfgBar();
+  document.getElementById('test-panel').classList.add('open');
+  document.getElementById('test-panel-overlay').classList.add('open');
+}
+function closeTester() {
+  document.getElementById('test-panel').classList.remove('open');
+  document.getElementById('test-panel-overlay').classList.remove('open');
+}
+function setTestCtype(c) {
+  _testCtype = c;
+  syncTestCtypeUI();
+  renderTestCfgBar();
+  document.getElementById('test-result').innerHTML = '<div class="test-hint">输入内容后点「开始判定」查看结果</div>';
+}
+function syncTestCtypeUI() {
+  document.getElementById('test-ctype-post').classList.toggle('active', _testCtype === 'post');
+  document.getElementById('test-ctype-comment').classList.toggle('active', _testCtype === 'comment');
+}
+function clearTest() {
+  document.getElementById('test-input').value = '';
+  document.getElementById('test-result').innerHTML = '<div class="test-hint">输入内容后点「开始判定」查看结果</div>';
+}
+
+// 顶部配置概览
+function renderTestCfgBar() {
+  const cfg = getConfig();
+  const rc = cfg.ruleConfig[_testCtype];
+  const enabledRules = Object.keys(rc.rules).filter(k => rc.rules[k]);
+  let judgeLine;
+  if (_testCtype === 'comment') {
+    judgeLine = '判定方式：<b>命中任一启用规则即判灌水</b>（评论无嫌疑档）';
+  } else {
+    judgeLine = `判定阈值：命中 <b>≥ ${rc.spamThreshold}</b> 条 → 灌水，命中 <b>≥ ${rc.markedThreshold}</b> 条 → 嫌疑，否则正常`;
+  }
+  document.getElementById('test-cfg-bar').innerHTML =
+    `当前版块：<b>${_currentSection}</b>　总开关：<b>${cfg.globalEnabled ? '开启' : '关闭'}</b><br>` +
+    `启用规则：<b>${enabledRules.length ? enabledRules.join('、') : '无'}</b>（词库 ${cfg.spamWords.length} 条）<br>` +
+    judgeLine;
+}
+
+// ── 字符分类（只跑一次，R1~R8 复用）──
+function classifyChars(text) {
+  // 用 Segmenter 做字素拆分，保证 emoji 组合字符不被拆散
+  let graphemes;
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    graphemes = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map(s => s.segment);
+  } else {
+    graphemes = [...text];
+  }
+  const emojiRe = /\p{Extended_Pictographic}/u;
+  const letterRe = /\p{L}/u;         // 文字（含中英文）
+  const digitRe = /[0-9０-９]/; // 半角+全角数字
+  const stats = { total: 0, letters: 0, digits: 0, emoji: 0, symbols: 0, freq: {} };
+  graphemes.forEach(g => {
+    stats.total++;
+    if (emojiRe.test(g)) { stats.emoji++; }
+    else if (letterRe.test(g)) { stats.letters++; }
+    else if (digitRe.test(g)) { stats.digits++; }
+    else { stats.symbols++; } // 符号/标点/空白
+    stats.freq[g] = (stats.freq[g] || 0) + 1;
+  });
+  stats.effective = stats.letters + stats.digits; // 有效字符 = 文字 + 数字
+  // 有效字符串（仅保留文字 + 数字，用于 R2/R6）
+  stats.effectiveStr = graphemes.filter(g => letterRe.test(g) || digitRe.test(g)).join('');
+  return stats;
+}
+
+// 合并连续重复字素
+function collapseRepeats(str) {
+  const arr = [...str];
+  let out = '';
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] !== arr[i - 1]) out += arr[i];
+  }
+  return out;
+}
+
+// R1 归一化：小写 → 去空白/标点/表情/符号 → 合并连续重复
+function normalizeForWordbank(text) {
+  const s = classifyChars(text);
+  let g;
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    g = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text.toLowerCase())].map(x => x.segment);
+  } else {
+    g = [...text.toLowerCase()];
+  }
+  const letterRe = /\p{L}/u, digitRe = /[0-9０-９]/;
+  const kept = g.filter(x => letterRe.test(x) || digitRe.test(x)).join('');
+  return collapseRepeats(kept);
+}
+
+// R8 键盘乱码启发式
+function isKeyboardMash(text) {
+  const letters = (text.toLowerCase().match(/[a-z]/g) || []).join('');
+  if (letters.length < 4) return false;
+  const rows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+  // ① 键位序列：letters 是否为某行的连续子串（正/反向）
+  for (const row of rows) {
+    const rev = [...row].reverse().join('');
+    if (row.includes(letters) || rev.includes(letters)) return true;
+  }
+  // ② 可读性：元音占比过低 或 连续辅音过长
+  const vowels = (letters.match(/[aeiou]/g) || []).length;
+  const vowelRatio = vowels / letters.length;
+  const maxConsonant = (letters.match(/[^aeiou]+/g) || []).reduce((m, s) => Math.max(m, s.length), 0);
+  if (vowelRatio < 0.15 || maxConsonant >= 5) return true;
+  return false;
+}
+
+// 跑单条规则，返回 { hit, detail }
+function evalRule(id, text, stats, rc, wordSet) {
+  const p = rc.ruleParams || {};
+  switch (id) {
+    case 'R1': {
+      const norm = normalizeForWordbank(text);
+      const hit = norm.length > 0 && wordSet.has(norm);
+      return { hit, detail: `归一化「${norm || '（空）'}」${hit ? ' 命中词库' : ' 未在词库'}` };
+    }
+    case 'R2': {
+      const collapsed = collapseRepeats(stats.effectiveStr);
+      const len = [...collapsed].length;
+      const hit = len < p.R2;
+      return { hit, detail: `去重后有效字数 ${len} ${hit ? '<' : '≥'} ${p.R2}` };
+    }
+    case 'R3': {
+      const hit = stats.letters === 0 && stats.digits === 0;
+      return { hit, detail: `文字 ${stats.letters} + 数字 ${stats.digits}${hit ? '，无可读文字' : ''}` };
+    }
+    case 'R4': {
+      const ratio = stats.total ? (stats.emoji + stats.symbols) / stats.total : 0;
+      const pct = (ratio * 100).toFixed(0);
+      const hit = ratio * 100 >= p.R4;
+      return { hit, detail: `(表情 ${stats.emoji}+符号 ${stats.symbols})/${stats.total} = ${pct}% ${hit ? '≥' : '<'} ${p.R4}%` };
+    }
+    case 'R5': {
+      let maxCount = 0, maxCh = '';
+      for (const ch in stats.freq) { if (stats.freq[ch] > maxCount) { maxCount = stats.freq[ch]; maxCh = ch; } }
+      const ratio = stats.total ? maxCount / stats.total : 0;
+      const pct = (ratio * 100).toFixed(0);
+      const hit = ratio * 100 >= p.R5;
+      return { hit, detail: `最高频「${maxCh}」×${maxCount}/${stats.total} = ${pct}% ${hit ? '≥' : '<'} ${p.R5}%` };
+    }
+    case 'R6': {
+      const arr = [...stats.effectiveStr];
+      const L = arr.length;
+      let period = L, times = 1;
+      if (L > 0) {
+        // 最小重复周期
+        for (let plen = 1; plen <= L / 2; plen++) {
+          if (L % plen !== 0) continue;
+          let ok = true;
+          for (let i = plen; i < L; i++) { if (arr[i] !== arr[i - plen]) { ok = false; break; } }
+          if (ok) { period = plen; times = L / plen; break; }
+        }
+      }
+      const hit = L > 0 && times >= p.R6;
+      return { hit, detail: `周期长度 ${period} × ${times} 次 ${hit ? '≥' : '<'} ${p.R6} 次` };
+    }
+    case 'R7': {
+      const noSym = [...stats.effectiveStr]; // 有效串已去符号/空白
+      const digitRe = /[0-9０-９]/;
+      const hit = noSym.length > 0 && noSym.every(c => digitRe.test(c));
+      return { hit, detail: hit ? '去符号后全为数字' : '含非数字字符' };
+    }
+    case 'R8': {
+      const hit = isKeyboardMash(text);
+      return { hit, detail: hit ? '疑似键位序列或无元音字母串' : '未触发乱码启发式' };
+    }
+    default:
+      return { hit: false, detail: '' };
+  }
+}
+
+function runTest() {
+  const cfg = getConfig();
+  const text = document.getElementById('test-input').value;
+  const resultEl = document.getElementById('test-result');
+
+  if (!text.trim()) {
+    resultEl.innerHTML = '<div class="test-hint">请输入待判定内容</div>';
+    return;
+  }
+
+  renderTestCfgBar();
+
+  // 总开关关闭：灌水库审查不运行
+  if (!cfg.globalEnabled) {
+    resultEl.innerHTML = `
+      <div class="test-verdict off">
+        <span class="test-verdict-badge">未运行</span>
+        <div class="test-verdict-sub">当前版块内容治理总开关<b>已关闭</b>，灌水库审查不运行，此处不产出判定结果。</div>
+      </div>`;
+    return;
+  }
+
+  const rc = cfg.ruleConfig[_testCtype];
+  const stats = classifyChars(text);
+  const wordSet = new Set(cfg.spamWords.map(w => normalizeForWordbank(w.word)));
+
+  // 只跑「启用」的规则
+  const rows = RULE_DEFS
+    .filter(r => r.id in rc.rules)
+    .map(r => {
+      const enabled = rc.rules[r.id];
+      const res = enabled ? evalRule(r.id, text, stats, rc, wordSet) : { hit: false, detail: '（规则未启用）' };
+      return { def: r, enabled, hit: enabled && res.hit, detail: res.detail };
+    });
+
+  const hitRules = rows.filter(r => r.hit);
+  const hitCount = hitRules.length;
+
+  // 定档
+  let cls, label, sub;
+  if (_testCtype === 'comment') {
+    if (hitCount >= 1) {
+      cls = 'spam'; label = '灌水';
+      sub = `命中 ${hitCount} 条规则，评论场景命中任一即判灌水，机审<b>不通过</b>。`;
+    } else {
+      cls = 'normal'; label = '正常';
+      sub = '未命中任何启用规则，机审通过。';
+    }
+  } else {
+    if (hitCount >= rc.spamThreshold) {
+      cls = 'spam'; label = '灌水';
+      sub = `命中 ${hitCount} 条 ≥ 灌水阈值 ${rc.spamThreshold}，机审<b>不通过</b>，备注取命中规则名称。`;
+    } else if (hitCount >= rc.markedThreshold) {
+      cls = 'marked'; label = '嫌疑';
+      sub = `命中 ${hitCount} 条，达嫌疑阈值 ${rc.markedThreshold} 但未达灌水阈值 ${rc.spamThreshold}，机审通过。`;
+    } else {
+      cls = 'normal'; label = '正常';
+      sub = `命中 ${hitCount} 条，低于嫌疑阈值 ${rc.markedThreshold}，机审通过。`;
+    }
+  }
+
+  const remark = hitRules.map(r => r.def.name).join('、');
+
+  resultEl.innerHTML = `
+    <div class="test-verdict ${cls}">
+      <span class="test-verdict-badge">${label}</span>
+      <div class="test-verdict-sub">${sub}${remark ? `<br>命中规则备注：<b>${remark}</b>` : ''}</div>
+    </div>
+    <div class="test-charstats">
+      <span>总字符 <b>${stats.total}</b></span>
+      <span>文字 <b>${stats.letters}</b></span>
+      <span>数字 <b>${stats.digits}</b></span>
+      <span>表情 <b>${stats.emoji}</b></span>
+      <span>符号/标点/空白 <b>${stats.symbols}</b></span>
+      <span>有效字符 <b>${stats.effective}</b></span>
+    </div>
+    <table class="test-rule-table">
+      <thead><tr><th style="width:38px;">编号</th><th style="width:90px;">规则</th><th style="width:56px;">结果</th><th>判定明细</th></tr></thead>
+      <tbody>
+        ${rows.map(r => {
+          const tag = !r.enabled
+            ? '<span class="test-tag disabled">未启用</span>'
+            : (r.hit ? '<span class="test-tag hit">命中</span>' : '<span class="test-tag miss">未命中</span>');
+          const rowCls = !r.enabled ? 'off' : (r.hit ? 'hit' : '');
+          return `<tr class="test-rule-row ${rowCls}">
+            <td>${r.def.id}</td>
+            <td>${r.def.name}</td>
+            <td>${tag}</td>
+            <td>${r.detail}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
 }
 
 // ── 初始渲染（须在所有函数与常量定义之后执行）──
