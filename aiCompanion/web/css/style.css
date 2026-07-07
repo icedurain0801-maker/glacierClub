@@ -1,0 +1,35 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #2c3e50; background: #f5f6fa; }
+
+/* 登录页 */
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.08); width: 320px; display: flex; flex-direction: column; gap: 16px; }
+.login-card h1 { font-size: 18px; text-align: center; margin-bottom: 8px; }
+.login-card input { height: 44px; padding: 0 12px; border: 1px solid #dcdfe6; border-radius: 8px; font-size: 14px; }
+.login-card button { height: 44px; background: #ff6b6b; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+.login-card button:hover { background: #ff5252; }
+.error { color: #ff6b6b; font-size: 12px; min-height: 16px; text-align: center; }
+
+/* 后台外壳 */
+.admin-layout { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: #2c3e50; color: #fff; flex-shrink: 0; }
+.sidebar h2 { font-size: 15px; padding: 20px 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar nav a { display: block; padding: 14px 16px; color: #cfd8e3; text-decoration: none; font-size: 14px; cursor: pointer; }
+.sidebar nav a:hover, .sidebar nav a.active { background: rgba(255,255,255,.08); color: #fff; }
+.main { flex: 1; display: flex; flex-direction: column; }
+.topbar { height: 56px; background: #fff; border-bottom: 1px solid #ebeef5; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+.topbar .version-switcher select { height: 36px; padding: 0 10px; border: 1px solid #dcdfe6; border-radius: 6px; font-size: 14px; }
+.topbar .user-box { font-size: 13px; color: #606266; }
+.topbar .user-box button { margin-left: 12px; background: none; border: 1px solid #dcdfe6; border-radius: 6px; height: 30px; padding: 0 10px; cursor: pointer; }
+.content { padding: 24px; flex: 1; }
+
+/* 表格与按钮 */
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ebeef5; font-size: 13px; }
+th { background: #fafafa; color: #909399; font-weight: 600; }
+.btn { background: #ff6b6b; color: #fff; border: none; border-radius: 6px; height: 34px; padding: 0 14px; cursor: pointer; font-size: 13px; }
+.btn.small { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn.plain { background: #fff; color: #606266; border: 1px solid #dcdfe6; }
+.toolbar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; }
+.tag { display: inline-block; background: #f0f2f5; border-radius: 4px; padding: 2px 8px; font-size: 12px; margin: 2px; }
+.placeholder-box { background: #fff; border-radius: 8px; padding: 60px; text-align: center; color: #909399; }

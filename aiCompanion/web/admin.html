@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 陪伴机器人 · 后台</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar">
+      <h2>AI 陪伴机器人</h2>
+      <nav id="menu">
+        <a data-page="sessions">会话管理</a>
+        <a data-page="knowledge">知识库管理</a>
+        <a data-page="users">用户权限管理</a>
+        <a data-page="bots">机器人管理</a>
+        <a data-page="versions">版本管理</a>
+      </nav>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <div class="version-switcher">
+          <label>当前版本：</label>
+          <select id="version-select"></select>
+        </div>
+        <div class="user-box">
+          <span id="user-name"></span>
+          <button id="logout-btn">退出</button>
+        </div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+  </div>
+  <script src="js/api.js"></script>
+  <script src="js/pages/placeholder.js"></script>
+  <script src="js/pages/versions.js"></script>
+  <script src="js/pages/users.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
