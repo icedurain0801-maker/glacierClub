@@ -3,9 +3,10 @@ const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 const requireSuperAdmin = require('../middleware/requireSuperAdmin');
 const { fail } = require('../utils/errors');
+const ah = require('../utils/asyncHandler');
 
 // GET /api/users — 用户列表 + 各自被授权的版本（仅超管）
-router.get('/', requireSuperAdmin, async (_req, res) => {
+router.get('/', requireSuperAdmin, ah(async (_req, res) => {
   const [users] = await db.query(
     'SELECT id, username, display_name, is_super_admin, status, created_at FROM users ORDER BY id'
   );
@@ -24,10 +25,10 @@ router.get('/', requireSuperAdmin, async (_req, res) => {
     isSuperAdmin: !!u.is_super_admin, status: u.status,
     versions: grouped[u.id] || [],
   })));
-});
+}));
 
 // POST /api/users — 新建用户（仅超管）
-router.post('/', requireSuperAdmin, async (req, res) => {
+router.post('/', requireSuperAdmin, ah(async (req, res) => {
   const { username, password, displayName } = req.body || {};
   if (!username || !password) return fail(res, 400, '用户名和密码必填');
   if (username.length < 3 || username.length > 64) return fail(res, 400, '用户名长度 3–64 位');
@@ -44,10 +45,10 @@ router.post('/', requireSuperAdmin, async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') return fail(res, 409, '用户名已存在');
     throw err;
   }
-});
+}));
 
 // POST /api/users/:id/grant — 给用户授权某版本（仅超管）
-router.post('/:id/grant', requireSuperAdmin, async (req, res) => {
+router.post('/:id/grant', requireSuperAdmin, ah(async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const { versionId, role } = req.body || {};
   if (!versionId) return fail(res, 400, 'versionId 必填');
@@ -68,14 +69,14 @@ router.post('/:id/grant', requireSuperAdmin, async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') return fail(res, 409, '该用户已被授权此版本');
     throw err;
   }
-});
+}));
 
 // DELETE /api/users/:id/grant/:versionId — 取消授权（仅超管）
-router.delete('/:id/grant/:versionId', requireSuperAdmin, async (req, res) => {
+router.delete('/:id/grant/:versionId', requireSuperAdmin, ah(async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const versionId = parseInt(req.params.versionId, 10);
   await db.query('DELETE FROM user_version_roles WHERE user_id=? AND version_id=?', [userId, versionId]);
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

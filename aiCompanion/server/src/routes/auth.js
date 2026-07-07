@@ -4,9 +4,10 @@ const db = require('../config/db');
 const { sign } = require('../utils/jwt');
 const auth = require('../middleware/auth');
 const { fail } = require('../utils/errors');
+const ah = require('../utils/asyncHandler');
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', ah(async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return fail(res, 400, '用户名和密码必填');
 
@@ -25,10 +26,10 @@ router.post('/login', async (req, res) => {
     token,
     user: { id: user.id, username: user.username, displayName: user.display_name, isSuperAdmin: !!user.is_super_admin },
   });
-});
+}));
 
 // GET /api/auth/me — 当前用户 + 可访问版本列表
-router.get('/me', auth, async (req, res) => {
+router.get('/me', auth, ah(async (req, res) => {
   const [uRows] = await db.query(
     'SELECT id, username, display_name, is_super_admin FROM users WHERE id=?',
     [req.user.id]
@@ -61,6 +62,6 @@ router.get('/me', auth, async (req, res) => {
     isSuperAdmin: !!user.is_super_admin,
     versions,
   });
-});
+}));
 
 module.exports = router;
