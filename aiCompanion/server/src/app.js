@@ -4,11 +4,12 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors({ exposedHeaders: ['X-Version-Id'] }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/versions', require('./routes/versions'));
 app.use('/api/users',    require('./routes/users'));
+app.use('/api/kb',       require('./routes/kb'));
 
 app.get('/api/ping', (_, res) => res.json({ ok: true, ts: Date.now() }));
 
@@ -20,6 +21,13 @@ app.use((err, _req, res, _next) => {
 
 const PORT = process.env.PORT || 3100;
 if (require.main === module) {
+  // 启动前加载向量索引并启动 worker
+  const vectorStore = require('./services/vectorStore');
+  const ingestWorker = require('./services/ingestWorker');
+  vectorStore.loadAll()
+    .then(() => { ingestWorker.start(); })
+    .catch(err => console.error('[startup] loadAll failed:', err.message));
+
   app.listen(PORT, () => console.log(`AI Companion server on http://localhost:${PORT}`));
 }
 
