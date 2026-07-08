@@ -455,32 +455,22 @@ function switchTab(el, targetId, color) {
   document.getElementById(targetId).style.display = '';
 }
 
-// ── AI 配置（填入你的 API Key 和接口地址）──────────────────────
-const AI_CONFIG = {
-  apiKey: 'sk-c3e4d8f1680e0ca386c1ca0ef1ea45643bcaa33d',
-  baseUrl: 'https://chat-test.q1.com/v1',
-  model: 'claude-sonnet-4-5-20251001',
-};
+// ── AI 调用：走 Glacier BaaS SDK（懒登录 SSO，计费走当前用户）──────────
+async function ensureLogin() {
+  if (app.auth.currentUser()) return;
+  await app.auth.sso();   // 复用冰川登录；未登录/异域会抛错，由 diagnose 的 catch 处理
+}
 
 async function callAI(systemPrompt, userPrompt) {
-  const res = await fetch(AI_CONFIG.baseUrl + '/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + AI_CONFIG.apiKey,
-    },
-    body: JSON.stringify({
-      model: AI_CONFIG.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      max_tokens: 1024,
-    }),
-  });
-  if (!res.ok) throw new Error('API 请求失败：' + res.status + ' ' + res.statusText);
-  const data = await res.json();
-  return data.choices[0].message.content.trim();
+  await ensureLogin();
+  const reply = await app.ai.chat(
+    [
+      { role: 'system', content: systemPrompt },
+      { role: 'user',   content: userPrompt },
+    ],
+    { max_tokens: 1024 }   // 模型已在 init 的 aiModel 指定
+  );
+  return String(reply).trim();
 }
 
 // ── 大玩家社区接入文档知识库 ──────────────────────────────────────────
