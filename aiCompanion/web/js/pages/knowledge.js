@@ -15,8 +15,8 @@ window.pages.knowledge = async function (content) {
   const rows = docs.map(d => `
     <tr>
       <td>${d.id}</td>
-      <td>${d.name}</td>
-      <td>${d.status}</td>
+      <td>${escapeHtml(d.name)}</td>
+      <td>${escapeHtml(d.status)}</td>
       <td>${d.rowCount}</td>
       <td>
         <button class="btn small" data-preview="${d.id}">预览</button>

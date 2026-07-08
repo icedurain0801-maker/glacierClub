@@ -42,7 +42,7 @@ router.post('/uploads/:id/complete', ah(async (req, res) => {
   const missing = uploadStore.missingChunks(req.params.id);
   if (missing.length > 0) return fail(res, 400, `缺少分片: ${missing.join(',')}`);
 
-  const finalPath = uploadStore.mergeChunks(req.params.id);
+  const finalPath = await uploadStore.mergeChunks(req.params.id);
   const meta = JSON.stringify({ path: finalPath, originalName: s.name });
   const [docIns] = await db.query(
     'INSERT INTO kb_documents (version_id, name, status) VALUES (?,?,"pending")',

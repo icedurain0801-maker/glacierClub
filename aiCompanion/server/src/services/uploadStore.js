@@ -41,8 +41,8 @@ function missingChunks(uploadId) {
   return missing;
 }
 
-// 合并所有分片到一个完整文件；返回最终文件路径。
-function mergeChunks(uploadId) {
+// 合并所有分片到一个完整文件；等待写流 flush 完成后返回最终文件路径。
+async function mergeChunks(uploadId) {
   const s = sessions.get(uploadId);
   if (!s) throw Object.assign(new Error('uploadId 不存在'), { status: 404 });
   const missing = missingChunks(uploadId);
@@ -55,7 +55,11 @@ function mergeChunks(uploadId) {
     const chunk = fs.readFileSync(path.join(s.dir, `${i}`));
     out.write(chunk);
   }
-  out.end();
+  await new Promise((resolve, reject) => {
+    out.on('finish', resolve);
+    out.on('error', reject);
+    out.end();
+  });
   return finalPath;
 }
 

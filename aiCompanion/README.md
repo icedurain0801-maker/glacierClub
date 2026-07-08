@@ -26,7 +26,7 @@ python -m http.server 8090
 
 ## 子项目2：知识库(v002)
 
-已实现：分片上传 Excel(1G)、异步摄取流水线(解析→写条目→embedding向量化→图谱抽取)、版本隔离检索、图谱查询、前端知识库管理页。
+已实现：分片上传 Excel、异步摄取流水线(解析→写条目→embedding向量化→图谱抽取)、版本隔离检索、图谱查询、前端知识库管理页。
 
 ### 使用
 1. `.env` 填 `EMBEDDING_API_URL` `EMBEDDING_API_KEY` `EMBEDDING_MODEL`。
@@ -35,6 +35,7 @@ python -m http.server 8090
 4. `npm run test:kb` 跑集成测试(用假 embedding，无需真 key)。
 
 ### 已知边界
+- **单文件建议 ≤ 200MB / ~20 万行**：当前 excelParser 用 SheetJS `readFile` 全量入内存，ingestWorker 又把全部行 push 到 `allRows` 供图谱跨行匹配；1G 文件在 Node 默认堆(1.5-2G)下会 OOM。原始「支持 1G」需求本期未真正落地，需换 exceljs 流式 API + 图谱两遍扫描才能做到；后续子项目再迭代。
 - 内存向量索引适合数万条内；超大规模需换 pgvector。
 - 图谱抽取以结构化行为主(首列作主实体，跨行同名建关系)；自由文本深度抽取(LLM)未做。
-- 摄取失败会在 `ingest_jobs.error` 里记录，job 状态置 failed。
+- 摄取失败会在 `ingest_jobs.error` 里记录，job 状态置 failed，需删掉文档重传(entries/vectors 无事务，中途崩溃会留孤儿)。
