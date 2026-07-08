@@ -388,7 +388,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 const app = GlacierBaaS.init({
   appKey: 'pk_e784f4a682534f7493ad4a767f8ce2b1',
   baseUrl: 'https://chat.q1.com/baas',
-  aiModel: 'claude-sonnet-4-5-20251001',   // 保持原模型
+  aiModel: 'claude-sonnet-4-5',   // 不带日期后缀，避免网关注入 1M-context beta 报错
 });
 const pages = ['home','link','diagnose'];
 const pageTitles = {link:'链接生成器', diagnose:'错误排查'};
