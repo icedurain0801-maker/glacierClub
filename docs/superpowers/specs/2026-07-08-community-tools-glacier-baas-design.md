@@ -40,11 +40,11 @@
 页面脚本顶部初始化（全局单例）：
 ```js
 const app = GlacierBaaS.init({
-  appKey: 'pk_YOUR_APP_KEY',            // ← 待替换：向控制台申请的正式 appKey
+  appKey: 'pk_e784f4a682534f7493ad4a767f8ce2b1',   // 正式 appKey（用户已提供）
   baseUrl: 'https://chat.q1.com/baas',
 });
 ```
-> appKey 明文进前端是文档允许的（“公开可嵌前端”）。占位符 `pk_YOUR_APP_KEY`，上线前替换。
+> appKey 明文进前端是文档允许的（“公开可嵌前端”）。
 
 ### 1.2 删除旧的明文 key 与 fetch 实现
 
@@ -77,7 +77,7 @@ async function callAI(systemPrompt, userPrompt) {
 `diagnose()` 内已有 `try/catch`。登录相关失败通过 `callAI` 抛出后落入现有 `catch`，需增强错误文案：
 
 - 捕获到 `err.code === 'need_login'` 或 SSO 失败时，输出：
-  「需先登录冰川账号才能使用 AI 排查；若在本地 `file://` 打开则 AI 不可用，请通过 `https://chat.q1.com/apps/<appname>/` 访问。」
+  「需先登录冰川账号才能使用 AI 排查；若在本地 `file://` 打开则 AI 不可用，请通过 `https://chat.q1.com/apps/clubtools/` 访问。」
 - 其余错误沿用现有失败卡片展示 `err.message`。
 
 ### 1.5 关键约束（文档明确）
@@ -103,10 +103,10 @@ async function callAI(systemPrompt, userPrompt) {
 cd operations/communityTools
 zip -r app.zip index.html
 curl -H "X-Deploy-Token: <token>" -F file=@app.zip \
-  https://chat.q1.com/baas/v1/hosting/<appname>/versions
+  https://chat.q1.com/baas/v1/hosting/clubtools/versions
 ```
 3. 审批：每个版本经主管/管理员钉钉或签审批后 live
-4. 访问：`https://chat.q1.com/apps/<appname>/`
+4. 访问：`https://chat.q1.com/apps/clubtools/`
 
 ### 2.3 安全边界
 
@@ -114,13 +114,16 @@ curl -H "X-Deploy-Token: <token>" -F file=@app.zip \
 - 部署 Token：**只在用户本地命令行使用，绝不写入任何文件/仓库**
 - 分工：本任务只负责改好代码 + 提供发布脚本/命令；实际上传由用户执行
 
-## 待用户提供的值
+## 已知值 / 待用户提供的值
 
-| 值 | 用途 | 占位符 |
+| 值 | 用途 | 状态 |
 |---|---|---|
-| `appKey`（pk_xxx） | 写进 `GlacierBaaS.init` | `pk_YOUR_APP_KEY` |
-| `appname` | 发布地址 / 上传路径 | `<appname>` |
-| 部署 Token | 上传鉴权（用户本地用） | `<token>` |
+| `appKey` = `pk_e784f4a682534f7493ad4a767f8ce2b1` | 写进 `GlacierBaaS.init` | ✅ 已提供 |
+| `appname` = `clubtools` | 发布地址 `chat.q1.com/apps/clubtools/` / 上传路径 | ✅ 已提供 |
+| 部署 Token | 上传鉴权（用户本地用） | ⏳ 待开通托管后下发；`<token>` 占位，不进仓库 |
+
+失败提示文案里的 `<appname>` 统一替换为 `clubtools`：
+「…请通过 `https://chat.q1.com/apps/clubtools/` 访问。」
 
 ## 验证
 
