@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>下一步工作建议 — 动员会议</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+
+  :root {
+    --red-primary: #C41E24;
+    --red-dark: #9A1118;
+    --red-light: #E8434A;
+    --gold: #D4A843;
+    --gold-light: #F0D080;
+    --bg-cream: #FDF8F0;
+    --bg-warm: #FAF3E8;
+    --text-dark: #1A1A1A;
+    --text-body: #2D2D2D;
+    --text-muted: #5A5A5A;
+    --blue-deep: #1B3A5C;
+    --blue-accent: #2C5F8A;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  }
+
+  .slide {
+    width: 1120px;
+    min-height: 630px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 30px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+
+  /* ========== SLIDE 1 ========== */
+  .slide-1 {
+    background: var(--bg-cream);
+  }
+
+  .slide-1::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 8px;
+    background: linear-gradient(90deg, var(--red-primary), var(--red-dark), var(--red-primary));
+  }
+
+  .slide-1::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+  }
+
+  .s1-header {
+    background: linear-gradient(135deg, var(--red-primary) 0%, var(--red-dark) 100%);
+    padding: 28px 50px 22px;
+    position: relative;
+  }
+
+  .s1-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50px; right: 50px;
+    height: 1px;
+    background: rgba(255,255,255,0.2);
+  }
+
+  .s1-section-label {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 13px;
+    color: var(--gold-light);
+    letter-spacing: 6px;
+    margin-bottom: 6px;
+    font-weight: 400;
+  }
+
+  .s1-title {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 30px;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 3px;
+    line-height: 1.4;
+  }
+
+  .s1-subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+
+  .s1-body {
+    display: flex;
+    gap: 0;
+    padding: 0;
+  }
+
+  .s1-col {
+    flex: 1;
+    padding: 24px 30px 20px;
+  }
+
+  .s1-col:first-child {
+    border-right: 1px solid rgba(196,30,36,0.1);
+  }
+
+  .s1-block-title {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--red-primary);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+    border-bottom: 2px solid var(--red-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .s1-block-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: var(--red-primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .s1-data-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .s1-data-card {
+    flex: 1;
+    background: linear-gradient(135deg, #FFF5F5, #FFF0F0);
+    border: 1px solid rgba(196,30,36,0.15);
+    border-radius: 8px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+
+  .s1-data-card .label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .s1-data-card .value {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--red-primary);
+    line-height: 1.2;
+  }
+
+  .s1-data-card .unit {
+    font-size: 11px;
+    color: var(--red-dark);
+    font-weight: 400;
+  }
+
+  .s1-data-card.warn {
+    background: linear-gradient(135deg, #FFF8E8, #FFF3D6);
+    border-color: rgba(212,168,67,0.3);
+  }
+
+  .s1-data-card.warn .value {
+    color: #B8860B;
+  }
+
+  .s1-point {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-body);
+    line-height: 1.7;
+  }
+
+  .s1-point-icon {
+    width: 6px;
+    height: 6px;
+    background: var(--red-primary);
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 7px;
+  }
+
+  .s1-highlight-box {
+    background: linear-gradient(135deg, var(--red-primary), var(--red-dark));
+    color: #fff;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+
+  .s1-highlight-box strong {
+    color: var(--gold-light);
+  }
+
+  .s1-tag {
+    display: inline-block;
+    background: var(--red-primary);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-right: 4px;
+    font-weight: 500;
+  }
+
+  .s1-tag.gold {
+    background: var(--gold);
+    color: var(--text-dark);
+  }
+
+  .s1-footer {
+    position: absolute;
+    bottom: 12px;
+    left: 50px;
+    right: 50px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #bbb;
+  }
+
+  /* ========== SLIDE 2 ========== */
+  .slide-2 {
+    background: var(--bg-cream);
+  }
+
+  .slide-2::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 8px;
+    background: linear-gradient(90deg, var(--blue-deep), var(--blue-accent), var(--blue-deep));
+  }
+
+  .slide-2::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+  }
+
+  .s2-header {
+    background: linear-gradient(135deg, var(--blue-deep) 0%, #14304D 100%);
+    padding: 28px 50px 22px;
+    position: relative;
+  }
+
+  .s2-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50px; right: 50px;
+    height: 1px;
+    background: rgba(255,255,255,0.2);
+  }
+
+  .s2-section-label {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 13px;
+    color: var(--gold-light);
+    letter-spacing: 6px;
+    margin-bottom: 6px;
+  }
+
+  .s2-title {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 30px;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 3px;
+    line-height: 1.4;
+  }
+
+  .s2-subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+
+  .s2-body {
+    display: flex;
+    gap: 0;
+    padding: 0;
+  }
+
+  .s2-col {
+    flex: 1;
+    padding: 24px 28px 20px;
+  }
+
+  .s2-col:first-child {
+    border-right: 1px solid rgba(27,58,92,0.1);
+  }
+
+  .s2-block-title {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--blue-deep);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+    border-bottom: 2px solid var(--blue-deep);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .s2-block-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: var(--blue-deep);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .s2-point {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-body);
+    line-height: 1.7;
+  }
+
+  .s2-point-icon {
+    width: 6px;
+    height: 6px;
+    background: var(--blue-deep);
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 7px;
+  }
+
+  .s2-alert-box {
+    background: linear-gradient(135deg, #FFF3E0, #FFF8E8);
+    border-left: 4px solid #E67E22;
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+    color: var(--text-body);
+    line-height: 1.7;
+  }
+
+  .s2-alert-box strong {
+    color: #C0392B;
+  }
+
+  .s2-action-box {
+    background: linear-gradient(135deg, var(--blue-deep), #14304D);
+    color: #fff;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 10px;
+  }
+
+  .s2-action-box .action-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gold-light);
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+
+  .s2-action-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.92);
+  }
+
+  .s2-action-item .arrow {
+    color: var(--gold-light);
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .s2-stat-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .s2-stat-card {
+    flex: 1;
+    background: linear-gradient(135deg, #EBF2FA, #E0ECF7);
+    border: 1px solid rgba(27,58,92,0.12);
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+
+  .s2-stat-card .label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+  }
+
+  .s2-stat-card .value {
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--blue-deep);
+  }
+
+  .s2-stat-card .unit {
+    font-size: 11px;
+    color: var(--blue-accent);
+  }
+
+  .s2-stat-card.danger {
+    background: linear-gradient(135deg, #FFF0F0, #FFE8E8);
+    border-color: rgba(196,30,36,0.15);
+  }
+
+  .s2-stat-card.danger .value {
+    color: var(--red-primary);
+  }
+
+  .s2-tag {
+    display: inline-block;
+    background: var(--blue-deep);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-right: 4px;
+    font-weight: 500;
+  }
+
+  .s2-tag.orange {
+    background: #E67E22;
+  }
+
+  .s2-footer {
+    position: absolute;
+    bottom: 12px;
+    left: 50px;
+    right: 50px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #bbb;
+  }
+
+  .page-indicator {
+    position: absolute;
+    bottom: 14px;
+    right: 50px;
+    font-size: 11px;
+    color: #999;
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+  }
+
+  .watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    font-family: 'Noto Serif SC', 'SimSun', serif;
+    font-size: 100px;
+    color: rgba(0,0,0,0.018);
+    font-weight: 900;
+    letter-spacing: 20px;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== SLIDE 1 ==================== -->
+<div class="slide slide-1">
+  <div class="watermark">龙华区人力资源局</div>
+
+  <div class="s1-header">
+    <div class="s1-section-label">第三部分 · 下一步工作建议</div>
+    <div class="s1-title">压紧压实责任 &nbsp;筑牢前端防线</div>
+    <div class="s1-subtitle">锚定半年控制目标 · 提升基层吸附速办质效</div>
+  </div>
+
+  <div class="s1-body">
+    <!-- 左栏：目标责任 -->
+    <div class="s1-col">
+      <div class="s1-block-title">
+        <span class="s1-block-num">一</span>
+        压紧压实目标责任，确保完成半年控制目标
+      </div>
+
+      <div class="s1-data-row">
+        <div class="s1-data-card">
+          <div class="label">非工程领域半年目标</div>
+          <div class="value">4478<span class="unit"> 条</span></div>
+          <div class="label" style="margin-top:2px;">6月增量管控 <strong style="color:#C41E24;">584条</strong></div>
+        </div>
+        <div class="s1-data-card">
+          <div class="label">工程领域半年目标</div>
+          <div class="value">2090<span class="unit"> 条</span></div>
+          <div class="label" style="margin-top:2px;">6月增量管控 <strong style="color:#C41E24;">316条</strong></div>
+        </div>
+      </div>
+
+      <div class="s1-data-row">
+        <div class="s1-data-card warn">
+          <div class="label">⚠ 工程领域6月第1周</div>
+          <div class="value">82<span class="unit"> 条</span></div>
+          <div class="label">同比上升 <strong style="color:#B8860B;">+7.89%</strong></div>
+        </div>
+        <div class="s1-data-card warn">
+          <div class="label">推算6月工程总量</div>
+          <div class="value">351<span class="unit"> 条</span></div>
+          <div class="label">超出目标 <strong style="color:#B8860B;">+35条</strong></div>
+        </div>
+      </div>
+
+      <div class="s1-highlight-box">
+        <strong>▸ 非工程领域</strong>去年全年同比下降11.25%，6月单月增幅需达<strong>-22.96%</strong>，难度较大。民治、龙华、大浪三个街道需比下达目标<strong>各减少10条以上</strong>。<br>
+        <strong>▸ 工程领域</strong>去年全年同比上升13.64%，6月单月增幅仅需-3.07%，建议各责任单位比下达目标<strong>合计减少30-40条</strong>，为全区减量多做贡献。
+      </div>
+    </div>
+
+    <!-- 右栏：基层吸附速办 -->
+    <div class="s1-col">
+      <div class="s1-block-title">
+        <span class="s1-block-num">二</span>
+        提升基层吸附与速办质效，筑牢前端化解防线
+      </div>
+
+      <div class="s1-point">
+        <span class="s1-point-icon"></span>
+        <div><span class="s1-tag">强化吸附</span>吸附比越高、单位线索对应法人数越高，全国欠薪平台线索压降效果越明显。需持续加大分流宣传力度。</div>
+      </div>
+
+      <div class="s1-point">
+        <span class="s1-point-icon"></span>
+        <div><span class="s1-tag">一线摸排</span>服务业、劳务派遣、小微企业欠薪纠纷占比超七成。各街道要建强"四人小组"，下沉园区、企业、写字楼常态化走访，<strong>摒弃仅靠派发宣传单的被动模式</strong>。</div>
+      </div>
+
+      <div class="s1-point">
+        <span class="s1-point-icon"></span>
+        <div><span class="s1-tag">小额速办</span>5000元以下纠纷<strong>当日受理、3日办结</strong>。紧盯离职结算，做到"薪随人走、账清责明"。</div>
+      </div>
+
+      <div class="s1-highlight-box" style="background: linear-gradient(135deg, #7B2D12, #5A1A08);">
+        <strong>⚠ 抽查通报</strong><br>
+        6月3日至5日抽查36件小额工单（6街道24社区）：<br>
+        · 未按3日办结 <strong>6单（16.67%）</strong>，严格计算达<strong>12件（33.33%）</strong><br>
+        · 实质化解率仅 <strong>17.65%</strong>，未实质化解占 <strong>44.12%</strong><br>
+        · 勇华书记强调：<strong>严格落实"当天响应、三天办结"</strong><br>
+        我局将每周抽查并扩大到工程领域，对质效不高单位<strong>予以通报</strong>。
+      </div>
+    </div>
+  </div>
+
+  <div class="s1-footer">
+    <span>龙华区人力资源局 · 劳动监察科</span>
+    <span>内部资料 · 注意保密</span>
+  </div>
+  <div class="page-indicator">— 1 / 2 —</div>
+</div>
+
+
+<!-- ==================== SLIDE 2 ==================== -->
+<div class="slide slide-2">
+  <div class="watermark">龙华区人力资源局</div>
+
+  <div class="s2-header">
+    <div class="s2-section-label">第三部分 · 下一步工作建议</div>
+    <div class="s2-title">强化联动合力 &nbsp;精准分类施策</div>
+    <div class="s2-subtitle">做强公安支撑打击欠薪 · 精准普法减少纠纷外溢</div>
+  </div>
+
+  <div class="s2-body">
+    <!-- 左栏：公安支撑 -->
+    <div class="s2-col">
+      <div class="s2-block-title">
+        <span class="s2-block-num">三</span>
+        做强公安支撑，合力打击欠薪
+      </div>
+
+      <div class="s2-alert-box">
+        <strong>问题短板：</strong>2025年我区移送公安机关恶意欠薪案件仅<strong>4宗</strong>，占全市<strong>7.2%</strong>，移送比例明显偏低。劳动部门缺乏强制调查手段，大量恶意欠薪行为停留在行政处罚层面，<strong>难以形成刑事震慑</strong>。
+      </div>
+
+      <div class="s2-action-box">
+        <div class="action-title">▸ 工作建议</div>
+        <div class="s2-action-item">
+          <span class="arrow">➊</span>
+          <div><strong>强化社区警长支撑"四人小组"</strong><br>各派出所明确社区警长挂钩"四人小组"，定期参加欠薪风险研判会；对恶意欠薪、卷款跑路企业主，由警长提前介入警示约谈、核查资产动向，必要时采取限制出境、冻结账户等前置措施。</div>
+        </div>
+        <div class="s2-action-item">
+          <span class="arrow">➋</span>
+          <div><strong>列入行业黑名单联合惩戒</strong><br>查实恶意欠薪且拒不整改的，联合市监、公安等部门列入黑名单，限制辖区新设主体、承接业务，做到"发现一起、警示一批、清退一批"。</div>
+        </div>
+        <div class="s2-action-item">
+          <span class="arrow">➌</span>
+          <div><strong>前移介入节点，深化行刑衔接</strong><br>公安对欠薪逃匿线索先行核查、固定证据；建立区级"恶意欠薪移送快速通道"，符合条件案件<strong>3个工作日内</strong>完成受理审查，确保应移尽移、快移快办。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：普法分类处置 -->
+    <div class="s2-col">
+      <div class="s2-block-title">
+        <span class="s2-block-num">四</span>
+        精准开展普法与分类处置，减少纠纷外溢
+      </div>
+
+      <div class="s2-stat-row">
+        <div class="s2-stat-card">
+          <div class="label">市欠薪平台增速</div>
+          <div class="value">140.75<span class="unit">%</span></div>
+        </div>
+        <div class="s2-stat-card">
+          <div class="label">我区"民意速办"增速</div>
+          <div class="value">28.7<span class="unit">%</span></div>
+        </div>
+        <div class="s2-stat-card danger">
+          <div class="label">剔除市平台后实际</div>
+          <div class="value">-7.86<span class="unit">%</span></div>
+        </div>
+      </div>
+
+      <div class="s2-point">
+        <span class="s2-point-icon"></span>
+        <div><span class="s2-tag">分类处置</span>全国欠薪平台线索用足<strong>45天办理时限</strong>，避免盲目提前办结导致反向引流，确保案件办理质量与效率并重。</div>
+      </div>
+
+      <div class="s2-point">
+        <span class="s2-point-icon"></span>
+        <div><span class="s2-tag">精准普法</span>结合我区<strong>职住分离</strong>特点，宣传海报优先布设在企业食堂、产业园区、写字楼等用工集中区域，精准触达用工企业与务工人员。</div>
+      </div>
+
+      <div class="s2-point">
+        <span class="s2-point-icon"></span>
+        <div><span class="s2-tag orange">持续分流</span>市欠薪速办来件已设"薪"字标识，各街道全部落实3日办结硬性要求，持续引导劳动者通过"民意速办"渠道反映诉求。</div>
+      </div>
+
+      <div class="s2-action-box" style="background: linear-gradient(135deg, #2C5F2C, #1A4020);">
+        <div class="action-title" style="color: #A8D8A8;">▸ 总体目标</div>
+        <div style="font-size: 13px; line-height: 1.8; color: rgba(255,255,255,0.92);">
+          以<strong style="color:#A8D8A8;">"减量、控增、防变"</strong>为主线，压实各方责任，强化部门联动，精准施策、靶向发力，坚决完成半年控制目标，切实维护劳动者合法权益和社会大局稳定。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="s2-footer">
+    <span>龙华区人力资源局 · 劳动监察科</span>
+    <span>内部资料 · 注意保密</span>
+  </div>
+  <div class="page-indicator">— 2 / 2 —</div>
+</div>
+
+</body>
+</html>

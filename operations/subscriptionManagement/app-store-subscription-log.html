@@ -807,7 +807,7 @@ tbody td:first-child{text-align:center;padding:0}
           <tr><td>详情</td><td>渠道原始通知 JSON，等宽字体展示，可横向滚动</td></tr>
           <tr><td>创建时间</td><td>记录入库时间，格式同购买时间</td></tr>
           <tr><td>操作备注</td><td>人工操作时填写的备注；空值展示 "—"</td></tr>
-          <tr><td>操作</td><td>有效/试用/宽限期/冷冻期行：「取消订阅」蓝色链接；已取消行：置灰不可点</td></tr>
+          <tr><td>操作</td><td>有效行：「取消订阅」蓝色链接；试用/宽限期/已取消/冷冻期行：置灰不可点</td></tr>
         </tbody>
       </table>
       <div class="req-note">列表默认按「创建时间」倒序排列，不提供前端排序切换（数据量大，排序应由后端承担）。分页默认 10 条/页，可切换 10 / 20 / 50 / 100。「最新订阅平台订单ID」必须紧跟在「原始订单ID」之后，后续字段按上表顺序展示。</div>
@@ -962,9 +962,9 @@ function render() {
       <td>${r.createTime}</td>
       <td style="color:#5b6573">${r.opRemark || '<span style="color:#c5ccd5">—</span>'}</td>
       <td class="col-actions">
-        ${r.status===4
-          ? '<span class="link disabled">取消订阅</span>'
-          : `<span class="link" onclick="openSingleModal(${i})">取消订阅</span>`
+        ${r.status===1
+          ? `<span class="link" onclick="openSingleModal(${i})">取消订阅</span>`
+          : '<span class="link disabled">取消订阅</span>'
         }
       </td>
     </tr>

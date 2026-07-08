@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Club 批量操作面板</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #f5f6f8;
+        color: #1a1f2b;
+      }
+      .page {
+        max-width: 1280px;
+        margin: 20px auto;
+        padding: 0 16px 24px;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid #dfe3ea;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 20px;
+      }
+      .hint {
+        margin: 0 0 12px;
+        color: #5c6470;
+        font-size: 13px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 12px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .field label {
+        font-size: 13px;
+        color: #3a4252;
+      }
+      input,
+      textarea,
+      select,
+      button {
+        font: inherit;
+      }
+      input,
+      textarea,
+      select {
+        border: 1px solid #ccd3df;
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: #fff;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 90px;
+      }
+      .inline-fields {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(120px, 1fr));
+        gap: 10px;
+      }
+      .inline-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .btn {
+        border: 1px solid #2a67df;
+        background: #2a67df;
+        color: #fff;
+        border-radius: 6px;
+        padding: 8px 14px;
+        cursor: pointer;
+      }
+      .btn.secondary {
+        border-color: #9aa6bd;
+        background: #fff;
+        color: #2a3347;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(100px, 1fr));
+        gap: 8px;
+      }
+      .metric {
+        border: 1px solid #e2e7f0;
+        border-radius: 6px;
+        padding: 8px;
+        background: #fafbfe;
+      }
+      .metric .k {
+        color: #5a6474;
+        font-size: 12px;
+      }
+      .metric .v {
+        margin-top: 2px;
+        font-size: 17px;
+        font-weight: 600;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #e7ebf3;
+        padding: 8px 6px;
+        vertical-align: top;
+        font-size: 12px;
+        text-align: left;
+      }
+      th {
+        color: #4f5968;
+        font-weight: 600;
+        background: #fafbfd;
+      }
+      .status {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        border: 1px solid #d7deec;
+      }
+      .status.running {
+        color: #0b5cd6;
+        border-color: #9bc0ff;
+        background: #eaf2ff;
+      }
+      .status.done {
+        color: #137c3a;
+        border-color: #9fdab0;
+        background: #edfff3;
+      }
+      .status.failed {
+        color: #b03030;
+        border-color: #f2acac;
+        background: #fff1f1;
+      }
+      .status.waiting_captcha {
+        color: #905900;
+        border-color: #f2cd90;
+        background: #fff8ea;
+      }
+      .status.queued {
+        color: #677184;
+      }
+      .status.stopped {
+        color: #6d4ea8;
+        border-color: #c7b3ea;
+        background: #f5f0ff;
+      }
+      .small {
+        color: #657083;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .logs {
+        max-height: 220px;
+        overflow: auto;
+        background: #0f1625;
+        color: #d3dcf1;
+        border-radius: 6px;
+        border: 1px solid #1d2840;
+        padding: 8px;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+      .captcha-box {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .captcha-box img {
+        width: 140px;
+        max-width: 100%;
+        border: 1px solid #d6dde8;
+        border-radius: 4px;
+        background: #fff;
+      }
+      .captcha-row {
+        display: flex;
+        gap: 6px;
+      }
+      .captcha-row input {
+        min-width: 0;
+        flex: 1;
+      }
+      .danger {
+        color: #b03030;
+        font-size: 12px;
+      }
+      @media (max-width: 980px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .inline-fields {
+          grid-template-columns: repeat(2, minmax(120px, 1fr));
+        }
+        .summary {
+          grid-template-columns: repeat(3, minmax(120px, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="panel">
+        <h1>Club 批量操作面板</h1>
+        <p class="hint">每行一个账号，格式：<code>账号,密码</code>。支持并发登录，遇到验证码可在账号行里输入后提交。</p>
+
+        <div class="grid">
+          <div>
+            <div class="field">
+              <label for="accountsText">账号列表</label>
+              <textarea id="accountsText" placeholder="dbpei005,123456&#10;dbpei006,123456"></textarea>
+            </div>
+            <div class="field">
+              <label for="commentTemplates">评论模板（可选，每行一条）</label>
+              <textarea id="commentTemplates" placeholder="测试评论A&#10;测试评论B"></textarea>
+            </div>
+          </div>
+
+          <div>
+            <div class="inline-fields">
+              <div class="field">
+                <label for="concurrency">并发数</label>
+                <input id="concurrency" type="number" min="1" value="3" />
+              </div>
+              <div class="field">
+                <label for="likeCount">每号点赞次数</label>
+                <input id="likeCount" type="number" min="0" value="1" />
+              </div>
+              <div class="field">
+                <label for="commentCount">每号评论次数</label>
+                <input id="commentCount" type="number" min="0" value="1" />
+              </div>
+              <div class="field">
+                <label for="postCount">每号发帖次数</label>
+                <input id="postCount" type="number" min="0" value="1" />
+              </div>
+            </div>
+
+            <div class="inline-fields">
+              <div class="field">
+                <label for="envMode">登录模式</label>
+                <select id="envMode">
+                  <option value="web">Web（env=web）</option>
+                  <option value="wechatMiniProgram">小程序（env=wechatMiniProgram）</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="captchaTimeoutSec">验证码超时(秒)</label>
+                <input id="captchaTimeoutSec" type="number" min="30" value="300" />
+              </div>
+              <div class="field">
+                <label for="postTitlePrefix">发帖标题前缀</label>
+                <input id="postTitlePrefix" type="text" value="自动化帖子" />
+              </div>
+              <div class="field">
+                <label for="postBodyPrefix">发帖正文前缀</label>
+                <input id="postBodyPrefix" type="text" value="自动化内容" />
+              </div>
+              <div class="field">
+                <label>&nbsp;</label>
+                <div class="inline-checkbox">
+                  <input id="differentPosts" type="checkbox" checked />
+                  <span>尽量不同帖子</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button id="startBtn" class="btn">开始执行</button>
+              <button id="stopBtn" class="btn secondary">停止</button>
+            </div>
+            <p id="errorMsg" class="danger"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="summary" id="summary"></div>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 96px">账号</th>
+              <th style="width: 96px">状态</th>
+              <th style="width: 150px">步骤</th>
+              <th style="width: 150px">进度</th>
+              <th style="width: 210px">验证码</th>
+              <th style="width: 220px">最近日志</th>
+              <th>错误 / 当前URL</th>
+            </tr>
+          </thead>
+          <tbody id="accountRows"></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <div class="small">全局日志</div>
+        <div class="logs" id="globalLogs"></div>
+      </div>
+    </div>
+
+    <script>
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const errorMsg = document.getElementById('errorMsg');
+      const summaryEl = document.getElementById('summary');
+      const accountRows = document.getElementById('accountRows');
+      const globalLogsEl = document.getElementById('globalLogs');
+      const apiBase = window.location.protocol === 'file:' ? 'http://127.0.0.1:3777' : '';
+
+      function api(path) {
+        return `${apiBase}${path}`;
+      }
+
+      function escapeHtml(text) {
+        return String(text || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function getFormPayload() {
+        return {
+          accountsText: document.getElementById('accountsText').value,
+          commentTemplates: document.getElementById('commentTemplates').value,
+          concurrency: Number(document.getElementById('concurrency').value || 1),
+          likeCount: Number(document.getElementById('likeCount').value || 0),
+          commentCount: Number(document.getElementById('commentCount').value || 0),
+          postCount: Number(document.getElementById('postCount').value || 0),
+          envMode: document.getElementById('envMode').value || 'web',
+          captchaTimeoutSec: Number(document.getElementById('captchaTimeoutSec').value || 300),
+          postTitlePrefix: document.getElementById('postTitlePrefix').value,
+          postBodyPrefix: document.getElementById('postBodyPrefix').value,
+          differentPosts: document.getElementById('differentPosts').checked,
+          headless: true,
+        };
+      }
+
+      function metric(name, value) {
+        return `<div class="metric"><div class="k">${escapeHtml(name)}</div><div class="v">${escapeHtml(value)}</div></div>`;
+      }
+
+      async function startJob() {
+        errorMsg.textContent = '';
+        try {
+          const res = await fetch(api('/api/start'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(getFormPayload()),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            throw new Error(data.message || '启动失败');
+          }
+          await loadState();
+        } catch (err) {
+          errorMsg.textContent = err.message || String(err);
+        }
+      }
+
+      async function stopJob() {
+        errorMsg.textContent = '';
+        try {
+          await fetch(api('/api/stop'), { method: 'POST' });
+          await loadState();
+        } catch (err) {
+          errorMsg.textContent = err.message || String(err);
+        }
+      }
+
+      async function submitCaptcha(accountId) {
+        const input = document.getElementById(`captcha-${accountId}`);
+        if (!input) return;
+        const answer = (input.value || '').trim();
+        if (!answer) return;
+        errorMsg.textContent = '';
+        try {
+          const res = await fetch(api('/api/captcha'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId, answer }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            throw new Error(data.message || '提交失败');
+          }
+          input.value = '';
+          await loadState();
+        } catch (err) {
+          errorMsg.textContent = err.message || String(err);
+        }
+      }
+
+      function captureCaptchaInputState() {
+        const drafts = {};
+        const inputs = accountRows.querySelectorAll('input[id^="captcha-"]');
+        inputs.forEach(input => {
+          drafts[input.id] = input.value || '';
+        });
+
+        const activeElement = document.activeElement;
+        let focused = null;
+        if (activeElement && activeElement.id && /^captcha-\d+$/.test(activeElement.id)) {
+          focused = {
+            id: activeElement.id,
+            start:
+              typeof activeElement.selectionStart === 'number' ? Number(activeElement.selectionStart) : null,
+            end: typeof activeElement.selectionEnd === 'number' ? Number(activeElement.selectionEnd) : null,
+          };
+        }
+        return { drafts, focused };
+      }
+
+      function restoreCaptchaInputState(state) {
+        if (!state) return;
+        Object.entries(state.drafts || {}).forEach(([id, value]) => {
+          const input = document.getElementById(id);
+          if (input) {
+            input.value = value;
+          }
+        });
+
+        if (!state.focused) return;
+        const input = document.getElementById(state.focused.id);
+        if (!input) return;
+        input.focus({ preventScroll: true });
+        if (state.focused.start !== null && state.focused.end !== null) {
+          const len = input.value.length;
+          const start = Math.max(0, Math.min(len, state.focused.start));
+          const end = Math.max(start, Math.min(len, state.focused.end));
+          input.setSelectionRange(start, end);
+        }
+      }
+
+      function renderAccounts(accounts) {
+        const inputState = captureCaptchaInputState();
+        if (!accounts || accounts.length === 0) {
+          accountRows.innerHTML = `<tr><td colspan="7" class="small">暂无任务</td></tr>`;
+          return;
+        }
+
+        accountRows.innerHTML = accounts
+          .map(acc => {
+            const statusClass = `status ${escapeHtml(acc.status)}`;
+            const progress = `点赞 ${acc.metrics.likesDone}/${acc.metrics.likesTarget}<br>评论 ${acc.metrics.commentsDone}/${acc.metrics.commentsTarget}<br>发帖 ${acc.metrics.postsDone}/${acc.metrics.postsTarget}`;
+            const logs = (acc.logs || []).slice(-3).map(v => escapeHtml(v)).join('<br>');
+            const errorOrUrl = acc.error
+              ? `<div class="danger">${escapeHtml(acc.error)}</div>`
+              : `<div class="small">${escapeHtml(acc.currentUrl || '')}</div>`;
+
+            let captchaHtml = '<span class="small">-</span>';
+            if (acc.captcha && acc.captcha.needed && acc.captcha.image) {
+              captchaHtml = `
+                <div class="captcha-box">
+                  <img src="${acc.captcha.image}" alt="captcha-${acc.id}" />
+                  <div class="captcha-row">
+                    <input id="captcha-${acc.id}" type="text" placeholder="输入验证码" />
+                    <button class="btn secondary" onclick="submitCaptcha(${acc.id})">提交</button>
+                  </div>
+                </div>
+              `;
+            }
+
+            return `
+              <tr>
+                <td>${escapeHtml(acc.username)}</td>
+                <td><span class="${statusClass}">${escapeHtml(acc.status)}</span></td>
+                <td>${escapeHtml(acc.step || '')}</td>
+                <td>${progress}</td>
+                <td>${captchaHtml}</td>
+                <td class="small">${logs || '-'}</td>
+                <td>${errorOrUrl}</td>
+              </tr>
+            `;
+          })
+          .join('');
+        restoreCaptchaInputState(inputState);
+      }
+
+      function renderSummary(state) {
+        const s = state.summary || {};
+        summaryEl.innerHTML = [
+          metric('账号总数', s.total || 0),
+          metric('登录成功', s.loginSuccess || 0),
+          metric('登录失败', s.loginFailed || 0),
+          metric('完成账号', s.finished || 0),
+          metric('总点赞', s.likesDone || 0),
+          metric('总评论', s.commentsDone || 0),
+          metric('总发帖', s.postsDone || 0),
+        ].join('');
+      }
+
+      async function loadState() {
+        const res = await fetch(api('/api/state'), { cache: 'no-store' });
+        const data = await res.json();
+        startBtn.disabled = Boolean(data.running);
+        stopBtn.disabled = !data.running;
+        if (data.config && data.config.envMode) {
+          const envModeEl = document.getElementById('envMode');
+          if (envModeEl && envModeEl.value !== data.config.envMode) {
+            envModeEl.value = data.config.envMode;
+          }
+        }
+        renderSummary(data);
+        renderAccounts(data.accounts || []);
+        globalLogsEl.textContent = (data.globalLogs || []).join('\n');
+      }
+
+      startBtn.addEventListener('click', startJob);
+      stopBtn.addEventListener('click', stopJob);
+      window.submitCaptcha = submitCaptcha;
+
+      loadState().catch(err => {
+        errorMsg.textContent = err.message || String(err);
+      });
+      setInterval(() => {
+        loadState().catch(() => {});
+      }, 1200);
+    </script>
+  </body>
+</html>

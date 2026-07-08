@@ -1,0 +1,341 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IOS整改 · 切支付后台配置（规则引擎式）</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== 平台顶栏 ===== -->
+  <div class="platform-bar">
+    <div class="platform-brand"><span class="pb-logo">▦</span> 冰川业务平台</div>
+    <nav class="platform-nav">
+      <a>游戏运营后台</a>
+      <a>自动化运维</a>
+      <a>自动化部署</a>
+      <a class="active">SDK 管理后台</a>
+      <a>会员管理后台</a>
+      <a>数数分析</a>
+      <a>客服后台</a>
+      <a>活动管理系统</a>
+      <a>聊天系统</a>
+      <a>联合业务后台</a>
+      <a>开放平台</a>
+      <a>通用配置</a>
+    </nav>
+  </div>
+
+  <!-- ===== 工作区：左列(品牌+菜单) / 右列(工具+标签+内容) ===== -->
+  <div class="workspace">
+    <!-- 左列 -->
+    <aside class="sidebar">
+      <div class="sub-brand"><span class="sub-logo">SDK</span> SDK 管理后台</div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-group-head"><span class="nav-ico">🏠</span> 首页</div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-head"><span class="nav-ico">▦</span> 方案管理 <span class="nav-caret">▾</span></div>
+        </div>
+        <div class="nav-group open">
+          <div class="nav-group-head"><span class="nav-ico">🗂</span> 微信小游戏支付配置 <span class="nav-caret">▾</span></div>
+          <div class="nav-sub">
+            <a class="nav-item active" data-view="stats">切量数据统计</a>
+            <a class="nav-item" data-view="config">配置管理</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-head"><span class="nav-ico">🔥</span> 热更补丁管理 <span class="nav-caret">▾</span></div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-head"><span class="nav-ico">⚙</span> 系统管理 <span class="nav-caret">▾</span></div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-head"><span class="nav-ico">🧰</span> 开发者工具 <span class="nav-caret">▾</span></div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- 右列 -->
+    <div class="content-col">
+      <!-- 工具栏 -->
+      <div class="sub-tools">
+        <span class="collapse-ico">☰</span>
+        <span class="refresh-ico" title="刷新">⟳</span>
+        <div class="sub-search"><span class="s-ico">🔍</span><input type="text" placeholder="输入功能名称" /><span class="s-kbd">Ctrl+K</span></div>
+        <div class="sub-select">境内 ▾</div>
+        <div class="sub-select">远征手游 ▾</div>
+        <div class="sub-user"><span class="u-avatar">👤</span> 福毅 ▾</div>
+      </div>
+      <!-- 标签页条 -->
+      <div class="tab-strip">
+        <div class="tab">首页 <span class="tab-x">×</span></div>
+        <div class="tab">灰度更新… <span class="tab-x">×</span></div>
+        <div class="tab">方案列表 <span class="tab-x">×</span></div>
+        <div class="tab active">微信小游戏支付配置 <span class="tab-x">×</span></div>
+      </div>
+
+    <!-- 主区域 -->
+    <main class="main">
+      <header class="topbar">
+        <div class="crumb" id="crumb">配置管理 / 微信小游戏支付配置</div>
+        <div class="topbar-right">
+          <span class="env-tag">演示数据 · Mock</span>
+        </div>
+      </header>
+
+      <!-- ============ 视图1：切量数据统计 ============ -->
+      <section class="view" id="view-stats">
+        <div class="view-head">
+          <div>
+            <h2>切量数据统计</h2>
+            <p class="muted">当前游戏近7天 iOS 官方支付切量数据总览，判定逻辑：实际占比 ≥ 极限系数即达标。</p>
+          </div>
+        </div>
+
+        <!-- KPI 卡片 -->
+        <div class="kpi-row" id="kpiRow"><!-- JS --></div>
+
+        <div class="dash-grid">
+          <!-- 近7天趋势 -->
+          <div class="card">
+            <div class="card-title">近7天 iOS官方占比趋势</div>
+            <div class="rule-body">
+              <div class="trend-chart" id="trendChart"><!-- JS SVG --></div>
+              <div class="trend-legend">
+                <span class="tl-line official"></span> iOS官方占比
+                <span class="tl-line target"></span> 目标线（极限系数）
+              </div>
+            </div>
+          </div>
+
+          <!-- 玩家支付方式分布 -->
+          <div class="card">
+            <div class="card-title">玩家支付方式分布</div>
+            <div class="rule-body">
+              <div class="dist" id="dist"><!-- JS --></div>
+            </div>
+          </div>
+
+          <!-- 分层切量明细 -->
+          <div class="card span-2">
+            <div class="card-title">老玩家分层切量明细（当前周期）</div>
+            <div class="rule-body">
+              <table class="tier-table" id="statsTierTable">
+                <thead>
+                  <tr><th>付费层级</th><th>总人数</th><th>走官方人数</th><th>走网页人数</th><th>官方占比</th><th>目标占比</th><th>状态</th></tr>
+                </thead>
+                <tbody id="statsTierBody"><!-- JS --></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 视图2：配置管理 ============ -->
+      <section class="view hidden" id="view-config">
+        <div class="view-head">
+          <div>
+            <h2>配置管理</h2>
+            <p class="muted">判定顺序：<b>先规则一，再规则二</b>。命中三大场景且累充未达阈值 → 强制IOS官方（补足前N元）；否则进入规则二按比例切量。</p>
+          </div>
+        </div>
+
+        <!-- 顶部说明 -->
+        <div class="card intro-card">
+          <div class="intro-grid">
+            <div class="intro-col">
+              <div class="intro-h"><span class="intro-ico">①</span> 整体规则如何生效</div>
+              <p>玩家每次充值时，系统<b>先判规则一、再判规则二</b>：</p>
+              <ul>
+                <li><b>规则一（个人维度）</b>：来自三大场景的玩家，<b>按其个人历史累充额</b>判定——累充未达阈值，前 N 元强制走 IOS 官方支付。</li>
+                <li><b>规则二（游戏维度）</b>：未被规则一强制的玩家，<b>按整个游戏的安卓/iOS 流水比</b>算出切量比例 A，把对应比例的玩家分配到官方支付，其余走网页支付。</li>
+              </ul>
+            </div>
+            <div class="intro-col">
+              <div class="intro-h"><span class="intro-ico">②</span> 极限系数的影响</div>
+              <p>极限系数是规则二的核心。比例 A =（安卓流水 / iOS流水）<b>× 极限系数</b>。</p>
+              <ul>
+                <li>系数 <b>越高</b> → 比例 A 越大 → <b>越多玩家被切到官方支付</b> → iOS 流水占比越高、越稳达标，但网页支付收入相应减少。</li>
+                <li><b>2.5% 是平台最低红线</b>，建议优先取最低；担心付费波动导致掉线时，再上调至 2.6%、2.7%。</li>
+                <li>系数对<b>下一计算周期</b>生效，周期内玩家支付方式锁定不变。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 判定链可视化 -->
+        <div class="card flow-card">
+          <div class="card-title">判定链路</div>
+          <div class="flow" id="flow">
+            <div class="flow-node start">玩家充值</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node decision">命中三大场景？<span class="flow-hint" id="flowScenes">搜索栏/小程序搜索/广告搜索</span></div>
+            <div class="flow-branch">
+              <div class="flow-yes">
+                <span class="flow-tag yes">是</span>
+                <div class="flow-node decision small">个人累充 &lt; <span id="flowThreshold">500</span>元？</div>
+                <div class="flow-branch sub">
+                  <div class="flow-yes"><span class="flow-tag yes">是</span><div class="flow-node result official">强制 IOS官方<br/><small>补足前N元</small></div></div>
+                  <div class="flow-no"><span class="flow-tag no">否</span><div class="flow-node soft">进入规则二</div></div>
+                </div>
+              </div>
+              <div class="flow-no">
+                <span class="flow-tag no">否</span>
+                <div class="flow-node soft">进入规则二</div>
+              </div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node rule2">规则二：按比例A=<span id="flowA">—</span><br/>分配 <span class="pill official-pill">官方</span> / <span class="pill web-pill">网页</span></div>
+          </div>
+        </div>
+
+        <!-- ===== 模块一：规则一（个人充值额维度） ===== -->
+        <div class="module">
+          <div class="module-head">
+            <span class="rule-badge r1">规则一</span>
+            <div class="module-title">自然量新增强制金额</div>
+            <span class="dim-tag">维度：用户个人累充额</span>
+            <label class="switch">
+              <input type="checkbox" id="r1Enable" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card">
+            <div class="rule-body" id="r1Body">
+              <div class="field">
+                <label>命中场景值（平台三大场景）</label>
+                <div class="checks">
+                  <label class="chk"><input type="checkbox" class="scene" value="search" checked /> 搜索栏</label>
+                  <label class="chk"><input type="checkbox" class="scene" value="mini" checked /> 微信小程序搜索</label>
+                  <label class="chk"><input type="checkbox" class="scene" value="ad" checked /> 广告搜索</label>
+                </div>
+              </div>
+              <div class="field">
+                <label>强制金额阈值（每位用户前 N 元必须官方）</label>
+                <div class="inline">
+                  <input type="number" id="threshold" value="500" min="0" step="50" />
+                  <span class="unit">元 / 人</span>
+                </div>
+              </div>
+              <div class="hint-box">
+                按<b>每位用户的个人历史累充额</b>判定：命中所选场景 <b>且</b> 个人累充 &lt; 阈值 → <b class="ok">强制 IOS官方</b>（补足其前 N 元）；<br/>
+                个人累充 ≥ 阈值 或 场景不命中 → 进入规则二。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 模块二：规则二（整个游戏维度） ===== -->
+        <div class="module">
+          <div class="module-head">
+            <span class="rule-badge r2">规则二</span>
+            <div class="module-title">按比例判定充值方式</div>
+            <span class="dim-tag">维度：整个游戏流水</span>
+          </div>
+          <div class="rule2-gate" id="r2Gate">
+            <div class="gate-info">
+              <span class="gate-text">游戏累计总流水 <b id="gateTotal">—</b> · 开启门槛 <b>¥25,000,000</b></span>
+              <span class="gate-sub" id="gateSub"></span>
+            </div>
+            <span class="gate-badge" id="gateBadge">—</span>
+          </div>
+          <div class="cfg-grid" id="r2Body">
+            <div class="card rule-card">
+              <div class="card-title">切量参数</div>
+              <div class="rule-body">
+                <div class="field">
+                  <label>极限系数（运营填写，默认 2.5%，尽量取最低）</label>
+                  <div class="inline">
+                    <input type="number" id="coef" value="2.5" min="2.5" step="0.1" />
+                    <span class="unit">%</span>
+                  </div>
+                  <div class="field-hint">平台红线 2.5%；担心付费波动可上调至 2.6% / 2.7%。</div>
+                </div>
+                <div class="field">
+                  <label>计算周期（≥ 2 周）</label>
+                  <div class="inline">
+                    <input type="number" id="period" value="2" min="2" step="1" />
+                    <span class="unit">周</span>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>新玩家：按比例随机生效</label>
+                  <label class="switch sm">
+                    <input type="checkbox" id="newRandom" checked />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="field">
+                  <label>支付方式锁定周期</label>
+                  <div class="lock-note">🔒 锁定 1 个计算周期（周期内不改动单个玩家的支付方式）</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card calc-card">
+              <div class="card-title"><span class="rule-badge calc">自动</span> 比例 A 计算（按整个游戏流水）</div>
+              <div class="rule-body">
+                <div class="formula">A =（安卓流水 / iOS流水）× 极限系数</div>
+                <div class="result-a">
+                  <div class="result-a-label">需切官方支付比例 A</div>
+                  <div class="result-a-val" id="resultA">—</div>
+                </div>
+                <div class="effect-note">本周期计算，<b>下周期生效</b> · 生效日期 <span id="effectDate">—</span></div>
+              </div>
+            </div>
+
+            <div class="card tier-card span-2">
+              <div class="card-title">老玩家分层切量预估（各付费层级均匀切）</div>
+              <div class="rule-body">
+                <table class="tier-table" id="tierTable">
+                  <thead>
+                    <tr><th>付费层级</th><th>在线人数</th><th>切官方人数<span class="th-sub">≈人数×A</span></th><th>走网页人数</th></tr>
+                  </thead>
+                  <tbody id="tierBody"><!-- JS --></tbody>
+                  <tfoot>
+                    <tr><td>合计</td><td id="tierTotal">—</td><td id="tierOfficial">—</td><td id="tierWeb">—</td></tr>
+                  </tfoot>
+                </table>
+                <div class="hint-box small">各层按比例 A 均匀切，保证最终流水满足 iOS ≥ 安卓×系数。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cfg-foot">
+          <button class="btn btn-primary" id="btnSave">保存配置</button>
+        </div>
+      </section>
+    </main>
+
+    </div><!-- /content-col -->
+  </div><!-- /workspace -->
+
+  <!-- 新增游戏 弹窗 -->
+  <div class="modal-mask hidden" id="modalMask">
+    <div class="modal">
+      <div class="modal-title">新增游戏配置</div>
+      <div class="field">
+        <label>游戏名称</label>
+        <input type="text" id="newGameName" placeholder="如：冰川大乱斗" />
+      </div>
+      <div class="field">
+        <label>游戏ID</label>
+        <input type="text" id="newGameId" placeholder="如：wx_glacier_03" />
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="btnModalCancel">取消</button>
+        <button class="btn btn-primary" id="btnModalOk">创建并配置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

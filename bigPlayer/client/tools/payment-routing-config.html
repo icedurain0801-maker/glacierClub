@@ -1,0 +1,1289 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小游戏支付路由配置 - 水位线强制补足</title>
+    <link rel="stylesheet" href="../overseas/assets/fonts/local-fonts.css" />
+    <style>
+      :root {
+        --bg: #f4f7f9;
+        --surface: #ffffff;
+        --surface-soft: #f7fafc;
+        --line: #d7e1e8;
+        --line-strong: #b8c7d4;
+        --text: #152331;
+        --muted: #5f7080;
+        --brand: #0f766e;
+        --brand-soft: #def4f0;
+        --amber: #b45309;
+        --amber-soft: #fff4dd;
+        --red: #b91c1c;
+        --red-soft: #fee2e2;
+        --blue: #1d4ed8;
+        --blue-soft: #e8efff;
+        --green: #166534;
+        --green-soft: #e7f8ea;
+        --shadow: 0 12px 30px rgba(20, 36, 52, 0.08);
+        color-scheme: light;
+        font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      .layout {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 236px minmax(0, 1fr);
+      }
+
+      .sidebar {
+        background: #1e2936;
+        color: rgba(255, 255, 255, 0.84);
+        padding: 16px 12px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 8px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .brand-mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(130deg, #1fbda7, #3b82f6);
+        color: #fff;
+        font-weight: 800;
+      }
+
+      .brand-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.2;
+      }
+
+      .brand-sub {
+        margin-top: 2px;
+        color: rgba(255, 255, 255, 0.48);
+        font-size: 11px;
+      }
+
+      .menu {
+        margin-top: 14px;
+      }
+
+      .menu-label {
+        margin: 10px 8px 6px;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .menu-item {
+        min-height: 34px;
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 13px;
+      }
+
+      .menu-item.active {
+        background: rgba(31, 189, 167, 0.2);
+        color: #75e4d6;
+        font-weight: 700;
+      }
+
+      .main {
+        min-width: 0;
+        padding: 22px 24px 34px;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: flex-start;
+        margin-bottom: 16px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.25;
+      }
+
+      .subtitle {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .button {
+        min-height: 34px;
+        border-radius: 7px;
+        border: 1px solid var(--line-strong);
+        background: var(--surface);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 700;
+        padding: 0 12px;
+        cursor: pointer;
+      }
+
+      .button.primary {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #fff;
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        padding: 14px 15px;
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .panel-note {
+        margin: 5px 0 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .overview-cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .stat {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-soft);
+        padding: 10px;
+      }
+
+      .stat-label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .stat-value {
+        margin-top: 5px;
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .priority {
+        margin: 10px 0 0;
+        list-style: none;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .priority li {
+        display: grid;
+        grid-template-columns: 84px minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 10px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 22px;
+        padding: 0 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .tag.red {
+        background: var(--red-soft);
+        color: var(--red);
+      }
+
+      .tag.amber {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .tag.blue {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .tag.green {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .form-grid {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .field {
+        display: grid;
+        gap: 5px;
+      }
+
+      .field-wide {
+        grid-column: span 2;
+      }
+
+      .field-full {
+        grid-column: span 4;
+      }
+
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .input,
+      .select {
+        width: 100%;
+        min-height: 34px;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        padding: 0 10px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      .switch-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .switch-row input {
+        width: 16px;
+        height: 16px;
+      }
+
+      .hint {
+        margin: 2px 0 0;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .decision {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 12px;
+      }
+
+      .result-box {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        background: var(--surface-soft);
+      }
+
+      .result-title {
+        margin: 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .route {
+        margin-top: 6px;
+        font-size: 22px;
+        font-weight: 800;
+      }
+
+      .route.iap {
+        color: var(--amber);
+      }
+
+      .route.web {
+        color: var(--green);
+      }
+
+      .route.keep {
+        color: var(--blue);
+      }
+
+      .explain {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .mini-metrics {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .mini {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px;
+        background: #fff;
+      }
+
+      .mini-label {
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .mini-value {
+        margin-top: 4px;
+        font-weight: 700;
+      }
+
+      .table-wrap {
+        margin-top: 10px;
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 780px;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px 7px;
+        text-align: left;
+        font-size: 12px;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      pre {
+        margin: 10px 0 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 10px;
+        max-height: 310px;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .flow {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        min-height: 34px;
+        border-radius: 8px;
+        background: rgba(15, 118, 110, 0.95);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        font-size: 12px;
+        opacity: 0;
+        transform: translateY(8px);
+        pointer-events: none;
+        transition: all 0.2s ease;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      @media (max-width: 1260px) {
+        .form-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .overview-cards {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .field-full {
+          grid-column: span 3;
+        }
+
+        .decision {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 980px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: static;
+          height: auto;
+        }
+
+        .form-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .field-full {
+          grid-column: span 2;
+        }
+
+        .overview-cards {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .main {
+          padding: 16px 12px 24px;
+        }
+
+        .topbar {
+          flex-direction: column;
+        }
+
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .field-wide,
+        .field-full {
+          grid-column: span 1;
+        }
+
+        .mini-metrics {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">PX</div>
+          <div>
+            <p class="brand-title">支付路由配置</p>
+            <div class="brand-sub">水位线强制补足（单方案）</div>
+          </div>
+        </div>
+
+        <div class="menu">
+          <div class="menu-label">配置导航</div>
+          <div class="menu-item active">方案总览</div>
+          <div class="menu-item active">核心参数</div>
+          <div class="menu-item active">规则优先级</div>
+          <div class="menu-item active">演算与示例</div>
+          <div class="menu-item active">后端落地</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1 class="title">小游戏支付切换后台（评审版）</h1>
+            <p class="subtitle">
+              单方案：按后台配置周期滚动计算 target / safe_target / gap，仅用 safe_target 判定是否切内购。充值接口只读缓存结果，不做重计算。
+            </p>
+          </div>
+          <div class="actions">
+            <button class="button" id="recalcButton">重算预览</button>
+            <button class="button" id="copyButton">复制配置 JSON</button>
+            <button class="button primary" id="saveButton">保存并发布</button>
+          </div>
+        </header>
+
+        <section class="panel">
+          <h2>方案总览（只保留方案1）</h2>
+          <p class="panel-note">
+            统一指标：<strong>target = android_period × 阈值%</strong>，<strong>safe_target = target × 安全垫比例 + 固定安全垫</strong>，<strong>gap = safe_target - ios_iap_period</strong>。
+          </p>
+          <div class="overview-cards">
+            <div class="stat">
+              <div class="stat-label">统计窗口（滚动）</div>
+              <div class="stat-value" id="statWindowView">168小时</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">流水统计频次</div>
+              <div class="stat-value" id="statAggView">60分钟</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">决策刷新频率</div>
+              <div class="stat-value" id="refreshView">60分钟</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">推荐模式</div>
+              <div class="stat-value">按配置周期滚动 + 定时刷新</div>
+            </div>
+          </div>
+          <ul class="priority">
+            <li>
+              <span class="tag red">优先级 1</span>
+              <span>自然量新用户累计充值 <strong>500元以内</strong> 强制走内购（最高优先级）。</span>
+            </li>
+            <li>
+              <span class="tag amber">优先级 2</span>
+              <span>水位线补差：gap &gt; 0（未达 safe_target）强制内购，gap ≤ 0 切回网页。</span>
+            </li>
+            <li>
+              <span class="tag blue">优先级 3</span>
+              <span>命中最小持有时间：已在内购状态且未到持有时长，继续维持内购，避免短时反复切换。</span>
+            </li>
+            <li>
+              <span class="tag green">优先级 4</span>
+              <span>其余情况走网页支付；缓存缺失或统计异常按回退策略执行。</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="panel" style="margin-top: 12px">
+          <h2>核心配置参数</h2>
+          <p class="panel-note">参数覆盖会议纪要：周期、阈值、安全垫、数据口径、初始化、回退、SDK 依赖。</p>
+          <div class="form-grid">
+            <div class="field">
+              <label for="gameId">游戏ID</label>
+              <input id="gameId" class="input" value="G10087" />
+            </div>
+            <div class="field">
+              <label for="gameName">游戏名称</label>
+              <input id="gameName" class="input" value="龙城远征" />
+            </div>
+            <div class="field">
+              <label for="bankCode">bankCode / 渠道标识</label>
+              <input id="bankCode" class="input" value="wx_ua_01" />
+            </div>
+            <div class="field">
+              <label for="enabled">规则状态</label>
+              <select id="enabled" class="select">
+                <option value="1" selected>启用</option>
+                <option value="0">停用</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="windowHours">统计窗口（小时）</label>
+              <input id="windowHours" class="input" type="number" value="168" min="1" />
+              <div class="hint">滚动窗口按后台配置周期生效（例如168=7天）。</div>
+            </div>
+            <div class="field">
+              <label for="statAggMinutes">流水统计频次（分钟）</label>
+              <input id="statAggMinutes" class="input" type="number" value="60" min="5" />
+              <div class="hint">定时聚合 iOS内购/安卓流水，更新滚动窗口统计值。</div>
+            </div>
+            <div class="field">
+              <label for="refreshMinutes">决策刷新周期（分钟）</label>
+              <input id="refreshMinutes" class="input" type="number" value="60" min="5" />
+              <div class="hint">基于最新统计值计算 route 并写入决策缓存，不在充值接口计算。</div>
+            </div>
+            <div class="field">
+              <label for="cacheTtlMinutes">决策缓存TTL（分钟）</label>
+              <input id="cacheTtlMinutes" class="input" type="number" value="75" min="5" />
+              <div class="hint">TTL 建议略大于刷新周期。</div>
+            </div>
+            <div class="field">
+              <label for="minIapHoldMinutes">内购最小持有时长（分钟）</label>
+              <input id="minIapHoldMinutes" class="input" type="number" value="30" min="0" />
+            </div>
+
+            <div class="field">
+              <label for="thresholdRatio">基础阈值（%）</label>
+              <input id="thresholdRatio" class="input" type="number" value="2.5" step="0.1" min="0" />
+              <div class="hint">
+                <strong>threshold_ratio</strong>：iOS内购的基准目标占比，表示“iOS内购流水至少达到安卓流水的多少比例”。
+                默认 2.5%，公式：<code>target = android_period × threshold_ratio</code>。
+              </div>
+            </div>
+            <div class="field">
+              <label for="safetyFactor">安全垫比例系数</label>
+              <input id="safetyFactor" class="input" type="number" value="1.15" step="0.01" min="0" />
+              <div class="hint">safe_target = target × 比例系数 + 固定安全垫</div>
+            </div>
+            <div class="field">
+              <label for="safetyFixedAmount">固定安全垫（元）</label>
+              <input id="safetyFixedAmount" class="input" type="number" value="100" min="0" />
+              <div class="hint">建议默认 100 元，吸收延迟、退款和滚动过期抖动。</div>
+            </div>
+            <div class="field">
+              <label for="naturalCapAmount">自然量新用户强制内购金额（元）</label>
+              <input id="naturalCapAmount" class="input" type="number" value="500" min="0" />
+            </div>
+            <div class="field">
+              <label for="fallbackPolicy">缓存异常回退</label>
+              <select id="fallbackPolicy" class="select">
+                <option value="web" selected>网页支付</option>
+                <option value="iap">内购支付</option>
+                <option value="last">保持上次渠道</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="androidSource">安卓流水来源</label>
+              <input id="androidSource" class="input" value="wxgame" />
+            </div>
+            <div class="field">
+              <label for="iosSource">iOS流水来源</label>
+              <input id="iosSource" class="input" value="wxgameios" />
+            </div>
+            <div class="field">
+              <label for="sdkMinVersion">最低SDK版本</label>
+              <input id="sdkMinVersion" class="input" value="2.9.0" />
+            </div>
+            <div class="field">
+              <label for="initMode">初始化方式</label>
+              <select id="initMode" class="select">
+                <option value="auto" selected>自动初始化（首轮按当前汇总）</option>
+                <option value="manual">手动设定初始iOS种子</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="seedIosAmount">手动初始iOS种子金额</label>
+              <input id="seedIosAmount" class="input" type="number" value="0" min="0" />
+            </div>
+            <div class="field switch-row">
+              <input id="excludeTestAccount" type="checkbox" checked />
+              <label for="excludeTestAccount">排除测试账号</label>
+            </div>
+            <div class="field switch-row">
+              <input id="excludeTestTagOrder" type="checkbox" checked />
+              <label for="excludeTestTagOrder">排除 test 标签订单</label>
+            </div>
+            <div class="field switch-row">
+              <input id="lockChannelAfterOrder" type="checkbox" checked />
+              <label for="lockChannelAfterOrder">下单后锁定渠道</label>
+            </div>
+
+            <div class="field field-full">
+              <label for="remark">备注</label>
+              <input
+                id="remark"
+                class="input"
+                value="按配置周期滚动统计，定时刷新决策，充值接口仅读取最新决策缓存。"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top: 12px">
+          <h2>实时滚动演算预览（接口侧仅读缓存）</h2>
+          <p class="panel-note">
+            这个区域用于评审和联调。线上充值接口只做 key 查询：<strong>gameId + bankCode</strong>，避免复杂计算。
+          </p>
+          <div class="decision">
+            <div>
+              <div class="form-grid" style="margin-top: 8px">
+                <div class="field">
+                  <label for="demoAndroid">安卓滚动流水（元）</label>
+                  <input id="demoAndroid" class="input" type="number" value="1200000" min="0" />
+                </div>
+                <div class="field">
+                  <label for="demoIosIap">iOS内购滚动流水（元）</label>
+                  <input id="demoIosIap" class="input" type="number" value="26000" min="0" />
+                </div>
+                <div class="field">
+                  <label for="demoLastChannel">上次渠道</label>
+                  <select id="demoLastChannel" class="select">
+                    <option value="web" selected>网页支付</option>
+                    <option value="iap">内购支付</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="demoLastSwitchAge">距离上次切换（分钟）</label>
+                  <input id="demoLastSwitchAge" class="input" type="number" value="95" min="0" />
+                </div>
+                <div class="field switch-row">
+                  <input id="demoNatural" type="checkbox" />
+                  <label for="demoNatural">自然量新用户</label>
+                </div>
+                <div class="field">
+                  <label for="demoUserPay">该用户累计充值（元）</label>
+                  <input id="demoUserPay" class="input" type="number" value="880" min="0" />
+                </div>
+                <div class="field">
+                  <label for="demoCacheAge">缓存年龄（分钟）</label>
+                  <input id="demoCacheAge" class="input" type="number" value="32" min="0" />
+                </div>
+                <div class="field">
+                  <label for="demoSdkVersion">客户端SDK版本</label>
+                  <input id="demoSdkVersion" class="input" value="2.9.3" />
+                </div>
+              </div>
+            </div>
+
+            <div class="result-box">
+              <p class="result-title">决策结果</p>
+              <div class="route keep" id="routeText">保持上次渠道</div>
+              <div class="explain" id="routeReason">待计算</div>
+              <div class="mini-metrics">
+                <div class="mini">
+                  <div class="mini-label">target（基础目标）</div>
+                  <div class="mini-value" id="targetAmount">¥0</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-label">safe_target（含安全垫）</div>
+                  <div class="mini-value" id="safeTargetAmount">¥0</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-label">gap = safe_target - ios_iap_period</div>
+                  <div class="mini-value" id="gapAmount">¥0</div>
+                </div>
+              </div>
+              <div class="mini-metrics">
+                <div class="mini">
+                  <div class="mini-label">safe_target覆盖率</div>
+                  <div class="mini-value" id="coverageRate">0%</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-label">android_period</div>
+                  <div class="mini-value" id="androidAmountView">¥0</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-label">ios_iap_period</div>
+                  <div class="mini-value" id="iosAmountView">¥0</div>
+                </div>
+              </div>
+              <div class="mini-metrics">
+                <div class="mini">
+                  <div class="mini-label">决策缓存状态</div>
+                  <div class="mini-value" id="cacheState">有效</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-label">SDK校验</div>
+                  <div class="mini-value" id="sdkState">通过</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-label">规则命中</div>
+                  <div class="mini-value" id="ruleHit">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top: 12px">
+          <h2>评审示例（多场景）</h2>
+          <p class="panel-note">示例按当前配置自动演算，便于项目组评估“切换频率”和“手续费”平衡。</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>场景</th>
+                  <th>安卓滚动流水</th>
+                  <th>iOS内购滚动流水</th>
+                  <th>用户特征</th>
+                  <th>命中规则</th>
+                  <th>返回渠道</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody id="exampleBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top: 12px">
+          <h2>后端落地方案（具体实现）</h2>
+          <ol class="flow">
+            <li>统计任务按 <strong>stat_agg_minutes</strong> 聚合，计算最近 <strong>window_hours</strong> 内安卓与iOS内购流水。</li>
+            <li>决策任务按 <strong>refresh_minutes</strong> 读取最新统计值，计算 gap 并更新路由缓存。</li>
+            <li>安卓统计口径固定为 <code>wxgame</code> + <code>bankCode</code>，iOS统计口径固定为 <code>wxgameios</code>。</li>
+            <li>聚合键：<code>game_id + bank_code + paid_time</code>，并过滤测试账号和 <code>test</code> 标签订单。</li>
+            <li>统一指标：<code>target = android_sum × threshold_ratio</code>，<code>safe_target = target × safety_factor + safety_fixed_amount</code>。</li>
+            <li>缺口指标：<code>gap = safe_target - ios_iap_sum</code>；<code>gap &gt; 0</code> 走内购，<code>gap ≤ 0</code> 走网页。</li>
+            <li>结果写入 Redis：<code>payment:route:{gameId}:{bankCode}</code>，充值接口仅读该 key（O(1)）。</li>
+            <li>缓存过期/查询失败时按 <strong>fallback_policy</strong> 回退，不在充值链路走数据库重算。</li>
+            <li>SDK 只需要透传后台路由结果，前端不参与逻辑判断。</li>
+          </ol>
+          <pre id="algoPseudo"></pre>
+        </section>
+
+        <section class="panel" style="margin-top: 12px">
+          <h2>配置 JSON（可直接给后端）</h2>
+          <pre id="configJson"></pre>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast">已完成</div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      const inputIds = [
+        "gameId",
+        "gameName",
+        "bankCode",
+        "enabled",
+        "windowHours",
+        "statAggMinutes",
+        "refreshMinutes",
+        "cacheTtlMinutes",
+        "minIapHoldMinutes",
+        "thresholdRatio",
+        "safetyFactor",
+        "safetyFixedAmount",
+        "naturalCapAmount",
+        "fallbackPolicy",
+        "androidSource",
+        "iosSource",
+        "sdkMinVersion",
+        "initMode",
+        "seedIosAmount",
+        "excludeTestAccount",
+        "excludeTestTagOrder",
+        "lockChannelAfterOrder",
+        "remark",
+        "demoAndroid",
+        "demoIosIap",
+        "demoLastChannel",
+        "demoLastSwitchAge",
+        "demoNatural",
+        "demoUserPay",
+        "demoCacheAge",
+        "demoSdkVersion"
+      ];
+
+      const examples = [
+        {
+          name: "自然量新用户首充期",
+          android: 920000,
+          ios: 22000,
+          natural: true,
+          userPay: 120,
+          lastChannel: "web",
+          lastSwitchAge: 999,
+          cacheAge: 15,
+          sdk: "2.9.3",
+          note: "累计<500元，优先命中强制内购。"
+        },
+        {
+          name: "未达 safe_target",
+          android: 1200000,
+          ios: 32000,
+          natural: false,
+          userPay: 2600,
+          lastChannel: "web",
+          lastSwitchAge: 130,
+          cacheAge: 20,
+          sdk: "2.9.4",
+          note: "safe_target=34600，ios=32000，gap>0，走内购。"
+        },
+        {
+          name: "达到 safe_target",
+          android: 1200000,
+          ios: 36000,
+          natural: false,
+          userPay: 5200,
+          lastChannel: "iap",
+          lastSwitchAge: 90,
+          cacheAge: 22,
+          sdk: "2.9.4",
+          note: "safe_target=34600，ios=36000，gap<=0，切回网页。"
+        },
+        {
+          name: "刚达标但仍在持有期",
+          android: 1200000,
+          ios: 36000,
+          natural: false,
+          userPay: 5200,
+          lastChannel: "iap",
+          lastSwitchAge: 8,
+          cacheAge: 22,
+          sdk: "2.9.4",
+          note: "命中持有期规则，暂不切回网页。"
+        },
+        {
+          name: "缓存过期",
+          android: 1200000,
+          ios: 30000,
+          natural: false,
+          userPay: 2600,
+          lastChannel: "web",
+          lastSwitchAge: 300,
+          cacheAge: 180,
+          sdk: "2.9.4",
+          note: "走回退策略。"
+        },
+        {
+          name: "SDK未达标",
+          android: 1200000,
+          ios: 30000,
+          natural: false,
+          userPay: 2600,
+          lastChannel: "web",
+          lastSwitchAge: 300,
+          cacheAge: 20,
+          sdk: "2.8.0",
+          note: "按SDK兼容回退。"
+        }
+      ];
+
+      function toNumber(id) {
+        const value = Number($(id).value);
+        return Number.isFinite(value) ? value : 0;
+      }
+
+      function money(value) {
+        return `¥${Math.round(value || 0).toLocaleString("zh-CN")}`;
+      }
+
+      function moneySigned(value) {
+        const abs = money(Math.abs(value || 0));
+        if (!value) return abs;
+        return value > 0 ? `+${abs}` : `-${abs}`;
+      }
+
+      function percent(value) {
+        return `${value.toFixed(2)}%`;
+      }
+
+      function semverCompare(a, b) {
+        const pa = String(a || "0")
+          .split(".")
+          .map((x) => Number(x) || 0);
+        const pb = String(b || "0")
+          .split(".")
+          .map((x) => Number(x) || 0);
+        const length = Math.max(pa.length, pb.length);
+        for (let i = 0; i < length; i += 1) {
+          const na = pa[i] || 0;
+          const nb = pb[i] || 0;
+          if (na > nb) return 1;
+          if (na < nb) return -1;
+        }
+        return 0;
+      }
+
+      function getConfig() {
+        const threshold = toNumber("thresholdRatio");
+        const safety = toNumber("safetyFactor");
+        const safetyFixed = toNumber("safetyFixedAmount");
+        return {
+          strategy: "waterline_force_topup",
+          enabled: $("enabled").value === "1",
+          scope: {
+            game_id: $("gameId").value.trim(),
+            game_name: $("gameName").value.trim(),
+            bank_code: $("bankCode").value.trim()
+          },
+          window: {
+            rolling_hours: toNumber("windowHours"),
+            stat_agg_minutes: toNumber("statAggMinutes"),
+            refresh_minutes: toNumber("refreshMinutes"),
+            decision_cache_ttl_minutes: toNumber("cacheTtlMinutes")
+          },
+          threshold: {
+            ratio_percent: threshold,
+            safety_factor: safety,
+            safety_fixed_amount: safetyFixed,
+            effective_safe_ratio_percent: Number((threshold * safety).toFixed(4))
+          },
+          priority_rules: [
+            "natural_new_user_force_iap",
+            "waterline_safe_target_switch",
+            "iap_min_hold_guard",
+            "default_web_or_fallback"
+          ],
+          natural_new_user_rule: {
+            enabled: true,
+            force_iap_amount: toNumber("naturalCapAmount")
+          },
+          data_scope: {
+            android_source: $("androidSource").value.trim(),
+            ios_source: $("iosSource").value.trim(),
+            aggregate_key: ["game_id", "bank_code", "paid_time"],
+            exclude_test_accounts: $("excludeTestAccount").checked,
+            exclude_test_tag_orders: $("excludeTestTagOrder").checked
+          },
+          init: {
+            mode: $("initMode").value,
+            manual_ios_seed_amount: toNumber("seedIosAmount")
+          },
+          fallback: {
+            cache_or_stat_error: $("fallbackPolicy").value,
+            sdk_not_supported: $("fallbackPolicy").value
+          },
+          sdk: {
+            min_version: $("sdkMinVersion").value.trim(),
+            route_field: "payment_route"
+          },
+          experience_guard: {
+            min_iap_hold_minutes: toNumber("minIapHoldMinutes"),
+            lock_channel_after_order_created: $("lockChannelAfterOrder").checked
+          },
+          remark: $("remark").value.trim()
+        };
+      }
+
+      function fallbackRoute(policy, lastChannel) {
+        if (policy === "iap") return "iap";
+        if (policy === "last") return lastChannel || "web";
+        return "web";
+      }
+
+      function decideRoute(config, input) {
+        if (!config.enabled) {
+          return { route: "web", hitRule: "规则关闭", reason: "配置停用，默认网页支付。" };
+        }
+
+        const sdkOk = semverCompare(input.sdkVersion, config.sdk.min_version) >= 0;
+        if (!sdkOk) {
+          const route = fallbackRoute(config.fallback.sdk_not_supported, input.lastChannel);
+          return {
+            route,
+            hitRule: "SDK回退",
+            reason: `SDK低于最低版本 ${config.sdk.min_version}，按回退策略执行。`,
+            sdkOk
+          };
+        }
+
+        const cacheValid = input.cacheAgeMinutes <= config.window.decision_cache_ttl_minutes;
+        if (!cacheValid) {
+          const route = fallbackRoute(config.fallback.cache_or_stat_error, input.lastChannel);
+          return {
+            route,
+            hitRule: "缓存回退",
+            reason: "决策缓存过期或缺失，按回退策略执行。",
+            cacheValid,
+            sdkOk
+          };
+        }
+
+        if (input.isNaturalNewUser && input.userTotalPayAmount < config.natural_new_user_rule.force_iap_amount) {
+          return {
+            route: "iap",
+            hitRule: "自然量新用户规则",
+            reason: `累计充值低于 ${config.natural_new_user_rule.force_iap_amount} 元，强制内购。`,
+            cacheValid,
+            sdkOk
+          };
+        }
+
+        const iosSeed = config.init.mode === "manual" ? config.init.manual_ios_seed_amount : 0;
+        const iosEffective = input.iosIapAmount + iosSeed;
+        const target = input.androidAmount * (config.threshold.ratio_percent / 100);
+        const safeTarget = target * config.threshold.safety_factor + config.threshold.safety_fixed_amount;
+        const gap = safeTarget - iosEffective;
+        const coverage = safeTarget <= 0 ? 100 : (iosEffective / safeTarget) * 100;
+        let route = gap > 0 ? "iap" : "web";
+        let hitRule = gap > 0 ? "safe_target未达标" : "safe_target已达标";
+        let reason = gap > 0 ? "gap > 0，继续内购补差。" : "gap <= 0，切回网页支付。";
+
+        if (
+          route === "web" &&
+          input.lastChannel === "iap" &&
+          input.lastSwitchAgeMinutes < config.experience_guard.min_iap_hold_minutes
+        ) {
+          route = "iap";
+          hitRule = "内购持有规则";
+          reason = `已达标但仍在 ${config.experience_guard.min_iap_hold_minutes} 分钟持有期内，暂不切回网页。`;
+        }
+
+        return {
+          route,
+          hitRule,
+          reason,
+          target,
+          safeTarget,
+          gap,
+          coverage,
+          cacheValid,
+          sdkOk
+        };
+      }
+
+      function routeText(route) {
+        if (route === "iap") return "内购支付";
+        if (route === "web") return "网页支付";
+        return "保持上次渠道";
+      }
+
+      function routeClass(route) {
+        if (route === "iap") return "iap";
+        if (route === "web") return "web";
+        return "keep";
+      }
+
+      function renderExamples(config) {
+        const rows = examples
+          .map((item) => {
+            const result = decideRoute(config, {
+              androidAmount: item.android,
+              iosIapAmount: item.ios,
+              isNaturalNewUser: item.natural,
+              userTotalPayAmount: item.userPay,
+              lastChannel: item.lastChannel,
+              lastSwitchAgeMinutes: item.lastSwitchAge,
+              cacheAgeMinutes: item.cacheAge,
+              sdkVersion: item.sdk
+            });
+            return `
+              <tr>
+                <td><strong>${item.name}</strong></td>
+                <td>${money(item.android)}</td>
+                <td>${money(item.ios)}</td>
+                <td>${item.natural ? "自然量新用户" : "常规用户"} / 累计${money(item.userPay)}</td>
+                <td>${result.hitRule}</td>
+                <td><span class="tag ${result.route === "iap" ? "amber" : "green"}">${routeText(result.route)}</span></td>
+                <td>${item.note}</td>
+              </tr>
+            `;
+          })
+          .join("");
+        $("exampleBody").innerHTML = rows;
+      }
+
+      function buildPseudo(config) {
+        return `# 统计任务（每 ${config.window.stat_agg_minutes} 分钟）
+android_sum = agg(source="${config.data_scope.android_source}", window=${config.window.rolling_hours}h)
+ios_iap_sum = agg(source="${config.data_scope.ios_source}", window=${config.window.rolling_hours}h)
+
+# 决策任务（每 ${config.window.refresh_minutes} 分钟）
+target = android_sum * ${config.threshold.ratio_percent}%
+safe_target = target * ${config.threshold.safety_factor} + ${config.threshold.safety_fixed_amount}
+gap = safe_target - ios_iap_sum
+if gap > 0: route = "iap"
+else: route = "web"
+cache_set(key=payment:route:{gameId}:{bankCode}, ttl=${config.window.decision_cache_ttl_minutes}m)
+
+# 充值接口（每次请求，O(1)）
+decision = cache_get(payment:route:{gameId}:{bankCode})
+if decision missing/stale: route = ${config.fallback.cache_or_stat_error}
+if natural_new_user and user_total < ${config.natural_new_user_rule.force_iap_amount}: route = "iap"
+return route`;
+      }
+
+      function recalc() {
+        const config = getConfig();
+        const result = decideRoute(config, {
+          androidAmount: toNumber("demoAndroid"),
+          iosIapAmount: toNumber("demoIosIap"),
+          isNaturalNewUser: $("demoNatural").checked,
+          userTotalPayAmount: toNumber("demoUserPay"),
+          lastChannel: $("demoLastChannel").value,
+          lastSwitchAgeMinutes: toNumber("demoLastSwitchAge"),
+          cacheAgeMinutes: toNumber("demoCacheAge"),
+          sdkVersion: $("demoSdkVersion").value.trim()
+        });
+
+        $("statWindowView").textContent = `${config.window.rolling_hours}小时`;
+        $("statAggView").textContent = `${config.window.stat_agg_minutes}分钟`;
+        $("refreshView").textContent = `${config.window.refresh_minutes}分钟`;
+        $("routeText").textContent = routeText(result.route);
+        $("routeText").className = `route ${routeClass(result.route)}`;
+        $("routeReason").textContent = result.reason;
+        $("targetAmount").textContent = money(result.target || 0);
+        $("safeTargetAmount").textContent = money(result.safeTarget || 0);
+        $("gapAmount").textContent = moneySigned(result.gap || 0);
+        $("coverageRate").textContent = percent(result.coverage || 0);
+        $("androidAmountView").textContent = money(toNumber("demoAndroid"));
+        $("iosAmountView").textContent = money(toNumber("demoIosIap"));
+        $("cacheState").textContent = result.cacheValid === false ? "过期" : "有效";
+        $("sdkState").textContent = result.sdkOk === false ? "不通过" : "通过";
+        $("ruleHit").textContent = result.hitRule || "--";
+
+        $("algoPseudo").textContent = buildPseudo(config);
+        $("configJson").textContent = JSON.stringify(config, null, 2);
+        renderExamples(config);
+      }
+
+      function showToast(text) {
+        const toast = $("toast");
+        toast.textContent = text;
+        toast.classList.add("show");
+        clearTimeout(showToast.timer);
+        showToast.timer = setTimeout(() => toast.classList.remove("show"), 1400);
+      }
+
+      inputIds.forEach((id) => {
+        const node = $(id);
+        if (!node) return;
+        node.addEventListener("change", recalc);
+        node.addEventListener("input", recalc);
+      });
+
+      $("recalcButton").addEventListener("click", () => {
+        recalc();
+        showToast("已按最新参数重算");
+      });
+
+      $("copyButton").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText($("configJson").textContent);
+          showToast("配置 JSON 已复制");
+        } catch (error) {
+          showToast("复制失败，请手动复制");
+        }
+      });
+
+      $("saveButton").addEventListener("click", () => showToast("已保存并发布到灰度"));
+
+      recalc();
+    </script>
+  </body>
+</html>
