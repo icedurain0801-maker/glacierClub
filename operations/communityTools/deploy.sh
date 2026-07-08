@@ -13,11 +13,11 @@ if [ -z "${DEPLOY_TOKEN:-}" ]; then
   exit 1
 fi
 
-rm -f app.zip
+trap 'rm -f app.zip' EXIT   # 无论成功/失败都清理临时包，避免误提交
+
 zip -j app.zip index.html
 echo "已打包 app.zip，开始上传到 $APPNAME ..."
 curl -fsS -H "X-Deploy-Token: $DEPLOY_TOKEN" -F file=@app.zip \
   "$BAAS/v1/hosting/$APPNAME/versions"
 echo
 echo "上传完成。等待审批通过后访问：https://chat.q1.com/apps/$APPNAME/"
-rm -f app.zip
