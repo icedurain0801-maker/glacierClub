@@ -1063,10 +1063,14 @@ async function diagnose() {
     clearInterval(timer);
     progress.classList.remove('visible');
     progressBar.style.width = '0%';
+    var isLoginErr = (err && (err.code === 'need_login')) || /login|sso|登录|401|403/i.test(err && err.message || '');
+    var hint = isLoginErr
+      ? '需先登录冰川账号才能使用 AI 排查。若在本地 file:// 打开则 AI 不可用，请通过 <b>https://chat.q1.com/apps/clubtools/</b> 访问后再试。'
+      : 'AI 调用异常，请稍后重试；若持续失败请联系平台产品。';
     document.getElementById('diagnose-output').innerHTML =
       '<div class="ai-result-item" style="border-color:#fca5a5;background:#fff5f5">'
-      + '<div class="ai-result-title"><div class="dot red"></div>AI 调用失败</div>'
-      + '<div class="ai-result-body">' + err.message + '<br><small>请检查 AI_CONFIG 中的 apiKey / baseUrl / model 是否正确。</small></div>'
+      + '<div class="ai-result-title"><div class="dot red"></div>' + (isLoginErr ? '需要登录' : 'AI 调用失败') + '</div>'
+      + '<div class="ai-result-body">' + (err && err.message ? err.message + '<br>' : '') + '<small>' + hint + '</small></div>'
       + '</div>';
   } finally {
     btn.textContent = '开始排查';
