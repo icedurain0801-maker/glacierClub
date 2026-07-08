@@ -61,6 +61,7 @@ function navigate(page) {
 
   if (page === 'versions' && window.pages.versions) return window.pages.versions(content);
   if (page === 'users' && window.pages.users) return window.pages.users(content);
+  if (page === 'knowledge' && window.pages.knowledge) return window.pages.knowledge(content);
   content.innerHTML = window.pages.placeholder(MENU_TITLES[page] || page);
 }
 
