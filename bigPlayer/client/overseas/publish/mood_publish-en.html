@@ -123,6 +123,8 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
 .compose-textarea{width:100%;border:none;background:transparent;outline:none;resize:none;
   font-family:Inter;font-size:15px;color:var(--text-strong-2);line-height:1.6;min-height:120px;}
 .compose-textarea::placeholder{color:#c8d0d5;}
+.char-count{text-align:right;font-family:Inter;font-size:11px;color:var(--text-faint);margin-top:2px;}
+.char-count.limit{color:var(--error);}
 
 /* media upload zone */
 .upload-zone{margin:12px 16px;border:2px dashed #c8d0d5;border-radius:12px;
@@ -215,7 +217,8 @@ body{background:var(--bg-body);display:flex;justify-content:center;align-items:f
     <!-- Text input -->
     <div class="compose-area">
       <textarea class="compose-textarea" id="mainTextarea" placeholder="Share what's on your mind…" rows="5"
-        oninput="updateSaveBtn()"></textarea>
+        maxlength="500" oninput="updateSaveBtn();updateCharCount()"></textarea>
+      <div class="char-count" id="charCount">0/500</div>
     </div>
 
     <!-- Media upload -->
@@ -323,6 +326,14 @@ function updateSaveBtn() {
   const hasContent = document.getElementById('mainTextarea').value.trim().length > 0 || mediaFiles.length > 0;
   btn.disabled = !hasContent;
   btn.className = hasContent ? 'tb-save active' : 'tb-save';
+}
+
+function updateCharCount() {
+  const MAX_CHARS = 500;
+  const len = document.getElementById('mainTextarea').value.length;
+  const el = document.getElementById('charCount');
+  el.textContent = len + '/' + MAX_CHARS;
+  el.classList.toggle('limit', len >= MAX_CHARS);
 }
 </script>
 
