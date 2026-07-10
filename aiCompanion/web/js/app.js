@@ -62,6 +62,8 @@ function navigate(page) {
   if (page === 'versions' && window.pages.versions) return window.pages.versions(content);
   if (page === 'users' && window.pages.users) return window.pages.users(content);
   if (page === 'knowledge' && window.pages.knowledge) return window.pages.knowledge(content);
+  if (page === 'bots' && window.pages.bots) return window.pages.bots(content);
+  if (page === 'sessions' && window.pages.sessions) return window.pages.sessions(content);
   content.innerHTML = window.pages.placeholder(MENU_TITLES[page] || page);
 }
 
