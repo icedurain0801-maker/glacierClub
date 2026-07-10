@@ -55,15 +55,27 @@ async function loadHistory(sessionId, limit) {
   return rows.reverse();
 }
 
-// 拼 prompt:system + 历史 + 本次 user。超过 maxPromptBytes 就砍老历史。
+// 拼 prompt:system + 历史 + 本次 user。超过 maxPromptBytes 就先砍历史，
+// 若 system(persona+contextBlock) 本身就超预算，截断 contextBlock。
 function buildMessages(bot, history, userMessage, contextBlock) {
-  const systemContent = bot.persona + contextBlock;
+  const budget = cfg.llm.maxPromptBytes;
+  const personaBytes = Buffer.byteLength(bot.persona, 'utf8');
+  const userBytes = Buffer.byteLength(userMessage, 'utf8');
+  // 给 system 留的最大空间 = 总预算 - user消息 - 一点余量(200 字节给结构开销)
+  const systemBudget = Math.max(200, budget - userBytes - 200);
+  let systemContent = bot.persona + contextBlock;
+  if (Buffer.byteLength(systemContent, 'utf8') > systemBudget) {
+    // 保留 persona 完整，截断 contextBlock 尾部
+    const remaining = Math.max(0, systemBudget - personaBytes);
+    systemContent = bot.persona + Buffer.from(contextBlock, 'utf8').slice(0, remaining).toString('utf8');
+  }
+
   const messages = [{ role: 'system', content: systemContent }];
   for (const m of history) messages.push({ role: m.role, content: m.content });
   messages.push({ role: 'user', content: userMessage });
 
   const totalBytes = () => messages.reduce((s, m) => s + Buffer.byteLength(m.content, 'utf8'), 0);
-  while (totalBytes() > cfg.llm.maxPromptBytes && messages.length > 2) {
+  while (totalBytes() > budget && messages.length > 2) {
     // 保留 system(index 0)和最后一条 user,砍中间最老的
     messages.splice(1, 1);
   }
@@ -96,11 +108,15 @@ async function handleChat({ versionId, sessionKey, message }) {
   const bot = await getBot(versionId);
   const { id: sessionId } = await findOrCreateSession(versionId, sessionKey, message);
 
-  // 存 user message
+  // 先加载历史,再存本次 user message。这样避免"从历史里排除刚存的自己"的脆弱逻辑。
+  // 取 N 轮 = 2N 条消息（user+assistant 交替）
+  const history = await loadHistory(sessionId, bot.history_turns * 2);
+
+  // 现在再存 user message
   const userMsgId = await saveMessage(versionId, sessionId, 'user', message, null);
 
   try {
-    // RAG(失败退化为空 refs,不抛)
+    // RAG(ragContext.retrieve 内部已 try/catch，失败返回 [])
     let refs = [];
     let contextBlock = '';
     if (bot.rag_enabled) {
@@ -108,12 +124,7 @@ async function handleChat({ versionId, sessionKey, message }) {
       contextBlock = ragContext.toContextBlock(refs);
     }
 
-    // 历史(N 轮 = 2N 条 user+assistant;我们直接按条数取,简单)
-    const history = await loadHistory(sessionId, bot.history_turns * 2);
-    // 历史最后一条就是我们刚存的 user message,要排除
-    const historyExcludingCurrent = history.filter(m => !(m.role === 'user' && m.content === message)).slice(-bot.history_turns * 2 + 1);
-
-    const messages = buildMessages(bot, historyExcludingCurrent, message, contextBlock);
+    const messages = buildMessages(bot, history, message, contextBlock);
 
     // 调 LLM
     const { content: reply } = await llm.chat(messages, { model: bot.model || undefined });
