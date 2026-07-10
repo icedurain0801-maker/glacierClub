@@ -6,8 +6,8 @@ const { fail } = require('../utils/errors');
 const cfg = require('../config/kb');
 const chatService = require('../services/chatService');
 
-// 中间件:校验 versionId
-async function requireVersion(req, res, next) {
+// 中间件:校验 versionId (用 ah 包裹避免 async 中间件的 rejected promise 被吞)
+const requireVersion = ah(async (req, res, next) => {
   const raw = req.body?.versionId || req.query?.versionId;
   const versionId = parseInt(raw, 10);
   if (!versionId) return fail(res, 400, 'versionId 必填');
@@ -15,7 +15,7 @@ async function requireVersion(req, res, next) {
   if (rows.length === 0) return fail(res, 404, '版本不存在');
   req.versionId = versionId;
   next();
-}
+});
 
 // GET /api/public/bot — 只返 welcome
 router.get('/bot', requireVersion, ah(async (req, res) => {
