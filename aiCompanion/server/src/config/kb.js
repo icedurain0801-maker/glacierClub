@@ -17,4 +17,14 @@ module.exports = {
     retries: 3,
     retryBaseMs: 500,
   },
+
+  llm: {
+    apiUrl: process.env.LLM_API_URL || '',
+    apiKey: process.env.LLM_API_KEY || '',
+    model:  process.env.LLM_MODEL  || 'qwen-plus',
+    retries: 3,
+    retryBaseMs: 500,
+    maxMessageBytes: 4 * 1024,
+    maxPromptBytes: 8 * 1024,
+  },
 };
