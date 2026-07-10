@@ -39,3 +39,20 @@ python -m http.server 8090
 - 内存向量索引适合数万条内；超大规模需换 pgvector。
 - 图谱抽取以结构化行为主(首列作主实体，跨行同名建关系)；自由文本深度抽取(LLM)未做。
 - 摄取失败会在 `ingest_jobs.error` 里记录，job 状态置 failed，需删掉文档重传(entries/vectors 无事务，中途崩溃会留孤儿)。
+
+## 子项目3:机器人+会话+C端对话(v003)
+
+已实现:B 端机器人配置页(每版本一个)、会话列表+详情页、C 端 chat.html 匿名对话页(sessionKey 存 localStorage)、LLM 服务(fetch+重试+可测试替换)、内嵌 RAG(检索当前版本知识库塞进 prompt)。
+
+### 使用
+1. `.env` 追加 `LLM_API_URL / LLM_API_KEY / LLM_MODEL`(默认按通义千问 dashscope 兼容协议)。
+2. `npm run migrate` 应用 004_bot_chat.sql。
+3. `npm run test:chat` 跑集成测试(用假 LLM+假 embedding,无需真 key,11/11 通过)。
+4. `npm start` 启动。
+5. 后台「机器人管理」保存人设 → 打开 `chat.html?versionId=1` 开始对话。
+
+### 已知边界
+- 单进程同步对话:一次请求阻塞到 LLM 返回,高并发场景需上流式或队列。
+- 历史窗口按条数截断,不做摘要;长会话质量会下降。
+- 匿名 session 无清理策略,`chat_sessions` 会长期累积;上生产前应加定时清理。
+- refs 只带 snippet(截前 200 字),不开放完整条目查询接口给 C 端。
