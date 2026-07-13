@@ -4,19 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0,user-scalable=no">
   <title>AI 陪伴机器人</title>
-  <link rel="stylesheet" href="css/chat.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="chat-page">
   <div class="chat-shell">
     <div class="chat-header">
-      <span id="chat-title">陪玩助手</span>
+      <div class="avatar" id="chat-avatar">AI</div>
+      <div class="title-block">
+        <span id="chat-title">陪玩助手</span>
+        <span class="status-line">在线</span>
+      </div>
     </div>
     <div class="chat-body" id="chat-body">
       <div class="chat-empty" id="chat-empty">加载中…</div>
     </div>
     <div class="chat-input">
       <textarea id="chat-input" placeholder="说点什么…(Enter 发送,Shift+Enter 换行)" rows="1"></textarea>
-      <button id="chat-send">发送</button>
+      <button id="chat-send" title="发送">➤</button>
     </div>
   </div>
   <script src="js/chat.js"></script>

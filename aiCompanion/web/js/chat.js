@@ -33,9 +33,9 @@ function appendMsg(role, content, refs) {
   div.className = 'msg ' + (role === 'assistant' ? 'bot' : 'user');
   let refsHtml = '';
   if (refs && refs.length) {
-    refsHtml = `<div class="refs">参考自 ${refs.length} 条知识:${refs.map(r => `#${r.entryId}(${r.score.toFixed(3)})`).join(' ')}</div>`;
+    refsHtml = `<div class="refs">参考 ${refs.length} 条: ${refs.map(r => `<span class="ref-item">#${r.entryId} (${r.score.toFixed(3)})</span>`).join('')}</div>`;
   }
-  div.innerHTML = escapeHtml(content) + refsHtml;
+  div.innerHTML = `<div class="bubble">${escapeHtml(content)}</div>${refsHtml}`;
   bodyEl.appendChild(div);
   bodyEl.scrollTop = bodyEl.scrollHeight;
   return div;
@@ -44,7 +44,7 @@ function appendMsg(role, content, refs) {
 function appendThinking() {
   const div = document.createElement('div');
   div.className = 'msg bot thinking';
-  div.textContent = '思考中…';
+  div.innerHTML = '<div class="bubble">思考中…</div>';
   bodyEl.appendChild(div);
   bodyEl.scrollTop = bodyEl.scrollHeight;
   return div;
