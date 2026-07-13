@@ -7,6 +7,7 @@ const excelParser = require('./excelParser');
 const embedding = require('./embedding');
 const vectorStore = require('./vectorStore');
 const graphExtractor = require('./graphExtractor');
+const kgContext = require('./kgContext');
 
 let timer = null;
 let running = false;
@@ -57,7 +58,8 @@ async function processJob(job) {
   const allRows = [];
   for (const row of parsed.iterate()) allRows.push(row);
 
-  // 分批：写条目 + 向量化
+  // 分批：写条目 + 向量化。entryIdByRow 供图谱抽取写条目-实体关联。
+  const entryIdByRow = new Map();
   let processed = 0;
   for (let i = 0; i < allRows.length; i += cfg.batchSize) {
     const batch = allRows.slice(i, i + cfg.batchSize);
@@ -69,6 +71,7 @@ async function processJob(job) {
         [versionId, documentId, r.rowIndex, r.content, JSON.stringify(r.obj)]
       );
       entryIds.push(ins.insertId);
+      entryIdByRow.set(r.rowIndex, ins.insertId);
     }
     // 向量化
     const vectors = await embedding.embedBatch(batch.map(r => r.content));
@@ -85,8 +88,9 @@ async function processJob(job) {
     await updateProgress(job.id, processed, total);
   }
 
-  // 图谱抽取
-  await graphExtractor.extract({ versionId, documentId, headers: parsed.headers, rows: allRows });
+  // 图谱抽取(含别名与条目-实体关联)，完成后失效该版本的别名缓存
+  await graphExtractor.extract({ versionId, documentId, headers: parsed.headers, rows: allRows, entryIdByRow });
+  kgContext.invalidate(versionId);
 
   // 完成
   await db.query('UPDATE kb_documents SET status="done", row_count=? WHERE id=?', [total, documentId]);
