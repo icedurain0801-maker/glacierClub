@@ -142,11 +142,18 @@ window.pages.knowledge = async function (content) {
     detail.innerHTML = '<div class="card">加载中…</div>';
     try {
       const entries = await window.api.apiFetch(`/kb/entries?documentId=${id}&limit=20`, { withVersion: true });
+      const apiOrigin = localStorage.getItem('apiBase') || 'http://localhost:3100';
       detail.innerHTML = `
         <div class="card">
           <div class="card-title">📄 条目预览 (前 20 条)</div>
           ${entries.map(e => `
-            <div style="background:#fafafa;border:1px solid var(--border-secondary);border-radius:6px;padding:12px 14px;margin-bottom:8px;white-space:pre-wrap;font-size:13px;color:var(--text-secondary);">${escapeHtml(e.content)}</div>
+            <div style="background:#fafafa;border:1px solid var(--border-secondary);border-radius:6px;padding:12px 14px;margin-bottom:8px;">
+              <div style="white-space:pre-wrap;font-size:13px;color:var(--text-secondary);">${escapeHtml(e.content)}</div>
+              ${(e.images && e.images.length) ? `
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+                  ${e.images.map(url => `<img src="${apiOrigin}${escapeHtml(url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border-secondary);">`).join('')}
+                </div>` : ''}
+            </div>
           `).join('')}
         </div>`;
     } catch (err) { detail.innerHTML = `<div class="card">失败: ${err.message}</div>`; }
