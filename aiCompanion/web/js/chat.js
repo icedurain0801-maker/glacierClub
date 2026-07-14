@@ -1,4 +1,5 @@
-const API_BASE = (localStorage.getItem('apiBase') || 'http://localhost:3100') + '/api';
+const API_ORIGIN = localStorage.getItem('apiBase') || 'http://localhost:3100';
+const API_BASE = API_ORIGIN + '/api';
 
 const params = new URLSearchParams(location.search);
 const versionId = parseInt(params.get('versionId'), 10);
@@ -32,14 +33,34 @@ function appendMsg(role, content, refs) {
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'assistant' ? 'bot' : 'user');
   let refsHtml = '';
+  let imagesHtml = '';
   if (refs && refs.length) {
     refsHtml = `<div class="refs">参考 ${refs.length} 条: ${refs.map(r => `<span class="ref-item">#${r.entryId} (${r.score.toFixed(3)})</span>`).join('')}</div>`;
+    const imgUrls = [...new Set(refs.flatMap(r => r.images || []))];
+    if (imgUrls.length > 0) {
+      imagesHtml = `<div class="ref-images">${imgUrls.map(url =>
+        `<img class="ref-thumb" src="${API_ORIGIN}${escapeHtml(url)}" onclick="showFullImage('${API_ORIGIN}${escapeHtml(url)}')">`
+      ).join('')}</div>`;
+    }
   }
-  div.innerHTML = `<div class="bubble">${escapeHtml(content)}</div>${refsHtml}`;
+  div.innerHTML = `<div class="bubble">${escapeHtml(content)}</div>${imagesHtml}${refsHtml}`;
   bodyEl.appendChild(div);
   bodyEl.scrollTop = bodyEl.scrollHeight;
   return div;
 }
+
+// 全屏遮罩看原图,点遮罩关闭
+function showFullImage(url) {
+  const old = document.getElementById('img-overlay');
+  if (old) old.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'img-overlay';
+  overlay.className = 'img-overlay';
+  overlay.innerHTML = `<img src="${url}">`;
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+window.showFullImage = showFullImage;
 
 function appendThinking() {
   const div = document.createElement('div');
