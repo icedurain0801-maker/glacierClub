@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const router = require('express').Router();
 const multer = require('multer');
 const db = require('../config/db');
@@ -87,6 +89,9 @@ router.delete('/documents/:id', ah(async (req, res) => {
   const [r] = await db.query('DELETE FROM kb_documents WHERE version_id=? AND id=?', [req.versionId, req.params.id]);
   if (r.affectedRows === 0) return fail(res, 404, '文档不存在');
   vectorStore.removeDocument(req.versionId, entryIds);
+  // kb_entry_images 数据库记录靠外键级联删除,这里清理对应的磁盘图片目录
+  const imgDir = path.join(cfg.kbImagesDir, String(req.versionId), String(req.params.id));
+  try { fs.rmSync(imgDir, { recursive: true, force: true }); } catch { /* ignore */ }
   res.json({ ok: true });
 }));
 
@@ -100,7 +105,18 @@ router.get('/entries', ah(async (req, res) => {
     'SELECT id, row_index, content, raw_json FROM knowledge_entries WHERE version_id=? AND document_id=? ORDER BY row_index LIMIT ? OFFSET ?',
     [req.versionId, documentId, limit, offset]
   );
-  res.json(rows);
+  if (rows.length === 0) return res.json([]);
+  const ids = rows.map(r => r.id);
+  const [imgRows] = await db.query(
+    `SELECT entry_id, url FROM kb_entry_images WHERE entry_id IN (${ids.map(() => '?').join(',')})`,
+    ids
+  );
+  const imagesByEntry = new Map();
+  for (const img of imgRows) {
+    if (!imagesByEntry.has(img.entry_id)) imagesByEntry.set(img.entry_id, []);
+    imagesByEntry.get(img.entry_id).push(img.url);
+  }
+  res.json(rows.map(r => ({ ...r, images: imagesByEntry.get(r.id) || [] })));
 }));
 
 // —— 检索 ——
