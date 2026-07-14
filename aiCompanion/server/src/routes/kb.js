@@ -91,7 +91,7 @@ router.delete('/documents/:id', ah(async (req, res) => {
   vectorStore.removeDocument(req.versionId, entryIds);
   // kb_entry_images 数据库记录靠外键级联删除,这里清理对应的磁盘图片目录
   const imgDir = path.join(cfg.kbImagesDir, String(req.versionId), String(req.params.id));
-  try { fs.rmSync(imgDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  try { fs.rmSync(imgDir, { recursive: true, force: true }); } catch (err) { console.error('[kb] 图片目录清理失败:', imgDir, err.message); }
   res.json({ ok: true });
 }));
 
