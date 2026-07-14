@@ -10,8 +10,11 @@ const PNG_RED = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
 const PNG_GREEN = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 const PNG_BLUE = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfz0AEYBxVSF+FAAhKDveWkH6oAAAAAElFTkSuQmCC', 'base64');
 
-function oneCellAnchor(row, col, rId) {
-  return `<xdr:oneCellAnchor><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="200000" cy="200000"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${row * 10 + col}" name="p${row}_${col}"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${rId}"/></xdr:blipFill><xdr:spPr/></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
+// attrs: 可选,附加到开始标签上的属性字符串(如 ' editAs="oneCell"')。
+// Excel 插入图片("随单元格移动但不随单元格调整大小")时默认会生成带 editAs="oneCell" 的锚点,
+// 而不是无属性的裸标签,故测试夹具需要同时覆盖这两种真实形态。
+function oneCellAnchor(row, col, rId, attrs = '') {
+  return `<xdr:oneCellAnchor${attrs}><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="200000" cy="200000"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${row * 10 + col}" name="p${row}_${col}"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${rId}"/></xdr:blipFill><xdr:spPr/></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
 }
 
 async function main() {
@@ -60,8 +63,10 @@ async function main() {
     '</Relationships>');
 
   // 锚点: row 是 0-based。数据行2(妲己,0-based row=2) 1张图; 数据行3(后羿,0-based row=3) 2张图
+  // 妲己行的锚点特意带上 editAs="oneCell" 属性,模拟 Excel 插图后的真实默认输出形态
+  // (回归测试:parseAnchors 的正则必须能匹配带属性的开始标签,否则该图会被静默丢失)
   const anchors = [
-    oneCellAnchor(2, 1, 'rId1'),  // 妲己行 -> image1
+    oneCellAnchor(2, 1, 'rId1', ' editAs="oneCell"'),  // 妲己行 -> image1(带 editAs 属性)
     oneCellAnchor(3, 1, 'rId2'),  // 后羿行 -> image2
     oneCellAnchor(3, 2, 'rId3'),  // 后羿行 -> image3(第2张)
   ].join('');

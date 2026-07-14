@@ -39,7 +39,7 @@ function extFromPath(p) {
 function parseAnchors(drawingXml) {
   const anchors = [];
   // 同时匹配 oneCellAnchor 和 twoCellAnchor,取 <xdr:from> 内的 row + 该锚点内的 r:embed
-  const anchorBlocks = allMatches(drawingXml, /<xdr:(?:one|two)CellAnchor>([\s\S]*?)<\/xdr:(?:one|two)CellAnchor>/);
+  const anchorBlocks = allMatches(drawingXml, /<xdr:(?:one|two)CellAnchor(?:\s[^>]*)?>([\s\S]*?)<\/xdr:(?:one|two)CellAnchor>/);
   for (const block of anchorBlocks) {
     const body = block[1];
     const rowStr = firstMatch(body, /<xdr:from>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/);
@@ -60,7 +60,7 @@ async function extract(filePath) {
   // 找第一个 worksheet 的 drawing 引用(知识库场景只处理第一张表,与 excelParser 一致)
   const sheetXml = await readIfExists(zip, 'xl/worksheets/sheet1.xml');
   if (!sheetXml) return result;
-  const drawingRId = firstMatch(sheetXml, /<drawing r:id="(rId\d+)"\/>/);
+  const drawingRId = firstMatch(sheetXml, /<drawing r:id="(rId\d+)"\s*\/>/);
   if (!drawingRId) return result;  // 该 sheet 没有 drawing,正常情况(无图 xlsx)
 
   const sheetRelsXml = await readIfExists(zip, 'xl/worksheets/_rels/sheet1.xml.rels');
