@@ -12,7 +12,7 @@ async function main() {
 
   const samplePath = path.join(__dirname, 'fixtures', 'sample_with_images.xlsx');
   if (!fs.existsSync(samplePath)) {
-    require('./fixtures/generateWithImages');
+    await require('./fixtures/generateWithImages');
   }
 
   try {
@@ -46,7 +46,7 @@ async function main() {
     await test('物理文件名与逻辑顺序不一致时仍正确解析第一个sheet', async () => {
       const reorderedPath = path.join(__dirname, 'fixtures', 'sample_reordered_sheet.xlsx');
       if (!fs.existsSync(reorderedPath)) {
-        require('./fixtures/generateReorderedSheet');
+        await require('./fixtures/generateReorderedSheet');
       }
       const reorderedResult = await imageExtractor.extract(reorderedPath);
       // 逻辑第一个 sheet 是"英雄表"(物理文件 sheet2.xml),图锚定在数据行1(亚瑟)

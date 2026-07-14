@@ -73,7 +73,7 @@ async function main() {
     const me = await req('GET', '/api/auth/me', { token });
     const v1 = me.body.versions[0].id;
 
-    require('./fixtures/generateWithImages');
+    await require('./fixtures/generateWithImages');
     const samplePath = path.join(__dirname, 'fixtures', 'sample_with_images.xlsx');
     const fileBuf = fs.readFileSync(samplePath);
 

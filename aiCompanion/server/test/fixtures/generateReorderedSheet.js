@@ -77,4 +77,6 @@ async function main() {
   console.log('generated', out);
 }
 
-main();
+// 导出 promise:main() 内部用了 zip.generateAsync,调用方(测试文件)懒加载时必须
+// await require(...) 才能保证文件写完再读,否则会有竞态(见 2026-07-14 回归修复)。
+module.exports = main();
