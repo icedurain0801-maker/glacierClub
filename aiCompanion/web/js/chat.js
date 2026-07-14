@@ -38,9 +38,10 @@ function appendMsg(role, content, refs) {
     refsHtml = `<div class="refs">参考 ${refs.length} 条: ${refs.map(r => `<span class="ref-item">#${r.entryId} (${r.score.toFixed(3)})</span>`).join('')}</div>`;
     const imgUrls = [...new Set(refs.flatMap(r => r.images || []))];
     if (imgUrls.length > 0) {
-      imagesHtml = `<div class="ref-images">${imgUrls.map(url =>
-        `<img class="ref-thumb" src="${API_ORIGIN}${escapeHtml(url)}" onclick="showFullImage('${API_ORIGIN}${escapeHtml(url)}')">`
-      ).join('')}</div>`;
+      imagesHtml = `<div class="ref-images">${imgUrls.map(url => {
+        const full = API_ORIGIN + url;
+        return `<img class="ref-thumb" src="${escapeHtml(full)}" data-full="${escapeHtml(full)}">`;
+      }).join('')}</div>`;
     }
   }
   div.innerHTML = `<div class="bubble">${escapeHtml(content)}</div>${imagesHtml}${refsHtml}`;
@@ -56,11 +57,16 @@ function showFullImage(url) {
   const overlay = document.createElement('div');
   overlay.id = 'img-overlay';
   overlay.className = 'img-overlay';
-  overlay.innerHTML = `<img src="${url}">`;
+  const img = document.createElement('img');
+  img.src = url;
+  overlay.appendChild(img);
   overlay.addEventListener('click', () => overlay.remove());
   document.body.appendChild(overlay);
 }
-window.showFullImage = showFullImage;
+// 委托监听:缩略图点击放大(避免内联 onclick 的二次转义问题)
+bodyEl.addEventListener('click', e => {
+  if (e.target.classList.contains('ref-thumb')) showFullImage(e.target.dataset.full);
+});
 
 function appendThinking() {
   const div = document.createElement('div');
