@@ -11,7 +11,7 @@
 - 一行可关联 0~多张图片
 - B 端知识库预览列表同样要显示图片，方便核对导入效果
 
-**技术可行性已验证**：`xlsx@0.18.5`（SheetJS 社区版）没有图片 API，但 xlsx 本质是 zip。用项目已有的传递依赖 `jszip` 解压后，可以：
+**技术可行性已验证**：`xlsx@0.18.5`（SheetJS 社区版）没有图片 API，但 xlsx 本质是 zip。引入 `jszip`（新增直接依赖，非项目已有的传递依赖）解压后，可以：
 1. 从 `xl/media/` 读出图片二进制
 2. 解析 `xl/drawings/drawingN.xml` 的 anchor 坐标（`<xdr:row>`），精确得到每张图所属的行
 3. 通过 drawing 的 `_rels` 关系文件，把 anchor 引用的 `r:embed` 映射到具体的 media 文件
