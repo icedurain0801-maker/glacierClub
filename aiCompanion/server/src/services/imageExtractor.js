@@ -57,13 +57,18 @@ async function extract(filePath) {
   const buf = fs.readFileSync(filePath);
   const zip = await JSZip.loadAsync(buf);
 
-  // 找第一个 worksheet 的 drawing 引用(知识库场景只处理第一张表,与 excelParser 一致)
-  const sheetXml = await readIfExists(zip, 'xl/worksheets/sheet1.xml');
+  // 找第一个逻辑 sheet 的真实物理路径(不能假设是 sheet1.xml,与 excelParser 的
+  // wb.SheetNames[0] 解析依据保持一致——按 workbook.xml 的 <sheets> 顺序解析)
+  const sheetPath = await resolveFirstSheetPath(zip);
+  if (!sheetPath) return result;
+
+  const sheetXml = await readIfExists(zip, sheetPath);
   if (!sheetXml) return result;
   const drawingRId = firstMatch(sheetXml, /<drawing r:id="(rId\d+)"\s*\/>/);
   if (!drawingRId) return result;  // 该 sheet 没有 drawing,正常情况(无图 xlsx)
 
-  const sheetRelsXml = await readIfExists(zip, 'xl/worksheets/_rels/sheet1.xml.rels');
+  const sheetRelsPath = relsPathFor(sheetPath);  // 如 xl/worksheets/_rels/sheet2.xml.rels
+  const sheetRelsXml = await readIfExists(zip, sheetRelsPath);
   if (!sheetRelsXml) return result;
   const drawingTarget = relTarget(sheetRelsXml, drawingRId);  // 如 ../drawings/drawing1.xml
   if (!drawingTarget) return result;
@@ -117,6 +122,29 @@ function relsPathFor(xmlPath) {
   const dir = xmlPath.slice(0, idx);
   const file = xmlPath.slice(idx + 1);
   return `${dir}/_rels/${file}.rels`;
+}
+
+// 解析 workbook.xml 找到第一个逻辑 sheet 对应的物理文件路径。
+// 不能假设 sheet1.xml 就是第一个 tab——用户在 Excel 里重排/增删 sheet 后,
+// 物理文件名与逻辑顺序可能对不上,必须按 <sheets> 元素顺序 + workbook.xml.rels 解析真实路径。
+// 与 excelParser.js 用 SheetJS wb.SheetNames[0] 拿到的第一个 sheet 保持一致的解析依据。
+async function resolveFirstSheetPath(zip) {
+  const workbookXml = await readIfExists(zip, 'xl/workbook.xml');
+  if (!workbookXml) return null;
+  // <sheets> 内第一个 <sheet .../> 的 r:id(顺序即 tab 顺序)
+  const sheetsBlock = firstMatch(workbookXml, /<sheets>([\s\S]*?)<\/sheets>/);
+  if (!sheetsBlock) return null;
+  const firstSheetTag = firstMatch(sheetsBlock, /(<sheet\b[^>]*>)/);
+  if (!firstSheetTag) return null;
+  const rId = firstMatch(firstSheetTag, /r:id="(rId\d+)"/);
+  if (!rId) return null;
+
+  const workbookRelsXml = await readIfExists(zip, 'xl/_rels/workbook.xml.rels');
+  if (!workbookRelsXml) return null;
+  const target = relTarget(workbookRelsXml, rId);  // 如 worksheets/sheet2.xml
+  if (!target) return null;
+
+  return normalizeZipPath('xl', target);  // -> xl/worksheets/sheet2.xml
 }
 
 module.exports = { extract };

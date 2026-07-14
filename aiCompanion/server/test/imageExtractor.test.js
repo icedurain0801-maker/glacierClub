@@ -43,6 +43,17 @@ async function main() {
       assert.strictEqual(imgs.length, 2);
     });
 
+    await test('物理文件名与逻辑顺序不一致时仍正确解析第一个sheet', async () => {
+      const reorderedPath = path.join(__dirname, 'fixtures', 'sample_reordered_sheet.xlsx');
+      if (!fs.existsSync(reorderedPath)) {
+        require('./fixtures/generateReorderedSheet');
+      }
+      const reorderedResult = await imageExtractor.extract(reorderedPath);
+      // 逻辑第一个 sheet 是"英雄表"(物理文件 sheet2.xml),图锚定在数据行1(亚瑟)
+      assert.strictEqual(reorderedResult.size, 1, '应该找到1行有图片(从逻辑第一个sheet,而非硬编码的sheet1.xml)');
+      assert.ok(reorderedResult.has(1), '亚瑟行(rowIndex=1)应有图片');
+    });
+
     console.log(`\n${passed} 个测试全部通过`);
   } catch (err) {
     console.error('\n✗ 测试失败：', err.stack || err.message);
