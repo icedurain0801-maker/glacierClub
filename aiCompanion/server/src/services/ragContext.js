@@ -5,6 +5,25 @@ const vectorStore = require('./vectorStore');
 
 const SNIPPET_MAX = 200;   // C 端展示的 snippet 截取字数
 
+// 批量查 entry 关联的图片,返回 Map<entryId, string[]>。查询失败返回空 Map(不影响文字检索)。
+async function loadImagesByEntry(ids) {
+  try {
+    const [imgRows] = await db.query(
+      `SELECT entry_id, url FROM kb_entry_images WHERE entry_id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    const map = new Map();
+    for (const img of imgRows) {
+      if (!map.has(img.entry_id)) map.set(img.entry_id, []);
+      map.get(img.entry_id).push(img.url);
+    }
+    return map;
+  } catch (err) {
+    console.error('[ragContext] loadImagesByEntry failed:', err.message);
+    return new Map();
+  }
+}
+
 // 检索。失败(embedding 报错等)则返回 [],由上层决定是否退化为无 RAG 对话。
 async function retrieve(versionId, query, topK = 5) {
   try {
@@ -18,12 +37,14 @@ async function retrieve(versionId, query, topK = 5) {
       [versionId, ...ids]
     );
     const byId = new Map(rows.map(r => [r.id, r.content]));
+    const imagesByEntry = await loadImagesByEntry(ids);
     return hits
       .filter(h => byId.has(h.entryId))
       .map(h => ({
         entryId: h.entryId,
         score: h.score,
         snippet: String(byId.get(h.entryId)).slice(0, SNIPPET_MAX),
+        images: imagesByEntry.get(h.entryId) || [],
       }));
   } catch (err) {
     console.error('[ragContext] retrieve failed:', err.message);
