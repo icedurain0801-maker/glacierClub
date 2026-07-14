@@ -4,6 +4,7 @@ const path = require('path');
 module.exports = {
   chunkSize: 5 * 1024 * 1024,           // 前端分片大小(仅供前端参考)
   uploadTmpDir: path.resolve(__dirname, '..', '..', process.env.KB_UPLOAD_TMP_DIR || 'uploads/tmp'),
+  kbImagesDir: path.resolve(__dirname, '..', '..', process.env.KB_IMAGES_DIR || 'uploads/kb-images'),
   batchSize: 50,                        // 每批 embedding 请求条数
   workerIntervalMs: parseInt(process.env.KB_WORKER_INTERVAL, 10) || 2000,
   searchDefaultTopK: 10,
