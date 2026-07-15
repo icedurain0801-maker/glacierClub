@@ -27,27 +27,180 @@ function escapeHtml(s) {
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+// 行内 markdown(**粗体**) → 先转义 HTML 特殊字符,再包裹 <strong>,避免注入
+function inlineMd(s) {
+  return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+function isTableSeparator(line) {
+  const t = line.trim();
+  return /^\|?[-:\s|]+\|?$/.test(t) && t.includes('-');
+}
+
+// 轻量 markdown → 富文本渲染:标题变左侧蓝色竖条小标签、粗体高亮、引用保留左侧色条、
+// 列表转绿色勾选、分隔线、表格转真表格(蓝底白字表头)。
+// 不追求完整 CommonMark 覆盖,只覆盖 LLM 常见输出(标题/粗体/引用/列表/表格/分隔线)。
+function renderMarkdown(raw) {
+  const lines = String(raw || '').replace(/\r\n/g, '\n').split('\n');
+  let html = '';
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+
+    if (/^-{3,}$/.test(line.trim())) { html += '<hr>'; i++; continue; }
+
+    const headerMatch = /^#{1,6}\s+(.*)$/.exec(line);
+    if (headerMatch) { html += `<div class="md-section">${inlineMd(headerMatch[1])}</div>`; i++; continue; }
+
+    if (/^>\s?/.test(line)) {
+      const quoteLines = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) { quoteLines.push(lines[i].replace(/^>\s?/, '')); i++; }
+      html += `<blockquote>${quoteLines.map(inlineMd).join('<br>')}</blockquote>`;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) { items.push(lines[i].replace(/^[-*]\s+/, '')); i++; }
+      html += `<ul>${items.map(t => `<li>${inlineMd(t)}</li>`).join('')}</ul>`;
+      continue;
+    }
+
+    if (/^\|.*\|$/.test(line.trim()) && isTableSeparator(lines[i + 1] || '')) {
+      const headerCells = line.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      i += 2; // 跳过表头行 + 分隔线行
+      const rows = [];
+      while (i < lines.length && /^\|.*\|$/.test(lines[i].trim())) {
+        rows.push(lines[i].trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+        i++;
+      }
+      const theadHtml = `<tr>${headerCells.map(c => `<th>${inlineMd(c)}</th>`).join('')}</tr>`;
+      const tbodyHtml = rows.map(cells => `<tr>${cells.map(c => `<td>${inlineMd(c)}</td>`).join('')}</tr>`).join('');
+      html += `<table>${theadHtml}${tbodyHtml}</table>`;
+      continue;
+    }
+
+    // 段落:连续的普通文本行合并为一段(块级标记开头的行会中断合并)
+    const paraLines = [];
+    while (
+      i < lines.length && lines[i].trim() &&
+      !/^-{3,}$/.test(lines[i].trim()) &&
+      !/^#{1,6}\s+/.test(lines[i]) &&
+      !/^>\s?/.test(lines[i]) &&
+      !/^[-*]\s+/.test(lines[i])
+    ) {
+      paraLines.push(lines[i]);
+      i++;
+    }
+    if (paraLines.length) html += `<p>${paraLines.map(inlineMd).join('<br>')}</p>`;
+    else if (i < lines.length) { i++; } // 兜底避免死循环(理论上不会走到这里)
+  }
+  return html;
+}
+
+// 从 assistant 回复里剥出 ```herocard {...}``` 代码块,返回 {text, card}。
+// 解析失败(JSON 不合法/缺字段)时 card 为 null,text 保持原文,由调用方兜底渲染纯文本。
+function parseHeroCard(content) {
+  const m = /```herocard\s*([\s\S]*?)```/.exec(content);
+  if (!m) return { text: content, card: null };
+  const text = content.slice(0, m.index).trim() + content.slice(m.index + m[0].length).trim();
+  try {
+    const data = JSON.parse(m[1].trim());
+    if (!data || typeof data.name !== 'string') return { text: content, card: null };
+    return { text, card: data };
+  } catch {
+    return { text: content, card: null };
+  }
+}
+
+function renderHeroCard(card) {
+  const name = escapeHtml(card.name || '');
+  const faction = escapeHtml(card.faction || '');
+  const rarity = Math.max(1, Math.min(5, parseInt(card.rarity, 10) || 0));
+  const stars = rarity ? '★'.repeat(rarity) : '';
+  const skills = Array.isArray(card.skills) ? card.skills : [];
+  const skillsHtml = skills.map(s =>
+    `<div class="hero-skill"><b>${escapeHtml(s.name || '')}</b>${s.enName ? ' ' + escapeHtml(s.enName) : ''}</div>`
+  ).join('');
+  const quote = card.quote ? `<div class="hero-quote">"${escapeHtml(card.quote)}"</div>` : '';
+  const avatarInner = card.avatarUrl
+    ? `<img src="${escapeHtml(card.avatarUrl)}" alt="${name}">`
+    : escapeHtml(name.slice(0, 1));
+
+  return `<div class="hero-card">
+    <div class="hero-card-inner">
+      <div class="hero-card-top">
+        <div class="hero-avatar">${avatarInner}</div>
+        <div>
+          <div class="hero-name">${name}</div>
+          ${stars ? `<div class="hero-stars">${stars}</div>` : ''}
+          ${faction ? `<div class="hero-faction">${faction}</div>` : ''}
+        </div>
+      </div>
+      ${skillsHtml ? `<div class="hero-skills">${skillsHtml}</div>` : ''}
+      ${quote}
+    </div>
+  </div>`;
+}
+
 function appendMsg(role, content, refs) {
   if (emptyEl.parentNode) emptyEl.remove();
-  const div = document.createElement('div');
-  div.className = 'msg ' + (role === 'assistant' ? 'bot' : 'user');
+  const isBot = role === 'assistant';
+  const line = document.createElement('div');
+  line.className = 'msg-line ' + (isBot ? 'bot' : 'user');
   let refsHtml = '';
   if (refs && refs.length) {
     refsHtml = `<div class="refs">参考 ${refs.length} 条: ${refs.map(r => `<span class="ref-item">#${r.entryId} (${r.score.toFixed(3)})</span>`).join('')}</div>`;
   }
-  div.innerHTML = `<div class="bubble">${escapeHtml(content)}</div>${refsHtml}`;
-  bodyEl.appendChild(div);
+  const avatarHtml = isBot ? `<div class="msg-avatar">${escapeHtml((titleEl.textContent || 'AI').slice(0, 1))}</div>` : '';
+
+  let bodyHtml;
+  if (isBot) {
+    const { text, card } = parseHeroCard(content);
+    const textHtml = text ? `<div class="bubble md">${renderMarkdown(text)}</div>` : '';
+    const cardHtml = card ? renderHeroCard(card) : '';
+    bodyHtml = `<div class="msg bot">${textHtml}${cardHtml}${refsHtml}</div>`;
+  } else {
+    bodyHtml = `<div class="msg user"><div class="bubble">${escapeHtml(content)}</div></div>`;
+  }
+  line.innerHTML = avatarHtml + bodyHtml;
+  bodyEl.appendChild(line);
   bodyEl.scrollTop = bodyEl.scrollHeight;
-  return div;
+  return line;
 }
 
+const THINKING_STAGES = [
+  { icon: '🔍', text: '查询资料中' },
+  { icon: '📚', text: '整合资料中' },
+  { icon: '✍️', text: '梳理回答中' },
+];
+
 function appendThinking() {
-  const div = document.createElement('div');
-  div.className = 'msg bot thinking';
-  div.innerHTML = '<div class="bubble">思考中…</div>';
-  bodyEl.appendChild(div);
+  const line = document.createElement('div');
+  line.className = 'msg-line bot thinking';
+  line.innerHTML = `<div class="msg-avatar">${escapeHtml((titleEl.textContent || 'AI').slice(0, 1))}</div>` +
+    `<div class="msg bot thinking"><div class="bubble">` +
+    `<span class="thinking-icon">${THINKING_STAGES[0].icon}</span>` +
+    `<span class="thinking-text">${THINKING_STAGES[0].text}</span>` +
+    `</div></div>`;
+  bodyEl.appendChild(line);
   bodyEl.scrollTop = bodyEl.scrollHeight;
-  return div;
+
+  let idx = 0;
+  const iconEl = line.querySelector('.thinking-icon');
+  const textEl = line.querySelector('.thinking-text');
+  line._thinkingTimer = setInterval(() => {
+    idx = (idx + 1) % THINKING_STAGES.length;
+    iconEl.textContent = THINKING_STAGES[idx].icon;
+    textEl.textContent = THINKING_STAGES[idx].text;
+  }, 1800);
+  return line;
+}
+
+function removeThinking(line) {
+  if (line._thinkingTimer) clearInterval(line._thinkingTimer);
+  line.remove();
 }
 
 async function fetchJSON(path, opts = {}) {
@@ -97,10 +250,10 @@ async function send() {
       method: 'POST',
       body: { versionId, sessionKey, message: text },
     });
-    thinking.remove();
+    removeThinking(thinking);
     appendMsg('assistant', r.reply, r.refs);
   } catch (err) {
-    thinking.remove();
+    removeThinking(thinking);
     appendMsg('assistant', '(出错: ' + err.message + ')');
   } finally {
     sendBtn.disabled = false;

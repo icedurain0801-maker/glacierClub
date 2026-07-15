@@ -5,6 +5,16 @@ const cfg = require('../config/kb');
 const llm = require('./llm');
 const ragContext = require('./ragContext');
 
+// 通用指令:与 bot persona 无关,任何人设遇到"介绍某个英雄"类问题都按此协议输出卡片数据。
+// 前端(chat.js)按同样的 ```herocard``` 代码块协议解析渲染,解析失败时原样展示文本兜底。
+const HERO_CARD_INSTRUCTION = `
+
+如果玩家询问某个具体英雄的详细介绍(如"介绍一下XX""XX是谁""XX技能是什么"),请在你的自然语言回答之后,额外附加一个 herocard 代码块,格式如下(字段必须是合法 JSON,不要加多余说明文字):
+\`\`\`herocard
+{"name":"英雄名称","faction":"阵营名称","rarity":5,"skills":[{"name":"技能中文名","enName":"技能英文名"}],"quote":"英雄台词","avatarUrl":""}
+\`\`\`
+其中 rarity 为 1-5 的整数星级,avatarUrl 若不知道具体图片地址就留空字符串。如果问题不是询问某个具体英雄,则不要输出这个代码块。`;
+
 // 拿或建 bot 配置(不存在返回默认值,让 C 端 chat 能跑起来即使 B 端未配置)
 async function getBot(versionId) {
   const [rows] = await db.query('SELECT * FROM bots WHERE version_id=?', [versionId]);
@@ -59,15 +69,16 @@ async function loadHistory(sessionId, limit) {
 // 若 system(persona+contextBlock) 本身就超预算，截断 contextBlock。
 function buildMessages(bot, history, userMessage, contextBlock) {
   const budget = cfg.llm.maxPromptBytes;
-  const personaBytes = Buffer.byteLength(bot.persona, 'utf8');
+  const persona = bot.persona + HERO_CARD_INSTRUCTION;
+  const personaBytes = Buffer.byteLength(persona, 'utf8');
   const userBytes = Buffer.byteLength(userMessage, 'utf8');
   // 给 system 留的最大空间 = 总预算 - user消息 - 一点余量(200 字节给结构开销)
   const systemBudget = Math.max(200, budget - userBytes - 200);
-  let systemContent = bot.persona + contextBlock;
+  let systemContent = persona + contextBlock;
   if (Buffer.byteLength(systemContent, 'utf8') > systemBudget) {
     // 保留 persona 完整，截断 contextBlock 尾部
     const remaining = Math.max(0, systemBudget - personaBytes);
-    systemContent = bot.persona + Buffer.from(contextBlock, 'utf8').slice(0, remaining).toString('utf8');
+    systemContent = persona + Buffer.from(contextBlock, 'utf8').slice(0, remaining).toString('utf8');
   }
 
   const messages = [{ role: 'system', content: systemContent }];
