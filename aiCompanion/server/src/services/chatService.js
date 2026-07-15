@@ -140,8 +140,11 @@ async function retrieveFacts(versionId, message) {
   }
 }
 
-// 主流程:一次对话
-async function handleChat({ versionId, sessionKey, message }) {
+// 主流程:一次对话。onStage(可选) 在真实进入某处理阶段时被调用一次,
+// 供路由层(如 SSE)向前端推送真实进度;不传则行为与原来完全一致。
+async function handleChat({ versionId, sessionKey, message, onStage }) {
+  const emit = stage => { if (onStage) onStage(stage); };
+
   const bot = await getBot(versionId);
   const { id: sessionId } = await findOrCreateSession(versionId, sessionKey, message);
 
@@ -153,6 +156,7 @@ async function handleChat({ versionId, sessionKey, message }) {
   const userMsgId = await saveMessage(versionId, sessionId, 'user', message, null);
 
   try {
+    emit('retrieving');
     // RAG 与 KG 并行(各自内部失败均退化为空,不影响对话)
     let refs = [];
     let contextBlock = '';
@@ -173,6 +177,7 @@ async function handleChat({ versionId, sessionKey, message }) {
 
     const messages = buildMessages(bot, history, message, contextBlock, factBlock);
 
+    emit('thinking');
     // 调 LLM
     const { content: reply } = await llm.chat(messages, { model: bot.model || undefined });
 

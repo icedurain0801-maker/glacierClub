@@ -179,11 +179,12 @@ function appendMsg(role, content, refs) {
   return line;
 }
 
-const THINKING_STAGES = [
-  { icon: '🔍', text: '查询资料中' },
-  { icon: '📚', text: '整合资料中' },
-  { icon: '✍️', text: '梳理回答中' },
-];
+// 阶段名 → 图标/文案。与后端 chatService.js 的 onStage('retrieving'/'thinking') 一一对应,
+// 不是循环播放的假动画,而是随真实 SSE 事件切换。
+const STAGE_MAP = {
+  retrieving: { icon: '🔍', text: '查询资料中' },
+  thinking:   { icon: '✍️', text: '梳理回答中' },
+};
 
 // 全屏遮罩看原图,点遮罩关闭
 function showFullImage(url) {
@@ -204,30 +205,44 @@ bodyEl.addEventListener('click', e => {
 });
 
 function appendThinking() {
+  const initial = STAGE_MAP.retrieving;
   const line = document.createElement('div');
   line.className = 'msg-line bot thinking';
   line.innerHTML = `<div class="msg-avatar">${escapeHtml((titleEl.textContent || 'AI').slice(0, 1))}</div>` +
     `<div class="msg bot thinking"><div class="bubble">` +
-    `<span class="thinking-icon">${THINKING_STAGES[0].icon}</span>` +
-    `<span class="thinking-text">${THINKING_STAGES[0].text}</span>` +
+    `<span class="thinking-icon">${initial.icon}</span>` +
+    `<span class="thinking-text">${initial.text}</span>` +
     `</div></div>`;
   bodyEl.appendChild(line);
   bodyEl.scrollTop = bodyEl.scrollHeight;
-
-  let idx = 0;
-  const iconEl = line.querySelector('.thinking-icon');
-  const textEl = line.querySelector('.thinking-text');
-  line._thinkingTimer = setInterval(() => {
-    idx = (idx + 1) % THINKING_STAGES.length;
-    iconEl.textContent = THINKING_STAGES[idx].icon;
-    textEl.textContent = THINKING_STAGES[idx].text;
-  }, 1800);
   return line;
 }
 
+// 按真实收到的 SSE stage 事件更新图标/文案(未知 stage 名忽略,保留当前显示)
+function setThinkingStage(line, stage) {
+  const s = STAGE_MAP[stage];
+  if (!s) return;
+  const iconEl = line.querySelector('.thinking-icon');
+  const textEl = line.querySelector('.thinking-text');
+  if (iconEl) iconEl.textContent = s.icon;
+  if (textEl) textEl.textContent = s.text;
+}
+
 function removeThinking(line) {
-  if (line._thinkingTimer) clearInterval(line._thinkingTimer);
   line.remove();
+}
+
+// 拆 "event: xxx\ndata: {...}" 帧为 {event, data}
+function parseSSEFrame(frame) {
+  let event = 'message';
+  let dataStr = '';
+  for (const rawLine of frame.split('\n')) {
+    if (rawLine.startsWith('event:')) event = rawLine.slice(6).trim();
+    else if (rawLine.startsWith('data:')) dataStr += rawLine.slice(5).trim();
+  }
+  let data = null;
+  try { data = JSON.parse(dataStr); } catch { /* ignore malformed frame */ }
+  return { event, data };
 }
 
 async function fetchJSON(path, opts = {}) {
@@ -273,14 +288,46 @@ async function send() {
   const thinking = appendThinking();
 
   try {
-    const r = await fetchJSON('/public/chat', {
+    const res = await fetch(API_BASE + '/public/chat', {
       method: 'POST',
-      body: { versionId, sessionKey, message: text },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+      body: JSON.stringify({ versionId, sessionKey, message: text }),
     });
-    removeThinking(thinking);
-    appendMsg('assistant', r.reply, r.refs);
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => null);
+      throw new Error((data && data.error) || `请求失败(${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let settled = false;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        if (!frame.trim()) continue;
+        const { event, data } = parseSSEFrame(frame);
+        if (event === 'stage' && data) {
+          setThinkingStage(thinking, data.stage);
+        } else if (event === 'done' && data) {
+          settled = true;
+          removeThinking(thinking);
+          appendMsg('assistant', data.reply, data.refs);
+        } else if (event === 'error' && data) {
+          settled = true;
+          removeThinking(thinking);
+          appendMsg('assistant', '(出错: ' + data.error + ')');
+        }
+      }
+    }
+    if (!settled) throw new Error('连接中断,未收到完整回复');
   } catch (err) {
-    removeThinking(thinking);
+    if (thinking.parentNode) removeThinking(thinking);
     appendMsg('assistant', '(出错: ' + err.message + ')');
   } finally {
     sendBtn.disabled = false;

@@ -43,7 +43,8 @@ router.get('/history', requireVersion, ah(async (req, res) => {
   res.json({ messages: msgs.reverse() });
 }));
 
-// POST /api/public/chat — 核心
+// POST /api/public/chat — 核心。Accept: text/event-stream 时走 SSE 推送真实处理阶段,
+// 否则走原有一次性 JSON 返回(向后兼容,B端/测试均走此路径)。
 router.post('/chat', requireVersion, ah(async (req, res) => {
   const sessionKey = String(req.body?.sessionKey || '').trim();
   const message = String(req.body?.message || '').trim();
@@ -53,12 +54,41 @@ router.post('/chat', requireVersion, ah(async (req, res) => {
     return fail(res, 400, `单条消息超长(>${cfg.llm.maxMessageBytes} 字节)`);
   }
 
+  const wantsStream = String(req.headers.accept || '').includes('text/event-stream');
+
+  if (!wantsStream) {
+    try {
+      const result = await chatService.handleChat({ versionId: req.versionId, sessionKey, message });
+      res.json(result);
+    } catch (err) {
+      console.error('[public/chat] error:', err.message);
+      return fail(res, 500, 'AI 服务暂时不可用,请稍后再试');
+    }
+    return;
+  }
+
+  // SSE 路径:响应头一旦写出就不能再变更状态码,失败也要用 error 帧承载,不能走 ah()/fail()。
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  const sendEvent = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
   try {
-    const result = await chatService.handleChat({ versionId: req.versionId, sessionKey, message });
-    res.json(result);
+    const result = await chatService.handleChat({
+      versionId: req.versionId,
+      sessionKey,
+      message,
+      onStage: stage => sendEvent('stage', { stage }),
+    });
+    sendEvent('done', result);
   } catch (err) {
     console.error('[public/chat] error:', err.message);
-    return fail(res, 500, 'AI 服务暂时不可用,请稍后再试');
+    sendEvent('error', { error: 'AI 服务暂时不可用,请稍后再试' });
+  } finally {
+    res.end();
   }
 }));
 
