@@ -4,6 +4,7 @@ const db = require('../config/db');
 const cfg = require('../config/kb');
 const llm = require('./llm');
 const ragContext = require('./ragContext');
+const kgContext = require('./kgContext');
 
 // 通用指令:与 bot persona 无关,任何人设遇到"介绍某个英雄"类问题都按此协议输出卡片数据。
 // 前端(chat.js)按同样的 ```herocard``` 代码块协议解析渲染,解析失败时原样展示文本兜底。
@@ -24,6 +25,7 @@ async function getBot(versionId) {
     welcome: '你好,我是你的游戏陪玩助手,有什么想聊的?',
     rag_enabled: 1,
     rag_top_k: 5,
+    kg_enabled: 1,
     history_turns: 10,
     model: null,
   };
@@ -66,19 +68,31 @@ async function loadHistory(sessionId, limit) {
 }
 
 // 拼 prompt:system + 历史 + 本次 user。超过 maxPromptBytes 就先砍历史，
-// 若 system(persona+contextBlock) 本身就超预算，截断 contextBlock。
-function buildMessages(bot, history, userMessage, contextBlock) {
+// 若 system 本身超预算，按优先级截断：persona 完整保留 > 图谱事实(factBlock) > 参考知识(contextBlock)。
+// 理由：图谱事实是结构化高置信短文本，性价比高于 snippet；参考知识 topK 有冗余，先裁损失最小。
+function buildMessages(bot, history, userMessage, contextBlock, factBlock = '') {
   const budget = cfg.llm.maxPromptBytes;
   const persona = bot.persona + HERO_CARD_INSTRUCTION;
-  const personaBytes = Buffer.byteLength(persona, 'utf8');
   const userBytes = Buffer.byteLength(userMessage, 'utf8');
   // 给 system 留的最大空间 = 总预算 - user消息 - 一点余量(200 字节给结构开销)
   const systemBudget = Math.max(200, budget - userBytes - 200);
-  let systemContent = persona + contextBlock;
-  if (Buffer.byteLength(systemContent, 'utf8') > systemBudget) {
-    // 保留 persona 完整，截断 contextBlock 尾部
-    const remaining = Math.max(0, systemBudget - personaBytes);
-    systemContent = persona + Buffer.from(contextBlock, 'utf8').slice(0, remaining).toString('utf8');
+
+  // 按优先级逐段装配 system：persona(含英雄卡片指令) → factBlock → contextBlock，超出部分截尾
+  const fitTail = (text, remaining) =>
+    remaining <= 0 ? '' : Buffer.from(text, 'utf8').slice(0, remaining).toString('utf8');
+  let systemContent = persona;
+  let used = Buffer.byteLength(systemContent, 'utf8');
+  for (const block of [factBlock, contextBlock]) {
+    if (!block) continue;
+    const blockBytes = Buffer.byteLength(block, 'utf8');
+    if (used + blockBytes <= systemBudget) {
+      systemContent += block;
+      used += blockBytes;
+    } else {
+      systemContent += fitTail(block, systemBudget - used);
+      used = systemBudget;
+      break;
+    }
   }
 
   const messages = [{ role: 'system', content: systemContent }];
@@ -114,6 +128,18 @@ async function deleteMessage(messageId, sessionId) {
   );
 }
 
+// KG 检索:实体识别 → 一跳事实。失败退化为 [],不影响对话主流程。
+async function retrieveFacts(versionId, message) {
+  try {
+    const linked = await kgContext.linkEntities(versionId, message);
+    if (linked.length === 0) return [];
+    return await kgContext.getFacts(versionId, linked.map(l => l.entityId));
+  } catch (err) {
+    console.error('[chatService] retrieveFacts failed:', err.message);
+    return [];
+  }
+}
+
 // 主流程:一次对话
 async function handleChat({ versionId, sessionKey, message }) {
   const bot = await getBot(versionId);
@@ -127,15 +153,25 @@ async function handleChat({ versionId, sessionKey, message }) {
   const userMsgId = await saveMessage(versionId, sessionId, 'user', message, null);
 
   try {
-    // RAG(ragContext.retrieve 内部已 try/catch，失败返回 [])
+    // RAG 与 KG 并行(各自内部失败均退化为空,不影响对话)
     let refs = [];
     let contextBlock = '';
-    if (bot.rag_enabled) {
-      refs = await ragContext.retrieve(versionId, message, bot.rag_top_k);
-      contextBlock = ragContext.toContextBlock(refs);
+    let factBlock = '';
+    const [ragRefs, facts] = await Promise.all([
+      bot.rag_enabled ? ragContext.retrieve(versionId, message, bot.rag_top_k) : Promise.resolve([]),
+      bot.kg_enabled ? retrieveFacts(versionId, message) : Promise.resolve([]),
+    ]);
+    if (ragRefs.length > 0) {
+      refs = ragRefs;
+      contextBlock = ragContext.toContextBlock(ragRefs);
+    }
+    if (facts.length > 0) {
+      factBlock = kgContext.toFactBlock(facts);
+      // refs 向后兼容扩展:旧元素 {entryId,score,snippet} 缺省视为 type:'entry',图谱事实带 type:'fact'
+      refs = [...refs, ...facts];
     }
 
-    const messages = buildMessages(bot, history, message, contextBlock);
+    const messages = buildMessages(bot, history, message, contextBlock, factBlock);
 
     // 调 LLM
     const { content: reply } = await llm.chat(messages, { model: bot.model || undefined });

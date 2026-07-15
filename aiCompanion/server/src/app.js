@@ -1,15 +1,18 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cfg = require('./config/kb');
 
 const app = express();
 app.use(cors({ exposedHeaders: ['X-Version-Id'] }));
 app.use(express.json({ limit: '10mb' }));
+app.use('/kb-images', express.static(cfg.kbImagesDir));
 
 app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/versions', require('./routes/versions'));
 app.use('/api/users',    require('./routes/users'));
 app.use('/api/kb',       require('./routes/kb'));
+app.use('/api/kg',       require('./routes/kg'));
 app.use('/api/bot',      require('./routes/bot'));
 app.use('/api/sessions', require('./routes/sessions'));
 app.use('/api/public',   require('./routes/public'));

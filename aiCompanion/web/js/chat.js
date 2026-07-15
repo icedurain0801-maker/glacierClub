@@ -1,4 +1,5 @@
-const API_BASE = (localStorage.getItem('apiBase') || 'http://localhost:3100') + '/api';
+const API_ORIGIN = localStorage.getItem('apiBase') || 'http://localhost:3100';
+const API_BASE = API_ORIGIN + '/api';
 
 const params = new URLSearchParams(location.search);
 const versionId = parseInt(params.get('versionId'), 10);
@@ -150,8 +151,16 @@ function appendMsg(role, content, refs) {
   const line = document.createElement('div');
   line.className = 'msg-line ' + (isBot ? 'bot' : 'user');
   let refsHtml = '';
+  let imagesHtml = '';
   if (refs && refs.length) {
     refsHtml = `<div class="refs">参考 ${refs.length} 条: ${refs.map(r => `<span class="ref-item">#${r.entryId} (${r.score.toFixed(3)})</span>`).join('')}</div>`;
+    const imgUrls = [...new Set(refs.flatMap(r => r.images || []))];
+    if (imgUrls.length > 0) {
+      imagesHtml = `<div class="ref-images">${imgUrls.map(url => {
+        const full = API_ORIGIN + url;
+        return `<img class="ref-thumb" src="${escapeHtml(full)}" data-full="${escapeHtml(full)}">`;
+      }).join('')}</div>`;
+    }
   }
   const avatarHtml = isBot ? `<div class="msg-avatar">${escapeHtml((titleEl.textContent || 'AI').slice(0, 1))}</div>` : '';
 
@@ -160,7 +169,7 @@ function appendMsg(role, content, refs) {
     const { text, card } = parseHeroCard(content);
     const textHtml = text ? `<div class="bubble md">${renderMarkdown(text)}</div>` : '';
     const cardHtml = card ? renderHeroCard(card) : '';
-    bodyHtml = `<div class="msg bot">${textHtml}${cardHtml}${refsHtml}</div>`;
+    bodyHtml = `<div class="msg bot">${textHtml}${cardHtml}${imagesHtml}${refsHtml}</div>`;
   } else {
     bodyHtml = `<div class="msg user"><div class="bubble">${escapeHtml(content)}</div></div>`;
   }
@@ -175,6 +184,24 @@ const THINKING_STAGES = [
   { icon: '📚', text: '整合资料中' },
   { icon: '✍️', text: '梳理回答中' },
 ];
+
+// 全屏遮罩看原图,点遮罩关闭
+function showFullImage(url) {
+  const old = document.getElementById('img-overlay');
+  if (old) old.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'img-overlay';
+  overlay.className = 'img-overlay';
+  const img = document.createElement('img');
+  img.src = url;
+  overlay.appendChild(img);
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+// 委托监听:缩略图点击放大(避免内联 onclick 的二次转义问题)
+bodyEl.addEventListener('click', e => {
+  if (e.target.classList.contains('ref-thumb')) showFullImage(e.target.dataset.full);
+});
 
 function appendThinking() {
   const line = document.createElement('div');

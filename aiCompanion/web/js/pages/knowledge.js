@@ -20,6 +20,7 @@ window.pages.knowledge = async function (content) {
       <td>${d.rowCount}</td>
       <td style="display:flex;gap:6px;">
         <button class="btn small plain" data-preview="${d.id}">预览</button>
+        <button class="btn small plain" data-graph="${d.id}" data-graph-name="${escapeHtml(d.name)}">图谱</button>
         <button class="btn small danger plain" data-del="${d.id}">删除</button>
       </td>
     </tr>`).join('');
@@ -71,6 +72,8 @@ window.pages.knowledge = async function (content) {
   document.getElementById('kb-q').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
   content.querySelectorAll('[data-preview]').forEach(b =>
     b.addEventListener('click', () => previewDoc(b.dataset.preview)));
+  content.querySelectorAll('[data-graph]').forEach(b =>
+    b.addEventListener('click', () => openGraph(b.dataset.graph, b.dataset.graphName)));
   content.querySelectorAll('[data-del]').forEach(b =>
     b.addEventListener('click', () => delDoc(b.dataset.del, content)));
 
@@ -139,11 +142,18 @@ window.pages.knowledge = async function (content) {
     detail.innerHTML = '<div class="card">加载中…</div>';
     try {
       const entries = await window.api.apiFetch(`/kb/entries?documentId=${id}&limit=20`, { withVersion: true });
+      const apiOrigin = localStorage.getItem('apiBase') || 'http://localhost:3100';
       detail.innerHTML = `
         <div class="card">
           <div class="card-title">📄 条目预览 (前 20 条)</div>
           ${entries.map(e => `
-            <div style="background:#fafafa;border:1px solid var(--border-secondary);border-radius:6px;padding:12px 14px;margin-bottom:8px;white-space:pre-wrap;font-size:13px;color:var(--text-secondary);">${escapeHtml(e.content)}</div>
+            <div style="background:#fafafa;border:1px solid var(--border-secondary);border-radius:6px;padding:12px 14px;margin-bottom:8px;">
+              <div style="white-space:pre-wrap;font-size:13px;color:var(--text-secondary);">${escapeHtml(e.content)}</div>
+              ${(e.images && e.images.length) ? `
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+                  ${e.images.map(url => `<img src="${apiOrigin}${escapeHtml(url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border-secondary);">`).join('')}
+                </div>` : ''}
+            </div>
           `).join('')}
         </div>`;
     } catch (err) { detail.innerHTML = `<div class="card">失败: ${err.message}</div>`; }
@@ -179,5 +189,100 @@ window.pages.knowledge = async function (content) {
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  function loadVisNetwork() {
+    if (window.vis && window.vis.Network) return Promise.resolve();
+    if (window.__visLoading) return window.__visLoading;
+    window.__visLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js';
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('vis-network 加载失败'));
+      document.head.appendChild(s);
+    });
+    return window.__visLoading;
+  }
+
+  async function openGraph(id, name) {
+    // 移除已存在的弹层
+    const old = document.getElementById('kb-graph-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'kb-graph-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,21,41,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:40px;';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:1200px;height:100%;max-height:800px;display:flex;flex-direction:column;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border-secondary,#f0f0f0);display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:15px;font-weight:600;">🕸️ 知识图谱 · ${escapeHtml(name || ('#' + id))}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="kb-graph-stat" style="color:var(--text-tertiary,#8c8c8c);font-size:12px;"></span>
+            <button class="btn small plain" id="kb-graph-close">关闭</button>
+          </div>
+        </div>
+        <div id="kb-graph-canvas" style="flex:1;background:#fafafa;position:relative;">
+          <div id="kb-graph-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary,#8c8c8c);">加载中…</div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('kb-graph-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+    const canvas = document.getElementById('kb-graph-canvas');
+    const stat = document.getElementById('kb-graph-stat');
+    const loading = document.getElementById('kb-graph-loading');
+
+    try {
+      const [data] = await Promise.all([
+        window.api.apiFetch(`/kb/graph?documentId=${id}`, { withVersion: true }),
+        loadVisNetwork(),
+      ]);
+      loading.remove();
+      const entities = data.entities || [];
+      const relations = data.relations || [];
+      stat.textContent = `实体 ${entities.length} · 关系 ${relations.length}`;
+
+      if (entities.length === 0) {
+        canvas.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary,#8c8c8c);">该文档暂无抽取到的实体</div>';
+        return;
+      }
+
+      // 按 type 上色（primary 更醒目）
+      const typeColor = {
+        primary: { background: '#1677ff', border: '#0958d9', font: '#fff' },
+        entity:  { background: '#e6f4ff', border: '#91caff', font: '#001529' },
+      };
+      const nodes = new vis.DataSet(entities.map(e => {
+        const c = typeColor[e.type] || typeColor.entity;
+        return {
+          id: e.id,
+          label: e.name,
+          shape: 'dot',
+          size: e.type === 'primary' ? 18 : 12,
+          color: { background: c.background, border: c.border },
+          font: { color: c.font, size: 13, face: 'inherit' },
+        };
+      }));
+      const edges = new vis.DataSet(relations.map(r => ({
+        id: r.id,
+        from: r.from_entity_id,
+        to: r.to_entity_id,
+        label: r.relation || '',
+        arrows: 'to',
+        color: { color: '#d9d9d9', highlight: '#1677ff' },
+        font: { size: 11, color: '#8c8c8c', strokeWidth: 0, align: 'middle' },
+        smooth: { type: 'continuous' },
+      })));
+
+      new vis.Network(canvas, { nodes, edges }, {
+        physics: { stabilization: { iterations: 150 }, barnesHut: { gravitationalConstant: -3000, springLength: 120 } },
+        interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: false },
+        nodes: { borderWidth: 1.5 },
+        edges: { width: 1 },
+      });
+    } catch (err) {
+      loading.textContent = '加载失败: ' + err.message;
+    }
   }
 };

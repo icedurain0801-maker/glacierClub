@@ -56,3 +56,17 @@ python -m http.server 8090
 - 历史窗口按条数截断,不做摘要;长会话质量会下降。
 - 匿名 session 无清理策略,`chat_sessions` 会长期累积;上生产前应加定时清理。
 - refs 只带 snippet(截前 200 字),不开放完整条目查询接口给 C 端。
+
+## 子项目5:知识库内嵌图片提取与展示
+
+已实现:从上传的 xlsx **内嵌图片**(drawing 锚点,非单元格 URL 文本)提取图片,精确关联到所在行,存本地磁盘;RAG 检索(`ragContext.retrieve`)与 B 端条目预览(`/api/kb/entries`)追加 `images` 字段;C 端对话气泡下方渲染缩略图+点击全屏放大;B 端预览列表同步显示,方便核对导入效果。
+
+### 使用
+1. `npm run migrate` 应用 `006_kb_images.sql`。
+2. 图片默认存 `uploads/kb-images/`(相对 server 目录,长期保留不清理),可用 `.env` 的 `KB_IMAGES_DIR` 改。
+3. `npm run test:images` 跑单元测试(`imageExtractor` 解析)+ 端到端集成测试(上传→ingest→静态路由→级联删除)。
+
+### 已知边界
+- **`/kb-images` 静态路由无鉴权**,`versionId`/`documentId` 为可枚举的自增整数——已与项目方确认接受(当前是内网部署,非公网多租户 SaaS),后续若对外开放需补签名 URL 或至少改用不可枚举路径。
+- 只处理 xlsx **第一个逻辑 sheet**(按 `workbook.xml` 的 `<sheets>` 顺序解析物理文件,不是硬编码 `sheet1.xml`,与 `excelParser.js` 解析依据一致),多 sheet 场景其余 sheet 的图片不会被提取。
+- 图片解析用正则直接读 OOXML 内部 XML(非完整 XML parser),已覆盖常见的 `editAs="oneCell"` 等属性变体;`mc:AlternateContent` 兼容性包裹等更冷门的锚点写法暂未覆盖，遇到时会静默少提取图片而不是报错。
