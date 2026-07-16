@@ -323,6 +323,7 @@ function bindHeroImageFallbacks(root) {
   });
 }
 
+
 function appendMsg(role, content, refs) {
   if (emptyEl.parentNode) emptyEl.remove();
 
@@ -331,8 +332,17 @@ function appendMsg(role, content, refs) {
   line.className = `msg-line ${isBot ? 'bot' : 'user'}`;
 
   let refsHtml = '';
+  let imagesHtml = '';
   if (Array.isArray(refs) && refs.length) {
-    refsHtml = `<div class="refs">\u53c2\u8003 ${refs.length} \u6761 ${refs.map(ref => `<span class="ref-item">#${ref.entryId} (${Number(ref.score || 0).toFixed(3)})</span>`).join('')}</div>`;
+    refsHtml = `<div class="refs">参考 ${refs.length} 条 ${refs.map(ref => `<span class="ref-item">#${ref.entryId} (${Number(ref.score || 0).toFixed(3)})</span>`).join('')}</div>`;
+    const imgUrls = [...new Set(refs.flatMap(ref => Array.isArray(ref.images) ? ref.images : []))]
+      .map(buildImageUrl)
+      .filter(Boolean);
+    if (imgUrls.length > 0) {
+      imagesHtml = `<div class="ref-images">${imgUrls.map(url =>
+        `<img class="ref-thumb" src="${escapeHtml(url)}" data-full="${escapeHtml(url)}" loading="lazy">`
+      ).join('')}</div>`;
+    }
   }
 
   const avatarHtml = isBot
@@ -344,7 +354,7 @@ function appendMsg(role, content, refs) {
     const { text, card } = parseHeroCard(content);
     const textHtml = text ? `<div class="bubble md">${renderMarkdown(text)}</div>` : '';
     const cardHtml = card ? renderHeroCard(card) : '';
-    bodyHtml = `<div class="msg bot">${textHtml}${cardHtml}${card ? '' : refsHtml}</div>`;
+    bodyHtml = `<div class="msg bot">${textHtml}${cardHtml}${card ? '' : imagesHtml}${card ? '' : refsHtml}</div>`;
   } else {
     bodyHtml = `<div class="msg user"><div class="bubble">${escapeHtml(content)}</div></div>`;
   }
@@ -353,6 +363,7 @@ function appendMsg(role, content, refs) {
   bodyEl.appendChild(line);
   bindBotAvatarFallbacks(line);
   bindHeroImageFallbacks(line);
+  bindRefImageFallbacks(line);
   bodyEl.scrollTop = bodyEl.scrollHeight;
   return line;
 }
@@ -380,11 +391,12 @@ function renderBotHeader(bot) {
   avatarEl.textContent = fallbackAvatarMarkup(displayName);
 }
 
-const THINKING_STAGES = [
-  { icon: '\uD83D\uDCC3', text: '\u67e5\u8be2\u8d44\u6599\u4e2d...' },
-  { icon: '\uD83D\uDCD6', text: '\u6574\u5408\u8d44\u6599\u4e2d...' },
-  { icon: '\u2728', text: '\u68b3\u7406\u56de\u7b54\u4e2d...' },
-];
+// 阶段名 → 图标/文案。与后端 chatService.js 的 onStage('retrieving'/'thinking') 一一对应,
+// 不是循环播放的假动画,而是随真实 SSE 事件切换。
+const STAGE_MAP = {
+  retrieving: { icon: '🔍', text: '查询资料中' },
+  thinking:   { icon: '✍️', text: '梳理回答中' },
+};
 
 function closeImageOverlay() {
   const overlay = document.getElementById('img-overlay');
@@ -405,13 +417,13 @@ function showFullImage(url) {
 
   const img = document.createElement('img');
   img.src = url;
-  img.alt = '\u77e5\u8bc6\u5e93\u56fe\u7247\u9884\u89c8';
+  img.alt = '知识库图片预览';
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'img-overlay__close';
   closeBtn.type = 'button';
-  closeBtn.setAttribute('aria-label', '\u5173\u95ed\u56fe\u7247\u9884\u89c8');
-  closeBtn.textContent = '\u00D7';
+  closeBtn.setAttribute('aria-label', '关闭图片预览');
+  closeBtn.textContent = '×';
   closeBtn.addEventListener('click', event => {
     event.stopPropagation();
     closeImageOverlay();
@@ -450,32 +462,45 @@ document.addEventListener('keydown', event => {
 });
 
 function appendThinking() {
+  const initial = STAGE_MAP.retrieving;
   const line = document.createElement('div');
   line.className = 'msg-line bot thinking';
   line.innerHTML =
     `<div class="msg-avatar ${botAvatarUrl ? 'has-image' : ''}">${renderBotAvatarMarkup()}</div>` +
     `<div class="msg bot thinking"><div class="bubble">` +
-    `<span class="thinking-icon">${THINKING_STAGES[0].icon}</span>` +
-    `<span class="thinking-text">${THINKING_STAGES[0].text}</span>` +
+    `<span class="thinking-icon">${initial.icon}</span>` +
+    `<span class="thinking-text">${initial.text}</span>` +
     `</div></div>`;
   bodyEl.appendChild(line);
   bodyEl.scrollTop = bodyEl.scrollHeight;
-
-  let index = 0;
-  const iconEl = line.querySelector('.thinking-icon');
-  const textEl = line.querySelector('.thinking-text');
-  line._thinkingTimer = setInterval(() => {
-    index = (index + 1) % THINKING_STAGES.length;
-    iconEl.textContent = THINKING_STAGES[index].icon;
-    textEl.textContent = THINKING_STAGES[index].text;
-  }, 1800);
-
   return line;
 }
 
+// 按真实收到的 SSE stage 事件更新图标/文案(未知 stage 名忽略,保留当前显示)
+function setThinkingStage(line, stage) {
+  const s = STAGE_MAP[stage];
+  if (!s) return;
+  const iconEl = line.querySelector('.thinking-icon');
+  const textEl = line.querySelector('.thinking-text');
+  if (iconEl) iconEl.textContent = s.icon;
+  if (textEl) textEl.textContent = s.text;
+}
+
 function removeThinking(line) {
-  if (line && line._thinkingTimer) clearInterval(line._thinkingTimer);
-  if (line) line.remove();
+  line.remove();
+}
+
+// 拆 "event: xxx\ndata: {...}" 帧为 {event, data}
+function parseSSEFrame(frame) {
+  let event = 'message';
+  let dataStr = '';
+  for (const rawLine of frame.split('\n')) {
+    if (rawLine.startsWith('event:')) event = rawLine.slice(6).trim();
+    else if (rawLine.startsWith('data:')) dataStr += rawLine.slice(5).trim();
+  }
+  let data = null;
+  try { data = JSON.parse(dataStr); } catch { /* ignore malformed frame */ }
+  return { event, data };
 }
 
 async function fetchJSON(path, opts = {}) {
@@ -524,15 +549,47 @@ async function send() {
   const thinking = appendThinking();
 
   try {
-    const result = await fetchJSON('/public/chat', {
+    const res = await fetch(API_BASE + '/public/chat', {
       method: 'POST',
-      body: { versionId, sessionKey, message: text },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+      body: JSON.stringify({ versionId, sessionKey, message: text }),
     });
-    removeThinking(thinking);
-    appendMsg('assistant', result.reply, result.refs);
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => null);
+      throw new Error((data && data.error) || `请求失败(${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let settled = false;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        if (!frame.trim()) continue;
+        const { event, data } = parseSSEFrame(frame);
+        if (event === 'stage' && data) {
+          setThinkingStage(thinking, data.stage);
+        } else if (event === 'done' && data) {
+          settled = true;
+          removeThinking(thinking);
+          appendMsg('assistant', data.reply, data.refs);
+        } else if (event === 'error' && data) {
+          settled = true;
+          removeThinking(thinking);
+          appendMsg('assistant', '(出错: ' + data.error + ')');
+        }
+      }
+    }
+    if (!settled) throw new Error('连接中断,未收到完整回复');
   } catch (err) {
-    removeThinking(thinking);
-    appendMsg('assistant', `(\u51fa\u9519: ${err.message})`);
+    if (thinking.parentNode) removeThinking(thinking);
+    appendMsg('assistant', '(出错: ' + err.message + ')');
   } finally {
     sendBtn.disabled = false;
     inputEl.focus();
