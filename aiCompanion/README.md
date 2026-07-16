@@ -68,5 +68,5 @@ python -m http.server 8090
 
 ### 已知边界
 - **`/kb-images` 静态路由无鉴权**,`versionId`/`documentId` 为可枚举的自增整数——已与项目方确认接受(当前是内网部署,非公网多租户 SaaS),后续若对外开放需补签名 URL 或至少改用不可枚举路径。
-- 只处理 xlsx **第一个逻辑 sheet**(按 `workbook.xml` 的 `<sheets>` 顺序解析物理文件,不是硬编码 `sheet1.xml`,与 `excelParser.js` 解析依据一致),多 sheet 场景其余 sheet 的图片不会被提取。
+- xlsx 会按 `workbook.xml` 的 `<sheets>` 顺序处理全部逻辑 sheet；图片提取使用 sheet 索引 + drawing anchor 行号回挂知识库条目。
 - 图片解析用正则直接读 OOXML 内部 XML(非完整 XML parser),已覆盖常见的 `editAs="oneCell"` 等属性变体;`mc:AlternateContent` 兼容性包裹等更冷门的锚点写法暂未覆盖，遇到时会静默少提取图片而不是报错。

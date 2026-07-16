@@ -4,15 +4,19 @@ function getToken() { return localStorage.getItem('token'); }
 function getVersionId() { return localStorage.getItem('currentVersionId'); }
 
 async function apiFetch(path, { method = 'GET', body, withVersion = false } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  const headers = {};
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!isFormData) headers['Content-Type'] = 'application/json';
   if (withVersion) {
     const vid = getVersionId();
     if (vid) headers['X-Version-Id'] = vid;
   }
   const res = await fetch(API_BASE + path, {
-    method, headers, body: body ? JSON.stringify(body) : undefined,
+    method,
+    headers,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
   if (res.status === 401) {
     localStorage.removeItem('token');

@@ -7,6 +7,7 @@ const app = express();
 app.use(cors({ exposedHeaders: ['X-Version-Id'] }));
 app.use(express.json({ limit: '10mb' }));
 app.use('/kb-images', express.static(cfg.kbImagesDir));
+app.use('/bot-avatars', express.static(cfg.botAvatarDir));
 
 app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/versions', require('./routes/versions'));

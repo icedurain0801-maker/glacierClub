@@ -2,6 +2,7 @@ const MENU_TITLES = {
   sessions: '会话管理', knowledge: '知识库管理',
   users: '用户权限管理', bots: '机器人管理', versions: '版本管理',
 };
+const PAGE_STORAGE_KEY = 'currentAdminPage';
 
 let currentUser = null;
 
@@ -19,8 +20,8 @@ async function boot() {
   bindMenu();
   bindLogout();
 
-  // 超管默认可见版本管理/用户管理；普通用户默认进会话
-  navigate(currentUser.isSuperAdmin ? 'versions' : 'sessions');
+  // 刷新后保持当前后台页面，没有有效记录时回退到会话管理
+  navigate(getInitialPage());
 }
 
 function renderVersionSwitcher() {
@@ -50,21 +51,32 @@ function bindLogout() {
   document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem(PAGE_STORAGE_KEY);
     location.href = 'index.html';
   });
 }
 
+function getInitialPage() {
+  const savedPage = localStorage.getItem(PAGE_STORAGE_KEY);
+  if (savedPage && Object.prototype.hasOwnProperty.call(MENU_TITLES, savedPage)) {
+    return savedPage;
+  }
+  return 'sessions';
+}
+
 function navigate(page) {
+  const targetPage = Object.prototype.hasOwnProperty.call(MENU_TITLES, page) ? page : 'sessions';
+  localStorage.setItem(PAGE_STORAGE_KEY, targetPage);
   document.querySelectorAll('#menu a').forEach(a =>
-    a.classList.toggle('active', a.dataset.page === page));
+    a.classList.toggle('active', a.dataset.page === targetPage));
   const content = document.getElementById('content');
 
-  if (page === 'versions' && window.pages.versions) return window.pages.versions(content);
-  if (page === 'users' && window.pages.users) return window.pages.users(content);
-  if (page === 'knowledge' && window.pages.knowledge) return window.pages.knowledge(content);
-  if (page === 'bots' && window.pages.bots) return window.pages.bots(content);
-  if (page === 'sessions' && window.pages.sessions) return window.pages.sessions(content);
-  content.innerHTML = window.pages.placeholder(MENU_TITLES[page] || page);
+  if (targetPage === 'versions' && window.pages.versions) return window.pages.versions(content);
+  if (targetPage === 'users' && window.pages.users) return window.pages.users(content);
+  if (targetPage === 'knowledge' && window.pages.knowledge) return window.pages.knowledge(content);
+  if (targetPage === 'bots' && window.pages.bots) return window.pages.bots(content);
+  if (targetPage === 'sessions' && window.pages.sessions) return window.pages.sessions(content);
+  content.innerHTML = window.pages.placeholder(MENU_TITLES[targetPage] || targetPage);
 }
 
 document.addEventListener('DOMContentLoaded', boot);

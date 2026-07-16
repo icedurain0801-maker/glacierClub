@@ -10,8 +10,38 @@ const cfg = require('../config/kb');
 const uploadStore = require('../services/uploadStore');
 const embedding = require('../services/embedding');
 const vectorStore = require('../services/vectorStore');
+const kbEntryLocales = require('../services/kbEntryLocales');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+function safeParseJson(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+async function attachLocales(rows, preferredLocale) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const localesByEntry = await kbEntryLocales.loadLocalesByEntryIds(rows.map(row => row.id));
+
+  return rows.map((row) => {
+    const raw = safeParseJson(row.raw_json);
+    const locales = kbEntryLocales.mergeLocaleLists(
+      localesByEntry.get(row.id) || [],
+      kbEntryLocales.extractEntryLocales(raw)
+    );
+
+    return {
+      ...row,
+      locales,
+      display_content: kbEntryLocales.pickEntryContentByLocale(row, locales, preferredLocale),
+    };
+  });
+}
 
 // 所有 kb 接口都要 version 隔离
 router.use(version);
@@ -100,6 +130,7 @@ router.get('/entries', ah(async (req, res) => {
   const documentId = parseInt(req.query.documentId, 10);
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
   const offset = parseInt(req.query.offset, 10) || 0;
+  const locale = kbEntryLocales.normalizeLocale(req.query.locale);
   if (!documentId) return fail(res, 400, 'documentId 必填');
   const [rows] = await db.query(
     'SELECT id, row_index, content, raw_json FROM knowledge_entries WHERE version_id=? AND document_id=? ORDER BY row_index LIMIT ? OFFSET ?',
@@ -116,13 +147,15 @@ router.get('/entries', ah(async (req, res) => {
     if (!imagesByEntry.has(img.entry_id)) imagesByEntry.set(img.entry_id, []);
     imagesByEntry.get(img.entry_id).push(img.url);
   }
-  res.json(rows.map(r => ({ ...r, images: imagesByEntry.get(r.id) || [] })));
+  const enrichedRows = await attachLocales(rows, locale);
+  res.json(enrichedRows.map(r => ({ ...r, images: imagesByEntry.get(r.id) || [] })));
 }));
 
 // —— 检索 ——
 router.get('/search', ah(async (req, res) => {
   const q = String(req.query.q || '').trim();
   const topK = Math.min(parseInt(req.query.limit, 10) || cfg.searchDefaultTopK, cfg.searchMaxTopK);
+  const locale = kbEntryLocales.normalizeLocale(req.query.locale);
   if (!q) return fail(res, 400, 'q 必填');
   const [qvec] = await embedding.embedBatch([q]);
   if (!qvec) return fail(res, 500, '查询向量化失败');
@@ -130,10 +163,11 @@ router.get('/search', ah(async (req, res) => {
   if (hits.length === 0) return res.json([]);
   const ids = hits.map(h => h.entryId);
   const [rows] = await db.query(
-    `SELECT id, document_id, row_index, content FROM knowledge_entries WHERE version_id=? AND id IN (${ids.map(() => '?').join(',')})`,
+    `SELECT id, document_id, row_index, content, raw_json FROM knowledge_entries WHERE version_id=? AND id IN (${ids.map(() => '?').join(',')})`,
     [req.versionId, ...ids]
   );
-  const byId = new Map(rows.map(r => [r.id, r]));
+  const enrichedRows = await attachLocales(rows, locale);
+  const byId = new Map(enrichedRows.map(r => [r.id, r]));
   res.json(hits.map(h => ({ score: h.score, entry: byId.get(h.entryId) || null })));
 }));
 

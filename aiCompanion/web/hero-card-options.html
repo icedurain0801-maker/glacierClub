@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>英雄卡片样式提案</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef2f7;
+      --panel: rgba(255, 255, 255, 0.84);
+      --line: rgba(15, 23, 42, 0.08);
+      --text: #0f172a;
+      --muted: #64748b;
+      --blue: #2563eb;
+      --gold: #f59e0b;
+      --red: #ef4444;
+      --shadow: 0 22px 50px rgba(15, 23, 42, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(37, 99, 235, 0.08), transparent 26%),
+        linear-gradient(180deg, #f8fafc 0%, #e9eef5 100%);
+      color: var(--text);
+    }
+
+    .page {
+      width: min(1320px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 40px 0 56px;
+    }
+
+    .headline {
+      margin-bottom: 24px;
+    }
+
+    .headline h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+
+    .headline p {
+      margin: 10px 0 0;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--muted);
+      max-width: 760px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      align-items: start;
+    }
+
+    .option {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+    }
+
+    .option-head {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .option-kicker {
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue);
+    }
+
+    .option-head h2 {
+      margin: 8px 0 6px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+
+    .option-head p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+
+    .phone {
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%);
+    }
+
+    .phone-shell {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      border-radius: 34px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: #f8fafc;
+      box-shadow: 0 28px 56px rgba(15, 23, 42, 0.18);
+      overflow: hidden;
+    }
+
+    .phone-top {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.94);
+    }
+
+    .phone-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .phone-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .phone-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .phone-body {
+      padding: 14px 14px 18px;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    }
+
+    .bubble {
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: #ffffff;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.65;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+    }
+
+    .composer {
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(255, 255, 255, 0.92);
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    .card {
+      overflow: hidden;
+    }
+
+    .theme-a {
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at top right, rgba(245, 158, 11, 0.24), transparent 30%),
+        linear-gradient(180deg, #1d2636 0%, #111827 100%);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      color: #f8fafc;
+      box-shadow: 0 18px 36px rgba(15, 23, 42, 0.28);
+    }
+
+    .theme-a .hero-top {
+      display: flex;
+      gap: 14px;
+      padding: 16px;
+      align-items: center;
+    }
+
+    .theme-a .hero-cover {
+      width: 78px;
+      height: 98px;
+      border-radius: 18px;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    }
+
+    .theme-a .hero-cover img,
+    .theme-b .hero-cover img,
+    .theme-c .hero-banner img,
+    .skill-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .theme-a .title-row,
+    .theme-b .title-row,
+    .theme-c .title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .theme-a .title {
+      font-size: 11px;
+      color: #fbbf24;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .theme-a .name {
+      margin-top: 4px;
+      font-size: 25px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .badge {
+      flex-shrink: 0;
+      min-width: 46px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .theme-a .badge {
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #0f172a;
+      box-shadow: 0 10px 24px rgba(245, 158, 11, 0.32);
+    }
+
+    .theme-a .meta-strip {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .theme-a .meta-chip {
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .theme-a .meta-chip label,
+    .theme-b .meta-chip label {
+      display: block;
+      font-size: 10px;
+      line-height: 1.2;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+
+    .theme-a .meta-chip strong {
+      display: block;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #f8fafc;
+    }
+
+    .theme-a .skills {
+      display: grid;
+      gap: 10px;
+      padding: 0 16px 16px;
+    }
+
+    .theme-a .skill {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .skill-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .skill-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .skill-tag {
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .theme-a .skill-tag {
+      background: rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+    }
+
+    .core {
+      background: rgba(239, 68, 68, 0.16);
+      color: #fda4af;
+    }
+
+    .theme-a .skill-name {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: #f8fafc;
+    }
+
+    .theme-a .skill-desc {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .theme-a .quote {
+      margin: 0 16px 16px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(255, 255, 255, 0.04));
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      font-size: 12px;
+      line-height: 1.65;
+      color: #f8fafc;
+    }
+
+    .theme-b {
+      border-radius: 26px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+    }
+
+    .theme-b .hero-top {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 14px;
+      padding: 16px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .theme-b .hero-cover {
+      width: 76px;
+      height: 76px;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+    }
+
+    .theme-b .title {
+      font-size: 11px;
+      line-height: 1.2;
+      color: #2563eb;
+      font-weight: 700;
+    }
+
+    .theme-b .name {
+      margin-top: 4px;
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .theme-b .badge {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid rgba(37, 99, 235, 0.16);
+    }
+
+    .theme-b .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .theme-b .meta-chip {
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .theme-b .meta-chip strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #0f172a;
+    }
+
+    .theme-b .skills {
+      padding: 12px 16px 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .theme-b .skill {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .theme-b .skill:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .theme-b .skill-tag {
+      background: #e2e8f0;
+      color: #475569;
+    }
+
+    .theme-b .skill-name {
+      font-size: 14px;
+      line-height: 1.35;
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    .theme-b .skill-desc {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #475569;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .theme-b .quote {
+      margin: 0 16px 16px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      font-size: 12px;
+      line-height: 1.65;
+      color: #334155;
+      position: relative;
+    }
+
+    .theme-b .quote::before {
+      content: "“";
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font-size: 28px;
+      line-height: 1;
+      color: rgba(37, 99, 235, 0.18);
+      font-weight: 800;
+    }
+
+    .theme-b .quote span {
+      display: block;
+      padding-left: 16px;
+    }
+
+    .theme-c {
+      border-radius: 28px;
+      background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+      border: 1px solid rgba(59, 130, 246, 0.18);
+      color: #e2e8f0;
+      box-shadow: 0 20px 38px rgba(2, 6, 23, 0.34);
+    }
+
+    .theme-c .hero-banner {
+      position: relative;
+      height: 168px;
+      overflow: hidden;
+    }
+
+    .theme-c .hero-banner::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0.76)),
+        linear-gradient(90deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.18));
+    }
+
+    .theme-c .hero-copy {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 16px;
+    }
+
+    .theme-c .title {
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 700;
+      color: #93c5fd;
+    }
+
+    .theme-c .name {
+      margin-top: 5px;
+      font-size: 26px;
+      line-height: 1;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+
+    .theme-c .badge {
+      background: rgba(59, 130, 246, 0.18);
+      color: #dbeafe;
+      border: 1px solid rgba(96, 165, 250, 0.22);
+    }
+
+    .theme-c .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 14px 16px;
+    }
+
+    .theme-c .hero-stat {
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.56);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .theme-c .hero-stat label {
+      display: block;
+      font-size: 10px;
+      line-height: 1.2;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .theme-c .hero-stat strong {
+      font-size: 13px;
+      line-height: 1.35;
+      color: #f8fafc;
+    }
+
+    .theme-c .skills {
+      display: grid;
+      gap: 10px;
+      padding: 0 16px 16px;
+    }
+
+    .theme-c .skill {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .theme-c .skill-tag {
+      background: rgba(96, 165, 250, 0.14);
+      color: #bfdbfe;
+    }
+
+    .theme-c .skill-name {
+      font-size: 14px;
+      line-height: 1.35;
+      color: #f8fafc;
+      font-weight: 700;
+    }
+
+    .theme-c .skill-desc {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .theme-c .quote {
+      margin: 0 16px 16px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(96, 165, 250, 0.18);
+      font-size: 12px;
+      line-height: 1.65;
+      color: #dbeafe;
+    }
+
+    .section-label {
+      padding: 0 16px 10px;
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
+    @media (max-width: 1120px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .phone-shell {
+        max-width: 390px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        width: min(100vw - 20px, 560px);
+        padding-top: 18px;
+      }
+      .headline h1 {
+        font-size: 24px;
+      }
+      .option-head {
+        padding: 16px 16px 12px;
+      }
+      .phone {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="headline">
+      <h1>英雄卡片 3 套样式提案</h1>
+      <p>同一份英雄数据，不改内容结构，只改视觉表达。你先挑方向，我再把选中的一套正式落到聊天页里。</p>
+    </div>
+
+    <div class="grid">
+      <section class="option">
+        <div class="option-head">
+          <div class="option-kicker">Option 01</div>
+          <h2>战报黑金</h2>
+          <p>更像游戏内英雄档案，信息密度高，质感强，适合高稀有英雄展示。</p>
+        </div>
+        <div class="phone">
+          <div class="phone-shell">
+            <div class="phone-top">
+              <div class="phone-title">
+                <div class="phone-avatar"><img src="http://localhost:3100/kb-images/1/69/1346_1.png" alt=""></div>
+                <strong>卡西迪</strong>
+              </div>
+            </div>
+            <div class="phone-body">
+              <div class="bubble">这是薇珀的英雄档案，头像、阵营、稀有度、技能和英雄台词都在下面。</div>
+              <div class="card theme-a">
+                <div class="hero-top">
+                  <div class="hero-cover"><img src="http://localhost:3100/kb-images/1/69/1346_1.png" alt="薇珀"></div>
+                  <div class="hero-main">
+                    <div class="title-row">
+                      <div>
+                        <div class="title">末日狂花</div>
+                        <div class="name">薇珀</div>
+                      </div>
+                      <div class="badge">S+</div>
+                    </div>
+                    <div class="meta-strip">
+                      <div class="meta-chip">
+                        <label>阵营</label>
+                        <strong>守护者</strong>
+                      </div>
+                      <div class="meta-chip">
+                        <label>职业</label>
+                        <strong>能承受更多伤害</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="section-label">技能</div>
+                <div class="skills">
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1370_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 1</span></div>
+                      <div class="skill-name">决意突袭</div>
+                      <div class="skill-desc">对敌方单体造成 511% 攻击的物理伤害，并附带多段追加伤害。</div>
+                    </div>
+                  </div>
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1373_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 2</span><span class="skill-tag core">核心</span></div>
+                      <div class="skill-name">铁腕统御</div>
+                      <div class="skill-desc">降低我方前排受到的物理伤害，并随养成阶段逐步扩大覆盖范围。</div>
+                    </div>
+                  </div>
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1375_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 3</span></div>
+                      <div class="skill-name">夜色庇护</div>
+                      <div class="skill-desc">战斗中持续降低前排单位受到的所有伤害，属于稳定的防线保命技能。</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="quote">跟我走，否则会不得好死。人生总是充满迷雾，但赢家通吃。</div>
+              </div>
+              <div class="composer">Aa</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="option">
+        <div class="option-head">
+          <div class="option-kicker">Option 02</div>
+          <h2>信息白卡</h2>
+          <p>更克制，更像百科和资料卡，阅读负担最小，适合连续多英雄对话。</p>
+        </div>
+        <div class="phone">
+          <div class="phone-shell">
+            <div class="phone-top">
+              <div class="phone-title">
+                <div class="phone-avatar"><img src="http://localhost:3100/kb-images/1/69/1346_1.png" alt=""></div>
+                <strong>卡西迪</strong>
+              </div>
+            </div>
+            <div class="phone-body">
+              <div class="bubble">这是薇珀的英雄档案，头像、阵营、稀有度、技能和英雄台词都在下面。</div>
+              <div class="card theme-b">
+                <div class="hero-top">
+                  <div class="hero-cover"><img src="http://localhost:3100/kb-images/1/69/1346_1.png" alt="薇珀"></div>
+                  <div>
+                    <div class="title-row">
+                      <div>
+                        <div class="title">末日狂花</div>
+                        <div class="name">薇珀</div>
+                      </div>
+                      <div class="badge">S+</div>
+                    </div>
+                    <div class="meta-grid">
+                      <div class="meta-chip">
+                        <label>阵营</label>
+                        <strong>守护者</strong>
+                      </div>
+                      <div class="meta-chip">
+                        <label>职业</label>
+                        <strong>能承受更多伤害</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="section-label">技能</div>
+                <div class="skills">
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1370_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 1</span></div>
+                      <div class="skill-name">决意突袭</div>
+                      <div class="skill-desc">对敌方单体造成 511% 攻击的物理伤害，并附带多段追加伤害。</div>
+                    </div>
+                  </div>
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1373_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 2</span><span class="skill-tag core">核心</span></div>
+                      <div class="skill-name">铁腕统御</div>
+                      <div class="skill-desc">降低我方前排受到的物理伤害，并随养成阶段逐步扩大覆盖范围。</div>
+                    </div>
+                  </div>
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1375_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 3</span></div>
+                      <div class="skill-name">夜色庇护</div>
+                      <div class="skill-desc">战斗中持续降低前排单位受到的所有伤害，属于稳定的防线保命技能。</div>
+                    </div>
+                  </div>
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1377_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 4</span></div>
+                      <div class="skill-name">战意觉醒</div>
+                      <div class="skill-desc">生命、攻击、防御提升，速度加成明显，偏后期成长收益。</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="quote"><span>跟我走，否则会不得好死。人生总是充满迷雾，但赢家通吃。</span></div>
+              </div>
+              <div class="composer">Aa</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="option">
+        <div class="option-head">
+          <div class="option-kicker">Option 03</div>
+          <h2>档案海报</h2>
+          <p>更强调头像和稀有度，首屏冲击力强，适合“介绍一下 XX”这种单英雄展开场景。</p>
+        </div>
+        <div class="phone">
+          <div class="phone-shell">
+            <div class="phone-top">
+              <div class="phone-title">
+                <div class="phone-avatar"><img src="http://localhost:3100/kb-images/1/69/1346_1.png" alt=""></div>
+                <strong>卡西迪</strong>
+              </div>
+            </div>
+            <div class="phone-body">
+              <div class="bubble">这是薇珀的英雄档案，头像、阵营、稀有度、技能和英雄台词都在下面。</div>
+              <div class="card theme-c">
+                <div class="hero-banner">
+                  <img src="http://localhost:3100/kb-images/1/69/1346_1.png" alt="薇珀">
+                  <div class="hero-copy">
+                    <div class="title-row">
+                      <div>
+                        <div class="title">末日狂花</div>
+                        <div class="name">薇珀</div>
+                      </div>
+                      <div class="badge">S+</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="hero-stats">
+                  <div class="hero-stat">
+                    <label>阵营</label>
+                    <strong>守护者</strong>
+                  </div>
+                  <div class="hero-stat">
+                    <label>职业</label>
+                    <strong>能承受更多伤害</strong>
+                  </div>
+                </div>
+                <div class="section-label">技能</div>
+                <div class="skills">
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1370_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 1</span></div>
+                      <div class="skill-name">决意突袭</div>
+                      <div class="skill-desc">对敌方单体造成 511% 攻击的物理伤害，并附带多段追加伤害。</div>
+                    </div>
+                  </div>
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1373_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 2</span><span class="skill-tag core">核心</span></div>
+                      <div class="skill-name">铁腕统御</div>
+                      <div class="skill-desc">降低我方前排受到的物理伤害，并随养成阶段逐步扩大覆盖范围。</div>
+                    </div>
+                  </div>
+                  <div class="skill">
+                    <div class="skill-thumb"><img src="http://localhost:3100/kb-images/1/69/1375_1.png" alt=""></div>
+                    <div>
+                      <div class="skill-row"><span class="skill-tag">技能 3</span></div>
+                      <div class="skill-name">夜色庇护</div>
+                      <div class="skill-desc">战斗中持续降低前排单位受到的所有伤害，属于稳定的防线保命技能。</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="quote">跟我走，否则会不得好死。人生总是充满迷雾，但赢家通吃。</div>
+              </div>
+              <div class="composer">Aa</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
