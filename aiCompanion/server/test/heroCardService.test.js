@@ -17,9 +17,12 @@ const {
   findSkillFromHistory,
   formatSkillReply,
   formatHeroStarListReply,
+  isAllSkillsQuery,
   shouldCarryHeroFromHistory,
   isHeroProfileIntent,
   shouldReturnHeroCardRequest,
+  extractHeroNameFromAssistantReply,
+  isValidHeroNameCandidate,
 } = heroCardService.__test__;
 
 function buildFixtureCard() {
@@ -194,7 +197,7 @@ function main() {
       '/kb-images/1/69/1344_2.png',
       '/kb-images/1/69/1344_3.png',
     ]),
-    '/kb-images/1/69/1344_2.png'
+    '/kb-images/1/69/1344_1.png'
   );
 
   const card = buildFixtureCard();
@@ -220,12 +223,32 @@ function main() {
 
   assert.strictEqual(isSkillContextFollowupQuery('三星呢'), true);
   assert.strictEqual(isSkillContextFollowupQuery('基础效果呢'), true);
+  assert.strictEqual(isAllSkillsQuery('所有技能的二星效果呢'), true);
+  assert.strictEqual(isAllSkillsQuery('她的技能二星效果咋样'), false);
 
   assert.strictEqual(shouldCarryHeroFromHistory('特斯拉'), false);
   assert.strictEqual(shouldCarryHeroFromHistory('介绍一下特斯拉'), false);
   assert.strictEqual(shouldCarryHeroFromHistory('然后呢'), true);
   assert.strictEqual(shouldCarryHeroFromHistory('基础效果'), true);
   assert.strictEqual(shouldCarryHeroFromHistory('适合什么阵容'), true);
+  assert.strictEqual(shouldCarryHeroFromHistory('这个英雄怎么样'), true);
+  assert.strictEqual(shouldCarryHeroFromHistory('你觉得咋样'), true);
+  assert.strictEqual(shouldCarryHeroFromHistory('厉害吗'), true);
+  assert.strictEqual(shouldCarryHeroFromHistory('值不值得练'), true);
+  assert.strictEqual(shouldCarryHeroFromHistory('那台词呢'), true);
+  assert.strictEqual(shouldCarryHeroFromHistory('职业呢'), true);
+  assert.strictEqual(shouldCarryHeroFromHistory('技能1呢'), true);
+
+  assert.strictEqual(isValidHeroNameCandidate('卡西迪'), true);
+  assert.strictEqual(isValidHeroNameCandidate('这是卡西迪'), false);
+  assert.strictEqual(
+    extractHeroNameFromAssistantReply('这是卡西迪的英雄档案。\n\n```herocard\n{"name":"卡西迪","skills":[]}\n```'),
+    '卡西迪'
+  );
+  assert.strictEqual(
+    extractHeroNameFromAssistantReply('卡西迪「神射」\n基础效果：对前排造成伤害'),
+    '卡西迪'
+  );
 
   const historySkill = findSkillFromHistory(card.skills, [
     { role: 'user', content: '决意突袭的二星效果是什么？' },

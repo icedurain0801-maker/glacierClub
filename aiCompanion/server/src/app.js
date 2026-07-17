@@ -16,6 +16,8 @@ app.use('/api/kb',       require('./routes/kb'));
 app.use('/api/kg',       require('./routes/kg'));
 app.use('/api/bot',      require('./routes/bot'));
 app.use('/api/sessions', require('./routes/sessions'));
+app.use('/api/quality',  require('./routes/quality'));
+app.use('/api/simulations', require('./routes/simulations'));
 app.use('/api/public',   require('./routes/public'));
 
 app.get('/api/ping', (_, res) => res.json({ ok: true, ts: Date.now() }));

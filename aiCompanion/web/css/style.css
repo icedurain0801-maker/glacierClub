@@ -727,19 +727,11 @@ textarea { padding: 4px 11px; resize: vertical; }
 /* ============ C 端 chat.html (Messenger 风) ============ */
 .chat-page {
   min-height: 100vh;
-  background: radial-gradient(ellipse at 30% 20%, #131b33 0%, #060810 55%, #030408 100%);
+  background: url('../images/chat-page-bg.jpg') center center / cover no-repeat, #0b1a2e;
   display: flex; align-items: center; justify-content: center;
   padding: 0;
   position: relative;
   overflow: hidden;
-}
-.chat-page-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
 }
 .chat-shell {
   width: 100%;
@@ -1614,4 +1606,315 @@ body.kb-image-overlay-open { overflow: hidden; }
 @media (max-width: 992px) {
   .sidebar { width: 200px; }
   .content { padding: 16px; }
+}
+
+.quality-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.quality-summary-card {
+  margin-bottom: 0;
+  min-height: 106px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.quality-summary-card__label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.quality-summary-card__value {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quality-toolbar input[type="text"] {
+  min-width: 280px;
+  flex: 1 1 320px;
+}
+
+.quality-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.quality-row-active {
+  background: #f0f7ff !important;
+}
+
+.quality-session-title {
+  font-weight: 600;
+}
+
+.quality-subtext {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.quality-excerpt {
+  max-width: 100%;
+  color: var(--text-primary);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.quality-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quality-score-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quality-message-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.quality-message-card {
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
+  background: #fafafa;
+  padding: 16px;
+}
+
+.quality-message-card__body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.quality-dimension-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.quality-dimension-card {
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  background: #fafafa;
+}
+
+.quality-dimension-card__label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.quality-dimension-card__value {
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.quality-detail-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quality-detail-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quality-total-score {
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.quality-detail-text {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.quality-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quality-issue-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.quality-block-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.quality-bullet-list {
+  padding-left: 18px;
+  color: var(--text-primary);
+}
+
+.quality-bullet-list li + li {
+  margin-top: 6px;
+}
+
+.quality-unscored-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px dashed #91caff;
+  border-radius: var(--radius-lg);
+  background: #f8fbff;
+}
+
+.quality-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.quality-review-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.quality-review-note {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1100px) {
+  .quality-message-pair,
+  .quality-issue-grid,
+  .quality-review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quality-dimension-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.simulation-config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.simulation-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.simulation-config-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.simulation-config-topic {
+  grid-column: 1 / -1;
+}
+
+.simulation-scenario-desc {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: #fafafa;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.simulation-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.simulation-session-card {
+  margin-top: 16px;
+}
+
+.simulation-session-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.simulation-session-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.simulation-turn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.simulation-turn-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.simulation-turn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.simulation-turn-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1100px) {
+  .simulation-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .simulation-actions,
+  .simulation-session-meta,
+  .simulation-turn-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

@@ -1,7 +1,13 @@
 const MENU_TITLES = {
-  sessions: '会话管理', knowledge: '知识库管理',
-  users: '用户权限管理', bots: '机器人管理', versions: '版本管理',
+  sessions: '会话管理',
+  knowledge: '知识库管理',
+  quality: '对话质量评分',
+  simulations: '脚本测试',
+  users: '用户权限管理',
+  bots: '机器人管理',
+  versions: '版本管理',
 };
+
 const PAGE_STORAGE_KEY = 'currentAdminPage';
 
 let currentUser = null;
@@ -13,27 +19,29 @@ async function boot() {
     location.href = 'index.html';
     return;
   }
+
   document.getElementById('user-name').textContent =
     currentUser.displayName + (currentUser.isSuperAdmin ? '（超管）' : '');
 
   renderVersionSwitcher();
   bindMenu();
   bindLogout();
-
-  // 刷新后保持当前后台页面，没有有效记录时回退到会话管理
   navigate(getInitialPage());
 }
 
 function renderVersionSwitcher() {
   const sel = document.getElementById('version-select');
   sel.innerHTML = currentUser.versions
-    .map(v => `<option value="${v.id}">${v.display_name}</option>`).join('');
+    .map(v => `<option value="${v.id}">${v.display_name}</option>`)
+    .join('');
+
   const saved = localStorage.getItem('currentVersionId');
   if (saved && currentUser.versions.some(v => String(v.id) === saved)) {
     sel.value = saved;
   } else if (currentUser.versions[0]) {
     localStorage.setItem('currentVersionId', currentUser.versions[0].id);
   }
+
   sel.addEventListener('change', () => {
     localStorage.setItem('currentVersionId', sel.value);
     const active = document.querySelector('#menu a.active');
@@ -42,8 +50,8 @@ function renderVersionSwitcher() {
 }
 
 function bindMenu() {
-  document.querySelectorAll('#menu a').forEach(a => {
-    a.addEventListener('click', () => navigate(a.dataset.page));
+  document.querySelectorAll('#menu a').forEach(anchor => {
+    anchor.addEventListener('click', () => navigate(anchor.dataset.page));
   });
 }
 
@@ -67,15 +75,20 @@ function getInitialPage() {
 function navigate(page) {
   const targetPage = Object.prototype.hasOwnProperty.call(MENU_TITLES, page) ? page : 'sessions';
   localStorage.setItem(PAGE_STORAGE_KEY, targetPage);
-  document.querySelectorAll('#menu a').forEach(a =>
-    a.classList.toggle('active', a.dataset.page === targetPage));
-  const content = document.getElementById('content');
 
+  document.querySelectorAll('#menu a').forEach(anchor => {
+    anchor.classList.toggle('active', anchor.dataset.page === targetPage);
+  });
+
+  const content = document.getElementById('content');
   if (targetPage === 'versions' && window.pages.versions) return window.pages.versions(content);
   if (targetPage === 'users' && window.pages.users) return window.pages.users(content);
   if (targetPage === 'knowledge' && window.pages.knowledge) return window.pages.knowledge(content);
+  if (targetPage === 'quality' && window.pages.quality) return window.pages.quality(content);
+  if (targetPage === 'simulations' && window.pages.simulations) return window.pages.simulations(content);
   if (targetPage === 'bots' && window.pages.bots) return window.pages.bots(content);
   if (targetPage === 'sessions' && window.pages.sessions) return window.pages.sessions(content);
+
   content.innerHTML = window.pages.placeholder(MENU_TITLES[targetPage] || targetPage);
 }
 

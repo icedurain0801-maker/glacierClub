@@ -243,6 +243,79 @@ function main() {
     false,
     'title-style matching should not treat semantically related but differently titled content as the same KB article'
   );
+  assert.strictEqual(
+    ragContext.isGenericBeginnerGuideQuery('新手入门怎么玩'),
+    true,
+    'generic beginner onboarding queries should be detected explicitly'
+  );
+  assert(
+    ragContext.buildLexicalSearchTokens('新手入门怎么玩').includes('快速上手'),
+    'generic beginner onboarding queries should expand to quick-start style guide terms'
+  );
+  assert(
+    ragContext.scoreLexicalMatch('新手入门怎么玩', '快速上手攻略：每日必做') > 0,
+    'generic beginner onboarding queries should lexically match quick-start guide titles'
+  );
+
+  const beginnerGuideRefs = ragContext.rerankRefsByIntent('新手入门怎么玩', [
+    {
+      entryId: 701,
+      score: 0.42,
+      semanticScore: 0.42,
+      lexicalScore: 25,
+      matchText: '新手竞技场：每天可参与 5 次，胜利可拿积分。',
+      snippet: '新手竞技场：每天可参与 5 次，胜利可拿积分。',
+      images: [],
+    },
+    {
+      entryId: 702,
+      score: 0.39,
+      semanticScore: 0.39,
+      lexicalScore: 20,
+      matchText: [
+        '新手入门指南',
+        '开局先跟主线任务走，优先升级核心建筑和主力队伍。',
+        '前期资源优先保证体力、建筑升级和主力培养。',
+      ].join('\n'),
+      snippet: '新手入门指南',
+      images: [],
+    },
+  ]);
+  assert.strictEqual(
+    beginnerGuideRefs[0].entryId,
+    702,
+    'generic beginner guide queries should rank broad onboarding guidance above specific arena topics'
+  );
+
+  const quickStartGuideRefs = ragContext.rerankRefsByIntent('新手入门怎么玩', [
+    {
+      entryId: 703,
+      score: 0.36,
+      semanticScore: 0.36,
+      lexicalScore: 30,
+      matchText: '新手竞技场：每天可参与 5 次，胜利可拿积分。',
+      snippet: '新手竞技场：每天可参与 5 次，胜利可拿积分。',
+      images: [],
+    },
+    {
+      entryId: 704,
+      score: 0.31,
+      semanticScore: 0.31,
+      lexicalScore: 16,
+      matchText: [
+        '快速上手攻略：每日必做',
+        '每日必做：优先领取体力、VIP 点数、每日免费礼包。',
+        '推荐日常：货车、军备竞赛、竞技场点赞都别漏。',
+      ].join('\n'),
+      snippet: '快速上手攻略：每日必做',
+      images: [],
+    },
+  ]);
+  assert.strictEqual(
+    quickStartGuideRefs[0].entryId,
+    704,
+    'quick-start guide bodies should outrank specific arena entries for broad beginner questions'
+  );
 
   console.log('ragContext tests passed');
 }

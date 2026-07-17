@@ -29,6 +29,64 @@ const NON_HERO_TOPIC_RE = /(?:世界杯|欧冠|NBA|CBA|足球|篮球|电竞|比�
 const summaryCache = new Map();
 const imageDimensionCache = new Map();
 
+const HERO_SUMMARY_FIELD_KEYS = [
+  '\u9700\u6c42\u82f1\u96c4',
+  '\u82f1\u96c4\u540d\u79f0',
+  '\u82f1\u96c4',
+];
+const HERO_PROFILE_PREFIX_RE = /^(?:\u4ecb\u7ecd\u4e00\u4e0b|\u4ecb\u7ecd\u4e0b|\u4ecb\u7ecd\u4e2a|\u8bf4\u8bf4|\u8bb2\u8bb2|\u804a\u804a|\u6765\u4e2a|\u770b\u4e0b|\u770b\u770b|\u8bc4\u4ef7\u4e00\u4e0b)/u;
+const HERO_TEAM_QUERY_RE = /(?:\u9635\u5bb9|\u9663\u5bb9|\u914d\u961f|\u914d\u968a|\u642d\u914d|\u63a8\u8350\u9635\u5bb9|\u63a8\u85a6\u9663\u5bb9)/u;
+const HERO_CONTEXT_PRONOUN_PREFIXES = [
+  '\u5979',
+  '\u4ed6',
+  '\u5b83',
+  '\u8fd9\u4e2a',
+  '\u90a3\u4e2a',
+  '\u8fd9\u4f4d',
+  '\u90a3\u4f4d',
+  '\u8be5\u82f1\u96c4',
+  '\u8fd9\u4e2a\u82f1\u96c4',
+  '\u90a3\u4e2a\u82f1\u96c4',
+];
+const HERO_CONTEXT_CONTINUATION_PREFIXES = [
+  '\u7136\u540e',
+  '\u90a3\u5979',
+  '\u90a3\u4ed6',
+  '\u90a3\u5b83',
+  '\u8fd8\u6709',
+  '\u518d\u8bf4\u8bf4',
+  '\u518d\u8bb2\u8bb2',
+  '\u8865\u5145',
+  '\u7ee7\u7eed',
+];
+const HERO_CONTEXT_FIELD_TOKENS = new Set([
+  '\u53f0\u8bcd',
+  '\u8bed\u97f3',
+  '\u8bed\u5f55',
+  '\u5934\u50cf',
+  '\u7acb\u7ed8',
+  '\u9635\u8425',
+  '\u804c\u4e1a',
+  '\u7a00\u6709\u5ea6',
+  '\u661f\u7ea7',
+  '\u6280\u80fd',
+  '\u6838\u5fc3\u6280\u80fd',
+]);
+const HERO_CONTEXT_FIELD_FOLLOWUP_RE = /^(?:(?:\u90a3|\u8fd9|\u8fd9\u4e2a|\u90a3\u4e2a|\u8be5)?(?:\u82f1\u96c4)?(?:\u7684)?)?(?:\u53f0\u8bcd|\u8bed\u97f3|\u8bed\u5f55|\u5934\u50cf|\u7acb\u7ed8|\u9635\u8425|\u804c\u4e1a|\u7a00\u6709\u5ea6|\u661f\u7ea7|\u6280\u80fd|\u6838\u5fc3\u6280\u80fd)(?:\s*[1-4])?(?:\u5462|\u5417|\u5440|\u554a|\u600e\u4e48\u6837|\u600e\u4e48\u770b|\u662f\u4ec0\u4e48|\u662f\u5565|\u6709\u54ea\u4e9b)?$/u;
+const HERO_CONTEXT_SKILL_SLOT_FOLLOWUP_RE = /^(?:(?:\u90a3|\u8fd9|\u8fd9\u4e2a|\u90a3\u4e2a)?(?:\u6280\u80fd|\u6838\u5fc3\u6280\u80fd)\s*[1-4]|(?:\u90a3|\u8fd9)?[一二三四]\u6280\u80fd)(?:\u5462|\u5417|\u5440|\u554a|\u57fa\u7840\u6548\u679c|\u4e00\u661f|\u4e8c\u661f|\u4e09\u661f|\u56db\u661f|\u4e94\u661f|\u600e\u4e48\u6837|\u662f\u4ec0\u4e48|\u662f\u5565)?$/u;
+const HERO_CONTEXT_EVALUATION_FOLLOWUP_RE = /^(?:(?:你|您)?(?:觉得|看)|这(?:个)?(?:英雄)?|那(?:个)?(?:英雄)?|她|他)?(?:咋样|怎么样|如何|厉害吗|强吗|强不强|好用吗|值不值得(?:练|养)?|能不能练|推荐吗)(?:呢|呀|啊|吗)?$/u;
+const HERO_QUOTE_QUERY_RE = /(?:\u53f0\u8bcd|\u8bed\u97f3|\u8bed\u5f55)/u;
+const HERO_FACTION_QUERY_RE = /(?:\u9635\u8425)/u;
+const HERO_CAREER_QUERY_RE = /(?:\u804c\u4e1a)/u;
+const HERO_RARITY_QUERY_RE = /(?:\u7a00\u6709\u5ea6|\u661f\u7ea7)/u;
+const HERO_AVATAR_QUERY_RE = /(?:\u5934\u50cf|\u7acb\u7ed8)/u;
+const HERO_NAME_NOISE_RE = /(?:\u8d44\u6599\u66f4\u65b0|\u622a\u56fe|\u8be6\u89c1|https?:\/\/|hero\s*id\s*=|\u6210\u56fe\u5730\u5740|\u70b9\u51fb\u8df3\u8f6c|sheet:|row:|\u9700\u6c42\u65f6\u95f4|\u5df2\u53d1\u5e03|\u767e\u79d1\u914d\u7f6e)/iu;
+const HERO_NAME_STOPWORD_PREFIX_RE = /^(?:\u8fd9\u662f|\u8fd9\u4e2a|\u90a3\u4e2a|\u8fd9\u4f4d|\u90a3\u4f4d|\u8bf7\u95ee|\u4ee5\u4e0b\u662f|\u4e0b\u9762\u662f)/u;
+const HERO_CARD_REPLY_PATTERNS = [
+  /^(?:\u8fd9\u662f|\u4ee5\u4e0b\u662f|\u4e0b\u9762\u662f)?([^,\u3002\uff0c\uff1a:\n]{2,24})\u7684(?:\u82f1\u96c4\u6863\u6848|\u89d2\u8272\u6863\u6848|\u6280\u80fd\u8d44\u6599|\u8d44\u6599)/u,
+  /^([^\s\u300c\u300d\u300e\u300f\u201c\u201d「」『』\n]{2,24})[「\u300c\u300e\u201c][^」\u300d\u300f\u201d\n]{1,40}[」\u300d\u300f\u201d]/u,
+];
+
 function isBlank(value) {
   return value == null || String(value).trim() === '';
 }
@@ -37,6 +95,87 @@ function firstNonBlank(...values) {
   for (const value of values) {
     if (!isBlank(value)) return value;
   }
+  return '';
+}
+
+function getHeroSummaryRawCandidates(raw = {}, targetSheet = '') {
+  return [
+    ...HERO_SUMMARY_FIELD_KEYS.map(key => raw[key]),
+    targetSheet,
+  ];
+}
+
+function sanitizeHeroAliasToken(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.length < 2 || text.length > 24) return '';
+  if (!/[\u4e00-\u9fa5A-Za-z]/u.test(text)) return '';
+  if (/[\r\n]/u.test(text)) return '';
+  if (HERO_NAME_NOISE_RE.test(text)) return '';
+  return text.replace(/^[\s"'`]+|[\s"'`]+$/g, '');
+}
+
+function extractHeroAliasTokens(value) {
+  const text = String(value || '').trim();
+  if (!text || HERO_NAME_NOISE_RE.test(text)) return [];
+
+  const aliases = new Set();
+  const direct = sanitizeHeroAliasToken(text);
+  if (direct) aliases.add(direct);
+
+  text
+    .split(/[_\-/\\|,，、()（）\[\]<>《》\s]+/u)
+    .map(sanitizeHeroAliasToken)
+    .filter(Boolean)
+    .forEach(alias => aliases.add(alias));
+
+  (text.match(/[\u4e00-\u9fa5]{2,}/gu) || [])
+    .map(sanitizeHeroAliasToken)
+    .filter(Boolean)
+    .forEach(alias => {
+      aliases.add(alias);
+      if (alias.length > 4) aliases.add(alias.slice(-2));
+      if (alias.length > 5) aliases.add(alias.slice(-3));
+      if (alias.length > 6) aliases.add(alias.slice(-4));
+    });
+
+  (text.match(/[A-Za-z][A-Za-z0-9.+-]{1,}/g) || [])
+    .map(sanitizeHeroAliasToken)
+    .filter(Boolean)
+    .forEach(alias => aliases.add(alias));
+
+  return [...aliases];
+}
+
+function isLikelyHeroSummaryRow(raw = {}, targetSheet = '') {
+  const normalizedTarget = sanitizeHeroAliasToken(targetSheet);
+  if (!normalizedTarget) return false;
+
+  const heroCandidates = getHeroSummaryRawCandidates(raw, normalizedTarget)
+    .flatMap(extractHeroAliasTokens);
+
+  return heroCandidates.length > 0;
+}
+
+function getHeroSummaryDisplayName(summaryEntry) {
+  if (!summaryEntry) return '';
+
+  const raw = summaryEntry.raw || {};
+  const candidates = [
+    ...HERO_SUMMARY_FIELD_KEYS.map(key => raw[key]),
+    summaryEntry.targetSheet,
+  ];
+
+  for (const candidate of candidates) {
+    const aliases = extractHeroAliasTokens(candidate);
+    const chineseAlias = aliases
+      .filter(alias => /^[\u4e00-\u9fa5]{2,}$/u.test(alias))
+      .sort((a, b) => a.length - b.length)[0]
+      || aliases.find(alias => /[\u4e00-\u9fa5]{2,}/u.test(alias));
+    if (chineseAlias) return chineseAlias;
+    if (aliases[0]) return aliases[0];
+  }
+
   return '';
 }
 
@@ -342,8 +481,8 @@ function isHeroProfileIntent(message) {
   const text = String(message || '').trim();
   if (!text) return false;
 
-  if (/(?:浠嬬粛|璇︽儏|妗ｆ|璧勬枡|鏄皝)/i.test(text)) return true;
-  if (!shouldCarryHeroFromHistory(text) && text.length <= 12 && !/[?锛焆]/u.test(text)) return true;
+  if (HERO_PROFILE_PREFIX_RE.test(text)) return true;
+  if (!shouldCarryHeroFromHistorySafe(text) && text.length <= 12 && !/[?\uFF1F]/u.test(text)) return true;
 
   return false;
 }
@@ -424,6 +563,15 @@ function scoreHeroCandidate(message, aliases) {
   return best;
 }
 
+function collectHeroAliasesSafe(summaryRaw, targetSheet) {
+  const aliases = new Set();
+  getHeroSummaryRawCandidates(summaryRaw || {}, targetSheet)
+    .flatMap(extractHeroAliasTokens)
+    .forEach(alias => aliases.add(alias));
+
+  return [...aliases].sort((a, b) => b.length - a.length);
+}
+
 function scoreSkillCandidate(message, candidate) {
   const normalizedMessage = normalizeText(message);
   const normalizedCandidate = normalizeText(candidate);
@@ -463,10 +611,15 @@ async function loadHeroSummaries(versionId) {
         ...row,
         raw,
         targetSheet,
-        aliases: collectHeroAliases(raw, targetSheet),
+        aliases: collectHeroAliasesSafe(raw, targetSheet),
       };
     })
-    .filter(item => item.targetSheet && String(item.raw.__sheet || '').trim() === HERO_SUMMARY_SHEET);
+    .filter(item =>
+      String(item.raw.__sheet || '').trim() === HERO_SUMMARY_SHEET
+      && isLikelyHeroSummaryRow(item.raw, item.targetSheet)
+      && Array.isArray(item.aliases)
+      && item.aliases.length > 0
+    );
 
   summaryCache.set(versionId, { updatedAt: Date.now(), items });
   return items;
@@ -558,15 +711,151 @@ function getRecentUserMessages(history, limit = 4) {
     .map(item => String(item.content || '').trim());
 }
 
+function getRecentAssistantMessages(history, limit = 6) {
+  return [...(Array.isArray(history) ? history : [])]
+    .reverse()
+    .filter(item => item && item.role === 'assistant' && !isBlank(item.content))
+    .slice(0, limit)
+    .map(item => String(item.content || '').trim());
+}
+
+function extractHeroNameFromAssistantCardPayload(content) {
+  const text = String(content || '').trim();
+  if (!text) return '';
+
+  const heroCardMatch = /```herocard\s*([\s\S]*?)```/iu.exec(text);
+  if (!heroCardMatch) return '';
+
+  try {
+    const payload = JSON.parse(heroCardMatch[1]);
+    const name = String(payload && payload.name || '').trim();
+    return isValidHeroNameCandidateSafe(name) ? name : '';
+  } catch {
+    return '';
+  }
+}
+
+function isValidHeroNameCandidate(value) {
+  const text = String(value || '').trim();
+  if (!text || text.length < 2 || text.length > 24) return false;
+  if (!/[\u4e00-\u9fa5A-Za-z]/u.test(text)) return false;
+  if (/[：:]/u.test(text)) return false;
+  if (/^(?:这是|这个|那个|该|这位|那位)/u.test(text)) return false;
+  return true;
+}
+
+function extractHeroNameFromAssistantReply(content) {
+  const text = String(content || '').trim();
+  if (!text) return '';
+
+  const heroCardMatch = /```herocard\s*([\s\S]*?)```/iu.exec(text);
+  if (heroCardMatch) {
+    try {
+      const payload = JSON.parse(heroCardMatch[1]);
+      const name = String(payload && payload.name || '').trim();
+      if (isValidHeroNameCandidate(name)) return name;
+    } catch {
+      // ignore invalid herocard payload
+    }
+  }
+
+  const patterns = [
+    /这是([^，。\n]{2,24})的(?:英雄档案|技能资料)/u,
+    /^([^「\n]{2,24})「[^」\n]{1,24}」/u,
+  ];
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+    const candidate = String(match[1] || '').trim();
+    if (isValidHeroNameCandidate(candidate)) return candidate;
+  }
+
+  return '';
+}
+
+async function findHeroSummaryFromAssistantHistory(versionId, history = []) {
+  const recentAssistantMessages = getRecentAssistantMessages(history);
+
+  for (const item of recentAssistantMessages) {
+    const heroName = extractHeroNameFromAssistantCardPayload(item);
+    if (!heroName) continue;
+
+    const matched = await findBestHeroSummary(versionId, heroName);
+    if (matched) return matched;
+  }
+
+  for (const item of recentAssistantMessages) {
+    const heroName = extractHeroNameFromAssistantReplySafe(item);
+    if (!heroName) continue;
+
+    const matched = await findBestHeroSummary(versionId, heroName);
+    if (matched) return matched;
+  }
+
+  return null;
+}
+
 function shouldCarryHeroFromHistory(message) {
   const text = String(message || '').trim();
   if (!text) return false;
 
   if (parseStarLevel(text) || isSkillContextFollowupQuery(text)) return true;
-  if (/(?:阵容|陣容|配队|配隊|搭配|推荐阵容|推薦陣容)/u.test(text)) return true;
-  if (/^(?:她|他|它|这个|那个|这位|那位|该英雄|这个英雄|那个英雄)/u.test(text)) return true;
-  if (/^(?:然后|那|那她|那他|那它|那这个|那那个|还有|再说说|再讲讲|补充|继续)/u.test(text)) return true;
-  if (/^(?:台词|语音|语录|头像|立绘|阵营|职业|稀有度|星级|技能|技能1|技能2|技能3|技能4|核心技能)$/u.test(text)) return true;
+  if (/(?:\u9635\u5bb9|\u9663\u5bb9|\u914d\u961f|\u914d\u968a|\u642d\u914d|\u63a8\u8350\u9635\u5bb9|\u63a8\u85a6\u9663\u5bb9)/u.test(text)) return true;
+  if (["\u5979", "\u4ed6", "\u5b83", "\u8fd9\u4e2a", "\u90a3\u4e2a", "\u8fd9\u4f4d", "\u90a3\u4f4d", "\u8be5\u82f1\u96c4", "\u8fd9\u4e2a\u82f1\u96c4", "\u90a3\u4e2a\u82f1\u96c4"].some(prefix => text.startsWith(prefix))) return true;
+  if (["\u7136\u540e", "\u90a3\u5979", "\u90a3\u4ed6", "\u90a3\u5b83", "\u90a3\u8fd9\u4e2a", "\u90a3\u90a3\u4e2a", "\u8fd8\u6709", "\u518d\u8bf4\u8bf4", "\u518d\u8bb2\u8bb2", "\u8865\u5145", "\u7ee7\u7eed"].some(prefix => text.startsWith(prefix))) return true;
+  if (["\u53f0\u8bcd", "\u8bed\u97f3", "\u8bed\u5f55", "\u5934\u50cf", "\u7acb\u7ed8", "\u9635\u8425", "\u804c\u4e1a", "\u7a00\u6709\u5ea6", "\u661f\u7ea7", "\u6280\u80fd", "\u6838\u5fc3\u6280\u80fd"].includes(text)) return true;
+
+  return false;
+}
+
+function isValidHeroNameCandidateSafe(value) {
+  const text = String(value || '').trim();
+  if (!text || text.length < 2 || text.length > 24) return false;
+  if (!/[\u4e00-\u9fa5A-Za-z]/u.test(text)) return false;
+  if (/[\r\n,，。！？!?：:]/u.test(text)) return false;
+  if (HERO_NAME_NOISE_RE.test(text)) return false;
+  if (HERO_NAME_STOPWORD_PREFIX_RE.test(text)) return false;
+  return true;
+}
+
+function extractHeroNameFromAssistantReplySafe(content) {
+  const text = String(content || '').trim();
+  if (!text) return '';
+
+  const heroCardMatch = /```herocard\s*([\s\S]*?)```/iu.exec(text);
+  if (heroCardMatch) {
+    try {
+      const payload = JSON.parse(heroCardMatch[1]);
+      const name = String(payload && payload.name || '').trim();
+      if (isValidHeroNameCandidateSafe(name)) return name;
+    } catch {
+      // ignore invalid herocard payload
+    }
+  }
+
+  for (const pattern of HERO_CARD_REPLY_PATTERNS) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+    const candidate = String(match[1] || '').trim();
+    if (isValidHeroNameCandidateSafe(candidate)) return candidate;
+  }
+
+  return '';
+}
+
+function shouldCarryHeroFromHistorySafe(message) {
+  const text = String(message || '').trim();
+  if (!text) return false;
+
+  if (parseStarLevel(text) || isSkillContextFollowupQuery(text)) return true;
+  if (HERO_TEAM_QUERY_RE.test(text)) return true;
+  if (HERO_CONTEXT_PRONOUN_PREFIXES.some(prefix => text.startsWith(prefix))) return true;
+  if (HERO_CONTEXT_CONTINUATION_PREFIXES.some(prefix => text.startsWith(prefix))) return true;
+  if (HERO_CONTEXT_FIELD_TOKENS.has(text)) return true;
+  if (text.length <= 16 && HERO_CONTEXT_FIELD_FOLLOWUP_RE.test(text)) return true;
+  if (text.length <= 16 && HERO_CONTEXT_SKILL_SLOT_FOLLOWUP_RE.test(text)) return true;
+  if (text.length <= 16 && HERO_CONTEXT_EVALUATION_FOLLOWUP_RE.test(text)) return true;
 
   return false;
 }
@@ -578,7 +867,7 @@ async function findHeroSummaryFromContext(versionId, message, history = []) {
   const bySkill = await findHeroSummaryBySkillPhrase(versionId, message);
   if (bySkill) return bySkill;
 
-  if (!shouldCarryHeroFromHistory(message)) {
+  if (!shouldCarryHeroFromHistorySafe(message)) {
     return null;
   }
 
@@ -587,6 +876,9 @@ async function findHeroSummaryFromContext(versionId, message, history = []) {
     const matched = await findBestHeroSummary(versionId, item);
     if (matched) return matched;
   }
+
+  const assistantMatched = await findHeroSummaryFromAssistantHistory(versionId, history);
+  if (assistantMatched) return assistantMatched;
 
   const combined = [message, ...recentMessages].filter(Boolean).join(' ');
   if (combined && combined !== message) {
@@ -921,19 +1213,59 @@ function buildHeroCardPayload(summaryEntry, detailEntries) {
   };
 }
 
-function buildHeroReplyText(card, message) {
-  const name = card.name || '该英雄';
-  if (/技能/.test(message)) {
-    return `这是${name}的技能资料，基础信息和英雄台词也一起放在下面。`;
+function getHeroFieldReply(card, message) {
+  const text = String(message || '').trim();
+  if (!text || !card || !card.name) return '';
+
+  if (HERO_QUOTE_QUERY_RE.test(text) && card.quote) {
+    return `${card.name}的英雄台词：${String(card.quote).replace(/\s+/g, ' ').trim()}`;
   }
-  if (/台词|语音|语录/.test(message)) {
-    return `这是${name}的英雄档案，台词和技能都在下面。`;
+
+  if (HERO_FACTION_QUERY_RE.test(text) && card.faction) {
+    return `${card.name}的阵营是${card.faction}。`;
   }
-  return `这是${name}的英雄档案，头像、阵营、稀有度、技能和英雄台词都在下面。`;
+
+  if (HERO_CAREER_QUERY_RE.test(text) && card.career) {
+    return `${card.name}的职业是${card.career}。`;
+  }
+
+  if (HERO_RARITY_QUERY_RE.test(text) && card.rarity) {
+    return `${card.name}的稀有度是${card.rarity}。`;
+  }
+
+  if (HERO_AVATAR_QUERY_RE.test(text) && card.avatarUrl) {
+    return `${card.name}有专属头像资料，当前头像已在英雄卡中展示。`;
+  }
+
+  return '';
 }
 
-function formatHeroCardReply(card, message) {
-  return `${buildHeroReplyText(card, message)}\n\n\`\`\`herocard\n${JSON.stringify(card, null, 2)}\n\`\`\``;
+async function findHeroFieldReply(versionId, message, history = []) {
+  if (!shouldCarryHeroFromHistorySafe(message)) return null;
+
+  const summaryEntry = await findHeroSummaryFromContext(versionId, message, history);
+  if (!summaryEntry) return null;
+
+  const detailEntries = await loadDetailEntries(versionId, summaryEntry.document_id, summaryEntry.targetSheet);
+  if (detailEntries.length === 0) return null;
+
+  const card = buildHeroCardPayload(summaryEntry, detailEntries);
+  if (!card.name) return null;
+
+  const reply = getHeroFieldReply(card, message);
+  if (!reply) return null;
+
+  return {
+    reply,
+    refs: [],
+    card,
+  };
+}
+
+function shouldReturnHeroOverviewReply(message) {
+  const text = String(message || '').trim();
+  if (!text || !shouldCarryHeroFromHistorySafe(text)) return false;
+  return /(?:\u600e\u4e48\u6837|\u600e\u4e48\u770b|\u5982\u4f55|\u5389\u5bb3\u5417|\u5f3a\u5417|\u597d\u7528\u5417|\u503c\u5f97\u7ec3\u5417|\u503c\u5f97\u517b\u5417|\u8bc4\u4ef7|\u5b9a\u4f4d)/u.test(text);
 }
 
 function findBestMatchingSkill(skills, message) {
@@ -1004,6 +1336,16 @@ function findSkillFromHistory(skills, history = []) {
   return null;
 }
 
+function isAllSkillsQuery(message) {
+  const text = String(message || '').trim();
+  if (!text) return false;
+
+  if (/(?:所有|全部|整套|全套|全部的|所有的).{0,6}(?:技能)/u.test(text)) return true;
+  if (/(?:技能).{0,6}(?:都|全部|所有|一起|统一)/u.test(text)) return true;
+  if (/(?:all\s+skills|every\s+skill|entire\s+skill\s+set)/iu.test(text)) return true;
+  return false;
+}
+
 function formatSkillReply(card, skill, starLevel) {
   const skillName = skill.name || skill.label || `技能${skill.index}`;
   const lines = [`${card.name || '该英雄'}「${skillName}」`];
@@ -1056,11 +1398,23 @@ async function findHeroSkillReply(versionId, message, history = []) {
   if (!card.name || !Array.isArray(card.skills) || card.skills.length === 0) return null;
 
   const starLevel = parseStarLevel(message);
+  const allSkillsQuery = isAllSkillsQuery(message);
   const directSkill = findBestMatchingSkill(card.skills, message);
-  const contextSkill = !directSkill && isSkillContextFollowupQuery(message)
+  const contextSkill = !allSkillsQuery && !directSkill && isSkillContextFollowupQuery(message)
     ? findSkillFromHistory(card.skills, history)
     : null;
   const skill = directSkill || contextSkill;
+
+  if (allSkillsQuery && starLevel) {
+    const reply = formatHeroStarListReply(card, starLevel);
+    if (reply) {
+      return {
+        reply,
+        refs: [],
+        card,
+      };
+    }
+  }
 
   if (shouldReturnSpecificSkillReply(message, skill)) {
     return {
@@ -1096,7 +1450,11 @@ async function findHeroCardReply(versionId, message, history = []) {
   const skillReply = await findHeroSkillReply(versionId, message, history);
   if (skillReply) return skillReply;
 
-  if (!shouldReturnHeroCardRequest(message)) return null;
+  const fieldReply = await findHeroFieldReply(versionId, message, history);
+  if (fieldReply) return fieldReply;
+
+  const overviewQuery = shouldReturnHeroOverviewReply(message);
+  if (!overviewQuery && !shouldReturnHeroCardRequest(message)) return null;
 
   const summaryEntry = await findHeroSummaryFromContext(versionId, message, history);
   if (!summaryEntry) return null;
@@ -1110,7 +1468,8 @@ async function findHeroCardReply(versionId, message, history = []) {
   }
 
   return {
-    reply: formatHeroCardReply(card, message),
+    replyMode: 'card',
+    overviewQuery,
     refs: [],
     card,
   };
@@ -1118,7 +1477,22 @@ async function findHeroCardReply(versionId, message, history = []) {
 
 async function findHeroContextEntity(versionId, message, history = []) {
   const summaryEntry = await findHeroSummaryFromContext(versionId, message, history);
-  if (!summaryEntry) return null;
+  if (!summaryEntry) {
+    const heroName = shouldCarryHeroFromHistorySafe(message)
+      ? getRecentAssistantMessages(history)
+        .map(extractHeroNameFromAssistantReplySafe)
+        .find(isValidHeroNameCandidateSafe)
+      : '';
+
+    if (!heroName) return null;
+
+    return {
+      documentId: null,
+      targetSheet: '',
+      name: heroName,
+      aliases: [heroName],
+    };
+  }
 
   const name = String(firstNonBlank(
     summaryEntry.raw && summaryEntry.raw.鑻遍泟鍚嶇О,
@@ -1130,7 +1504,7 @@ async function findHeroContextEntity(versionId, message, history = []) {
   return {
     documentId: summaryEntry.document_id,
     targetSheet: summaryEntry.targetSheet,
-    name,
+    name: getHeroSummaryDisplayName(summaryEntry),
     aliases: Array.isArray(summaryEntry.aliases) ? [...summaryEntry.aliases] : [],
   };
 }
@@ -1142,7 +1516,7 @@ module.exports = {
   __test__: {
     normalizeText,
     looksLikeHeroDetailQuery,
-    collectHeroAliases,
+    collectHeroAliases: collectHeroAliasesSafe,
     scoreHeroCandidate,
     buildHeroCardPayload,
     buildSkillPayload,
@@ -1157,8 +1531,11 @@ module.exports = {
     findSkillFromHistory,
     formatSkillReply,
     formatHeroStarListReply,
-    shouldCarryHeroFromHistory,
+    isAllSkillsQuery,
+    shouldCarryHeroFromHistory: shouldCarryHeroFromHistorySafe,
     isHeroProfileIntent,
     shouldReturnHeroCardRequest,
+    extractHeroNameFromAssistantReply: extractHeroNameFromAssistantReplySafe,
+    isValidHeroNameCandidate: isValidHeroNameCandidateSafe,
   },
 };

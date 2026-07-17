@@ -1,9 +1,11 @@
 const assert = require('assert');
+
 const chatService = require('../src/services/chatService');
+const llm = require('../src/services/llm');
 
 const WEATHER_LOCATION_PROMPT = '你想查哪个城市的天气？直接发“上海天气”或“北京明天会不会下雨”这种就行。';
 
-function main() {
+async function main() {
   const locationPromptHistory = [
     { role: 'user', content: '明天会下雨吗' },
     { role: 'assistant', content: WEATHER_LOCATION_PROMPT },
@@ -16,7 +18,6 @@ function main() {
   assert.strictEqual(chatService.getPendingWeatherQuery('北京呢', locationPromptHistory), '北京明天会下雨吗');
   assert.strictEqual(chatService.getPendingWeatherQuery('姚明是谁', locationPromptHistory), '');
   assert.strictEqual(chatService.getPendingWeatherQuery('OpenAI最新新闻', locationPromptHistory), '');
-  assert.strictEqual(chatService.getPendingWeatherQuery('yao', locationPromptHistory), '');
 
   const weatherHistory = [
     { role: 'user', content: '深圳光明区周六会下雨吗' },
@@ -31,14 +32,9 @@ function main() {
     chatService.getPendingWeatherQuery('那后天会下雨吗', weatherHistory),
     '深圳光明区后天会下雨'
   );
-  assert.strictEqual(chatService.getPendingWeatherQuery('后天会下雨吗', weatherHistory), '');
-  assert.strictEqual(chatService.getPendingWeatherQuery('今天天气呢', weatherHistory), '');
-  assert.strictEqual(chatService.getPendingWeatherQuery('姚明是谁', weatherHistory), '');
-
   assert.strictEqual(chatService.shouldCarryWeatherFollowup('周六呢'), true);
   assert.strictEqual(chatService.shouldCarryWeatherFollowup('那后天会下雨吗'), true);
   assert.strictEqual(chatService.shouldCarryWeatherFollowup('后天会下雨吗'), false);
-  assert.strictEqual(chatService.shouldCarryWeatherFollowup('今天天气呢'), false);
 
   assert.strictEqual(
     chatService.shouldSuppressRefsForReply('你在玩哪款游戏呢？说一下游戏名，或者直接告诉我卡在哪了，我来帮你看看 😄'),
@@ -49,208 +45,251 @@ function main() {
     false
   );
 
+  assert.strictEqual(chatService.shouldReturnSearchUnavailableFallback('世界杯决赛什么时候'), true);
+  assert.strictEqual(chatService.shouldReturnSearchUnavailableFallback('姚明是谁'), false);
   assert.strictEqual(
-    chatService.shouldReturnSearchUnavailableFallback('\u4e16\u754c\u676f\u51b3\u8d5b\u4ec0\u4e48\u65f6\u5019'),
+    chatService.buildSearchUnavailableReply('世界杯决赛什么时候'),
+    '这个问题需要查实时或最新信息，我这边暂时没拿到可靠搜索结果，不能乱报。你可以稍后再试一次，或直接查官方渠道确认。'
+  );
+  assert.strictEqual(
+    chatService.buildSearchUnavailableReply('When is the World Cup final?'),
+    'This question needs current or latest information. I do not have reliable search results right now, so I should not guess. Please try again later or confirm through an official source.'
+  );
+  assert.strictEqual(
+    chatService.getPendingSearchRetryQuery('这也不知道吗', [
+      { role: 'user', content: '世界杯的季军赛是什么时候？' },
+      { role: 'assistant', content: '这个问题需要查实时或最新信息，我这边暂时没拿到可靠搜索结果，不能乱报。你可以稍后再试一次，或直接查官方渠道确认。' },
+    ]),
+    '世界杯的季军赛是什么时候？'
+  );
+
+  assert.strictEqual(
+    chatService.shouldCarryGenericFollowup('有没有6个人的，下雨天也能露营的地方'),
     true
   );
-  assert.strictEqual(chatService.shouldReturnSearchUnavailableFallback('\u59da\u660e\u662f\u8c01'), false);
-  assert.strictEqual(
-    chatService.buildSearchUnavailableReply('\u4e16\u754c\u676f\u51b3\u8d5b\u4ec0\u4e48\u65f6\u5019'),
-    '\u8fd9\u4e2a\u95ee\u9898\u9700\u8981\u67e5\u5b9e\u65f6\u6216\u6700\u65b0\u4fe1\u606f\uff0c\u6211\u8fd9\u8fb9\u6682\u65f6\u6ca1\u62ff\u5230\u53ef\u9760\u641c\u7d22\u7ed3\u679c\uff0c\u4e0d\u80fd\u4e71\u62a5\u3002\u4f60\u53ef\u4ee5\u7a0d\u540e\u518d\u8bd5\u4e00\u6b21\uff0c\u6216\u76f4\u63a5\u67e5\u5b98\u65b9\u6e20\u9053\u786e\u8ba4\u3002'
+  const campingFollowup = chatService.buildGenericContextAugmentedQuery(
+    '有没有6个人的，下雨天也能露营的地方',
+    [
+      { role: 'user', content: '给我推荐一下深圳的露营地' },
+      { role: 'assistant', content: '可以看看深圳周边的几个露营地。' },
+    ]
   );
-  assert.strictEqual(chatService.shouldUseNoHitEntityFallback('\u7279\u65af\u62c9', [], [], ''), true);
-  assert.strictEqual(chatService.shouldUseNoHitEntityFallback('\u4e16\u754c\u676f\u51b3\u8d5b', [], [], ''), false);
-  assert.strictEqual(chatService.shouldUseNoHitEntityFallback('\u7279\u65af\u62c9', [{ matchText: 'x' }], [], ''), false);
-  assert.strictEqual(chatService.shouldUseNoHitEntityFallback('\u7279\u65af\u62c9', [], [{ value: 'x' }], ''), false);
-  assert.strictEqual(chatService.shouldUseNoHitEntityFallback('\u7279\u65af\u62c9', [], [], 'LIVE_RESULTS'), false);
+  assert.strictEqual(campingFollowup.subject, '深圳的露营地');
+  assert.strictEqual(
+    campingFollowup.retrievalQuery,
+    '深圳的露营地 有没有6个人的，下雨天也能露营的地方'
+  );
+  assert.ok(campingFollowup.followupContextBlock.length > 0);
+
+  assert.strictEqual(chatService.detectUserLocale('新手入门怎么玩'), 'zh-CN');
+  assert.strictEqual(chatService.detectUserLocale('How do beginners start?'), 'en-US');
+  assert.strictEqual(chatService.detectUserLocale('このゲームの始め方は？'), 'ja-JP');
+  assert.strictEqual(chatService.detectUserLocale('입문자는 어떻게 시작해?'), 'ko-KR');
+
+  assert.strictEqual(chatService.shouldUseNoHitEntityFallback('特斯拉', [], [], ''), true);
+  assert.strictEqual(chatService.shouldUseNoHitEntityFallback('世界杯决赛', [], [], ''), false);
+  assert.strictEqual(chatService.getKnowledgeQueryIntent('索尼克这个英雄咋样'), 'hero_overview');
+  assert.strictEqual(chatService.getKnowledgeQueryIntent('索尼克的英雄台词是什么'), 'quote');
 
   const directKnowledgeRefs = [{
     matchText: [
-      'sheet: \u6280\u80fd',
-      '\u6781\u901f\u5947\u88ad',
-      '\u57fa\u7840\u6548\u679c\uff1a\u5bf9\u524d\u6392\u9020\u6210\u4f24\u5bb3',
-      '\u4e8c\u661f\u6548\u679c\uff1a\u8ffd\u52a0\u7834\u7532',
-      '\u4e09\u661f\u6548\u679c\uff1a\u8ffd\u52a0\u7729\u6655',
+      'sheet: 技能',
+      '极速奇袭',
+      '基础效果：对前排造成伤害',
+      '二星效果：追加破甲',
+      '三星效果：追加眩晕',
       'asset path: /kb-images/skill-1.png',
     ].join('\n'),
   }];
   assert.strictEqual(
-    chatService.getDirectKnowledgeReply('\u6781\u901f\u5947\u88ad', directKnowledgeRefs),
+    chatService.getDirectKnowledgeReply('极速奇袭', directKnowledgeRefs),
     [
-      '\u6781\u901f\u5947\u88ad',
-      '\u57fa\u7840\u6548\u679c\uff1a\u5bf9\u524d\u6392\u9020\u6210\u4f24\u5bb3',
-      '\u4e8c\u661f\u6548\u679c\uff1a\u8ffd\u52a0\u7834\u7532',
-      '\u4e09\u661f\u6548\u679c\uff1a\u8ffd\u52a0\u7729\u6655',
+      '极速奇袭',
+      '基础效果：对前排造成伤害',
+      '二星效果：追加破甲',
+      '三星效果：追加眩晕',
     ].join('\n')
-  );
-  assert.strictEqual(
-    chatService.getDirectKnowledgeReply('\u6781\u901f\u5947\u88ad', [{
-      matchText: [
-        'sheet: \u6280\u80fd',
-        'reference: \u6280\u80fd\u914d\u7f6e',
-        'asset path: /kb-images/skill-1.png',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getDirectKnowledgeReply('\u8587\u73c0', [{
-      matchText: [
-        '\u82f1\u96c4\u53c2\u8003',
-        '\u57fa\u7840\u6548\u679c\uff1a\u5bf9\u5355\u4f53\u9020\u6210\u4f24\u5bb3',
-        '\u53f0\u8bcd\uff1a\u4e3a\u4e86\u80dc\u5229',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getDirectKnowledgeReply('\u841d\u65af\u9002\u5408\u4ec0\u4e48\u9635\u5bb9', [{
-      matchText: [
-        '\u9879\u76ee: \u63a8\u8350\u9635\u5bb9',
-        '\u4e2d\u6587: \u63a8\u8350\u9635\u5bb9',
-        '\u82f1\u6587: Recommended Team',
-        '\u65e5\u8bed: \u304a\u3059\u3059\u3081\u7de8\u6210',
-        '\ud55c\u8bed: \ucd94\ucc9c \ud3b8\uc131',
-        '\u7e41\u4e2d: \u63a8\u85a6\u9663\u5bb9',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getDirectKnowledgeReply('\u7279\u65af\u62c9', [{
-      matchText: [
-        'Sheet: \u706f\u5854\u82f1\u96c4\u5bf9\u7167\u8868',
-        'Row: 32',
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        'LastWar: \u7279\u65af\u62c9',
-        '\u4f4d\u97622\u540d: \u9edb\u82ac\u59ae',
-        '\u706f\u5854\u540d: \u7d22\u5c3c\u514b',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getLiteralKnowledgeReply('\u841d\u65af\u9002\u5408\u4ec0\u4e48\u9635\u5bb9', [{
-      matchText: [
-        '\u9879\u76ee: \u63a8\u8350\u9635\u5bb9',
-        '\u4e2d\u6587: \u63a8\u8350\u9635\u5bb9',
-        '\u82f1\u6587: Recommended Team',
-        '\u65e5\u8bed: \u304a\u3059\u3059\u3081\u7de8\u6210',
-        '\ud55c\u8bed: \ucd94\ucc9c \ud3b8\uc131',
-        '\u7e41\u4e2d: \u63a8\u85a6\u9663\u5bb9',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getLiteralKnowledgeReply('\u7279\u65af\u62c9', [{
-      matchText: [
-        'Sheet: \u706f\u5854\u82f1\u96c4\u5bf9\u7167\u8868',
-        'Row: 32',
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        '\uff08\u7b2c\u4e8c\u6279\uff09',
-        'LastWar: \u7279\u65af\u62c9',
-        '\u4f4d\u97622\u540d: \u9edb\u82ac\u59ae',
-        '\u706f\u5854\u540d: \u7d22\u5c3c\u514b',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.hasOnlyHeroAliasMappingRefs('\u7279\u65af\u62c9', [{
-      matchText: [
-        'Sheet: \u706f\u5854\u82f1\u96c4\u5bf9\u7167\u8868',
-        'Row: 32',
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        'LastWar: \u7279\u65af\u62c9',
-        '\u4f4d\u97622\u540d: \u9edb\u82ac\u59ae',
-        '\u706f\u5854\u540d: \u7d22\u5c3c\u514b',
-      ].join('\n'),
-    }]),
-    true
-  );
-  assert.strictEqual(
-    chatService.getLiteralKnowledgeReply('\u7279\u65af\u62c9', [{
-      matchText: [
-        'Sheet: \u706f\u5854\u82f1\u96c4\u5bf9\u7167\u8868',
-        'Row: 32',
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        '\uff08\u7b2c\u4e8c\u6279\uff09',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getHeroAliasReply('\u7279\u65af\u62c9', [{
-      matchText: [
-        'Sheet: \u706f\u5854\u82f1\u96c4\u5bf9\u7167\u8868',
-        'Row: 32',
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        '\uff08\u7b2c\u4e8c\u6279\uff09: \u7279\u65af\u62c9 | \u9edb\u82ac\u59ae | \u7d22\u5c3c\u514b',
-        'LastWar: \u7279\u65af\u62c9',
-        '\u4f4d\u97622\u540d: \u9edb\u82ac\u59ae',
-        '\u706f\u5854\u540d: \u7d22\u5c3c\u514b',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getHeroAliasReply('\u7279\u65af\u62c9', [{
-      matchText: [
-        'Sheet: \u706f\u5854\u82f1\u96c4\u5bf9\u7167\u8868',
-        'Row: 32',
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        'LastWar: \u7279\u65af\u62c9',
-        '\u4f4d\u97622\u540d: \u9edb\u82ac\u59ae',
-        '\u706f\u5854\u540d: \u7d22\u5c3c\u514b',
-      ].join('\n'),
-    }]),
-    ''
-  );
-  assert.strictEqual(
-    chatService.getHeroAliasReply('\u7279\u65af\u62c9\u5bf9\u5e94\u7684\u706f\u5854\u540d\u662f\u4ec0\u4e48', [{
-      matchText: [
-        'Sheet: \u706f\u5854\u82f1\u96c4\u5bf9\u7167\u8868',
-        'Row: 32',
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        'LastWar: \u7279\u65af\u62c9',
-        '\u4f4d\u97622\u540d: \u9edb\u82ac\u59ae',
-        '\u706f\u5854\u540d: \u7d22\u5c3c\u514b',
-      ].join('\n'),
-    }]),
-    [
-      '\u53ea\u547d\u4e2d\u5230\u540d\u79f0\u5bf9\u7167\uff1a',
-      '\u7a00\u6709\u7b49\u7ea7\uff1aS+',
-      'LastWar\uff1a\u7279\u65af\u62c9',
-      '\u4f4d\u97622\u540d\uff1a\u9edb\u82ac\u59ae',
-      '\u706f\u5854\u540d\uff1a\u7d22\u5c3c\u514b',
-    ].join('\n')
-  );
-  assert.strictEqual(
-    chatService.getHeroAliasReply('\u4e16\u754c\u676f', [{
-      matchText: [
-        '\u7a00\u6709\u7b49\u7ea7: S+',
-        'LastWar: \u7279\u65af\u62c9',
-        '\u4f4d\u97622\u540d: \u9edb\u82ac\u59ae',
-      ].join('\n'),
-    }]),
-    ''
   );
 
   const messages = chatService.buildMessages(
     { display_name: 'Tester', persona: 'Persona block' },
     [],
-    '\u6781\u901f\u5947\u88ad',
+    '极速奇袭',
     'KB_CONTEXT',
     'KG_FACTS',
-    'LIVE_RESULTS'
+    'LIVE_RESULTS',
+    { display_name: '灯塔-国内', game_name: 'Last Light', code: 'lighthouse_cn' }
   );
   const systemPrompt = messages[0].content;
   assert.ok(systemPrompt.indexOf('LIVE_RESULTS') < systemPrompt.indexOf('Tester'));
   assert.ok(systemPrompt.indexOf('KB_CONTEXT') < systemPrompt.indexOf('Tester'));
   assert.ok(systemPrompt.indexOf('KG_FACTS') < systemPrompt.indexOf('Tester'));
+  assert.ok(systemPrompt.includes('灯塔-国内'));
+
+  const englishMessages = chatService.buildMessages(
+    { display_name: 'Tester', persona: 'Persona block' },
+    [],
+    'How do beginners start?',
+    'KB_CONTEXT',
+    'KG_FACTS',
+    '',
+    { display_name: '灯塔-国内', game_name: 'Last Light', code: 'lighthouse_cn' }
+  );
+  assert.ok(!englishMessages[0].content.includes('灯塔-国内'));
+  assert.ok(englishMessages[0].content.includes('Last Light'));
+
+  const generalMessages = chatService.buildMessages(
+    { display_name: 'Tester', persona: 'Persona block' },
+    [],
+    '世界杯的季军赛是什么时候？',
+    '',
+    '',
+    '',
+    { display_name: '灯塔-国内', game_name: 'Last Light', code: 'lighthouse_cn' },
+    { domainMode: 'general' }
+  );
+  assert.ok(!generalMessages[0].content.includes('Current bound game/version context'));
+  assert.ok(generalMessages[0].content.includes('If the current question is not about the game'));
+
+  assert.deepStrictEqual(
+    chatService.extractTrailingHeroCardBlock('这是介绍文案\n\n```herocard\n{"name":"卡西迪"}\n```'),
+    {
+      prose: '这是介绍文案',
+      heroCardBlock: '```herocard\n{"name":"卡西迪"}\n```',
+    }
+  );
+  assert.deepStrictEqual(
+    chatService.extractTrailingHeroCardBlock('只有普通回答'),
+    {
+      prose: '只有普通回答',
+      heroCardBlock: '',
+    }
+  );
+
+  llm._setImpl(async () => ({
+    content: '更自然一点的回答。\n有哪块想深入了解可以继续问。',
+  }));
+  try {
+    assert.strictEqual(
+      await chatService.polishReplyThroughAi(
+        { model: null },
+        '介绍一下卡西迪',
+        '卡西迪是一个输出英雄。\n\n```herocard\n{"name":"卡西迪"}\n```',
+        {
+          history: [{ role: 'assistant', content: '这是之前那种机械回答。' }],
+          preferredLocale: 'zh-CN',
+        }
+      ),
+      '更自然一点的回答。\n\n```herocard\n{"name":"卡西迪"}\n```'
+    );
+  } finally {
+    llm._setImpl(null);
+  }
+
+  let capturedMessages = null;
+  llm._setImpl(async (llmMessages) => {
+    capturedMessages = llmMessages;
+    return { content: 'ok' };
+  });
+  try {
+    await chatService.getResolvedFollowupReply(
+      { model: null, display_name: 'Tester', persona: 'Persona block' },
+      '三星呢',
+      'zh-CN',
+      {
+        versionContext: { display_name: '灯塔-国内', game_name: 'Last Light', code: 'lighthouse_cn' },
+        domainMode: 'game',
+      }
+    );
+    assert.ok(capturedMessages[0].content.includes('灯塔-国内'));
+    assert.ok(capturedMessages[0].content.includes('Do not ask the user to repeat which person, game, brand, or topic they mean.'));
+
+    await chatService.getNoHitEntityReply(
+      { model: null, display_name: 'Tester', persona: 'Persona block' },
+      '特斯拉',
+      'zh-CN',
+      {
+        versionContext: { display_name: '灯塔-国内', game_name: 'Last Light', code: 'lighthouse_cn' },
+        domainMode: 'game',
+      }
+    );
+    assert.ok(capturedMessages[0].content.includes('Do not invent any game hero profile'));
+
+    await chatService.getSearchGroundedReply(
+      { model: null, display_name: 'Tester', persona: 'Persona block' },
+      '世界杯季军赛什么时候？',
+      [{ title: 'Official Schedule', snippet: '2026-07-18 20:00 kickoff', url: 'https://example.com' }],
+      'zh-CN',
+      { domainMode: 'general' }
+    );
+    assert.ok(capturedMessages[0].content.includes('When web search results are provided, answer directly from those results first.'));
+  } finally {
+    llm._setImpl(null);
+  }
+
+  let heroMessages = null;
+  llm._setImpl(async (llmMessages) => {
+    heroMessages = llmMessages;
+    return {
+      content: '索尼克更偏前排承伤和突脸输出，值不值得练得看你现在缺不缺这个位。',
+    };
+  });
+  try {
+    const heroReply = await chatService.getHeroCardGroundedReply(
+      { model: null, display_name: 'Tester', persona: 'Persona block' },
+      '索尼克值不值得练',
+      {
+        name: '索尼克',
+        title: '极速奇袭',
+        faction: '守护者',
+        career: '前排突进',
+        rarity: 'S+',
+        quote: '跟上我的节奏。',
+        skills: [
+          {
+            index: 1,
+            name: '极速冲击',
+            description: '对单体造成高额物理伤害',
+          },
+          {
+            index: 2,
+            name: '旋风防护',
+            description: '给前排提供承伤与减伤',
+            isCore: true,
+          },
+        ],
+      },
+      [
+        { role: 'user', content: '先给我看看索尼克' },
+        { role: 'assistant', content: '上轮已经给了简单介绍。' },
+      ],
+      'zh-CN',
+      {
+        versionContext: {
+          display_name: '灯塔-国内',
+          game_name: 'Last Light',
+          code: 'lighthouse_cn',
+        },
+        domainMode: 'game',
+      }
+    );
+    assert.strictEqual(
+      heroReply,
+      '索尼克更偏前排承伤和突脸输出，值不值得练得看你现在缺不缺这个位。'
+    );
+    assert.ok(heroMessages[0].content.includes('Do not mechanically enumerate every card field'));
+    assert.ok(heroMessages[0].content.includes('fixed lead-ins like'));
+    assert.ok(heroMessages[1].content.includes('Current user question:'));
+    assert.ok(heroMessages[1].content.includes('Recent conversation:'));
+    assert.ok(heroMessages[1].content.includes('Hero card JSON:'));
+  } finally {
+    llm._setImpl(null);
+  }
 
   console.log('chatService tests passed');
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

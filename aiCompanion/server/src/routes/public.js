@@ -92,6 +92,8 @@ router.post('/chat', requireVersion, ah(async (req, res) => {
       message,
       requestMeta,
       onStage: stage => sendEvent('stage', { stage }),
+      // C 端实时聊天先返回首条可用回复，避免被二次润色拖慢首屏展示。
+      skipPolish: true,
     });
     sendEvent('done', result);
   } catch (err) {

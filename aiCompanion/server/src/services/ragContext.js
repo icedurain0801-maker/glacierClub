@@ -2,6 +2,37 @@ const db = require('../config/db');
 const cfg = require('../config/kb');
 const embedding = require('./embedding');
 const vectorStore = require('./vectorStore');
+const BEGINNER_GUIDE_SIGNAL_RE = /(?:\u65b0\u624b|\u5165\u95e8|\u840c\u65b0|\u5f00\u5c40|\u524d\u671f|\u521d\u671f|beginner|newbie|starter|get(?:ting)?\s+started)/iu;
+const BEGINNER_GUIDE_ACTION_RE = /(?:\u600e\u4e48\u73a9|\u73a9\u6cd5|\u5165\u95e8|\u6307\u5357|\u6559\u7a0b|\u653b\u7565|\u4ece\u54ea\u5f00\u59cb|\u600e\u4e48\u4e0a\u624b|how\s+to\s+play|guide|tips|start)/iu;
+const BEGINNER_GUIDE_SPECIFIC_TOPIC_PENALTIES = [
+  { query: /\u7ade\u6280\u573a|arena/iu, content: /\u65b0\u624b\u7ade\u6280\u573a|\u5dc5\u5cf0\u7ade\u6280\u573a|\u7ade\u6280\u573a|arena/iu, penalty: 28 },
+  { query: /pvp/iu, content: /\bpvp\b/iu, penalty: 18 },
+  { query: /\u57fa\u5730|base/iu, content: /\u57fa\u5730|base/iu, penalty: 12 },
+  { query: /\u8054\u76df|alliance/iu, content: /\u8054\u76df|\u540c\u76df|alliance/iu, penalty: 12 },
+];
+const BEGINNER_GUIDE_RELATED_TERMS = [
+  '新手',
+  '入门',
+  '萌新',
+  '开局',
+  '前期',
+  '上手',
+  '快速上手',
+  '基础攻略',
+  '新手攻略',
+  '每日必做',
+  '日常必做',
+  'beginner',
+  'beginner guide',
+  'beginner\'s guide',
+  'getting started',
+  'quick start',
+  'starter guide',
+  'daily must-do',
+  'daily must do',
+  'recommended daily actions',
+];
+const BEGINNER_GUIDE_BODY_RE = /(?:新手|入门|萌新|开局|前期|上手|快速上手|基础攻略|新手攻略|每日必做|日常必做|beginner|getting started|quick start|daily must-?do|recommended daily actions)/iu;
 
 const SNIPPET_MAX = 200;
 const PROMPT_REF_MAX = 1400;
@@ -41,6 +72,13 @@ function looksLikeAmbiguousGuideQuery(query) {
     .replace(GENERIC_GUIDE_FILLER_RE, '');
 
   return remainder.length < 2;
+}
+
+function isGenericBeginnerGuideQuery(query) {
+  const text = String(query || '').trim();
+  if (!text) return false;
+  if (!BEGINNER_GUIDE_SIGNAL_RE.test(text)) return false;
+  return BEGINNER_GUIDE_ACTION_RE.test(text);
 }
 
 function extractQueryTokens(text) {
@@ -174,6 +212,14 @@ function buildLexicalSearchTokens(query) {
     }
   }
 
+  if (isGenericBeginnerGuideQuery(query)) {
+    for (const term of BEGINNER_GUIDE_RELATED_TERMS) {
+      if (!term || seen.has(term) || QUERY_NOISE_TOKENS.has(term)) continue;
+      seen.add(term);
+      expanded.push(term);
+    }
+  }
+
   return expanded
     .slice()
     .sort((a, b) => {
@@ -219,6 +265,11 @@ function scoreLexicalMatch(query, content) {
   if (asksPeopleCount(query)) {
     if (/(?:成员|成員|盟友)/u.test(text)) score += 12;
     if (/(?:城市|城池|city|cities)/iu.test(text)) score -= 12;
+  }
+
+  if (isGenericBeginnerGuideQuery(query)) {
+    if (BEGINNER_GUIDE_BODY_RE.test(text)) score += 20;
+    if (/(?:每日必做|日常必做|daily must-?do|recommended daily actions)/iu.test(text)) score += 12;
   }
 
   return score;
@@ -430,6 +481,23 @@ function scoreIntentAlignment(query, content) {
 
   if (numericQuery && /\d/.test(text)) {
     score += 4;
+  }
+
+  if (isGenericBeginnerGuideQuery(query)) {
+    if (/(?:\u65b0\u624b|\u5165\u95e8|\u5f00\u5c40|\u524d\u671f|\u521d\u671f|\u57fa\u7840|\u4e0a\u624b|\u6307\u5357|\u6559\u7a0b|\u653b\u7565)/u.test(text)) {
+      score += 12;
+    }
+    if (/(?:快速上手|每日必做|日常必做|quick start|daily must-?do|recommended daily actions)/iu.test(text)) {
+      score += 18;
+    }
+    if (scoreGuideBodySignals(text) >= 2) {
+      score += 8;
+    }
+
+    for (const rule of BEGINNER_GUIDE_SPECIFIC_TOPIC_PENALTIES) {
+      if (rule.query.test(query)) continue;
+      if (rule.content.test(text)) score -= rule.penalty;
+    }
   }
 
   return score;
@@ -653,4 +721,5 @@ module.exports = {
   rerankRefsByIntent,
   filterRelevantRefs,
   looksLikeAmbiguousGuideQuery,
+  isGenericBeginnerGuideQuery,
 };
