@@ -1,4 +1,4 @@
-window.pages = window.pages || {};
+﻿window.pages = window.pages || {};
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
 const KB_LOCALE_OPTIONS = [
@@ -601,7 +601,7 @@ window.pages.knowledge = async function (content) {
               <div class="card-title" style="margin-bottom:6px;">导入预览</div>
               <div style="font-size:16px;font-weight:600;color:#111827;line-height:1.5;">${escapeHtml((doc && doc.name) || `文档 #${id}`)}</div>
               <div style="margin-top:6px;font-size:13px;color:#6b7280;line-height:1.6;">
-                已导入 ${totalRows} 条，当前预览前 ${entries.length} 条，预览区共展示 ${totalImages} 张已挂载图片。
+                ${escapeHtml(previewSummary)}
               </div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
@@ -796,10 +796,24 @@ window.pages.knowledge = async function (content) {
     return summaryEntries.map((entry, index) => {
       const raw = entry._raw || {};
       const targetSheet = normalizeSheetName(firstNonBlank(raw['跳转'], raw['sheet'], raw['详情sheet']));
-      const relatedEntries = targetSheet ? (entriesBySheet.get(targetSheet) || []) : [];
-      const skillEntries = relatedEntries.filter(item => isSkillEntry(item._raw));
-      const heroBaseProfile = buildHeroBaseProfile(entry, relatedEntries, targetSheet);
-      return renderHeroPreviewCard(entry, index, skillEntries, relatedEntries, apiOrigin, targetSheet, heroBaseProfile);
+      const aliases = collectHeroSummaryAliases(raw, targetSheet);
+      const resolvedTargetSheet = resolveHeroDetailSheetName(
+        targetSheet,
+        aliases,
+        [...entriesBySheet.keys()]
+      );
+      const relatedEntries = resolvedTargetSheet ? (entriesBySheet.get(resolvedTargetSheet) || []) : [];
+      const skillEntries = collectHeroSkillEntries(relatedEntries);
+      const heroBaseProfile = buildHeroBaseProfile(entry, relatedEntries, resolvedTargetSheet);
+      return renderHeroPreviewCard(
+        entry,
+        index,
+        skillEntries,
+        relatedEntries,
+        apiOrigin,
+        resolvedTargetSheet,
+        heroBaseProfile
+      );
     });
   }
 
@@ -825,11 +839,11 @@ window.pages.knowledge = async function (content) {
     const images = collectEntryImages([entry, ...relatedEntries]);
 
     return `
-      <div style="border:1px solid #cbd5e1;border-radius:14px;background:#ffffff;padding:18px 20px;box-shadow:0 1px 2px rgba(15,23,42,0.04);">
+      <div class="hero-preview-card" data-hero-name="${escapeHtml(displayHeroName)}" style="border:1px solid #cbd5e1;border-radius:14px;background:#ffffff;padding:18px 20px;box-shadow:0 1px 2px rgba(15,23,42,0.04);">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
           <div>
             ${heroTitle ? `<div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#64748b;text-transform:uppercase;">${escapeHtml(heroTitle)}</div>` : ''}
-            <div style="font-size:18px;font-weight:700;color:#0f172a;line-height:1.5;">${escapeHtml(displayHeroName)}</div>
+            <div class="hero-preview-card__name" style="font-size:18px;font-weight:700;color:#0f172a;line-height:1.5;">${escapeHtml(displayHeroName)}</div>
             <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
               ${renderMetaPill(`预览卡 ${index + 1}`)}
               ${targetSheet ? renderMetaPill(`详情 Sheet ${targetSheet}`) : ''}
@@ -954,7 +968,12 @@ window.pages.knowledge = async function (content) {
 
   function isHeroSummaryEntry(raw) {
     if (!raw || typeof raw !== 'object') return false;
-    return normalizeSheetName(raw.__sheet) === '英雄档案list' && !isBlank(firstNonBlank(raw['跳转'], raw['需求英雄']));
+    if (normalizeSheetName(raw.__sheet) !== '英雄档案list') return false;
+    const targetSheet = normalizeSheetName(firstNonBlank(raw['\u8df3\u8f6c'], raw['sheet'], raw['\u8be6\u60c5sheet']));
+    const heroAliases = getHeroSummaryNameCandidates(raw)
+      .flatMap(extractHeroAliasTokens)
+      .filter((alias, index, list) => list.indexOf(alias) === index);
+    return !isBlank(targetSheet) && heroAliases.length > 0;
   }
 
   function isSkillEntry(raw) {
@@ -964,8 +983,207 @@ window.pages.knowledge = async function (content) {
     return position.includes('技能') || project.includes('技能');
   }
 
+  function collectHeroSkillEntries(entries) {
+    const sourceEntries = Array.isArray(entries) ? entries : [];
+    const directEntries = sourceEntries.filter(item => isSkillEntry(item && item._raw));
+    if (directEntries.length) return directEntries;
+
+    const blockEntries = [];
+
+    sourceEntries.forEach(item => {
+      const raw = item && item._raw || safeParseJson(item && item.raw_json);
+      if (!raw || raw.__parseMode !== 'block') return;
+
+      Object.entries(raw)
+        .map(([key, value]) => {
+          const match = /^row_(\d+)$/i.exec(String(key || ''));
+          if (!match) return null;
+          return {
+            order: Number(match[1]),
+            value: String(value == null ? '' : value),
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.order - b.order)
+        .forEach(row => {
+          const skillRow = parseBlockSkillRow(row.value);
+          if (!skillRow) return;
+          if (skillRow.project === '名称' && /^(?:无此技能|none|n\/a)$/i.test(skillRow.primaryValue)) return;
+
+          blockEntries.push({
+            ...item,
+            raw_json: JSON.stringify(skillRow.raw),
+            _raw: skillRow.raw,
+            content: [skillRow.position, skillRow.project, skillRow.primaryValue, skillRow.secondaryValue]
+              .filter(Boolean)
+              .join('\n'),
+          });
+        });
+    });
+
+    return blockEntries;
+  }
+
+  function parseBlockSkillRow(value) {
+    const parts = String(value == null ? '' : value)
+      .split('|')
+      .map(part => String(part || '').trim())
+      .filter(Boolean);
+    if (!parts.length) return null;
+
+    const positionIndex = parts.findIndex(part => /^技能\s*[1-4]/.test(part));
+    if (positionIndex < 0) return null;
+
+    const position = String(parts[positionIndex] || '').trim();
+    const project = String(parts[positionIndex + 1] || '').trim();
+    const primaryValue = String(parts[positionIndex + 2] || '').trim();
+    const secondaryValue = parts.slice(positionIndex + 3).join(' | ').trim();
+
+    if (!position || !project) return null;
+    if (!primaryValue && !secondaryValue) return null;
+
+    return {
+      position,
+      project,
+      primaryValue,
+      secondaryValue,
+      raw: {
+        __parseMode: 'block-row',
+        对应位置: position,
+        项目: project,
+        ...(primaryValue ? { 中文: primaryValue } : {}),
+        ...(secondaryValue ? { 英文: secondaryValue } : {}),
+      },
+    };
+  }
+
   function normalizeSheetName(value) {
     return String(value == null ? '' : value).trim();
+  }
+
+  function getHeroSummaryNameCandidates(raw = {}) {
+    return [
+      raw['需求英雄'],
+      raw['英雄名称'],
+      raw['英雄'],
+    ];
+  }
+
+  function sanitizeHeroAliasToken(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text) return '';
+    if (text.length < 2 || text.length > 24) return '';
+    if (!/[\u4e00-\u9fa5A-Za-z]/u.test(text)) return '';
+    if (/[\r\n]/u.test(text)) return '';
+    if (/(?:\u8d44\u6599\u66f4\u65b0|https?:\/\/|sheet:|row:)/iu.test(text)) return '';
+    return text.replace(/^[\s"'`]+|[\s"'`]+$/g, '');
+  }
+
+  function extractHeroAliasTokens(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text) return [];
+    if (/(?:\u8d44\u6599\u66f4\u65b0|\u622a\u56fe|\u8be6\u89c1|https?:\/\/|hero\s*id\s*=|\u6210\u56fe\u5730\u5740|\u70b9\u51fb\u8df3\u8f6c|sheet:|row:|\u9700\u6c42\u65f6\u95f4|\u5df2\u53d1\u5e03|\u767e\u79d1\u914d\u7f6e)/iu.test(text)) return [];
+
+    const aliases = new Set();
+    const direct = sanitizeHeroAliasToken(text);
+    if (direct) aliases.add(direct);
+
+    text
+      .split(/[_\-/\\|,，()（）[\]<>《》\s]+/u)
+      .map(sanitizeHeroAliasToken)
+      .filter(Boolean)
+      .forEach(alias => aliases.add(alias));
+
+    (text.match(/[\u4e00-\u9fa5]{2,}/gu) || [])
+      .map(sanitizeHeroAliasToken)
+      .filter(Boolean)
+      .forEach(alias => {
+        aliases.add(alias);
+        if (alias.length > 4) aliases.add(alias.slice(-2));
+        if (alias.length > 5) aliases.add(alias.slice(-3));
+        if (alias.length > 6) aliases.add(alias.slice(-4));
+      });
+
+    (text.match(/[A-Za-z][A-Za-z0-9.+-]{1,}/g) || [])
+      .map(sanitizeHeroAliasToken)
+      .filter(Boolean)
+      .forEach(alias => aliases.add(alias));
+
+    return [...aliases];
+  }
+
+  function collectHeroSummaryAliases(raw = {}, targetSheet = '') {
+    return [
+      raw['需求英雄'],
+      raw['英雄名称'],
+      raw['英雄'],
+      targetSheet,
+    ]
+      .flatMap(extractHeroAliasTokens)
+      .filter((alias, index, list) => list.indexOf(alias) === index);
+  }
+
+  function scoreHeroSheetCandidate(messages, candidateAliases) {
+    const inputs = (Array.isArray(messages) ? messages : [messages])
+      .flatMap(extractHeroAliasTokens)
+      .filter(Boolean);
+    const candidates = (Array.isArray(candidateAliases) ? candidateAliases : []).filter(Boolean);
+
+    let bestScore = 0;
+
+    inputs.forEach(message => {
+      const normalizedMessage = String(message || '').trim().toLowerCase();
+      const compactMessage = normalizedMessage.replace(/[_\-\s]+/g, '');
+      if (!normalizedMessage) return;
+
+      candidates.forEach(candidate => {
+        const normalizedCandidate = String(candidate || '').trim().toLowerCase();
+        const compactCandidate = normalizedCandidate.replace(/[_\-\s]+/g, '');
+        if (!normalizedCandidate) return;
+
+        if (normalizedCandidate === normalizedMessage || compactCandidate === compactMessage) {
+          bestScore = Math.max(bestScore, 1000);
+          return;
+        }
+
+        if (normalizedCandidate.includes(normalizedMessage) || normalizedMessage.includes(normalizedCandidate)) {
+          const overlap = Math.min(normalizedCandidate.length, normalizedMessage.length);
+          bestScore = Math.max(bestScore, 900 + Math.min(overlap, 80));
+        }
+      });
+    });
+
+    return bestScore;
+  }
+
+  function resolveHeroDetailSheetName(targetSheet, aliases = [], candidateSheetNames = []) {
+    const normalizedTargetSheet = normalizeSheetName(targetSheet);
+    if (!normalizedTargetSheet) return '';
+    if (candidateSheetNames.includes(normalizedTargetSheet)) return normalizedTargetSheet;
+
+    const messages = [normalizedTargetSheet, ...(Array.isArray(aliases) ? aliases : [])]
+      .flatMap(extractHeroAliasTokens)
+      .filter(Boolean);
+    if (!messages.length) return normalizedTargetSheet;
+
+    let bestMatch = null;
+
+    candidateSheetNames.forEach(candidate => {
+      const normalizedCandidate = normalizeSheetName(candidate);
+      if (!normalizedCandidate) return;
+
+      const score = scoreHeroSheetCandidate(messages, extractHeroAliasTokens(normalizedCandidate));
+      if (!score) return;
+      if (!bestMatch || score > bestMatch.score) {
+        bestMatch = { candidate: normalizedCandidate, score };
+      }
+    });
+
+    if (bestMatch && bestMatch.score >= 800) {
+      return bestMatch.candidate;
+    }
+
+    return normalizedTargetSheet;
   }
 
   function buildHeroBaseProfile(entry, relatedEntries, targetSheet) {

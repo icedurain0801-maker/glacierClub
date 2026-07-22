@@ -22,6 +22,8 @@ const SKILL_BASE_DESC_RE = /(?:技能基础效果|基础效果|basic\s*effects?)
 const SKILL_UPGRADE_DESC_RE = /(?:(?:[一二三四五六七八九十两]|\d+)\s*星效果|满星效果|max(?:imum)?[-\s]*star|upgrade|additional|extra)/i;
 const SKILL_UPGRADE_LINE_RE = /^(?:额外|追加|附加|提升|持续时间|技能效果作用于|英雄\s*[一二三四五六七八九十两\d]+\s*星|满级技能|满星效果|deals?\s+an?\s+additional|reduces?.*additional|duration\s+extended|the\s+skill\s+effect\s+applies|extra|additional|upgrade)/i;
 const AGGREGATE_SKILL_COLUMN_KEYS = ['中文', '英文', '日语', '韩语'];
+const BLOCK_ROW_KEY_RE = /^row_(\d+)$/i;
+const EMPTY_SKILL_NAME_RE = /^(?:无此技能|none|n\/a)$/i;
 const SUMMARY_CACHE_TTL_MS = 60 * 1000;
 const CASUAL_MESSAGE_RE = /^(?:你好|您好|嗨|哈喽|hello|hi|hey|在吗|在么|谢谢|好的|ok|嗯|哦|行)$/i;
 const NON_HERO_TOPIC_RE = /(?:世界杯|欧冠|NBA|CBA|足球|篮球|电竞|比赛|赛事|决赛|半决赛|赛程|比分|冠军|亚军|什么时候|几点|几号|哪天|天气|新闻|价格|股价|汇率|OpenAI|搜索|联网)/i;
@@ -34,6 +36,15 @@ const HERO_SUMMARY_FIELD_KEYS = [
   '\u82f1\u96c4\u540d\u79f0',
   '\u82f1\u96c4',
 ];
+const HERO_SUMMARY_TARGET_SHEET_KEYS = [
+  '\u8df3\u8f6c',
+  'sheet',
+  '\u8be6\u60c5sheet',
+  ...HERO_SUMMARY_FIELD_KEYS,
+];
+const HERO_SUMMARY_FACTION_KEYS = ['\u9635\u8425'];
+const HERO_SUMMARY_CAREER_KEYS = ['\u804c\u4e1a'];
+const HERO_SUMMARY_RARITY_KEYS = ['\u82f1\u96c4\u7ea7\u522b', '\u7a00\u6709\u5ea6'];
 const HERO_PROFILE_PREFIX_RE = /^(?:\u4ecb\u7ecd\u4e00\u4e0b|\u4ecb\u7ecd\u4e0b|\u4ecb\u7ecd\u4e2a|\u8bf4\u8bf4|\u8bb2\u8bb2|\u804a\u804a|\u6765\u4e2a|\u770b\u4e0b|\u770b\u770b|\u8bc4\u4ef7\u4e00\u4e0b)/u;
 const HERO_TEAM_QUERY_RE = /(?:\u9635\u5bb9|\u9663\u5bb9|\u914d\u961f|\u914d\u968a|\u642d\u914d|\u63a8\u8350\u9635\u5bb9|\u63a8\u85a6\u9663\u5bb9)/u;
 const HERO_CONTEXT_PRONOUN_PREFIXES = [
@@ -98,11 +109,32 @@ function firstNonBlank(...values) {
   return '';
 }
 
+function getRawValueByKeys(raw = {}, keys = []) {
+  if (!raw || typeof raw !== 'object') return '';
+
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(raw, key) && !isBlank(raw[key])) {
+      return raw[key];
+    }
+  }
+
+  return '';
+}
+
+function getHeroSummaryTargetSheet(raw = {}) {
+  return String(firstNonBlank(getRawValueByKeys(raw, HERO_SUMMARY_TARGET_SHEET_KEYS), '')).trim();
+}
+
 function getHeroSummaryRawCandidates(raw = {}, targetSheet = '') {
   return [
     ...HERO_SUMMARY_FIELD_KEYS.map(key => raw[key]),
     targetSheet,
   ];
+}
+
+function getHeroSummaryNameCandidates(raw = {}) {
+  return HERO_SUMMARY_FIELD_KEYS
+    .map(key => raw[key]);
 }
 
 function sanitizeHeroAliasToken(value) {
@@ -150,6 +182,10 @@ function extractHeroAliasTokens(value) {
 function isLikelyHeroSummaryRow(raw = {}, targetSheet = '') {
   const normalizedTarget = sanitizeHeroAliasToken(targetSheet);
   if (!normalizedTarget) return false;
+
+  const heroNameCandidates = getHeroSummaryNameCandidates(raw)
+    .flatMap(extractHeroAliasTokens);
+  if (heroNameCandidates.length === 0) return false;
 
   const heroCandidates = getHeroSummaryRawCandidates(raw, normalizedTarget)
     .flatMap(extractHeroAliasTokens);
@@ -264,9 +300,130 @@ function getImageDimensions(url) {
   return dimensions;
 }
 
+function parseKbImageMeta(url) {
+  const text = String(url || '').trim();
+  if (!text) return null;
+
+  const dimensions = getImageDimensions(text) || {};
+  const baseName = path.basename(text);
+  const match = /^(\d+)_(\d+)_(\d+)_(\d+)\.[a-z0-9]+$/i.exec(baseName);
+  const width = Number(dimensions.width || 0);
+  const height = Number(dimensions.height || 0);
+  const longerSide = Math.max(width, height);
+  const shorterSide = Math.min(width, height);
+
+  return {
+    url: text,
+    width,
+    height,
+    longerSide,
+    shorterSide,
+    aspectRatio: width && height ? (longerSide / shorterSide) : 0,
+    row: match ? parseInt(match[2], 10) : 0,
+    col: match ? parseInt(match[3], 10) : 0,
+  };
+}
+
+function clampRatio(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isAggregateSkillTableImage(meta) {
+  if (!meta) return false;
+  return meta.width >= 500
+    && meta.height >= 240
+    && meta.aspectRatio >= 1.8
+    && meta.aspectRatio <= 2.4;
+}
+
+function buildAggregateSkillSpriteCrops(url, count) {
+  const meta = parseKbImageMeta(url);
+  if (!isAggregateSkillTableImage(meta)) return [];
+
+  const centersX = [0.279, 0.460, 0.681, 0.883];
+  const cropWidth = 0.115;
+  const cropHeight = 0.17;
+  const cropY = 0.015;
+
+  return centersX
+    .slice(0, Math.max(0, Math.min(count, centersX.length)))
+    .map(centerX => ({
+      x: clampRatio(centerX - (cropWidth / 2), 0, 1 - cropWidth),
+      y: cropY,
+      width: cropWidth,
+      height: cropHeight,
+    }));
+}
+
+function isSquareishImage(meta, { minSide = 48, maxSide = 180, maxAspectRatio = 1.2 } = {}) {
+  if (!meta || !meta.shorterSide || !meta.longerSide) return false;
+  return meta.shorterSide >= minSide
+    && meta.shorterSide <= maxSide
+    && meta.aspectRatio > 0
+    && meta.aspectRatio <= maxAspectRatio;
+}
+
+function sortImageMetasByPreference(items, scorer) {
+  return [...items].sort((left, right) => scorer(right) - scorer(left));
+}
+
+function selectAvatarImage(urls) {
+  const items = (Array.isArray(urls) ? urls : [])
+    .map(parseKbImageMeta)
+    .filter(meta => isSquareishImage(meta, { minSide: 80, maxSide: 800, maxAspectRatio: 1.2 }));
+  if (items.length === 0) return '';
+
+  const scored = sortImageMetasByPreference(items, meta => {
+    const heroAvatarBonus = meta.row === 7 && meta.col === 4 ? 7000 : 0;
+    const portraitChipBonus = meta.row === 1 && meta.col >= 10 ? 5200 : 0;
+    const rowBonus = heroAvatarBonus || portraitChipBonus
+      ? 0
+      : (meta.row === 7 ? 1000 : Math.max(0, 300 - Math.abs(meta.row - 7) * 40));
+    const colBonus = heroAvatarBonus || portraitChipBonus
+      ? 0
+      : (meta.col === 4 ? 120 : Math.max(0, 60 - Math.abs(meta.col - 4) * 10));
+    const sizeTarget = portraitChipBonus ? 628 : 120;
+    const sizeBonus = Math.max(0, 220 - Math.abs(meta.shorterSide - sizeTarget));
+    const squareBonus = meta.aspectRatio <= 1.05 ? 80 : 0;
+    return heroAvatarBonus + portraitChipBonus + rowBonus + colBonus + sizeBonus + squareBonus;
+  });
+
+  return scored[0] ? scored[0].url : '';
+}
+
 function selectAggregateSkillIcons(urls) {
   const items = Array.isArray(urls) ? urls.filter(Boolean) : [];
   if (items.length <= 4) return items.slice(0, 4);
+
+  const iconMetas = items
+    .map(parseKbImageMeta)
+    .filter(meta => isSquareishImage(meta, { minSide: 48, maxSide: 160, maxAspectRatio: 1.2 }));
+
+  const groupedByRow = new Map();
+  iconMetas.forEach(meta => {
+    if (!meta.row || !meta.col) return;
+    const rowItems = groupedByRow.get(meta.row) || [];
+    rowItems.push(meta);
+    groupedByRow.set(meta.row, rowItems);
+  });
+
+  const preferredGroup = [...groupedByRow.entries()]
+    .map(([row, metas]) => {
+      const sorted = [...metas].sort((a, b) => a.col - b.col);
+      const lateIcons = sorted.filter(meta => meta.col >= 6);
+      const effective = lateIcons.length >= 3 ? lateIcons : sorted;
+      return {
+        row,
+        metas: effective,
+        score: effective.length * 100 + row * 10 + effective.reduce((sum, meta) => sum + meta.col, 0),
+      };
+    })
+    .filter(group => group.metas.length >= 3)
+    .sort((a, b) => b.score - a.score)[0];
+
+  if (preferredGroup) {
+    return preferredGroup.metas.slice(0, 4).map(meta => meta.url);
+  }
 
   const squareIcons = items.filter(url => {
     const dimensions = getImageDimensions(url);
@@ -285,6 +442,17 @@ function selectCareerIcon(urls) {
   if (items.length === 0) return '';
   if (items.length === 1) return items[0];
 
+  const iconMetas = items
+    .map(parseKbImageMeta)
+    .filter(meta => (meta.shorterSide >= 40 && meta.shorterSide <= 96 && meta.aspectRatio > 0 && meta.aspectRatio <= 1.35) || (meta.row && meta.col));
+  const preferred = sortImageMetasByPreference(iconMetas, meta => {
+    const rowBonus = meta.row === 5 ? 1000 : Math.max(0, 200 - Math.abs(meta.row - 5) * 40);
+    const colBonus = meta.col === 6 ? 120 : Math.max(0, 60 - Math.abs(meta.col - 6) * 10);
+    const sizeBonus = Math.max(0, 100 - Math.abs(meta.shorterSide - 60));
+    return rowBonus + colBonus + sizeBonus;
+  })[0];
+  if (preferred) return preferred.url;
+
   const icon = items.find(url => {
     const dimensions = getImageDimensions(url);
     if (!dimensions || !dimensions.width || !dimensions.height) return false;
@@ -296,10 +464,38 @@ function selectCareerIcon(urls) {
   return icon || items[0];
 }
 
+function selectFactionIcon(urls) {
+  const items = Array.isArray(urls) ? urls.filter(Boolean) : [];
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+
+  const iconMetas = items
+    .map(parseKbImageMeta)
+    .filter(meta => (meta.shorterSide >= 28 && meta.shorterSide <= 96 && meta.aspectRatio > 0 && meta.aspectRatio <= 1.35) || (meta.row && meta.col));
+  const preferred = sortImageMetasByPreference(iconMetas, meta => {
+    const rowBonus = meta.row === 4 ? 1000 : Math.max(0, 220 - Math.abs(meta.row - 4) * 44);
+    const colBonus = meta.col === 6 ? 140 : Math.max(0, 80 - Math.abs(meta.col - 6) * 12);
+    const sizeBonus = Math.max(0, 100 - Math.abs(meta.shorterSide - 48));
+    return rowBonus + colBonus + sizeBonus;
+  })[0];
+  if (preferred) return preferred.url;
+
+  const icon = items.find(url => {
+    const dimensions = getImageDimensions(url);
+    if (!dimensions || !dimensions.width || !dimensions.height) return false;
+    const longerSide = Math.max(dimensions.width, dimensions.height);
+    const shorterSide = Math.min(dimensions.width, dimensions.height);
+    return shorterSide >= 28 && shorterSide <= 96 && (longerSide / shorterSide) <= 1.25;
+  });
+
+  return icon || items[0];
+}
+
 function normalizeText(value) {
   return String(value == null ? '' : value)
     .toLowerCase()
-    .replace(/[\s\r\n\t_\-–—()（）【】[\]{}<>《》“”"'`~!@#$%^&*,.:;?\/\\|，。！；：、]+/g, '');
+    .normalize('NFKC')
+    .replace(/[\p{P}\p{S}\s_]+/gu, '');
 }
 
 function normalizeLineBreaks(value) {
@@ -332,6 +528,136 @@ function getEntryValue(entry, raw) {
     raw.韩语,
     entry && entry.content
   ));
+}
+
+function extractLocalizedFieldValue(value) {
+  const parts = String(value == null ? '' : value)
+    .split('|')
+    .map(part => normalizeLineBreaks(part))
+    .filter(Boolean);
+  if (parts.length === 0) return '';
+
+  const chinesePart = parts.find(part => /[\u4e00-\u9fff]/u.test(part));
+  if (chinesePart) return chinesePart;
+  return parts[0];
+}
+
+function extractRarityValue(value) {
+  const match = String(value == null ? '' : value).match(/\bS\+|S|A\b/i);
+  return match ? String(match[0]).toUpperCase() : '';
+}
+
+function getBlockTopLevelFieldEntries(raw) {
+  if (!raw || typeof raw !== 'object' || raw.__parseMode !== 'block') return [];
+
+  return Object.entries(raw)
+    .filter(([key]) => {
+      const text = String(key || '').trim();
+      return text
+        && !text.startsWith('__')
+        && !BLOCK_ROW_KEY_RE.test(text)
+        && text !== '标题'
+        && text !== '对应位置';
+    })
+    .map(([label, value]) => ({
+      label: String(label || '').trim(),
+      value: String(value == null ? '' : value),
+    }))
+    .filter(item => item.label);
+}
+
+function getBlockRowEntries(raw) {
+  if (!raw || typeof raw !== 'object' || raw.__parseMode !== 'block') return [];
+  return Object.entries(raw)
+    .map(([key, value]) => {
+      const match = BLOCK_ROW_KEY_RE.exec(String(key || ''));
+      if (!match) return null;
+      return {
+        order: parseInt(match[1], 10),
+        value: String(value == null ? '' : value),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order);
+}
+
+function parseBlockSkillRow(value) {
+  const parts = String(value == null ? '' : value)
+    .split('|')
+    .map(part => normalizeLineBreaks(part))
+    .filter(part => part !== '');
+  if (!parts.length) return null;
+
+  const positionIndex = parts.findIndex(part => SKILL_POSITION_RE.test(part));
+  if (positionIndex < 0) return null;
+
+  const positionLabel = String(parts[positionIndex] || '').trim();
+  const projectLabel = String(parts[positionIndex + 1] || '').trim();
+  const primaryValue = String(parts[positionIndex + 2] || '').trim();
+  const secondaryValue = parts.slice(positionIndex + 3).join(' | ').trim();
+
+  if (!positionLabel || !projectLabel) return null;
+  if (isBlank(primaryValue) && isBlank(secondaryValue)) return null;
+
+  return {
+    positionLabel,
+    projectLabel,
+    primaryValue,
+    secondaryValue,
+  };
+}
+
+function buildSyntheticSkillEntry(entry, skillRow) {
+  const raw = entry && entry.raw || {};
+  const syntheticRaw = {
+    __sheet: raw.__sheet,
+    __parseMode: 'block-row',
+    对应位置: skillRow.positionLabel,
+    项目: skillRow.projectLabel,
+  };
+
+  if (!isBlank(skillRow.primaryValue)) syntheticRaw.中文 = skillRow.primaryValue;
+  if (!isBlank(skillRow.secondaryValue)) syntheticRaw.英文 = skillRow.secondaryValue;
+
+  return {
+    raw: syntheticRaw,
+    images: Array.isArray(entry && entry.images) ? entry.images : [],
+    content: normalizeLineBreaks([
+      skillRow.positionLabel,
+      skillRow.projectLabel,
+      skillRow.primaryValue,
+      skillRow.secondaryValue,
+    ].filter(Boolean).join('\n')),
+  };
+}
+
+function extractBlockSkillEntries(detailEntries) {
+  const entries = [];
+
+  (Array.isArray(detailEntries) ? detailEntries : []).forEach(entry => {
+    const raw = entry && entry.raw || {};
+    getBlockRowEntries(raw).forEach(row => {
+      const skillRow = parseBlockSkillRow(row.value);
+      if (!skillRow) return;
+      if (SKILL_NAME_RE.test(skillRow.projectLabel) && EMPTY_SKILL_NAME_RE.test(skillRow.primaryValue)) return;
+      entries.push(buildSyntheticSkillEntry(entry, skillRow));
+    });
+  });
+
+  return entries;
+}
+
+function getExpandedSkillEntries(detailEntries) {
+  const baseEntries = Array.isArray(detailEntries) ? detailEntries : [];
+  return [...baseEntries, ...extractBlockSkillEntries(baseEntries)];
+}
+
+function hasBlockFieldKey(raw, pattern) {
+  if (!raw || typeof raw !== 'object' || raw.__parseMode !== 'block') return false;
+  return Object.keys(raw).some(key => {
+    if (!key || String(key).startsWith('__') || BLOCK_ROW_KEY_RE.test(key)) return false;
+    return pattern.test(String(key));
+  });
 }
 
 function parseSkillIndex(label) {
@@ -563,6 +889,37 @@ function scoreHeroCandidate(message, aliases) {
   return best;
 }
 
+function resolveHeroDetailSheetName(sheetName, aliases = [], candidateSheetNames = []) {
+  const requestedSheet = String(sheetName || '').trim();
+  const candidates = [...new Set((Array.isArray(candidateSheetNames) ? candidateSheetNames : [])
+    .map(item => String(item || '').trim())
+    .filter(Boolean))];
+
+  if (!candidates.length) return requestedSheet;
+  if (requestedSheet && candidates.includes(requestedSheet)) return requestedSheet;
+
+  const messages = [...new Set([
+    requestedSheet,
+    ...(Array.isArray(aliases) ? aliases : []),
+  ].map(item => String(item || '').trim()).filter(Boolean))];
+
+  let best = null;
+  candidates.forEach(candidate => {
+    const candidateAliases = extractHeroAliasTokens(candidate);
+    const score = messages.reduce(
+      (currentBest, message) => Math.max(currentBest, scoreHeroCandidate(message, candidateAliases)),
+      0
+    );
+    if (!score) return;
+    if (!best || score > best.score) {
+      best = { name: candidate, score };
+    }
+  });
+
+  if (!best || best.score < 800) return requestedSheet;
+  return best.name;
+}
+
 function collectHeroAliasesSafe(summaryRaw, targetSheet) {
   const aliases = new Set();
   getHeroSummaryRawCandidates(summaryRaw || {}, targetSheet)
@@ -606,7 +963,7 @@ async function loadHeroSummaries(versionId) {
   const items = rows
     .map(row => {
       const raw = safeParseJson(row.raw_json);
-      const targetSheet = String(firstNonBlank(raw.跳转, raw.sheet, raw.详情sheet, '')).trim();
+      const targetSheet = getHeroSummaryTargetSheet(raw);
       return {
         ...row,
         raw,
@@ -675,26 +1032,31 @@ async function findHeroSummaryBySkillPhrase(versionId, message) {
 
     rows.forEach(row => {
       const raw = safeParseJson(row.raw_json);
-      const positionIndex = parseSkillIndex(getSkillPosition(raw));
-      if (!positionIndex) return;
-      if (!SKILL_NAME_RE.test(getProjectLabel(raw))) return;
+      const skillEntries = getExpandedSkillEntries([{ ...row, raw, images: [] }]);
 
-      const skillName = extractPrimaryTextLine(getEntryValue(row, raw));
-      const score = Math.max(
-        scoreSkillCandidate(message, skillName),
-        scoreSkillCandidate(phrase, skillName)
-      );
-      if (!score) return;
+      skillEntries.forEach(skillEntry => {
+        const skillRaw = skillEntry.raw || {};
+        const positionIndex = parseSkillIndex(getSkillPosition(skillRaw));
+        if (!positionIndex) return;
+        if (!SKILL_NAME_RE.test(getProjectLabel(skillRaw))) return;
 
-      const sheetName = String(raw.__sheet || '').trim();
-      const summary = summaries.find(item =>
-        item.document_id === row.document_id && String(item.targetSheet || '').trim() === sheetName
-      ) || summaries.find(item => item.document_id === row.document_id);
+        const skillName = extractPrimaryTextLine(getEntryValue(skillEntry, skillRaw));
+        const score = Math.max(
+          scoreSkillCandidate(message, skillName),
+          scoreSkillCandidate(phrase, skillName)
+        );
+        if (!score) return;
 
-      if (!summary) return;
-      if (!best || score > best.score) {
-        best = { summary, score };
-      }
+        const sheetName = String(skillRaw.__sheet || raw.__sheet || '').trim();
+        const summary = summaries.find(item =>
+          item.document_id === row.document_id && String(item.targetSheet || '').trim() === sheetName
+        ) || summaries.find(item => item.document_id === row.document_id);
+
+        if (!summary) return;
+        if (!best || score > best.score) {
+          best = { summary, score };
+        }
+      });
     });
 
     if (best && best.score >= 850) break;
@@ -894,7 +1256,7 @@ async function findHeroSummaryFromContext(versionId, message, history = []) {
   return null;
 }
 
-async function loadDetailEntries(versionId, documentId, sheetName) {
+async function loadDetailEntries(versionId, documentId, sheetName, aliases = []) {
   const [rows] = await db.query(
     `SELECT id, row_index, content, raw_json
        FROM knowledge_entries
@@ -904,10 +1266,24 @@ async function loadDetailEntries(versionId, documentId, sheetName) {
     [versionId, documentId]
   );
 
-  const filteredRows = rows.filter(row => {
+  const rowsBySheet = new Map();
+  rows.forEach(row => {
     const raw = safeParseJson(row.raw_json);
-    return String(raw.__sheet || '').trim() === String(sheetName || '').trim();
+    const resolvedSheetName = String(raw.__sheet || '').trim();
+    if (!resolvedSheetName) return;
+    if (!rowsBySheet.has(resolvedSheetName)) rowsBySheet.set(resolvedSheetName, []);
+    rowsBySheet.get(resolvedSheetName).push({
+      ...row,
+      raw,
+    });
   });
+
+  const resolvedSheetName = resolveHeroDetailSheetName(
+    sheetName,
+    aliases,
+    [...rowsBySheet.keys()]
+  );
+  const filteredRows = rowsBySheet.get(resolvedSheetName) || [];
 
   if (filteredRows.length === 0) return [];
 
@@ -928,7 +1304,7 @@ async function loadDetailEntries(versionId, documentId, sheetName) {
 
   return filteredRows.map(row => ({
     ...row,
-    raw: safeParseJson(row.raw_json),
+    raw: row.raw || safeParseJson(row.raw_json),
     images: imagesByEntry.get(row.id) || [],
   }));
 }
@@ -1055,6 +1431,14 @@ function mergeSkillKnowledge(baseSkillMap, aggregateSkillMap, detailedSkillMap) 
   [...baseSkillMap.values(), ...aggregateSkillMap.values(), ...detailedSkillMap.values()].forEach(mergeOne);
 
   return [...merged.values()]
+    .filter(skill => {
+      const normalizedName = String(skill && skill.name || '').trim();
+      if (EMPTY_SKILL_NAME_RE.test(normalizedName)) return false;
+      const hasContent = !isBlank(skill.baseEffect)
+        || !isBlank(skill.description)
+        || Object.keys(skill.upgrades || {}).length > 0;
+      return !isBlank(normalizedName) || hasContent;
+    })
     .sort((a, b) => a.index - b.index)
     .slice(0, 4)
     .map(skill => ({
@@ -1068,16 +1452,22 @@ function mergeSkillKnowledge(baseSkillMap, aggregateSkillMap, detailedSkillMap) 
 function buildSkillPayload(detailEntries) {
   const aggregateSkillIcons = [];
   const skillMap = new Map();
+  const expandedDetailEntries = getExpandedSkillEntries(detailEntries);
 
   detailEntries.forEach(entry => {
     const raw = entry.raw || {};
     const projectLabel = getProjectLabel(raw);
-    const positionLabel = getSkillPosition(raw);
-    const positionIndex = parseSkillIndex(positionLabel);
 
-    if (SKILL_ICON_RE.test(projectLabel) && entry.images.length > 0) {
+    if ((SKILL_ICON_RE.test(projectLabel) || hasBlockFieldKey(raw, SKILL_ICON_RE)) && entry.images.length > 0) {
       selectAggregateSkillIcons(entry.images).forEach(url => aggregateSkillIcons.push(url));
     }
+  });
+
+  expandedDetailEntries.forEach(entry => {
+    const raw = entry.raw || {};
+    const projectLabel = getProjectLabel(raw);
+    const positionLabel = getSkillPosition(raw);
+    const positionIndex = parseSkillIndex(positionLabel);
 
     if (!positionIndex) return;
 
@@ -1115,32 +1505,79 @@ function buildSkillPayload(detailEntries) {
   });
 
   const preferredAggregateIcons = aggregateSkillIcons.slice(0, 4);
-  const aggregateSkillMap = buildAggregateSkillKnowledge(detailEntries);
-  const detailedSkillMap = buildDetailedSkillKnowledge(detailEntries);
+  const aggregateSkillMap = buildAggregateSkillKnowledge(expandedDetailEntries);
+  const detailedSkillMap = buildDetailedSkillKnowledge(expandedDetailEntries);
+  const mergedSkills = mergeSkillKnowledge(skillMap, aggregateSkillMap, detailedSkillMap);
 
-  return mergeSkillKnowledge(skillMap, aggregateSkillMap, detailedSkillMap)
-    .map((skill, index) => ({
+  // Some hero sheets only provide a single aggregate skill icon for the entire skill row.
+  // Reuse it for the remaining slots so cards do not render partially blank.
+  if (preferredAggregateIcons.length === 1) {
+    const fallbackIcon = preferredAggregateIcons[0];
+    const spriteCrops = buildAggregateSkillSpriteCrops(fallbackIcon, mergedSkills.length);
+    return mergedSkills.map(skill => ({
       ...skill,
-      imageUrl: preferredAggregateIcons[index] || skill.imageUrl || '',
+      imageUrl: skill.imageUrl || fallbackIcon,
+      imageCrop: !skill.imageUrl ? (spriteCrops[skill.index - 1] || null) : null,
     }));
+  }
+
+  return mergedSkills.map((skill, index) => ({
+    ...skill,
+    imageUrl: preferredAggregateIcons[index] || skill.imageUrl || '',
+    imageCrop: null,
+  }));
 }
 
 function collectDetailFieldValues(detailEntries) {
   const values = [];
   let avatarUrl = '';
+  let factionIconUrl = '';
   let careerIconUrl = '';
 
   detailEntries.forEach(entry => {
     const raw = entry.raw || {};
+    const topLevelFields = getBlockTopLevelFieldEntries(raw);
+    if (topLevelFields.length > 0) {
+      if (!avatarUrl && topLevelFields.some(field => AVATAR_RE.test(field.label)) && entry.images.length > 0) {
+        avatarUrl = selectAvatarImage(entry.images);
+      }
+
+      if (!careerIconUrl && topLevelFields.some(field => CAREER_RE.test(field.label)) && entry.images.length > 0) {
+        careerIconUrl = selectCareerIcon(entry.images);
+      }
+
+      if (!factionIconUrl && topLevelFields.some(field => FACTION_RE.test(field.label)) && entry.images.length > 0) {
+        factionIconUrl = selectFactionIcon(entry.images);
+      }
+
+      topLevelFields.forEach(field => {
+        if (SKILL_ICON_RE.test(field.label)) return;
+
+        const normalizedValue = RARITY_RE.test(field.label)
+          ? extractRarityValue(field.value)
+          : extractLocalizedFieldValue(field.value);
+        if (isBlank(normalizedValue)) return;
+
+        values.push({
+          label: field.label,
+          value: normalizedValue,
+        });
+      });
+    }
+
     const projectLabel = getProjectLabel(raw);
     if (!projectLabel) return;
 
     if (!avatarUrl && AVATAR_RE.test(projectLabel) && entry.images.length > 0) {
-      avatarUrl = entry.images[0];
+      avatarUrl = selectAvatarImage(entry.images) || entry.images[0];
     }
 
     if (!careerIconUrl && CAREER_RE.test(projectLabel) && entry.images.length > 0) {
       careerIconUrl = selectCareerIcon(entry.images);
+    }
+
+    if (!factionIconUrl && FACTION_RE.test(projectLabel) && entry.images.length > 0) {
+      factionIconUrl = selectFactionIcon(entry.images);
     }
 
     const positionIndex = parseSkillIndex(getSkillPosition(raw));
@@ -1156,7 +1593,13 @@ function collectDetailFieldValues(detailEntries) {
     });
   });
 
-  return { values, avatarUrl, careerIconUrl };
+  if (!avatarUrl) {
+    avatarUrl = selectAvatarImage(
+      detailEntries.flatMap(entry => Array.isArray(entry.images) ? entry.images : [])
+    );
+  }
+
+  return { values, avatarUrl, factionIconUrl, careerIconUrl };
 }
 
 function findFieldValueByLabel(items, pattern) {
@@ -1166,13 +1609,13 @@ function findFieldValueByLabel(items, pattern) {
 
 function buildHeroCardPayload(summaryEntry, detailEntries) {
   const summaryRaw = summaryEntry.raw || {};
-  const { values, avatarUrl, careerIconUrl } = collectDetailFieldValues(detailEntries);
+  const { values, avatarUrl, factionIconUrl, careerIconUrl } = collectDetailFieldValues(detailEntries);
 
   const name = firstNonBlank(
     findFieldValueByLabel(values, NAME_RE),
-    summaryRaw.英雄名称,
-    summaryRaw.英雄,
-    summaryEntry.aliases.find(alias => /[\u4e00-\u9fa5]{2,}/.test(alias)),
+    getRawValueByKeys(summaryRaw, HERO_SUMMARY_FIELD_KEYS.slice(1)),
+    getHeroSummaryDisplayName(summaryEntry),
+    Array.isArray(summaryEntry.aliases) ? summaryEntry.aliases.find(alias => /[\u4e00-\u9fa5]{2,}/.test(alias)) : '',
     summaryEntry.targetSheet
   );
 
@@ -1182,18 +1625,17 @@ function buildHeroCardPayload(summaryEntry, detailEntries) {
 
   const faction = firstNonBlank(
     findFieldValueByLabel(values, FACTION_RE),
-    summaryRaw.阵营
+    getRawValueByKeys(summaryRaw, HERO_SUMMARY_FACTION_KEYS)
   );
 
   const career = firstNonBlank(
     findFieldValueByLabel(values, CAREER_RE),
-    summaryRaw.职业
+    getRawValueByKeys(summaryRaw, HERO_SUMMARY_CAREER_KEYS)
   );
 
   const rarity = firstNonBlank(
     findFieldValueByLabel(values, RARITY_RE),
-    summaryRaw.英雄级别,
-    summaryRaw.稀有度
+    getRawValueByKeys(summaryRaw, HERO_SUMMARY_RARITY_KEYS)
   );
 
   const quote = firstNonBlank(
@@ -1204,6 +1646,7 @@ function buildHeroCardPayload(summaryEntry, detailEntries) {
     name: String(name || '').trim(),
     title: String(title || '').trim(),
     faction: String(faction || '').trim(),
+    factionIconUrl: String(factionIconUrl || '').trim(),
     career: String(career || '').trim(),
     careerIconUrl: String(careerIconUrl || '').trim(),
     rarity: String(rarity || '').trim(),
@@ -1246,7 +1689,12 @@ async function findHeroFieldReply(versionId, message, history = []) {
   const summaryEntry = await findHeroSummaryFromContext(versionId, message, history);
   if (!summaryEntry) return null;
 
-  const detailEntries = await loadDetailEntries(versionId, summaryEntry.document_id, summaryEntry.targetSheet);
+  const detailEntries = await loadDetailEntries(
+    versionId,
+    summaryEntry.document_id,
+    summaryEntry.targetSheet,
+    summaryEntry.aliases
+  );
   if (detailEntries.length === 0) return null;
 
   const card = buildHeroCardPayload(summaryEntry, detailEntries);
@@ -1391,7 +1839,12 @@ async function findHeroSkillReply(versionId, message, history = []) {
   const summaryEntry = await findHeroSummaryFromContext(versionId, message, history);
   if (!summaryEntry) return null;
 
-  const detailEntries = await loadDetailEntries(versionId, summaryEntry.document_id, summaryEntry.targetSheet);
+  const detailEntries = await loadDetailEntries(
+    versionId,
+    summaryEntry.document_id,
+    summaryEntry.targetSheet,
+    summaryEntry.aliases
+  );
   if (detailEntries.length === 0) return null;
 
   const card = buildHeroCardPayload(summaryEntry, detailEntries);
@@ -1459,7 +1912,12 @@ async function findHeroCardReply(versionId, message, history = []) {
   const summaryEntry = await findHeroSummaryFromContext(versionId, message, history);
   if (!summaryEntry) return null;
 
-  const detailEntries = await loadDetailEntries(versionId, summaryEntry.document_id, summaryEntry.targetSheet);
+  const detailEntries = await loadDetailEntries(
+    versionId,
+    summaryEntry.document_id,
+    summaryEntry.targetSheet,
+    summaryEntry.aliases
+  );
   if (detailEntries.length === 0) return null;
 
   const card = buildHeroCardPayload(summaryEntry, detailEntries);
@@ -1494,13 +1952,6 @@ async function findHeroContextEntity(versionId, message, history = []) {
     };
   }
 
-  const name = String(firstNonBlank(
-    summaryEntry.raw && summaryEntry.raw.鑻遍泟鍚嶇О,
-    summaryEntry.raw && summaryEntry.raw.鑻遍泟,
-    summaryEntry.aliases && summaryEntry.aliases.find(alias => /[\u4e00-\u9fa5]{2,}/.test(alias)),
-    summaryEntry.targetSheet
-  ) || '').trim();
-
   return {
     documentId: summaryEntry.document_id,
     targetSheet: summaryEntry.targetSheet,
@@ -1525,6 +1976,8 @@ module.exports = {
     extractBaseSkillDescription,
     extractSkillDetailSections,
     selectAggregateSkillIcons,
+    buildAggregateSkillSpriteCrops,
+    selectFactionIcon,
     selectCareerIcon,
     findBestMatchingSkill,
     isSkillContextFollowupQuery,
@@ -1537,5 +1990,6 @@ module.exports = {
     shouldReturnHeroCardRequest,
     extractHeroNameFromAssistantReply: extractHeroNameFromAssistantReplySafe,
     isValidHeroNameCandidate: isValidHeroNameCandidateSafe,
+    resolveHeroDetailSheetName,
   },
 };

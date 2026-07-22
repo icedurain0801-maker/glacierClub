@@ -57,6 +57,7 @@ const TERM_VARIANT_GROUPS = [
 
 const GENERIC_GUIDE_QUERY_RE = /(?:攻略|推荐|玩法|怎么玩|怎么搭|阵容|搭配)/u;
 const GENERIC_GUIDE_FILLER_RE = /(?:有什么|有啥|什么|哪个|哪款|这个|那个|游戏|手游|端游|网游|攻略|推荐|玩法|怎么玩|怎么搭|阵容|搭配|帮我|帮忙|看看|一下呢|呀|啊|呢|的|我想|要|说|讲|聊|可以|有没有)/gu;
+const ARTICLE_STYLE_GUIDE_QUERY_RE = /(?:攻略|指南|玩法|规则|机制|教程|介绍|怎么玩|怎么打)/u;
 const ALLIANCE_SCOPE_RE = /(?:联盟|聯盟|同盟|连盟|連盟|alliance)/iu;
 const CITY_SCOPE_RE = /(?:城市|城池|city|cities)/iu;
 const MEMBER_SCOPE_RE = /(?:成员|成員)/u;
@@ -74,11 +75,26 @@ function looksLikeAmbiguousGuideQuery(query) {
   return remainder.length < 2;
 }
 
+const ARTICLE_STYLE_GUIDE_QUERY_FALLBACK_RE = /(?:\u653b\u7565|\u6307\u5357|\u73a9\u6cd5|\u89c4\u5219|\u673a\u5236|\u6559\u7a0b|\u4ecb\u7ecd|\u600e\u4e48\u73a9|\u600e\u4e48\u6253)/u;
+
+function isArticleStyleGuideQuery(query) {
+  return ARTICLE_STYLE_GUIDE_QUERY_FALLBACK_RE.test(String(query || '').trim());
+}
+
 function isGenericBeginnerGuideQuery(query) {
   const text = String(query || '').trim();
   if (!text) return false;
   if (!BEGINNER_GUIDE_SIGNAL_RE.test(text)) return false;
-  return BEGINNER_GUIDE_ACTION_RE.test(text);
+  if (!BEGINNER_GUIDE_ACTION_RE.test(text)) return false;
+
+  const remainder = text
+    .toLowerCase()
+    .replace(
+      /(?:\u65b0\u624b|\u5165\u95e8|\u840c\u65b0|\u5f00\u5c40|\u524d\u671f|\u521d\u671f|\u57fa\u7840|\u4e0a\u624b|\u600e\u4e48\u73a9|\u73a9\u6cd5|\u6307\u5357|\u6559\u7a0b|\u653b\u7565|\u4ece\u54ea\u5f00\u59cb|\u600e\u4e48\u4e0a\u624b|beginner|newbie|starter|get(?:ting)?\s+started|how\s+to\s+play|guide|tips|start|\s|[?？!！,.，。:：;；、"'“”‘’()（）【】\[\]{}<>《》/\\+_-])/giu,
+      ''
+    );
+
+  return remainder.length < 2;
 }
 
 function extractQueryTokens(text) {
@@ -203,20 +219,40 @@ function expandTermVariants(term) {
 function buildLexicalSearchTokens(query) {
   const expanded = [];
   const seen = new Set();
+  const pushTerm = (term) => {
+    const value = String(term || '').trim().toLowerCase();
+    if (!value || value.length < 2 || seen.has(value) || QUERY_NOISE_TOKENS.has(value)) return;
+    seen.add(value);
+    expanded.push(value);
+  };
 
   for (const term of extractLexicalTerms(query)) {
     for (const variant of expandTermVariants(term)) {
-      if (!variant || seen.has(variant) || QUERY_NOISE_TOKENS.has(variant)) continue;
-      seen.add(variant);
-      expanded.push(variant);
+      pushTerm(variant);
+    }
+  }
+
+  if (expanded.length === 0) {
+    const fallbackText = String(query || '').trim().toLowerCase();
+    const fallbackCjkParts = fallbackText.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+    for (const part of fallbackCjkParts) {
+      pushTerm(part);
+      if (part.length >= 4) {
+        for (let index = 0; index < part.length - 1; index += 1) {
+          pushTerm(part.slice(index, index + 2));
+        }
+      }
+    }
+
+    const fallbackLatinParts = fallbackText.match(/[a-z0-9_+-]{2,}/g) || [];
+    for (const part of fallbackLatinParts) {
+      pushTerm(part);
     }
   }
 
   if (isGenericBeginnerGuideQuery(query)) {
     for (const term of BEGINNER_GUIDE_RELATED_TERMS) {
-      if (!term || seen.has(term) || QUERY_NOISE_TOKENS.has(term)) continue;
-      seen.add(term);
-      expanded.push(term);
+      pushTerm(term);
     }
   }
 
@@ -365,6 +401,62 @@ function isMetadataHeavyContent(content) {
   return scoreMetadataPenalty(content) >= 12;
 }
 
+function isGuideSectionLikeContent(content) {
+  const lines = splitNormalizedLines(content);
+  if (lines.length === 0) return false;
+
+  const meaningfulLines = lines.filter(
+    line => !/^(?:sheet|rows?|reference)\s*:/iu.test(String(line || '').trim())
+  );
+  if (meaningfulLines.length === 0) return false;
+
+  return meaningfulLines.some((line) => {
+    const text = String(line || '').trim();
+    if (!text) return false;
+    if (/^【[^】]{1,24}】$/u.test(text)) return true;
+    if (/^(?:[一二三四五六七八九十]+、|\d+[.、])/u.test(text)) return true;
+    return false;
+  }) || scoreGuideBodySignals(meaningfulLines) >= 1;
+}
+
+function isVisualAssetLikeContent(content) {
+  const text = String(content || '');
+  if (!text) return false;
+  if (/(?:素材地址|素材图|图片地址|image\s*url|asset\s*path|icon\s*url|thumbnail|缩略图)/iu.test(text)) return true;
+  if (/(?:角色背景版|立绘|头像框|配图说明|版式|海报|图标地址)/iu.test(text)) return true;
+  return false;
+}
+
+function isDialogueOrQuoteOnlyContent(content) {
+  const text = String(content || '');
+  if (!text) return false;
+  if (!/(?:项目\s*:\s*英雄台词|英雄台词|角色台词|quote|voice\s*line)/iu.test(text)) return false;
+
+  const proseLines = splitNormalizedLines(text).filter(isLikelyProseLine).length;
+  const queryableFactSignals = /(阵营|职业|稀有度|技能|定位|搭配|阵容|强度|克制|培养|天赋|装备|神器|效果)/iu.test(text);
+  return proseLines <= 6 && !queryableFactSignals;
+}
+
+function shouldSuppressWeakRef(query, ref) {
+  const text = String(ref?.matchText || ref?.snippet || '');
+  if (!text) return false;
+
+  const lexicalScore = Number(ref?.lexicalScore || 0);
+  const semanticScore = Number(ref?.semanticScore || ref?.score || 0);
+  const intentScore = Number(
+    ref?.intentScore != null ? ref.intentScore : scoreIntentAlignment(query, text)
+  );
+
+  if (semanticScore >= cfg.ragMinRefScore) return false;
+  if (intentScore >= 18) return false;
+  if (lexicalScore >= 20 && !isMetadataHeavyContent(text) && !isVisualAssetLikeContent(text)) return false;
+
+  if (isVisualAssetLikeContent(text)) return true;
+  if (isDialogueOrQuoteOnlyContent(text) && lexicalScore < 30) return true;
+  if (isMetadataHeavyContent(text) && lexicalScore < 18) return true;
+  return false;
+}
+
 function scoreLineAgainstQuery(line, query) {
   const source = String(line || '').toLowerCase();
   if (!source) return Number.NEGATIVE_INFINITY;
@@ -444,6 +536,23 @@ function extractTitleNeedles(query) {
   return [...new Set([raw, normalized, ...tokens].filter(Boolean))];
 }
 
+function isLooseTitleStyleLineMatch(line, needle) {
+  const normalizedLine = String(line || '').trim().toLowerCase();
+  const normalizedNeedle = String(needle || '').trim().toLowerCase();
+  if (!normalizedLine || !normalizedNeedle || !normalizedLine.includes(normalizedNeedle)) return false;
+  if (normalizedLine === normalizedNeedle) return true;
+
+  const segments = normalizedLine
+    .split(/\s*(?:\/|\||-|:|：|（|）|\(|\)|\[|\]|【|】)\s*/u)
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (segments.some(item => item === normalizedNeedle)) return true;
+
+  const remainder = normalizedLine.replace(normalizedNeedle, '').trim();
+  if (!remainder) return true;
+  return /^[\/|:：\-()（）[\]【】\s.a-z0-9&+_]+$/iu.test(remainder);
+}
+
 function hasTitleStyleMatch(query, content) {
   const needles = extractTitleNeedles(query);
   if (needles.length === 0) return false;
@@ -454,10 +563,88 @@ function hasTitleStyleMatch(query, content) {
     if (line === needle) return true;
     if (isLikelyFieldLine(line)) {
       const fieldValue = line.replace(/^[^:]+:\s*/u, '').trim();
-      return fieldValue === needle;
+      return fieldValue === needle || isLooseTitleStyleLineMatch(fieldValue, needle);
     }
-    return false;
+    return isLooseTitleStyleLineMatch(line, needle);
   }));
+}
+
+function isAssetNoiseTitleContent(content) {
+  const text = String(content || '');
+  if (!text) return false;
+  return /(?:icon\s*id|道具icon|图标id|图标编号|图标资源|id查询网盘|研发素材|ui素材|asset\s*id)/iu.test(text);
+}
+
+function scoreTitleAnchorCandidate(query, ref) {
+  const text = String(ref?.matchText || ref?.snippet || '').trim();
+  if (!text || !hasTitleStyleMatch(query, text)) return Number.NEGATIVE_INFINITY;
+
+  let score = 0;
+  const lines = splitNormalizedLines(text);
+  for (const line of lines) {
+    if (!hasTitleStyleMatch(query, line)) continue;
+    if (isLikelyAssetLine(line)) {
+      score -= 80;
+      continue;
+    }
+
+    if (isLikelyFieldLine(line)) {
+      const fieldValue = line.replace(/^[^:]+:\s*/u, '').trim();
+      score += fieldValue && hasTitleStyleMatch(query, fieldValue) ? 80 : 36;
+      continue;
+    }
+
+    score += 64;
+  }
+
+  if (/^row\s*:\s*\d+/imu.test(text)) score += 16;
+  if (/^rows\s*:\s*\d+\s*-\s*\d+/imu.test(text)) score -= 12;
+  if (isAssetNoiseTitleContent(text)) score -= 160;
+  if (isMetadataHeavyContent(text)) score -= 12;
+
+  score += Math.min(24, Number(ref?.lexicalScore || 0));
+  score += Math.round(Number(ref?.semanticScore || ref?.score || 0) * 20);
+
+  return score;
+}
+
+function pickTitleAnchorRef(query, refs) {
+  if (!Array.isArray(refs) || refs.length === 0) return null;
+
+  const candidates = refs
+    .map(ref => ({ ref, titleAnchorScore: scoreTitleAnchorCandidate(query, ref) }))
+    .filter(item => Number.isFinite(item.titleAnchorScore));
+  if (candidates.length === 0) return null;
+
+  candidates.sort((left, right) => {
+    if (right.titleAnchorScore !== left.titleAnchorScore) {
+      return right.titleAnchorScore - left.titleAnchorScore;
+    }
+    const leftLexical = Number(left.ref?.lexicalScore || 0);
+    const rightLexical = Number(right.ref?.lexicalScore || 0);
+    if (rightLexical !== leftLexical) return rightLexical - leftLexical;
+    return Number(right.ref?.score || 0) - Number(left.ref?.score || 0);
+  });
+
+  return candidates[0].ref;
+}
+
+function isSameKnowledgeArticleNeighborhood(ref, anchorRef, maxDistance = 28) {
+  const refDocumentId = Number(ref?.documentId);
+  const anchorDocumentId = Number(anchorRef?.documentId);
+  const refRowIndex = Number(ref?.rowIndex);
+  const anchorRowIndex = Number(anchorRef?.rowIndex);
+  if (
+    Number.isFinite(refDocumentId)
+    && Number.isFinite(anchorDocumentId)
+    && refDocumentId === anchorDocumentId
+    && Number.isFinite(refRowIndex)
+    && Number.isFinite(anchorRowIndex)
+  ) {
+    return Math.abs(refRowIndex - anchorRowIndex) <= maxDistance;
+  }
+
+  return false;
 }
 
 function scoreIntentAlignment(query, content) {
@@ -560,6 +747,9 @@ function filterRelevantRefs(query, refs) {
   if (!Array.isArray(refs) || refs.length === 0) return [];
   if (looksLikeAmbiguousGuideQuery(query)) return [];
 
+  const articleStyleGuideQuery = isArticleStyleGuideQuery(query);
+  const titleAnchorRef = articleStyleGuideQuery ? pickTitleAnchorRef(query, refs) : null;
+
   return refs.filter((ref) => {
     const lexicalScore = Number(ref.lexicalScore || 0);
     const intentText = ref.snippet || ref.matchText;
@@ -568,7 +758,26 @@ function filterRelevantRefs(query, refs) {
         ? ref.intentScore
         : scoreIntentAlignment(query, intentText)
     );
+    const sameArticleNeighborhood = (
+      articleStyleGuideQuery
+      && titleAnchorRef
+      && isSameKnowledgeArticleNeighborhood(ref, titleAnchorRef)
+    );
+
+    if (sameArticleNeighborhood) {
+      if (isVisualAssetLikeContent(intentText)) return false;
+      if (ref.entryId === titleAnchorRef.entryId) return true;
+      if (hasTitleStyleMatch(query, intentText)) return true;
+      if (isGuideSectionLikeContent(intentText)) return true;
+      return scoreMetadataPenalty(intentText) < 18;
+    }
+
+    if (articleStyleGuideQuery && titleAnchorRef) {
+      return false;
+    }
+
     if (intentScore <= -12) return false;
+    if (shouldSuppressWeakRef(query, { ...ref, intentScore })) return false;
     if (lexicalScore >= 10) return true;
     const matchText = ref.matchText || ref.snippet;
     if (ref.score >= cfg.ragMinRefScore) return true;
@@ -576,13 +785,28 @@ function filterRelevantRefs(query, refs) {
   });
 }
 
-async function loadEntryContents(versionId, ids) {
+async function loadEntryRecords(versionId, ids) {
   if (!Array.isArray(ids) || ids.length === 0) return new Map();
   const [rows] = await db.query(
-    `SELECT id, content FROM knowledge_entries WHERE version_id=? AND id IN (${ids.map(() => '?').join(',')})`,
+    `SELECT id, document_id, row_index, content FROM knowledge_entries WHERE version_id=? AND id IN (${ids.map(() => '?').join(',')})`,
     [versionId, ...ids]
   );
-  return new Map(rows.map(row => [row.id, row.content]));
+  return new Map(rows.map(row => [row.id, row]));
+}
+
+async function loadNeighborhoodRecords(versionId, documentId, rowIndex, beforeRows = 2, afterRows = 28) {
+  if (!documentId || rowIndex == null) return [];
+
+  const start = Math.max(0, Number(rowIndex) - beforeRows);
+  const end = Number(rowIndex) + afterRows;
+  const [rows] = await db.query(
+    `SELECT id, document_id, row_index, content
+     FROM knowledge_entries
+     WHERE version_id=? AND document_id=? AND row_index BETWEEN ? AND ?
+     ORDER BY row_index ASC`,
+    [versionId, documentId, start, end]
+  );
+  return Array.isArray(rows) ? rows : [];
 }
 
 async function lexicalSearch(versionId, query, limit = LEXICAL_SEARCH_LIMIT) {
@@ -627,6 +851,29 @@ async function loadImagesByEntry(ids) {
   }
 }
 
+function buildRefsFromRecords(query, recordsById, ids, vectorById, lexicalById, imagesByEntry) {
+  return ids
+    .filter(id => recordsById.has(id))
+    .map((id) => {
+      const record = recordsById.get(id) || {};
+      const content = String(record.content || '');
+      const semanticScore = Number(vectorById.get(id)?.score || 0);
+      const lexicalScore = Number(lexicalById.get(id)?.lexicalScore || scoreLexicalMatch(query, content));
+      return {
+        entryId: id,
+        documentId: record.document_id,
+        rowIndex: record.row_index,
+        query,
+        score: Math.max(semanticScore, lexicalScore / 100),
+        semanticScore,
+        lexicalScore,
+        snippet: buildRelevantSnippet(content, query),
+        matchText: content,
+        images: imagesByEntry.get(id) || [],
+      };
+    });
+}
+
 async function retrieve(versionId, query, topK = 5) {
   try {
     let vectorHits = [];
@@ -646,30 +893,79 @@ async function retrieve(versionId, query, topK = 5) {
     ])];
     if (ids.length === 0) return [];
 
-    const contentById = await loadEntryContents(versionId, ids);
-    const imagesByEntry = await loadImagesByEntry(ids);
+    const recordsById = await loadEntryRecords(versionId, ids);
     const vectorById = new Map(vectorHits.map(hit => [hit.entryId, hit]));
     const lexicalById = new Map(lexicalHits.map(hit => [hit.entryId, hit]));
+    const seedRefs = buildRefsFromRecords(query, recordsById, ids, vectorById, lexicalById, new Map());
+    const titleAnchorRef = pickTitleAnchorRef(query, seedRefs);
 
-    const refs = ids
-      .filter(id => contentById.has(id))
-      .map((id) => {
-        const content = String(contentById.get(id) || '');
-        const semanticScore = Number(vectorById.get(id)?.score || 0);
-        const lexicalScore = Number(lexicalById.get(id)?.lexicalScore || scoreLexicalMatch(query, content));
-        return {
-          entryId: id,
-          query,
-          score: Math.max(semanticScore, lexicalScore / 100),
-          semanticScore,
-          lexicalScore,
-          snippet: buildRelevantSnippet(content, query),
-          matchText: content,
-          images: imagesByEntry.get(id) || [],
-        };
-      });
+    if (titleAnchorRef?.documentId && titleAnchorRef?.rowIndex != null) {
+      const neighborhoodRecords = await loadNeighborhoodRecords(
+        versionId,
+        titleAnchorRef.documentId,
+        titleAnchorRef.rowIndex
+      );
+      for (const record of neighborhoodRecords) {
+        if (!record || record.id == null || ids.includes(record.id)) continue;
+        ids.push(record.id);
+        recordsById.set(record.id, record);
+      }
+    }
 
-    return filterRelevantRefs(query, rerankRefsByIntent(query, refs)).slice(0, topK);
+    const imagesByEntry = await loadImagesByEntry(ids);
+    const refs = buildRefsFromRecords(query, recordsById, ids, vectorById, lexicalById, imagesByEntry);
+    let filtered = filterRelevantRefs(query, rerankRefsByIntent(query, refs));
+
+    if (isArticleStyleGuideQuery(query)) {
+      const titleAnchorRef = pickTitleAnchorRef(query, filtered);
+      if (titleAnchorRef) {
+        filtered = filtered
+          .slice()
+          .sort((left, right) => {
+            const leftIsAnchor = left.entryId === titleAnchorRef.entryId;
+            const rightIsAnchor = right.entryId === titleAnchorRef.entryId;
+            if (leftIsAnchor !== rightIsAnchor) return leftIsAnchor ? -1 : 1;
+
+            const leftSameArticle = (
+              leftIsAnchor
+              || isSameKnowledgeArticleNeighborhood(left, titleAnchorRef)
+            );
+            const rightSameArticle = (
+              rightIsAnchor
+              || isSameKnowledgeArticleNeighborhood(right, titleAnchorRef)
+            );
+            if (leftSameArticle !== rightSameArticle) return leftSameArticle ? -1 : 1;
+
+            const leftRow = Number(left?.rowIndex);
+            const rightRow = Number(right?.rowIndex);
+            const anchorRow = Number(titleAnchorRef?.rowIndex);
+            if (
+              leftSameArticle
+              && rightSameArticle
+              && Number.isFinite(leftRow)
+              && Number.isFinite(rightRow)
+              && Number.isFinite(anchorRow)
+              && leftRow !== rightRow
+            ) {
+              const leftOrder = leftRow < anchorRow ? (1000 + (anchorRow - leftRow)) : (leftRow - anchorRow);
+              const rightOrder = rightRow < anchorRow ? (1000 + (anchorRow - rightRow)) : (rightRow - anchorRow);
+              if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+            }
+
+            if (leftSameArticle && rightSameArticle && Number.isFinite(leftRow) && Number.isFinite(rightRow) && leftRow !== rightRow) {
+              return leftRow - rightRow;
+            }
+
+            const leftPenalty = scoreMetadataPenalty(left?.matchText || left?.snippet || '');
+            const rightPenalty = scoreMetadataPenalty(right?.matchText || right?.snippet || '');
+            if (leftPenalty !== rightPenalty) return leftPenalty - rightPenalty;
+
+            return Number(right?.score || 0) - Number(left?.score || 0);
+          });
+      }
+    }
+
+    return filtered.slice(0, topK);
   } catch (err) {
     console.error('[ragContext] retrieve failed:', err.message);
     return [];
@@ -682,9 +978,12 @@ function toContextBlock(refs) {
     ref => !isMetadataHeavyContent(ref.matchText || ref.snippet || '')
   );
   const sourceRefs = preferredRefs.length > 0 ? preferredRefs : refs;
-  const titleMatchedRefs = sourceRefs.filter(
-    ref => hasTitleStyleMatch(ref.query || '', ref.matchText || ref.snippet || '')
-  );
+  const articleStyleGuideQuery = isArticleStyleGuideQuery(sourceRefs[0]?.query || '');
+  const titleMatchedRefs = articleStyleGuideQuery
+    ? []
+    : sourceRefs.filter(
+      ref => hasTitleStyleMatch(ref.query || '', ref.matchText || ref.snippet || '')
+    );
   const finalRefs = titleMatchedRefs.length > 0 ? titleMatchedRefs : sourceRefs;
   let items = '';
   let used = 0;
@@ -715,11 +1014,16 @@ module.exports = {
   buildRelevantSnippet,
   buildPromptExcerpt,
   hasTitleStyleMatch,
+  pickTitleAnchorRef,
   scoreMetadataPenalty,
   isMetadataHeavyContent,
+  isVisualAssetLikeContent,
+  isDialogueOrQuoteOnlyContent,
+  shouldSuppressWeakRef,
   scoreIntentAlignment,
   rerankRefsByIntent,
   filterRelevantRefs,
   looksLikeAmbiguousGuideQuery,
   isGenericBeginnerGuideQuery,
+  isArticleStyleGuideQuery,
 };

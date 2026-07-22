@@ -23,7 +23,17 @@ async function realChat(messages, opts = {}) {
       if (!res.ok) throw new Error(`LLM API ${res.status}: ${(await res.text()).slice(0, 300)}`);
       const data = await res.json();
       // OpenAI 兼容结构:choices[0].message.content
-      const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      const rawContent = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      const content = Array.isArray(rawContent)
+        ? rawContent
+            .map(item => {
+              if (typeof item === 'string') return item;
+              if (item && typeof item.text === 'string') return item.text;
+              return '';
+            })
+            .filter(Boolean)
+            .join('\n')
+        : rawContent;
       if (!content) throw new Error('LLM 返回格式异常');
       return { content };
     } catch (err) {

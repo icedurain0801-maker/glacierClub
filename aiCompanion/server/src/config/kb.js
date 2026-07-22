@@ -6,6 +6,7 @@ module.exports = {
   uploadTmpDir: path.resolve(__dirname, '..', '..', process.env.KB_UPLOAD_TMP_DIR || 'uploads/tmp'),
   kbImagesDir: path.resolve(__dirname, '..', '..', process.env.KB_IMAGES_DIR || 'uploads/kb-images'),
   botAvatarDir: path.resolve(__dirname, '..', '..', process.env.BOT_AVATAR_DIR || 'uploads/bot-avatars'),
+  chatMediaDir: path.resolve(__dirname, '..', '..', process.env.CHAT_MEDIA_DIR || 'uploads/chat-media'),
   batchSize: 50,                        // 每批 embedding 请求条数
   workerIntervalMs: parseInt(process.env.KB_WORKER_INTERVAL, 10) || 2000,
   searchDefaultTopK: 10,
@@ -26,10 +27,18 @@ module.exports = {
     apiUrl: process.env.LLM_API_URL || '',
     apiKey: process.env.LLM_API_KEY || '',
     model:  process.env.LLM_MODEL  || 'qwen-plus',
+    mediaAnalysisModel: process.env.MEDIA_ANALYSIS_MODEL || process.env.LLM_MODEL || 'qwen-plus',
     retries: 3,
     retryBaseMs: 500,
     maxMessageBytes: 4 * 1024,
     maxPromptBytes: 8 * 1024,
+  },
+
+  chatMedia: {
+    imageMaxBytes: parseInt(process.env.CHAT_MEDIA_IMAGE_MAX_BYTES, 10) || 10 * 1024 * 1024,
+    videoMaxBytes: parseInt(process.env.CHAT_MEDIA_VIDEO_MAX_BYTES, 10) || 25 * 1024 * 1024,
+    previewMaxBytes: parseInt(process.env.CHAT_MEDIA_PREVIEW_MAX_BYTES, 10) || 2 * 1024 * 1024,
+    maxUploadBytes: parseInt(process.env.CHAT_MEDIA_MAX_UPLOAD_BYTES, 10) || 25 * 1024 * 1024,
   },
 
   liveTools: {

@@ -508,6 +508,7 @@ async function loadSimulationResult(versionId, sessionKey) {
         user_msg.created_at AS user_created_at,
         assistant.id AS assistant_message_id,
         assistant.content AS assistant_content,
+        assistant.refs_json AS assistant_refs_json,
         assistant.created_at AS assistant_created_at,
         score.id AS score_id,
         score.score_status,
@@ -537,22 +538,29 @@ async function loadSimulationResult(versionId, sessionKey) {
     [session.id]
   );
 
-  const transcript = messageRows.map((row, index) => ({
-    turn: index + 1,
-    userMessageId: row.user_message_id,
-    userContent: row.user_content || '',
-    userCreatedAt: row.user_created_at || null,
-    assistantMessageId: row.assistant_message_id || null,
-    assistantContent: row.assistant_content || '',
-    assistantCreatedAt: row.assistant_created_at || null,
-    scoreId: row.score_id || null,
-    scoreStatus: row.score_status || 'pending',
-    scoreSource: row.score_source || null,
-    totalScore: row.total_score == null ? null : Number(row.total_score),
-    grade: row.grade || null,
-    riskLevel: row.risk_level || 'low',
-    reviewStatus: row.review_status || 'pending',
-  }));
+  const transcript = messageRows.map((row, index) => {
+    const assistantRefs = parseAssistantRefs(row.assistant_refs_json);
+    const answerSource = assistantRefs.length > 0 ? 'knowledge' : 'free';
+
+    return {
+      turn: index + 1,
+      userMessageId: row.user_message_id,
+      userContent: row.user_content || '',
+      userCreatedAt: row.user_created_at || null,
+      assistantMessageId: row.assistant_message_id || null,
+      assistantContent: row.assistant_content || '',
+      assistantCreatedAt: row.assistant_created_at || null,
+      scoreId: row.score_id || null,
+      scoreStatus: row.score_status || 'pending',
+      scoreSource: row.score_source || null,
+      totalScore: row.total_score == null ? null : Number(row.total_score),
+      grade: row.grade || null,
+      riskLevel: row.risk_level || 'low',
+      reviewStatus: row.review_status || 'pending',
+      answerSource,
+      answerSourceLabel: answerSource === 'knowledge' ? '\u77e5\u8bc6\u5e93' : '\u81ea\u7531\u56de\u7b54',
+    };
+  });
 
   const scoredTurns = transcript.filter(item => item.totalScore != null).length;
   const highRiskTurns = transcript.filter(item => item.riskLevel === 'high').length;
@@ -579,6 +587,19 @@ async function loadSimulationResult(versionId, sessionKey) {
     },
     transcript,
   };
+}
+
+function parseAssistantRefs(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
 }
 
 async function runSimulation({ versionId, scenarioKey, promptMode, turns, customTopic, requestMeta = {} }) {

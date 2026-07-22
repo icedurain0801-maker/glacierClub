@@ -3,6 +3,7 @@ const MENU_TITLES = {
   knowledge: '知识库管理',
   quality: '对话质量评分',
   simulations: '脚本测试',
+  communitySync: '社区同步',
   users: '用户权限管理',
   bots: '机器人管理',
   versions: '版本管理',
@@ -86,6 +87,7 @@ function navigate(page) {
   if (targetPage === 'knowledge' && window.pages.knowledge) return window.pages.knowledge(content);
   if (targetPage === 'quality' && window.pages.quality) return window.pages.quality(content);
   if (targetPage === 'simulations' && window.pages.simulations) return window.pages.simulations(content);
+  if (targetPage === 'communitySync' && window.pages.communitySync) return window.pages.communitySync(content);
   if (targetPage === 'bots' && window.pages.bots) return window.pages.bots(content);
   if (targetPage === 'sessions' && window.pages.sessions) return window.pages.sessions(content);
 

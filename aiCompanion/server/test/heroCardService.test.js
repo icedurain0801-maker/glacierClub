@@ -11,6 +11,7 @@ const {
   extractBaseSkillDescription,
   extractSkillDetailSections,
   selectAggregateSkillIcons,
+  selectFactionIcon,
   selectCareerIcon,
   findBestMatchingSkill,
   isSkillContextFollowupQuery,
@@ -38,7 +39,7 @@ function buildFixtureCard() {
   const detailEntries = [
     { raw: { 项目: '角色称号', 中文: '末日狂花' }, images: [] },
     { raw: { 项目: '角色名字', 中文: '蔷薇' }, images: [] },
-    { raw: { 项目: '角色阵营', 中文: '守护者' }, images: [] },
+    { raw: { 项目: '角色阵营', 中文: '守护者' }, images: ['/kb-images/1/69/faction.png'] },
     { raw: { 项目: '角色职业', 中文: '能承担更多伤害' }, images: ['/kb-images/1/69/career.png'] },
     { raw: { 项目: '星级（S+/S/A）', 中文: 'S+' }, images: [] },
     { raw: { 项目: '角色头像' }, images: ['/kb-images/1/69/avatar.png'] },
@@ -129,6 +130,32 @@ function buildFixtureCard() {
   return buildHeroCardPayload(summaryEntry, detailEntries);
 }
 
+function buildSingleAggregateIconFallbackCard() {
+  const summaryEntry = {
+    raw: {
+      英雄级别: 'S',
+      英雄名称: 'Valkyra',
+    },
+    targetSheet: 'Valkyra',
+    aliases: ['Valkyra'],
+  };
+
+  const detailEntries = [
+    {
+      raw: { 项目: '技能Icon' },
+      images: ['/kb-images/1/75/5_15_4_1.png'],
+    },
+    { raw: { 对应位置: '技能1', 项目: '名称', 中文: 'Skill One' }, images: [] },
+    { raw: { 对应位置: '技能1', 项目: '技能详情', 中文: 'Skill One Desc' }, images: [] },
+    { raw: { 对应位置: '技能2（核心技能）', 项目: '名称', 中文: 'Skill Two' }, images: [] },
+    { raw: { 对应位置: '技能2（核心技能）', 项目: '技能详情', 中文: 'Skill Two Desc' }, images: [] },
+    { raw: { 对应位置: '技能3', 项目: '名称', 中文: 'Skill Three' }, images: [] },
+    { raw: { 对应位置: '技能3', 项目: '技能详情', 中文: 'Skill Three Desc' }, images: [] },
+  ];
+
+  return buildHeroCardPayload(summaryEntry, detailEntries);
+}
+
 function main() {
   assert.strictEqual(looksLikeHeroDetailQuery('介绍一下蔷薇'), true);
   assert.strictEqual(looksLikeHeroDetailQuery('你好'), false);
@@ -200,12 +227,40 @@ function main() {
     '/kb-images/1/69/1344_1.png'
   );
 
+  assert.strictEqual(
+    selectFactionIcon([
+      '/kb-images/1/69/1343_1.png',
+      '/kb-images/1/69/1343_2.png',
+      '/kb-images/1/69/1343_3.png',
+    ]),
+    '/kb-images/1/69/1343_1.png'
+  );
+
+  assert.strictEqual(
+    selectFactionIcon([
+      '/kb-images/1/75/34_5_6_1.png',
+      '/kb-images/1/75/34_4_6_1.png',
+      '/kb-images/1/75/34_4_13_1.png',
+    ]),
+    '/kb-images/1/75/34_4_6_1.png'
+  );
+
+  assert.strictEqual(
+    selectCareerIcon([
+      '/kb-images/1/75/34_4_6_1.png',
+      '/kb-images/1/75/34_5_6_1.png',
+      '/kb-images/1/75/34_5_13_1.png',
+    ]),
+    '/kb-images/1/75/34_5_6_1.png'
+  );
+
   const card = buildFixtureCard();
   assert.strictEqual(card.name, '蔷薇');
   assert.strictEqual(card.title, '末日狂花');
   assert.strictEqual(card.faction, '守护者');
   assert.strictEqual(card.rarity, 'S+');
   assert.strictEqual(card.avatarUrl, '/kb-images/1/69/avatar.png');
+  assert.strictEqual(card.factionIconUrl, '/kb-images/1/69/faction.png');
   assert.strictEqual(card.careerIconUrl, '/kb-images/1/69/career.png');
   assert.strictEqual(card.skills.length, 4);
   assert.strictEqual(card.skills[0].imageUrl, '/kb-images/1/69/1354_2.png');
@@ -266,6 +321,12 @@ function main() {
     formatHeroStarListReply(card, 2),
     '蔷薇的二星效果如下：\n- 决意突袭：额外造成45%物理伤害\n- 铁壁统御：攻击次数提升至6次\n- 夜色庇护：额外降低受到的所有伤害7%\n- 战意觉醒：通用技能没有升星加成'
   );
+
+  const fallbackIconCard = buildSingleAggregateIconFallbackCard();
+  assert.strictEqual(fallbackIconCard.skills.length, 3);
+  assert.strictEqual(fallbackIconCard.skills[0].imageUrl, '/kb-images/1/75/5_15_4_1.png');
+  assert.strictEqual(fallbackIconCard.skills[1].imageUrl, '/kb-images/1/75/5_15_4_1.png');
+  assert.strictEqual(fallbackIconCard.skills[2].imageUrl, '/kb-images/1/75/5_15_4_1.png');
 
   console.log('heroCardService tests passed');
 }

@@ -32,6 +32,43 @@ function main() {
     'weak-score refs should still survive when query and snippet clearly overlap'
   );
 
+  const weakQuoteOnlyRefs = [
+    {
+      entryId: 9443,
+      score: 0.12,
+      lexicalScore: 12,
+      semanticScore: 0,
+      snippet: 'Sheet: 玫瑰女郎_萝斯\n项目: 英雄台词\n中文: 你...好像一直在看着我？',
+      matchText: [
+        'Sheet: 玫瑰女郎_萝斯',
+        '项目: 英雄台词',
+        '中文: 你...好像一直在看着我？',
+        '角色背景版（金色为S+用，紫色为S用，蓝色为A用）: 核心技能需带CS提示',
+      ].join('\n'),
+      images: ['/kb-images/1/75/13_8_4_1.png'],
+    },
+    {
+      entryId: 11394,
+      score: 0.51,
+      lexicalScore: 51,
+      semanticScore: 0.34,
+      snippet: '【圣武好像一直处于下风的讨论贴】',
+      matchText: '【圣武好像一直处于下风的讨论贴】\n修罗火女队伍、公爵女神队、大娃风息队，讨论为什么一直处于下风。',
+      images: [],
+    },
+  ];
+  assert.deepStrictEqual(
+    ragContext.filterRelevantRefs('圣武好像一直处于下风怎么办', weakQuoteOnlyRefs).map(item => item.entryId),
+    [11394],
+    'quote-only rows with attached art should be suppressed for unrelated gameplay questions'
+  );
+
+  assert.strictEqual(
+    ragContext.shouldSuppressWeakRef('圣武好像一直处于下风怎么办', weakQuoteOnlyRefs[0]),
+    true,
+    'weak quote-only asset rows should be suppressed'
+  );
+
   const strongSemanticRefs = [
     { entryId: 201, score: 0.472, snippet: '阵营与职业关系说明', images: [] },
     { entryId: 202, score: 0.331, snippet: '无关条目', images: [] },
@@ -169,6 +206,12 @@ function main() {
     metadataVsGuideRefs[0].entryId,
     502,
     'guide body should rank above schedule metadata when both mention the same title'
+  );
+
+  assert.strictEqual(
+    ragContext.hasTitleStyleMatch('巅峰竞技场攻略', '巅峰竞技场攻略 / Peak Arena Guide'),
+    true,
+    'title matching should preserve bilingual title rows'
   );
 
   const promptExcerpt = ragContext.buildPromptExcerpt(
@@ -315,6 +358,97 @@ function main() {
     quickStartGuideRefs[0].entryId,
     704,
     'quick-start guide bodies should outrank specific arena entries for broad beginner questions'
+  );
+
+  assert.strictEqual(
+    ragContext.isGenericBeginnerGuideQuery('\u65b0\u624b\u7ade\u6280\u573a\u653b\u7565'),
+    false,
+    'specific beginner-topic questions should not be downgraded into broad onboarding queries'
+  );
+  assert.strictEqual(
+    ragContext.buildLexicalSearchTokens('\u65b0\u624b\u7ade\u6280\u573a\u653b\u7565').includes('quick start'),
+    false,
+    'specific beginner-topic queries should not expand into unrelated quick-start guide terms'
+  );
+
+  const articleGuideRefs = [
+    {
+      entryId: 801,
+      documentId: 76,
+      rowIndex: 162,
+      score: 0.68,
+      semanticScore: 0.68,
+      lexicalScore: 39,
+      matchText: [
+        'Sheet: 竞技场集合',
+        'Row: 7',
+        '巅峰竞技场 巅峰竞技场  Peak Arena: 巅峰竞技场攻略',
+      ].join('\n'),
+      snippet: '巅峰竞技场攻略',
+      images: [],
+    },
+    {
+      entryId: 802,
+      documentId: 76,
+      rowIndex: 163,
+      score: 0.16,
+      semanticScore: 0.16,
+      lexicalScore: 0,
+      matchText: [
+        'Sheet: 竞技场集合',
+        'Row: 8',
+        '巅峰竞技场 巅峰竞技场  Peak Arena: 【开启时间】',
+      ].join('\n'),
+      snippet: '【开启时间】',
+      images: [],
+    },
+    {
+      entryId: 803,
+      documentId: 76,
+      rowIndex: 164,
+      score: 0.18,
+      semanticScore: 0.18,
+      lexicalScore: 0,
+      matchText: [
+        'Sheet: 竞技场集合',
+        'Row: 9',
+        '巅峰竞技场 巅峰竞技场  Peak Arena: 1.巅峰竞技场会在每周二开启',
+      ].join('\n'),
+      snippet: '1.巅峰竞技场会在每周二开启',
+      images: [],
+    },
+    {
+      entryId: 804,
+      documentId: 76,
+      rowIndex: 175,
+      score: 0.15,
+      semanticScore: 0.15,
+      lexicalScore: 0,
+      matchText: [
+        'Sheet: 竞技场集合',
+        'Row: 20',
+        '巅峰竞技场 巅峰竞技场  Peak Arena: 【奖励结算】',
+      ].join('\n'),
+      snippet: '【奖励结算】',
+      images: [],
+    },
+  ];
+  assert.deepStrictEqual(
+    ragContext.filterRelevantRefs('巅峰竞技场攻略', articleGuideRefs).map(item => item.entryId),
+    [801, 802, 803, 804],
+    'article-style guide queries should preserve same-article section headers and body rows'
+  );
+  const articleGuideContextBlock = ragContext.toContextBlock([
+    { ...articleGuideRefs[0], query: '巅峰竞技场攻略' },
+    { ...articleGuideRefs[1], query: '巅峰竞技场攻略' },
+    { ...articleGuideRefs[2], query: '巅峰竞技场攻略' },
+    { ...articleGuideRefs[3], query: '巅峰竞技场攻略' },
+  ]);
+  assert(
+    articleGuideContextBlock.includes('【开启时间】')
+      && articleGuideContextBlock.includes('1.巅峰竞技场会在每周二开启')
+      && articleGuideContextBlock.includes('【奖励结算】'),
+    'article-style guide context should keep section headers and body rows instead of collapsing to title-only lines'
   );
 
   console.log('ragContext tests passed');

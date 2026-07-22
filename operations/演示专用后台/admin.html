@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 · 冰川GPT实战演示平台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23635bff'/><text x='16' y='22' text-anchor='middle' font-size='18' font-family='sans-serif' font-weight='700' fill='white'>管</text></svg>">
+<!-- 本地依赖：不走外网 CDN，断网/受限网络也能打开 -->
+<link rel="stylesheet" href="./vendor/antd.reset.css">
+<script src="./vendor/react.production.min.js"></script>
+<script src="./vendor/react-dom.production.min.js"></script>
+<script src="./vendor/dayjs.min.js"></script>
+<script src="./vendor/antd.min.js"></script>
+<script src="./vendor/babel.min.js"></script>
+<!-- Glacier BaaS SDK：仅部署到 chat.q1.com 后启用；本地加载失败不影响（store.js 已容错） -->
+<script src="https://chat.q1.com/baas/glacier-baas-sdk.js" onerror="console.warn('[admin] BaaS SDK 未加载（本地模式正常）')"></script>
+<script src="./store.js"></script>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+    min-height:100vh;color:#1a1f36;background:#f6f9fc;
+  }
+  .hero{position:relative;background:linear-gradient(110deg,#2b2350 0%,#3a2f6b 45%,#4a3c8a 100%);padding:0 0 96px;overflow:hidden}
+  .hero::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:80px;background:#f6f9fc;clip-path:polygon(0 62%,100% 0,100% 100%,0 100%)}
+  .glass-nav{position:relative;z-index:2;height:58px;display:flex;align-items:center;gap:16px;padding:0 24px;max-width:1440px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;color:#fff;font-size:15px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:#fff;color:#635bff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+  .brand .tag{font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,.18);border-radius:6px;padding:2px 8px;margin-left:2px}
+  .nav-links{display:flex;gap:6px;margin-left:8px}
+  .nav-links a{font-size:13px;color:rgba(255,255,255,.82);text-decoration:none;cursor:pointer;padding:6px 13px;border-radius:8px;transition:all .15s;font-weight:600}
+  .nav-links a:hover{background:rgba(255,255,255,.14);color:#fff}
+  .nav-user{margin-left:auto;display:flex;align-items:center;gap:9px;color:#fff}
+  .nav-user .ava{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .hero-head{position:relative;z-index:2;max-width:1180px;margin:0 auto;padding:14px 24px 0}
+  .hero-head h1{color:#fff;font-size:24px;font-weight:800;margin:0}
+  .hero-head p{color:rgba(255,255,255,.85);font-size:13px;margin:7px 0 0}
+  #root{max-width:1440px;margin:-64px auto 0;padding:0 24px 60px;position:relative;z-index:3}
+  .stripe-card .ant-card{border:1px solid #eef0f7 !important;box-shadow:0 12px 34px rgba(80,70,180,.12) !important;border-radius:14px !important}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+const {
+  ConfigProvider, Card, Select, Button, message, Typography, Space, Tag,
+  Table, Modal, Popconfirm, Result, Spin
+} = antd;
+const { Text } = Typography;
+
+const PRIMARY = '#635bff';
+
+/* ============ 公共工具 ============ */
+function humanSize(n){
+  if(!n) return '0 B';
+  const u=['B','KB','MB','GB']; let i=0, v=n;
+  while(v>=1024 && i<u.length-1){ v/=1024; i++; }
+  return v.toFixed(v<10&&i>0?1:0)+' '+u[i];
+}
+function fmtTime(ts){
+  if(!ts) return '-';
+  const d=new Date(ts);
+  const p=x=> String(x).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+function detectType(name, mime){
+  const ext = (name||'').split('.').pop().toLowerCase();
+  mime = (mime||'').toLowerCase();
+  const inExt = (arr)=> arr.indexOf(ext)>=0;
+  if(mime.startsWith('video/') || inExt(['mp4','mov','avi','mkv','webm','flv','wmv','m4v'])) return {kind:'video', icon:'🎬', label:'视频'};
+  if(mime.startsWith('audio/') || inExt(['mp3','wav','flac','aac','ogg','m4a','wma'])) return {kind:'audio', icon:'🎵', label:'音频'};
+  if(mime.startsWith('image/') || inExt(['png','jpg','jpeg','gif','webp','bmp','svg'])) return {kind:'image', icon:'🖼️', label:'图片'};
+  if(inExt(['doc','docx']) || mime.indexOf('word')>=0) return {kind:'office', icon:'📝', label:'Word'};
+  if(inExt(['xls','xlsx','csv']) || mime.indexOf('sheet')>=0 || mime.indexOf('excel')>=0) return {kind:'office', icon:'📊', label:'Excel'};
+  if(inExt(['ppt','pptx']) || mime.indexOf('presentation')>=0 || mime.indexOf('powerpoint')>=0) return {kind:'office', icon:'📽️', label:'PPT'};
+  if(inExt(['pdf']) || mime.indexOf('pdf')>=0) return {kind:'pdf', icon:'📕', label:'PDF'};
+  if(inExt(['zip','rar','7z','tar','gz'])) return {kind:'archive', icon:'🗜️', label:'压缩包'};
+  if(inExt(['txt','md','json','log','xml'])) return {kind:'text', icon:'📄', label:'文本'};
+  return {kind:'other', icon:'📎', label:'文件'};
+}
+function isRemoteUrl(url){ return /^https?:\/\//i.test(url||''); }
+
+/* ============ 管理面板（查看全部 + 删除） ============ */
+function AdminPanel(){
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [groupFilter, setGroupFilter] = useState(undefined);
+  const [planFilter, setPlanFilter] = useState(undefined);
+  const [preview, setPreview] = useState(null);
+  const [deleting, setDeleting] = useState({});
+
+  function load(){
+    setLoading(true);
+    DemoStore.listRecords()
+      .then(list=>{
+        // 同组多个文件合并成一行：一行=一个组，files 为该组全部文件
+        const byGroup = {}; const order = [];
+        list.forEach(r=>{
+          if(!byGroup[r.group]){ byGroup[r.group] = {...r, key:'g_'+r.group, files:[]}; order.push(r.group); }
+          byGroup[r.group].files.push(r);
+        });
+        setRows(order.map(g=> byGroup[g]));
+      })
+      .catch(e=> message.error('加载失败：'+(e&&e.message||e)))
+      .finally(()=> setLoading(false));
+  }
+  useEffect(load, []);
+
+  function triggerDownload(url, name){
+    const a = document.createElement('a');
+    a.href = url; a.download = name || 'file';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  async function openFile(rec){
+    const t = detectType(rec.fileName, rec.mime);
+    let url;
+    try{ url = await DemoStore.resolveUrl(rec.fileUrl); }
+    catch(e){ message.error('打开失败：'+(e&&e.message||e)); return; }
+    if(!url){ message.error('文件不存在或已被清理'); return; }
+    if(t.kind==='video' || t.kind==='audio' || t.kind==='image'){
+      setPreview({kind:t.kind, url, name:rec.fileName, label:t.label}); return;
+    }
+    if(t.kind==='office'){
+      if(isRemoteUrl(url)){ window.open('https://view.officeapps.live.com/op/view.aspx?src='+encodeURIComponent(url), '_blank'); }
+      else{ message.info('本地演示模式下 Office 文件将直接下载打开'); triggerDownload(url, rec.fileName); }
+      return;
+    }
+    if(isRemoteUrl(url)){ window.open(url, '_blank'); } else { triggerDownload(url, rec.fileName); }
+  }
+
+  // 一键删除整行（该组全部文件）。逐个删该组文件，成功后移除整行。
+  async function handleDelete(row){
+    setDeleting(d=> ({...d, [row.key]:true}));
+    try{
+      const files = row.files || [];
+      for(const f of files){ await DemoStore.removeRecord(f); }
+      message.success('已删除「'+row.group+'」的全部 '+files.length+' 个文件');
+      setRows(list=> list.filter(r=> r.key!==row.key));
+    }catch(e){
+      message.error('删除失败：'+(e&&e.message||e));
+    }finally{
+      setDeleting(d=>{ const n={...d}; delete n[row.key]; return n; });
+    }
+  }
+
+  const displayRows = rows.filter(r=>
+    (!groupFilter || r.group===groupFilter) && (!planFilter || r.plan===planFilter));
+  const tableRows = displayRows.slice().sort((a,b)=> (b.uploadedAt||0)-(a.uploadedAt||0));
+
+  const columns = [
+    { title:'方案', dataIndex:'plan', width:140,
+      render:p=> p? <Tag color="magenta">{p.split('：')[0]}</Tag> : <Text type="secondary">-</Text> },
+    { title:'组别', dataIndex:'group', width:90, render:g=> <Tag color="purple">{g}</Tag> },
+    { title:'文件', dataIndex:'files',
+      render:(files)=> (
+        <Space direction="vertical" size={6} style={{width:'100%'}}>
+          {(files||[]).map((rec, i)=>{ const t = detectType(rec.fileName, rec.mime); return (
+            <Space key={rec.id||i} size={6} style={{width:'100%'}}>
+              <span style={{fontSize:16}}>{t.icon}</span>
+              <a onClick={()=> openFile(rec)} style={{cursor:'pointer'}}>{rec.fileName}</a>
+              <Tag>{t.label}</Tag>
+              <Text type="secondary" style={{fontSize:12}}>{humanSize(rec.size)}</Text>
+            </Space>); })}
+        </Space>) },
+    { title:'文件数', dataIndex:'files', width:80, align:'center', render:(files)=> (files||[]).length },
+    { title:'上传人', dataIndex:'uploadedBy', width:110, render:v=> v||<Text type="secondary">-</Text> },
+    { title:'上传时间', dataIndex:'uploadedAt', width:170, render:fmtTime },
+    { title:'操作', key:'action', width:100, align:'center', fixed:'right',
+      render:(_, row)=> (
+        <Popconfirm title={'确认删除「'+row.group+'」的全部文件？'} description="将删除本行所有文件，不可恢复。"
+          okText="删除" okType="danger" cancelText="取消"
+          onConfirm={()=> handleDelete(row)}>
+          <Button danger size="small" loading={!!deleting[row.key]}>删除</Button>
+        </Popconfirm>
+      ) },
+  ];
+
+  const groupOptions = DemoStore.GROUPS.map(g=>({label:g, value:g}));
+  const planOptions = DemoStore.PLANS.map(p=>({label:p.split('：')[0], value:p}));
+
+  return (
+    <div className="stripe-card">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:10,
+        background:'#fff',border:'1px solid #eef0f7',borderRadius:12,padding:'10px 16px',boxShadow:'0 12px 34px rgba(80,70,180,.12)'}}>
+        <Space><Text strong style={{color:PRIMARY}}>内容管理 · {rows.length} 个组 · 共 {rows.reduce((n,r)=> n+(r.files?r.files.length:0),0)} 个文件</Text>
+          <Text type="secondary" style={{fontSize:12}}>可查看/预览每个文件，删除后不可恢复</Text></Space>
+        <Button type="primary" onClick={load} loading={loading}>刷新</Button>
+      </div>
+
+      <Card>
+        <div style={{marginBottom:16}}>
+          <Space wrap>
+            <Text>筛选方案：</Text>
+            <Select allowClear placeholder="全部方案" style={{width:180}} value={planFilter} onChange={setPlanFilter} options={planOptions}/>
+            <Text>筛选组别：</Text>
+            <Select allowClear placeholder="全部组别" style={{width:160}} value={groupFilter} onChange={setGroupFilter} options={groupOptions}/>
+          </Space>
+        </div>
+        <Table columns={columns} dataSource={tableRows} loading={loading} scroll={{x:900}}
+          pagination={{pageSize:10, showSizeChanger:true, showTotal:(t)=> '共 '+t+' 条'}}
+          locale={{emptyText:'暂无上传记录'}}/>
+      </Card>
+
+      <Modal open={!!preview} title={preview? (preview.label+'预览 · '+preview.name):''}
+        footer={null} width={preview && preview.kind==='audio'?520:820}
+        onCancel={()=> setPreview(null)} destroyOnClose>
+        {preview && preview.kind==='video' && <video src={preview.url} controls autoPlay style={{width:'100%',maxHeight:'70vh',background:'#000'}}/>}
+        {preview && preview.kind==='audio' && <audio src={preview.url} controls autoPlay style={{width:'100%'}}/>}
+        {preview && preview.kind==='image' && <img src={preview.url} alt={preview.name} style={{width:'100%',objectFit:'contain',maxHeight:'70vh'}}/>}
+      </Modal>
+    </div>
+  );
+}
+
+/* ============ 外壳：登录 + 管理员鉴权门控 ============ */
+function App(){
+  // gate: 'checking' 校验中 | 'ok' 放行 | 'denied' 非管理员 | 'login' 未登录
+  const [gate, setGate] = useState('checking');
+  const [me, setMe] = useState(DemoStore.currentUser());
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  // 已登录 → 校验管理员身份；未登录 → 停在登录页，等用户主动点击登录
+  function verifyAdmin(){
+    setGate('checking');
+    DemoStore.isAdmin()
+      .then(ok=>{
+        if(ok){ DemoStore.ensureShared(); setGate('ok'); }
+        else setGate('denied');
+      })
+      .catch(()=> setGate('login'));
+  }
+
+  // 点击「SSO 登录」：先登录（云端真 SSO / 本地模拟），成功后校验管理员
+  function doLogin(){
+    setLoggingIn(true);
+    DemoStore.login()
+      .then(name=>{ setMe(name); verifyAdmin(); })
+      .catch(e=>{ message.error('登录失败：'+(e&&e.message||e)); setGate('login'); })
+      .finally(()=> setLoggingIn(false));
+  }
+
+  useEffect(()=>{
+    // 已登录（云端 cookie 有效 / 本地有模拟态）→ 直接校验；否则显示登录页
+    if(DemoStore.currentUser()) verifyAdmin();
+    else setGate('login');
+  }, []);
+
+  const modeText = DemoStore.mode==='local' ? '（本地演示模式）' : '（云端 · 仅管理员可见）';
+
+  async function doLogout(){ await DemoStore.logout(); setMe(null); setGate('login'); }
+
+  if(gate==='checking'){
+    return (
+      <ConfigProvider theme={{ token:{ colorPrimary: PRIMARY, borderRadius: 10 } }}>
+        <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>
+          <Spin size="large"/>
+          <Text type="secondary">正在校验管理员身份…</Text>
+        </div>
+      </ConfigProvider>
+    );
+  }
+
+  if(gate==='login' || gate==='denied'){
+    const denied = gate==='denied';
+    return (
+      <ConfigProvider theme={{ token:{ colorPrimary: PRIMARY, borderRadius: 10 } }}>
+        <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',
+          background:'linear-gradient(135deg,#2b2350,#4a3c8a)'}}>
+          <div style={{background:'#fff',borderRadius:18,padding:'12px 20px 24px',width:460,maxWidth:'92vw',
+            boxShadow:'0 24px 60px rgba(20,15,60,.4)'}}>
+            <Result
+              status={denied ? 'error' : 'info'}
+              title={denied ? '无权访问管理后台' : '管理后台 · 请先登录'}
+              subTitle={denied
+                ? '该页面仅限管理员访问，你的账号没有管理员权限。'
+                : (DemoStore.mode==='local'
+                    ? '本地演示模式：点击下方按钮即模拟登录后校验管理员身份。'
+                    : '请使用钉钉账号登录（冰川统一 SSO），登录后校验管理员身份。')}
+              extra={
+                <Space>
+                  {denied
+                    ? <Button onClick={doLogout}>切换账号</Button>
+                    : <Button type="primary" loading={loggingIn} onClick={doLogin}
+                        style={{background:'#3296fa',borderColor:'#3296fa'}}>
+                        <span style={{marginRight:6}}>🔷</span> 钉钉一键登录（SSO）
+                      </Button>}
+                  <a href="./index.html"><Button>返回演示页</Button></a>
+                </Space>
+              }
+            />
+          </div>
+        </div>
+      </ConfigProvider>
+    );
+  }
+
+  // gate === 'ok'
+  return (
+    <ConfigProvider theme={{ token:{ colorPrimary: PRIMARY, borderRadius: 10 } }}>
+      <div className="hero">
+        <div className="glass-nav">
+          <div className="brand"><span className="logo">管</span><span>管理后台</span><span className="tag">仅管理员</span></div>
+          <div className="nav-links">
+            <a href="./index.html">← 返回演示页</a>
+          </div>
+          <div className="nav-user">
+            <span style={{fontSize:12,opacity:.9}}>{me}</span>
+            <span className="ava">{(me||'A').slice(0,1)}</span>
+            <Popconfirm title="确认退出登录？" okText="退出" cancelText="取消" onConfirm={doLogout}>
+              <button style={{background:'rgba(255,255,255,.2)',border:0,color:'#fff',borderRadius:8,
+                padding:'4px 10px',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>退出</button>
+            </Popconfirm>
+          </div>
+        </div>
+        <div className="hero-head">
+          <h1>管理后台</h1>
+          <p>查看所有上传内容，可预览、下载与删除。{modeText}</p>
+        </div>
+      </div>
+      <div id="root">
+        <AdminPanel/>
+      </div>
+    </ConfigProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('app')).render(<App/>);
+</script>
+</body>
+</html>

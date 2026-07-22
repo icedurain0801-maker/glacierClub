@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>大玩家社区工具台</title>
 <script src="https://chat.q1.com/baas/glacier-baas-sdk.js"></script>
+<!-- 图文转换：Word(.docx) 前端解析（保留图文排版 + 内嵌图片）。加载失败则该功能降级提示。 -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%234f6ef7'/><stop offset='1' stop-color='%237c3aed'/></linearGradient></defs><text x='16' y='22' text-anchor='middle' font-size='18' font-family='system-ui,sans-serif' font-weight='700' fill='white'>大</text></svg>">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -39,10 +41,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","
 .tool-card::after{content:'';position:absolute;inset:0;border-radius:16px;opacity:0;transition:opacity .2s}
 .tool-card:hover{border-color:#4f6ef7;box-shadow:0 8px 28px rgba(79,110,247,.12);transform:translateY(-2px)}
 .tool-card.orange:hover{border-color:#f97316;box-shadow:0 8px 28px rgba(249,115,22,.12)}
+.tool-card.violet:hover{border-color:#7c3aed;box-shadow:0 8px 28px rgba(124,58,237,.12)}
 
 .tool-card-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:20px}
 .tool-card-icon.blue{background:linear-gradient(135deg,#eff4ff,#e0e7ff)}
 .tool-card-icon.orange{background:linear-gradient(135deg,#fff7ed,#ffedd5)}
+.tool-card-icon.violet{background:linear-gradient(135deg,#f5f3ff,#ede9fe)}
 
 .tool-card-title{font-size:18px;font-weight:700;color:#1a1f2e;margin-bottom:8px}
 .tool-card-desc{font-size:13px;color:#8994a3;line-height:1.7;margin-bottom:20px}
@@ -51,6 +55,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","
 .tool-card-arrow{position:absolute;right:24px;bottom:28px;font-size:18px;color:#d0d5dd;transition:all .2s}
 .tool-card:hover .tool-card-arrow{color:#4f6ef7;transform:translateX(4px)}
 .tool-card.orange:hover .tool-card-arrow{color:#f97316}
+.tool-card.violet:hover .tool-card-arrow{color:#7c3aed}
 
 .ai-note{max-width:800px;margin:24px auto 0;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e8ebf0;border-radius:10px;padding:12px 16px}
 .ai-note-icon{width:30px;height:30px;background:linear-gradient(135deg,#818cf8,#a78bfa);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px}
@@ -58,7 +63,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","
 .ai-note-text strong{color:#4a5568}
 
 /* ===== 通用子页布局 ===== */
-#page-link, #page-diagnose{display:none;padding:20px 24px;max-width:900px;margin:0 auto}
+#page-link, #page-diagnose, #page-convert{display:none;padding:20px 24px;max-width:900px;margin:0 auto}
 
 .panel{background:#fff;border-radius:12px;border:1px solid #e8ebf0;overflow:hidden}
 .panel-header{padding:18px 24px 16px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;gap:12px}
@@ -91,7 +96,31 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .btn-blue:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(79,110,247,.3)}
 .btn-orange{background:linear-gradient(135deg,#f97316,#fb923c);color:#fff}
 .btn-orange:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(249,115,22,.3)}
+.btn-violet{background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:#fff}
+.btn-violet:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(124,58,237,.3)}
 .btn-generate:disabled{opacity:.6;transform:none;cursor:not-allowed}
+.panel-icon.violet{background:#f5f3ff}
+
+/* 图文转换：拖拽区 + 预览 */
+.drop-zone{border:2px dashed #d0c4f0;border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .18s;background:#faf9ff}
+.drop-zone:hover,.drop-zone.dragover{border-color:#7c3aed;background:#f5f3ff}
+.drop-zone .dz-icon{font-size:34px;margin-bottom:10px}
+.drop-zone .dz-title{font-size:14px;font-weight:600;color:#1a1f2e;margin-bottom:6px}
+.drop-zone .dz-hint{font-size:12px;color:#8994a3;line-height:1.6}
+.drop-zone .dz-file{margin-top:10px;font-size:12px;color:#7c3aed;font-weight:600;word-break:break-all}
+.convert-preview{border:1px solid #e8ebf0;border-radius:10px;padding:16px 18px;background:#fff;max-height:460px;overflow:auto;font-size:13px;line-height:1.75;color:#1a1f2e}
+.convert-preview img{max-width:100%;height:auto;border-radius:6px;margin:8px 0}
+.convert-preview h1{font-size:20px;margin:14px 0 8px}
+.convert-preview h2{font-size:17px;margin:12px 0 6px}
+.convert-preview h3{font-size:15px;margin:10px 0 6px}
+.convert-preview p{margin:6px 0}
+.convert-preview ul,.convert-preview ol{margin:6px 0;padding-left:22px}
+.convert-preview table{border-collapse:collapse;margin:8px 0;width:100%}
+.convert-preview td,.convert-preview th{border:1px solid #e0e4ea;padding:6px 10px}
+.convert-actions{display:flex;gap:10px;margin-top:12px}
+.convert-actions .btn-generate{margin-top:0}
+.convert-actions .btn-half{flex:1}
+.copy-ok{background:#ecfdf5!important;color:#059669!important;border:1px solid #a7f3d0!important}
 
 /* 进度条 */
 .gen-progress{display:none;margin-top:12px;padding:10px 14px;background:#f5f7ff;border:1px solid #dde4fd;border-radius:10px}
@@ -208,6 +237,19 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
         <span class="tag">用户问题</span>
         <span class="tag">链接异常</span>
         <span class="tag">AI 诊断</span>
+      </div>
+      <div class="tool-card-arrow">→</div>
+    </div>
+
+    <!-- 图文转换 -->
+    <div class="tool-card violet" onclick="goPage('convert')">
+      <div class="tool-card-icon violet">📄</div>
+      <div class="tool-card-title">图文转换</div>
+      <div class="tool-card-desc">上传 Word 文档，识别图文排版并转成社区帖子内容，一键复制粘贴到发帖页</div>
+      <div class="tool-card-tags">
+        <span class="tag">Word 解析</span>
+        <span class="tag">保留排版</span>
+        <span class="tag">一键发帖</span>
       </div>
       <div class="tool-card-arrow">→</div>
     </div>
@@ -383,6 +425,72 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
   </div>
 </div>
 
+<!-- ===== 图文转换页 ===== -->
+<div id="page-convert">
+  <button class="btn-back visible" onclick="goHome()" style="margin-bottom:14px">← 返回首页</button>
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-icon violet">📄</div>
+      <div>
+        <div class="panel-title">图文转换</div>
+        <div class="panel-desc">上传 Word 文档识别图文排版，一键复制到社区发帖页（保留排版、图片不丢）</div>
+      </div>
+    </div>
+    <div class="panel-body">
+
+      <!-- 上传方式切换 -->
+      <div class="form-row">
+        <div class="type-tabs">
+          <div class="type-tab blue active" onclick="switchConvertTab(this,'convert-src-file')">上传 Word（.docx）</div>
+          <div class="type-tab blue" onclick="switchConvertTab(this,'convert-src-url')">粘贴链接</div>
+        </div>
+      </div>
+
+      <!-- 来源：Word 文件 -->
+      <div id="convert-src-file">
+        <div class="drop-zone" id="convert-drop" onclick="document.getElementById('convert-file').click()">
+          <div class="dz-icon">📄</div>
+          <div class="dz-title">点击选择，或拖拽 Word 文档到此</div>
+          <div class="dz-hint">支持 .docx（Word 2007+）。文档内的标题、段落、列表、图片、表格都会被保留。</div>
+          <div class="dz-file" id="convert-filename"></div>
+        </div>
+        <input type="file" id="convert-file" accept=".docx" hidden onchange="onConvertFile(this.files[0])">
+      </div>
+
+      <!-- 来源：URL -->
+      <div id="convert-src-url" style="display:none">
+        <div class="form-row">
+          <label>网页链接 <span>*</span></label>
+          <textarea id="convert-url-input" placeholder="粘贴公开可访问的网页链接" style="height:80px;resize:vertical"></textarea>
+        </div>
+        <div class="ai-note" style="margin:0 0 4px;max-width:none">
+          <div class="ai-note-icon">!</div>
+          <div class="ai-note-text" style="font-size:12px"><strong>腾讯文档 / 飞书文档</strong>需登录权限，本工具无法直接抓取，请先在文档里<strong>导出为 Word（.docx）</strong>再用左侧上传。公开网页链接受浏览器跨域限制，可能无法读取，建议优先用 Word 上传。</div>
+        </div>
+        <button class="btn-generate btn-violet" id="btn-convert-url" onclick="convertFromUrl()">读取链接内容</button>
+      </div>
+
+      <div class="gen-progress" id="convert-progress">
+        <div class="gen-progress-label" id="convert-progress-label">解析中…</div>
+        <div class="gen-progress-track"><div class="gen-progress-bar" id="convert-progress-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="ai-section">
+      <div class="ai-section-title">
+        <div class="ai-chip" style="background:#f5f3ff;color:#7c3aed">排版预览</div>
+        识别结果
+      </div>
+      <div id="convert-output">
+        <div class="empty-ai">
+          <div class="ei">📄</div>
+          <p>上传 Word 文档后，这里会显示识别出的图文排版预览，可一键复制粘贴到发帖页</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Glacier BaaS 初始化（AI 能力走 SDK，计费走登录用户）──────────────
 const app = GlacierBaaS.init({
@@ -390,8 +498,8 @@ const app = GlacierBaaS.init({
   baseUrl: 'https://chat.q1.com/baas',
   aiModel: 'claude-sonnet-4-5',   // 不带日期后缀，避免网关注入 1M-context beta 报错
 });
-const pages = ['home','link','diagnose'];
-const pageTitles = {link:'链接生成器', diagnose:'错误排查'};
+const pages = ['home','link','diagnose','convert'];
+const pageTitles = {link:'链接生成器', diagnose:'错误排查', convert:'图文转换'};
 
 function goPage(name) {
   pages.forEach(p => document.getElementById('page-'+p).style.display = 'none');
@@ -453,6 +561,159 @@ function switchTab(el, targetId, color) {
   const panel = parent.closest('.panel-body');
   panel.querySelectorAll('[id^="form-"],[id$="-form"]').forEach(f => f.style.display = 'none');
   document.getElementById(targetId).style.display = '';
+}
+
+// ── 图文转换：Word(.docx) → 富文本，一键复制粘贴到发帖页 ────────────────
+const CONVERT_POST_URL = 'http://club.test.q1.com/pages/post/create/index?postType=0&env=web&lang=zh-CN';
+
+function switchConvertTab(el, targetId) {
+  const parent = el.parentNode;
+  parent.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['convert-src-file','convert-src-url'].forEach(id => {
+    document.getElementById(id).style.display = (id === targetId) ? '' : 'none';
+  });
+}
+
+function convertProgress(show, label, pct) {
+  const box = document.getElementById('convert-progress');
+  box.style.display = show ? 'block' : 'none';
+  if (label != null) document.getElementById('convert-progress-label').textContent = label;
+  if (pct != null) document.getElementById('convert-progress-bar').style.width = pct + '%';
+}
+
+function convertError(msg) {
+  convertProgress(false);
+  document.getElementById('convert-output').innerHTML =
+    '<div class="empty-ai"><div class="ei">⚠️</div><p>' + msg + '</p></div>';
+}
+
+// 拖拽上传
+(function initConvertDnd() {
+  const dz = document.getElementById('convert-drop');
+  if (!dz) return;
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dragover'); }));
+  dz.addEventListener('drop', e => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) onConvertFile(f);
+  });
+})();
+
+async function onConvertFile(file) {
+  if (!file) return;
+  const name = file.name || '';
+  if (!/\.docx$/i.test(name)) {
+    convertError('目前仅支持 .docx（Word 2007+）。旧版 .doc 请先另存为 .docx，或用 Word/WPS 打开后重新保存。');
+    return;
+  }
+  if (typeof mammoth === 'undefined') {
+    convertError('文档解析库未能加载（可能是网络问题）。请检查网络后刷新页面重试。');
+    return;
+  }
+  document.getElementById('convert-filename').textContent = '已选择：' + name;
+  convertProgress(true, '正在读取文件…', 20);
+  try {
+    const buf = await file.arrayBuffer();
+    convertProgress(true, '正在解析图文排版…', 55);
+    // convertImage：把内嵌图片转 base64 内联，不丢图、尺寸随原图
+    const options = {
+      convertImage: mammoth.images.imgElement(img =>
+        img.read('base64').then(data => ({ src: 'data:' + img.contentType + ';base64,' + data }))
+      ),
+    };
+    const result = await mammoth.convertToHtml({ arrayBuffer: buf }, options);
+    convertProgress(true, '整理内容…', 85);
+    renderConvertResult(result.value || '', result.messages || []);
+    convertProgress(false);
+  } catch (e) {
+    convertError('解析失败：' + (e && e.message ? e.message : String(e)) + '。请确认文件是有效的 .docx。');
+  }
+}
+
+function convertFromUrl() {
+  const url = (document.getElementById('convert-url-input').value || '').trim();
+  if (!url) { convertError('请先粘贴网页链接。'); return; }
+  if (/docs?\.qq\.com|feishu\.cn|larksuite\.com/i.test(url)) {
+    convertError('腾讯文档 / 飞书文档需要登录权限，本工具无法直接抓取。请在文档里「导出为 Word（.docx）」后，用上方「上传 Word」方式导入。');
+    return;
+  }
+  // 纯静态页无后端代理，跨域直接 fetch 网页大概率被 CORS 拦截；尝试后按失败降级引导。
+  convertProgress(true, '尝试读取链接…', 40);
+  fetch(url, { mode: 'cors' })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .then(html => {
+      convertProgress(true, '整理内容…', 80);
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const body = doc.body ? doc.body.innerHTML : '';
+      renderConvertResult(body, []);
+      convertProgress(false);
+    })
+    .catch(() => {
+      convertError('无法读取该链接（浏览器跨域限制或页面需登录）。请改用「上传 Word（.docx）」方式：多数文档平台都支持导出 Word。');
+    });
+}
+
+let convertHtmlCache = '';
+
+function renderConvertResult(html, messages) {
+  convertHtmlCache = html;
+  const out = document.getElementById('convert-output');
+  if (!html || !html.trim()) {
+    convertError('没有解析到内容，文档可能是空的。');
+    return;
+  }
+  const imgCount = (html.match(/<img/gi) || []).length;
+  let warn = '';
+  if (messages && messages.length) {
+    const warns = messages.filter(m => m.type === 'warning').length;
+    if (warns) warn = '<div style="font-size:11px;color:#a16207;margin-bottom:8px">⚠️ ' + warns + ' 处格式在转换中被简化（不影响主要图文）</div>';
+  }
+  out.innerHTML =
+    '<div style="font-size:12px;color:#8994a3;margin-bottom:10px">已识别图文内容' + (imgCount ? '（含 ' + imgCount + ' 张图片）' : '') + '。核对无误后复制，粘贴到发帖页正文即可。</div>' +
+    warn +
+    '<div class="convert-preview" id="convert-preview">' + html + '</div>' +
+    '<div class="convert-actions">' +
+      '<button class="btn-generate btn-violet btn-half" id="btn-copy-rich" onclick="copyRichText()">📋 复制图文内容</button>' +
+      '<button class="btn-generate btn-half" style="background:#f5f7fa;color:#4a5568;border:1px solid #e8ebf0" onclick="openPostPage()">🔗 打开发帖页</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:#8994a3;margin-top:8px;line-height:1.6">用法：先「复制图文内容」，再「打开发帖页」，在正文编辑框里按 <b>Ctrl+V</b>（Mac：⌘+V）粘贴，图文排版会一并带入。</div>';
+}
+
+// 复制富文本（HTML + 纯文本双格式写入剪贴板，粘贴到 Quill 等富文本框保留排版）
+async function copyRichText() {
+  const btn = document.getElementById('btn-copy-rich');
+  const preview = document.getElementById('convert-preview');
+  if (!preview) return;
+  const html = preview.innerHTML;
+  const text = preview.innerText;
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      })]);
+    } else {
+      // 兜底：选中预览区执行 execCommand copy
+      const range = document.createRange();
+      range.selectNodeContents(preview);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand('copy');
+      sel.removeAllRanges();
+    }
+    btn.textContent = '✓ 已复制，去发帖页粘贴';
+    btn.classList.add('copy-ok');
+    setTimeout(() => { btn.textContent = '📋 复制图文内容'; btn.classList.remove('copy-ok'); }, 2600);
+  } catch (e) {
+    btn.textContent = '复制失败，请手动选中预览区复制';
+    setTimeout(() => { btn.textContent = '📋 复制图文内容'; }, 2600);
+  }
+}
+
+function openPostPage() {
+  window.open(CONVERT_POST_URL, '_blank');
 }
 
 // ── AI 调用：走 Glacier BaaS SDK（懒登录 SSO，计费走当前用户）──────────

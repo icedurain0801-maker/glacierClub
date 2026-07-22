@@ -220,6 +220,7 @@ function renderResult(result) {
           <div class="simulation-turn-head">
             <div class="card-title">第 ${escapeHtml(String(item.turn || '-'))} 轮</div>
             <div class="simulation-turn-tags">
+              ${renderAnswerSourceTag(item.answerSource, item.answerSourceLabel)}
               <span class="tag ${statusTagClass(item.scoreStatus)}">${escapeHtml(item.scoreStatus || 'pending')}</span>
               ${item.totalScore == null ? '' : `<span class="tag primary">${formatScore(item.totalScore)} / ${escapeHtml(item.grade || '-')}</span>`}
               ${renderRiskTag(item.riskLevel)}
@@ -259,6 +260,13 @@ function renderRiskTag(level) {
   };
   const [klass, label] = map[normalized] || map.low;
   return `<span class="tag ${klass}">${label}</span>`;
+}
+
+function renderAnswerSourceTag(source, label) {
+  const normalized = String(source || 'free').toLowerCase();
+  const klass = normalized === 'knowledge' ? 'success' : 'primary';
+  const text = label || (normalized === 'knowledge' ? '\u77e5\u8bc6\u5e93' : '\u81ea\u7531\u56de\u7b54');
+  return `<span class="tag ${klass}">${escapeHtml(text)}</span>`;
 }
 
 function statusTagClass(status) {

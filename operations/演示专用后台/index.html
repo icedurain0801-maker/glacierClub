@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>冰川GPT实战演示平台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23635bff'/><text x='16' y='22' text-anchor='middle' font-size='18' font-family='sans-serif' font-weight='700' fill='white'>冰</text></svg>">
+<!-- 本地依赖：不走外网 CDN，断网/受限网络也能打开 -->
+<link rel="stylesheet" href="./vendor/antd.reset.css">
+<script src="./vendor/react.production.min.js"></script>
+<script src="./vendor/react-dom.production.min.js"></script>
+<script src="./vendor/dayjs.min.js"></script>
+<script src="./vendor/antd.min.js"></script>
+<script src="./vendor/babel.min.js"></script>
+<!-- Glacier BaaS SDK：仅部署到 chat.q1.com 后启用；本地加载失败不影响（store.js 已容错） -->
+<script src="https://chat.q1.com/baas/glacier-baas-sdk.js" onerror="console.warn('[demo] BaaS SDK 未加载（本地模式正常）')"></script>
+<script src="./store.js"></script>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+    min-height:100vh;color:#1a1f36;background:#f6f9fc;
+  }
+  .hero{position:relative;background:linear-gradient(110deg,#635bff 0%,#7a5cff 45%,#8b7bff 100%);padding:0 0 96px;overflow:hidden}
+  .hero::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:80px;background:#f6f9fc;clip-path:polygon(0 62%,100% 0,100% 100%,0 100%)}
+  .glass-nav{position:relative;z-index:2;height:58px;display:flex;align-items:center;gap:16px;padding:0 24px;max-width:1440px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;color:#fff;font-size:15px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:#fff;color:#635bff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+  .nav-user{margin-left:auto;display:flex;align-items:center;gap:9px;color:#fff}
+  .nav-user .ava{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .hero-head{position:relative;z-index:2;max-width:1180px;margin:0 auto;padding:14px 24px 0}
+  .hero-head h1{color:#fff;font-size:24px;font-weight:800;margin:0}
+  .hero-head p{color:rgba(255,255,255,.85);font-size:13px;margin:7px 0 0}
+  #root{max-width:1440px;margin:-64px auto 0;padding:0 24px 60px;position:relative;z-index:3}
+  .stripe-card .ant-card{border:1px solid #eef0f7 !important;box-shadow:0 12px 34px rgba(80,70,180,.12) !important;border-radius:14px !important}
+  /* 实时更新时的行高亮：新上榜=绿闪，名次上升=紫闪 */
+  @keyframes flashNew{0%{background:#d9f7be}100%{background:transparent}}
+  @keyframes flashUp{0%{background:#efe9ff}100%{background:transparent}}
+  .row-flash-new>td{animation:flashNew 2.2s ease-out}
+  .row-flash-up>td{animation:flashUp 2.2s ease-out}
+  /* 左右分栏：左上传 右排行榜 */
+  .split{display:grid;grid-template-columns:420px 1fr;gap:24px;align-items:start}
+  @media(max-width:980px){.split{grid-template-columns:1fr}}
+  .upload-wrap{max-width:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+const {
+  ConfigProvider, Card, Select, Upload, Button, message, Typography, Space, Tag, List,
+  Table, Modal, Statistic, Row, Col, Switch, Badge, Popconfirm, Alert
+} = antd;
+const { Dragger } = Upload;
+const { Text } = Typography;
+
+const PRIMARY = '#635bff';
+
+/* ============ 公共工具 ============ */
+function humanSize(n){
+  if(!n) return '0 B';
+  const u=['B','KB','MB','GB']; let i=0, v=n;
+  while(v>=1024 && i<u.length-1){ v/=1024; i++; }
+  return v.toFixed(v<10&&i>0?1:0)+' '+u[i];
+}
+function fmtTime(ts){
+  if(!ts) return '-';
+  const d=new Date(ts);
+  const p=x=> String(x).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+function detectType(name, mime){
+  const ext = (name||'').split('.').pop().toLowerCase();
+  mime = (mime||'').toLowerCase();
+  const inExt = (arr)=> arr.indexOf(ext)>=0;
+  if(mime.startsWith('video/') || inExt(['mp4','mov','avi','mkv','webm','flv','wmv','m4v'])) return {kind:'video', icon:'🎬', label:'视频'};
+  if(mime.startsWith('audio/') || inExt(['mp3','wav','flac','aac','ogg','m4a','wma'])) return {kind:'audio', icon:'🎵', label:'音频'};
+  if(mime.startsWith('image/') || inExt(['png','jpg','jpeg','gif','webp','bmp','svg'])) return {kind:'image', icon:'🖼️', label:'图片'};
+  if(inExt(['doc','docx']) || mime.indexOf('word')>=0) return {kind:'office', icon:'📝', label:'Word'};
+  if(inExt(['xls','xlsx','csv']) || mime.indexOf('sheet')>=0 || mime.indexOf('excel')>=0) return {kind:'office', icon:'📊', label:'Excel'};
+  if(inExt(['ppt','pptx']) || mime.indexOf('presentation')>=0 || mime.indexOf('powerpoint')>=0) return {kind:'office', icon:'📽️', label:'PPT'};
+  if(inExt(['pdf']) || mime.indexOf('pdf')>=0) return {kind:'pdf', icon:'📕', label:'PDF'};
+  if(inExt(['zip','rar','7z','tar','gz'])) return {kind:'archive', icon:'🗜️', label:'压缩包'};
+  if(inExt(['md','markdown'])) return {kind:'markdown', icon:'📝', label:'Markdown'};
+  if(inExt(['py','js','ts','java','c','cpp','cs','go','rb','php','rs','sh','sql','yaml','yml','html','css'])) return {kind:'code', icon:'💻', label:'代码'};
+  if(inExt(['txt','json','log','xml','ini','conf','csv'])) return {kind:'text', icon:'📄', label:'文本'};
+  return {kind:'other', icon:'📎', label:'文件'};
+}
+function isRemoteUrl(url){ return /^https?:\/\//i.test(url||''); }
+
+// 极简 Markdown 渲染（先转义 HTML 防注入，再套基础语法）——够演示预览用，不引第三方库
+function renderMarkdown(src){
+  let s = String(src).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // 代码块 ```
+  s = s.replace(/```([\s\S]*?)```/g, (m,c)=> '<pre style="background:#0d1117;color:#e6edf3;padding:12px 14px;border-radius:8px;overflow:auto;font-size:13px"><code>'+c.replace(/^\n/,'')+'</code></pre>');
+  // 行内代码
+  s = s.replace(/`([^`\n]+)`/g, '<code style="background:#f0f0f5;padding:1px 5px;border-radius:4px;font-size:.9em">$1</code>');
+  // 标题
+  s = s.replace(/^###### (.*)$/gm,'<h6>$1</h6>').replace(/^##### (.*)$/gm,'<h5>$1</h5>')
+       .replace(/^#### (.*)$/gm,'<h4>$1</h4>').replace(/^### (.*)$/gm,'<h3>$1</h3>')
+       .replace(/^## (.*)$/gm,'<h2>$1</h2>').replace(/^# (.*)$/gm,'<h1>$1</h1>');
+  // 粗体/斜体
+  s = s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>');
+  // 链接
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  // 无序列表
+  s = s.replace(/^(?:- |\* )(.*)$/gm,'<li>$1</li>').replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>');
+  // 引用
+  s = s.replace(/^&gt; (.*)$/gm,'<blockquote style="border-left:3px solid #d0d0e0;margin:0;padding-left:12px;color:#666">$1</blockquote>');
+  // 段落换行
+  s = s.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>');
+  return '<div style="font-family:inherit"><p>'+s+'</p></div>';
+}
+
+const RANK_TAG = {
+  1: {color:'gold',   text:'🥇 TOP1'},
+  2: {color:'#9fb3c8',text:'🥈 TOP2'},
+  3: {color:'#cd7f32',text:'🥉 TOP3'},
+};
+
+/* ============ 上传面板 ============ */
+function UploadPanel({ me }){
+  const [plan, setPlan] = useState(DemoStore.PLANS[0]);
+  const [group, setGroup] = useState(undefined);
+  const [fileList, setFileList] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [done, setDone] = useState([]);
+
+  const groupOptions = DemoStore.GROUPS.map(g=>({label:g, value:g}));
+  const planOptions = DemoStore.PLANS.map(p=>({label:p, value:p}));
+
+  async function handleUpload(){
+    if(!group){ message.warning('请先选择组别'); return; }
+    if(fileList.length===0){ message.warning('请先选择要上传的文件'); return; }
+    setUploading(true);
+    try{
+      const uploadedBy = await DemoStore.ensureLogin().catch(()=> me || '未知');
+      // 本轮先把所有文件存好，再整轮替换该组内容（覆盖上一轮全部）
+      const uploaded = [];
+      for(const f of fileList){
+        const raw = f.originFileObj || f;
+        try{
+          const up = await DemoStore.uploadFile(raw);
+          uploaded.push({ fileName: up.name, fileUrl: up.fileUrl, mime: up.mime, size: up.size });
+        }catch(e){
+          message.error('「'+(raw.name||'文件')+'」上传失败：'+(e && e.message || e));
+        }
+      }
+      if(uploaded.length>0){
+        const res = await DemoStore.replaceGroupBatch(group, plan, uploadedBy, uploaded);
+        setDone(res.records.map(r=> ({...r})));
+        const verb = res.replaced ? '已覆盖' : '已上传';
+        message.success(verb+'「'+group+'」共 '+uploaded.length+' 个文件 · '+(plan.split('：')[0]||plan)
+          + (res.replaced ? '（已替换该组上一轮内容）' : ''));
+        setFileList([]);
+        // 停留在上传界面，可继续上传
+      }
+    } finally { setUploading(false); }
+  }
+
+  const draggerProps = {
+    multiple: true, fileList,
+    beforeUpload: (file)=>{ setFileList(prev=> [...prev, file]); return false; },
+    onRemove: (file)=> setFileList(prev=> prev.filter(f=> (f.uid||f)!==(file.uid||file))),
+    customRequest: ()=>{},
+  };
+
+  return (
+    <div className="stripe-card upload-wrap">
+      <Card>
+        <Space direction="vertical" size="large" style={{width:'100%'}}>
+          <Alert type="info" showIcon
+            message="上传规则"
+            description="每个组可上传多个文件；每一轮上传都会覆盖该组上一轮的全部内容（旧文件被清空，替换为本轮所选文件）。组的名次按该组首次上传时间计算，覆盖后名次不变。"
+          />
+          <div>
+            <div style={{marginBottom:8}}><Text strong>方案</Text> <Text type="danger">*</Text></div>
+            <Select style={{width:'100%'}} size="large" value={plan} onChange={setPlan} options={planOptions}/>
+          </div>
+          <div>
+            <div style={{marginBottom:8}}><Text strong>组别</Text> <Text type="danger">*</Text></div>
+            <Select placeholder="请选择组别（共 10 个组）" style={{width:'100%'}} size="large"
+              value={group} onChange={setGroup} options={groupOptions}/>
+          </div>
+          <div>
+            <div style={{marginBottom:8}}><Text strong>文件</Text> <Text type="danger">*</Text> <Text type="secondary">（格式不限，可一次多选、批量上传，单个 ≤100MB）</Text></div>
+            <Dragger {...draggerProps}>
+              <p className="ant-upload-drag-icon" style={{fontSize:40,color:PRIMARY}}>☁</p>
+              <p className="ant-upload-text">点击或拖拽文件到此区域</p>
+              <p className="ant-upload-hint">支持视频 · 音频 · Office · 图片 · 压缩包等任意格式</p>
+            </Dragger>
+          </div>
+          <Button type="primary" size="large" block loading={uploading}
+            disabled={!group || fileList.length===0} onClick={handleUpload}>
+            {uploading ? '上传中…' : '开始上传'}
+          </Button>
+        </Space>
+      </Card>
+
+      {done.length>0 && (
+        <Card title="本次已上传" style={{marginTop:20}}>
+          <List dataSource={done} renderItem={item=>(
+            <List.Item>
+              <div style={{display:'flex',alignItems:'center',gap:8,width:'100%',minWidth:0}}>
+                <Tag color="magenta" style={{flexShrink:0,margin:0}}>{item.plan && item.plan.split('：')[0]}</Tag>
+                <Tag color="purple" style={{flexShrink:0,margin:0}}>{item.group}</Tag>
+                <a title={item.fileName} style={{cursor:'pointer',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} onClick={async ()=>{
+                  const u = await DemoStore.resolveUrl(item.fileUrl);
+                  if(u) window.open(u, '_blank'); else message.error('文件不存在或已被清理');
+                }}>{item.fileName}</a>
+                <Text type="secondary" style={{flexShrink:0,whiteSpace:'nowrap'}}>{humanSize(item.size)}</Text>
+              </div>
+            </List.Item>
+          )}/>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ============ 记录面板（实时排名） ============ */
+function RecordsPanel({ active }){
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [groupFilter, setGroupFilter] = useState(undefined);
+  const [planFilter, setPlanFilter] = useState(undefined);
+  const [preview, setPreview] = useState(null);
+  const [live, setLive] = useState(true);
+  const [flash, setFlash] = useState({});
+  const prevRankRef = React.useRef({});
+  const firstRef = React.useRef(true);
+
+  function applyRows(list){
+    // list 已按 组名次→组内时间 排序，并带 groupRank/groupFirstAt。名次以「组」为单位。
+    // 同组多个文件合并成一行：一行=一个组，files 为该组全部文件（保持组内时间顺序）。
+    const byGroup = {}; const order = [];
+    list.forEach((r)=>{
+      if(!byGroup[r.group]){ byGroup[r.group] = {...r, key:'g_'+r.group, rank:r.groupRank, files:[]}; order.push(r.group); }
+      byGroup[r.group].files.push(r);
+    });
+    const withRank = order.map(g=> byGroup[g]);
+    if(!firstRef.current){
+      const changed = {};
+      withRank.forEach(r=>{
+        const prev = prevRankRef.current[r.key];
+        if(prev===undefined) changed[r.key]='new';
+        else if(r.rank < prev) changed[r.key]='up';
+      });
+      if(Object.keys(changed).length){
+        setFlash(changed);
+        setTimeout(()=> setFlash({}), 2200);
+      }
+    }
+    prevRankRef.current = withRank.reduce((m,r)=>{ m[r.key]=r.rank; return m; }, {});
+    firstRef.current = false;
+    setRows(withRank);
+    setLoading(false);
+  }
+
+  function load(){
+    setLoading(true);
+    DemoStore.listRecords().then(applyRows)
+      .catch(e=>{ setLoading(false); message.error('加载记录失败：'+(e&&e.message||e)); });
+  }
+
+  useEffect(()=>{
+    let stop = null;
+    if(live){
+      firstRef.current = true;
+      stop = DemoStore.watch(applyRows, { interval: 2500 });
+    }
+    return ()=>{ if(typeof stop==='function') stop(); };
+  }, [live]);
+
+  function triggerDownload(url, name){
+    const a = document.createElement('a');
+    a.href = url; a.download = name || 'file';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  async function openFile(rec){
+    const t = detectType(rec.fileName, rec.mime);
+    // 本地文件存于 IndexedDB('idb:'开头)，先还原成可用 URL
+    let url;
+    try{ url = await DemoStore.resolveUrl(rec.fileUrl); }
+    catch(e){ message.error('打开失败：'+(e&&e.message||e)); return; }
+    if(!url){ message.error('文件不存在或已被清理'); return; }
+
+    if(t.kind==='video' || t.kind==='audio' || t.kind==='image'){
+      setPreview({kind:t.kind, url, name:rec.fileName, label:t.label}); return;
+    }
+    if(t.kind==='office'){
+      if(isRemoteUrl(url)){
+        window.open('https://view.officeapps.live.com/op/view.aspx?src='+encodeURIComponent(url), '_blank');
+      }else{ message.info('本地演示模式下 Office 文件将直接下载打开'); triggerDownload(url, rec.fileName); }
+      return;
+    }
+    // md / 代码 / 文本：读出内容，页内预览
+    if(t.kind==='markdown' || t.kind==='code' || t.kind==='text'){
+      try{
+        const resp = await fetch(url);
+        const text = await resp.text();
+        setPreview({kind:t.kind, text, name:rec.fileName, label:t.label}); return;
+      }catch(e){ message.error('读取内容失败：'+(e&&e.message||e)); return; }
+    }
+    if(isRemoteUrl(url)){ window.open(url, '_blank'); } else { triggerDownload(url, rec.fileName); }
+  }
+
+  // 保持 store 给的顺序（组名次升序→组内时间），筛选不改变分组
+  const tableRows = rows.filter(r=>
+    (!groupFilter || r.group===groupFilter) && (!planFilter || r.plan===planFilter));
+
+  // 每行=一个组，文件列竖排该组全部文件；单个文件用 flex：文件名省略、类型/大小不换行
+  function FileCell({ files }){
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:6,width:'100%',minWidth:0}}>
+        {files.map((rec, i)=>{ const t = detectType(rec.fileName, rec.mime); return (
+          <div key={rec.id||i} style={{display:'flex',alignItems:'center',gap:8,width:'100%',minWidth:0}}>
+            <span style={{fontSize:16,flexShrink:0}}>{t.icon}</span>
+            <a onClick={()=> openFile(rec)} title={rec.fileName}
+              style={{cursor:'pointer',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              {rec.fileName}</a>
+            <Tag style={{flexShrink:0,margin:0}}>{t.label}</Tag>
+            <Text type="secondary" style={{fontSize:12,flexShrink:0,whiteSpace:'nowrap'}}>{humanSize(rec.size)}</Text>
+          </div>); })}
+      </div>
+    );
+  }
+
+  const columns = [
+    { title:'排名', dataIndex:'rank', width:96, align:'center',
+      render:(rank)=>{
+        const t = RANK_TAG[rank];
+        return t? <Tag color={t.color} style={{fontWeight:700,margin:0}}>{t.text}</Tag> : <Text type="secondary">#{rank}</Text>;
+      } },
+    { title:'方案', dataIndex:'plan', width:150,
+      render:p=> p? <Tag color="magenta">{p.split('：')[0]}</Tag> : <Text type="secondary">-</Text> },
+    { title:'组别', dataIndex:'group', width:100, render:g=> <Tag color="purple">{g}</Tag> },
+    { title:'文件', dataIndex:'files',
+      render:(files)=> <FileCell files={files||[]}/> },
+    { title:'文件数', dataIndex:'files', width:80, align:'center', render:(files)=> (files||[]).length },
+    { title:'上传人', dataIndex:'uploadedBy', width:120, render:v=> v||<Text type="secondary">-</Text> },
+    { title:'上传时间', dataIndex:'uploadedAt', width:180, render:fmtTime },
+  ];
+
+  const groupOptions = DemoStore.GROUPS.map(g=>({label:g, value:g}));
+  const planOptions = DemoStore.PLANS.map(p=>({label:p.split('：')[0], value:p}));
+
+  return (
+    <div className="stripe-card">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:10,
+        background:'#fff',border:'1px solid #eef0f7',borderRadius:12,padding:'10px 16px',boxShadow:'0 12px 34px rgba(80,70,180,.12)'}}>
+        <Space>
+          <Badge status={live?'processing':'default'} />
+          <Text strong style={{color: live?'#635bff':'#8a91a6'}}>{live?'实时排行榜 · 更新中':'实时排行榜 · 已暂停'}</Text>
+          <Switch size="small" checked={live} onChange={setLive} checkedChildren="实时" unCheckedChildren="暂停" />
+        </Space>
+        <Button type="primary" onClick={load} loading={loading}>刷新</Button>
+      </div>
+
+      <Row gutter={16} style={{marginBottom:16}}>
+        <Col span={8}><Card size="small"><Statistic title="总上传数" value={rows.reduce((n,r)=> n+(r.files?r.files.length:0), 0)}/></Card></Col>
+        <Col span={8}><Card size="small"><Statistic title="参与组数" value={rows.length} suffix={'/ 10'}/></Card></Col>
+        <Col span={8}><Card size="small"><Statistic title="最早上传" value={rows.length? fmtTime(rows[0].uploadedAt):'-'} valueStyle={{fontSize:16}}/></Card></Col>
+      </Row>
+
+      <Card>
+        <div style={{marginBottom:16}}>
+          <Space wrap>
+            <Text>筛选方案：</Text>
+            <Select allowClear placeholder="全部方案" style={{width:180}} value={planFilter} onChange={setPlanFilter} options={planOptions}/>
+            <Text>筛选组别：</Text>
+            <Select allowClear placeholder="全部组别" style={{width:160}} value={groupFilter} onChange={setGroupFilter} options={groupOptions}/>
+          </Space>
+        </div>
+        <Table columns={columns} dataSource={tableRows} loading={loading}
+          rowClassName={(rec)=> flash[rec.key]==='new' ? 'row-flash-new' : (flash[rec.key]==='up' ? 'row-flash-up' : '')}
+          pagination={{pageSize:10, showSizeChanger:true, showTotal:(t)=> '共 '+t+' 条'}}
+          locale={{emptyText:'暂无上传记录'}}/>
+      </Card>
+
+      <Modal open={!!preview} title={preview? (preview.label+'预览 · '+preview.name):''}
+        footer={null} width={preview && preview.kind==='audio'?520:820}
+        onCancel={()=> setPreview(null)} destroyOnClose>
+        {preview && preview.kind==='video' && <video src={preview.url} controls autoPlay style={{width:'100%',maxHeight:'70vh',background:'#000'}}/>}
+        {preview && preview.kind==='audio' && <audio src={preview.url} controls autoPlay style={{width:'100%'}}/>}
+        {preview && preview.kind==='image' && <img src={preview.url} alt={preview.name} style={{width:'100%',objectFit:'contain',maxHeight:'70vh'}}/>}
+        {preview && preview.kind==='markdown' &&
+          <div style={{maxHeight:'70vh',overflow:'auto',lineHeight:1.7,fontSize:14}}
+            dangerouslySetInnerHTML={{__html: renderMarkdown(preview.text||'')}}/>}
+        {preview && (preview.kind==='code' || preview.kind==='text') &&
+          <pre style={{maxHeight:'70vh',overflow:'auto',background:'#0d1117',color:'#e6edf3',
+            padding:'16px 18px',borderRadius:10,fontSize:13,lineHeight:1.6,margin:0,
+            fontFamily:'"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+            {preview.text||''}</pre>}
+      </Modal>
+    </div>
+  );
+}
+
+/* ============ 登录页（钉钉 SSO 拦截） ============ */
+function LoginGate({ onLogin }){
+  const [loading, setLoading] = useState(false);
+  async function doLogin(){
+    setLoading(true);
+    try{
+      const name = await DemoStore.login();
+      onLogin(name);
+    }catch(e){
+      message.error('登录失败：'+(e&&e.message||e));
+    }finally{ setLoading(false); }
+  }
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',
+      background:'linear-gradient(135deg,#635bff 0%,#7a5cff 50%,#8b7bff 100%)'}}>
+      <div style={{background:'#fff',borderRadius:18,padding:'44px 40px',width:400,maxWidth:'90vw',
+        boxShadow:'0 24px 60px rgba(40,30,120,.35)',textAlign:'center'}}>
+        <div style={{width:56,height:56,borderRadius:14,margin:'0 auto 16px',
+          background:'linear-gradient(135deg,#635bff,#8b7bff)',display:'flex',alignItems:'center',
+          justifyContent:'center',color:'#fff',fontSize:26,fontWeight:800}}>冰</div>
+        <div style={{fontSize:20,fontWeight:800,marginBottom:6}}>冰川GPT实战演示平台</div>
+        <div style={{color:'#8a91a6',fontSize:13,marginBottom:28}}>请使用钉钉账号登录后使用</div>
+        <Button type="primary" size="large" block loading={loading} onClick={doLogin}
+          style={{height:46,fontWeight:700,background:'#3296fa',borderColor:'#3296fa'}}>
+          <span style={{marginRight:6}}>🔷</span> 钉钉一键登录
+        </Button>
+        <div style={{color:'#b0b6c3',fontSize:11,marginTop:18}}>
+          {DemoStore.mode==='local' ? '本地演示模式：点击即模拟登录' : '将跳转钉钉/冰川统一登录'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============ 外壳：左右分栏（左上传 / 右实时排行榜） ============ */
+function App(){
+  const [me, setMe] = useState(DemoStore.currentUser());
+
+  useEffect(()=>{
+    if(me) DemoStore.ensureShared(); // 已登录才尝试配置共享读（幂等）
+  },[me]);
+
+  const modeText = DemoStore.mode==='local' ? '（本地演示模式）' : '（云端模式）';
+
+  async function doLogout(){
+    await DemoStore.logout();
+    setMe(null);
+  }
+
+  // 未登录 → 显示钉钉登录页
+  if(!me){
+    return (
+      <ConfigProvider theme={{ token:{ colorPrimary: PRIMARY, borderRadius: 10 } }}>
+        <LoginGate onLogin={setMe} />
+      </ConfigProvider>
+    );
+  }
+
+  return (
+    <ConfigProvider theme={{ token:{ colorPrimary: PRIMARY, borderRadius: 10 } }}>
+      <div className="hero">
+        <div className="glass-nav">
+          <div className="brand"><span className="logo">冰</span><span>冰川GPT实战演示平台</span></div>
+          <div className="nav-user">
+            <span style={{fontSize:12,opacity:.9}}>{me}</span>
+            <span className="ava">{(me||'A').slice(0,1)}</span>
+            {DemoStore.requiresLogin && (
+              <Popconfirm title="确认退出登录？" okText="退出" cancelText="取消" onConfirm={doLogout}>
+                <button style={{background:'rgba(255,255,255,.2)',border:0,color:'#fff',borderRadius:8,
+                  padding:'4px 10px',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>退出</button>
+              </Popconfirm>
+            )}
+          </div>
+        </div>
+        <div className="hero-head">
+          <h1>冰川GPT实战演示平台</h1>
+          <p>左侧上传文件，右侧实时排行榜 · 全场最早的前 3 次上传标记 TOP3。{modeText}</p>
+        </div>
+      </div>
+      <div id="root">
+        <div className="split">
+          <UploadPanel me={me} />
+          <RecordsPanel />
+        </div>
+      </div>
+    </ConfigProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('app')).render(<App/>);
+</script>
+</body>
+</html>

@@ -36,6 +36,8 @@ const WEATHER_LOCATION_PROMPT = '你想查哪个城市的天气？直接发“�
 
 const DIRECT_KB_REPLY_MAX_LINES = 12;
 const DIRECT_KB_REPLY_MAX_CHARS = 1200;
+const GUIDE_KB_REPLY_MAX_LINES = 40;
+const GUIDE_KB_REPLY_MAX_CHARS = 3600;
 const KB_METADATA_LABEL_RE = /^(?:sheet|rows?|reference|context|guide title|status|publish time|asset path|category)\s*:/i;
 const HERO_DETAIL_FIELD_RE = /(?:技能|台词|语音|阵营|职业|稀有度|稀有|定位|简介|介绍|背景|基础效果|一星|二星|三星|四星|五星)/u;
 const GAME_QUERY_KEYWORDS = [
@@ -53,6 +55,13 @@ const NON_GAME_CONTEXT_KEYWORDS = [
   /(?:\u5929\u6c14|\u4e0b\u96e8|\u6c14\u6e29|\u98ce\u529b|\u53f0\u98ce|\u51b7\u7a7a\u6c14)/u,
   /(?:\u54c1\u724c|\u6c7d\u8f66|\u7279\u65af\u62c9|tesla|apple|openai|chatgpt|iphone)/iu,
 ];
+const ARTICLE_STYLE_GUIDE_QUERY_RE = /(?:攻略|指南|玩法|规则|机制|教程|介绍|怎么玩|怎么打)/u;
+
+const ARTICLE_STYLE_GUIDE_QUERY_FALLBACK_RE = /(?:\u653b\u7565|\u6307\u5357|\u73a9\u6cd5|\u89c4\u5219|\u673a\u5236|\u6559\u7a0b|\u4ecb\u7ecd|\u600e\u4e48\u73a9|\u600e\u4e48\u6253)/u;
+
+function isArticleStyleGuideQuery(query) {
+  return ARTICLE_STYLE_GUIDE_QUERY_FALLBACK_RE.test(String(query || '').trim());
+}
 
 function isQuestionMarkCorrupted(value, minimumQuestionMarks = 3) {
   const text = String(value == null ? '' : value).trim();
@@ -334,7 +343,7 @@ function isDirectKbMetadataLine(line) {
 }
 
 function shouldKeepKnowledgeHeadingLine(line) {
-  return /^(?:sheet|guide title)\s*:/iu.test(String(line || '').trim());
+  return /^(?:guide title)\s*:/iu.test(String(line || '').trim());
 }
 
 function isReplySkippedKnowledgeLine(line) {
@@ -354,6 +363,59 @@ function normalizeDirectKnowledgeLine(line) {
   }
 
   return text;
+}
+
+function lineMatchesPreferredLocale(text, preferredLocale) {
+  const line = String(text || '').trim();
+  const locale = kbEntryLocales.normalizeLocale(preferredLocale);
+  if (!line) return false;
+
+  switch (locale) {
+    case 'en-US':
+      return (line.match(/[A-Za-z]+/g) || []).length >= 2;
+    case 'ja-JP':
+      return (line.match(/[\u3040-\u30ff\u31f0-\u31ff]/g) || []).length >= 2;
+    case 'ko-KR':
+      return (line.match(/[\uac00-\ud7af]/g) || []).length >= 2;
+    case 'zh-TW':
+    case 'zh-CN':
+    default:
+      return (line.match(/[\u4e00-\u9fff]/g) || []).length >= 2;
+  }
+}
+
+function pickPreferredLocaleSegment(text, preferredLocale) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+
+  const segments = raw
+    .split(/\s*\/\s*/u)
+    .map(item => String(item || '').trim())
+    .filter(Boolean);
+  if (segments.length <= 1) return raw;
+
+  const matched = segments.find(segment => lineMatchesPreferredLocale(segment, preferredLocale));
+  return matched || raw;
+}
+
+function extractPrimaryKnowledgeLine(line, preferredLocale) {
+  const text = normalizeDirectKnowledgeLine(line);
+  if (!text) return '';
+
+  const parsed = parseKnowledgeFieldLine(text);
+  if (!parsed) {
+    const preferredText = pickPreferredLocaleSegment(text, preferredLocale);
+    return lineMatchesPreferredLocale(preferredText, preferredLocale) ? preferredText : '';
+  }
+
+  if (isKnowledgeMetadataFieldLabel(parsed.label)) return '';
+
+  const fieldLocale = getLocaleFieldLocale(parsed.label) || getSpreadsheetColumnLocale(parsed.label);
+  if (fieldLocale && !isCompatibleLocale(preferredLocale, fieldLocale)) return '';
+
+  const value = pickPreferredLocaleSegment(normalizeDirectKnowledgeLine(parsed.value), preferredLocale);
+  if (!value) return '';
+  return lineMatchesPreferredLocale(value, preferredLocale) ? value : '';
 }
 
 function isAssetNoiseKnowledgeLine(line) {
@@ -410,6 +472,15 @@ function getLocaleAudienceLabel(locale) {
 }
 
 function getLocaleFieldLocale(label) {
+  const raw = String(label || '').trim();
+  if (!raw) return '';
+
+  if (/^(?:中文|简中|简体|简体中文|zh(?:-cn)?|cn)$/iu.test(raw)) return 'zh-CN';
+  if (/^(?:小跨服|英文|英语|english|en(?:-us)?|d)$/iu.test(raw)) return 'en-US';
+  if (/^(?:繁中|繁体|繁體|繁体中文|繁體中文|traditional chinese|zh-tw|e)$/iu.test(raw)) return 'zh-TW';
+  if (/^(?:日语|日文|japanese|ja(?:-jp)?|f)$/iu.test(raw)) return 'ja-JP';
+  if (/^(?:韩语|韩文|korean|ko(?:-kr)?|g)$/iu.test(raw)) return 'ko-KR';
+
   const normalized = String(label || '')
     .trim()
     .toLowerCase()
@@ -424,6 +495,22 @@ function getLocaleFieldLocale(label) {
   }
 
   return '';
+}
+
+function getSpreadsheetColumnLocale(label) {
+  const normalized = String(label || '').trim().toUpperCase();
+  switch (normalized) {
+    case 'D':
+      return 'en-US';
+    case 'E':
+      return 'zh-TW';
+    case 'F':
+      return 'ja-JP';
+    case 'G':
+      return 'ko-KR';
+    default:
+      return '';
+  }
 }
 
 function getStandaloneLocaleLineLocale(line) {
@@ -554,6 +641,14 @@ function filterKnowledgeLinesByLocale(lines, preferredLocale) {
     .map(item => item.line);
 
   return dedupeLines(filtered);
+}
+
+function buildPrimaryKnowledgeLines(lines, preferredLocale) {
+  return dedupeLines(
+    (Array.isArray(lines) ? lines : [])
+      .map(line => extractPrimaryKnowledgeLine(line, preferredLocale))
+      .filter(Boolean)
+  );
 }
 
 function looksLikeStructuredKnowledgeLine(line) {
@@ -798,7 +893,134 @@ function isKnownPlanningOrUiNoiseRef(ref) {
   if (!text) return false;
 
   return /(?:产粮排期|百科UI需求|UI需求|预计产出时间|关联文档|资料网盘|贴文内容参考|期望带有的元素和设计方向)/u.test(text)
-    || /(?:\bschedule\b|ui\s*requirement|reference\s+doc|asset\s+path|publish\s+time)/iu.test(text);
+    || /(?:\bschedule\b|ui\s*requirement|reference\s+doc|asset\s*path|publish\s*time)/iu.test(text)
+    || (/\bUI\b/i.test(text) && /Context:/i.test(text))
+    || (/\bUI\b/i.test(text) && /https?:\/\//i.test(text))
+    || /(?:icon的图标id|icon图标id|icon\s*id|图标id|图标编号|图标资源|素材网盘|id查询网盘|研发素材|ui素材)/iu.test(text);
+}
+
+function getRefIdentity(ref) {
+  if (ref?.entryId != null) return `entry:${ref.entryId}`;
+  if (ref?.id != null) return `id:${ref.id}`;
+  return `text:${getRefText(ref)}`;
+}
+
+function prioritizeTitleMatchedRefs(query, refs) {
+  if (!Array.isArray(refs) || refs.length === 0) return [];
+
+  const titleMatched = refs.filter(ref => ragContext.hasTitleStyleMatch(query, getRefText(ref)));
+  if (titleMatched.length === 0) return refs;
+
+  const titleMatchedIds = new Set(titleMatched.map(getRefIdentity));
+  return [
+    ...titleMatched,
+    ...refs.filter(ref => !titleMatchedIds.has(getRefIdentity(ref))),
+  ];
+}
+
+function extractKnowledgeRefLocator(ref) {
+  const lines = splitDirectKnowledgeLines(getRefText(ref));
+  if (lines.length === 0) return null;
+
+  let sheet = '';
+  let row = null;
+  for (const line of lines) {
+    const text = String(line || '').trim();
+    if (!text) continue;
+
+    const sheetMatch = /^sheet\s*:\s*(.+)$/iu.exec(text);
+    if (sheetMatch && !sheet) {
+      sheet = String(sheetMatch[1] || '').trim().toLowerCase();
+      continue;
+    }
+
+    const rowMatch = /^row(?:s)?\s*:\s*(\d+)/iu.exec(text);
+    if (rowMatch && row == null) {
+      row = Number(rowMatch[1]);
+    }
+  }
+
+  if (!sheet && row == null) return null;
+  return { sheet, row };
+}
+
+function isSameKnowledgeArticleNeighborhood(ref, anchorRef, maxDistance = 24) {
+  const refDocumentId = Number(ref?.documentId);
+  const anchorDocumentId = Number(anchorRef?.documentId);
+  const refRowIndex = Number(ref?.rowIndex);
+  const anchorRowIndex = Number(anchorRef?.rowIndex);
+  if (
+    Number.isFinite(refDocumentId)
+    && Number.isFinite(anchorDocumentId)
+    && refDocumentId === anchorDocumentId
+    && Number.isFinite(refRowIndex)
+    && Number.isFinite(anchorRowIndex)
+  ) {
+    return Math.abs(refRowIndex - anchorRowIndex) <= maxDistance;
+  }
+
+  const locator = extractKnowledgeRefLocator(ref);
+  const anchorLocator = extractKnowledgeRefLocator(anchorRef);
+  if (!locator || !anchorLocator) return false;
+  if (!locator.sheet || !anchorLocator.sheet || locator.sheet !== anchorLocator.sheet) return false;
+  if (locator.row == null || anchorLocator.row == null) return false;
+  return Math.abs(locator.row - anchorLocator.row) <= maxDistance;
+}
+
+function pickTitleAnchorRef(query, refs) {
+  if (typeof ragContext.pickTitleAnchorRef === 'function') {
+    return ragContext.pickTitleAnchorRef(query, refs);
+  }
+  if (!Array.isArray(refs) || refs.length === 0) return null;
+
+  const titleMatched = refs.filter(ref => ragContext.hasTitleStyleMatch(query, getRefText(ref)));
+  if (titleMatched.length === 0) return null;
+
+  return titleMatched
+    .slice()
+    .sort((left, right) => {
+      const leftPenalty = getRefMetadataPenalty(left);
+      const rightPenalty = getRefMetadataPenalty(right);
+      if (leftPenalty !== rightPenalty) return leftPenalty - rightPenalty;
+
+      const leftLexical = Number(left?.lexicalScore || 0);
+      const rightLexical = Number(right?.lexicalScore || 0);
+      if (leftLexical !== rightLexical) return rightLexical - leftLexical;
+
+      return Number(right?.score || 0) - Number(left?.score || 0);
+    })[0];
+}
+
+function looksLikeTranslationGlossaryKnowledgeLines(lines) {
+  if (!Array.isArray(lines) || lines.length < 2) return false;
+
+  const normalizedLines = lines
+    .map(line => normalizeDirectKnowledgeLine(line))
+    .filter(line => !isReplySkippedKnowledgeLine(line))
+    .filter(Boolean);
+  if (normalizedLines.length < 2) return false;
+
+  const parsedLines = normalizedLines
+    .map(parseKnowledgeFieldLine)
+    .filter(Boolean);
+  const localeFieldCount = parsedLines.filter(item => isLocaleFieldLabel(item.label)).length;
+  const itemFieldCount = parsedLines.filter(item => /^(?:项目|item|term)$/iu.test(String(item.label || '').trim())).length;
+  const glossaryPairCount = normalizedLines.filter(
+    line => /^[^:：]{1,40}\s*-\s*[A-Za-z][^:：]{1,40}\s*[:：]\s*\S+/u.test(line)
+  ).length;
+  const proseCount = normalizedLines.filter(
+    line => looksLikeStructuredKnowledgeLine(line) && /[，。；！？.!?]/u.test(line)
+  ).length;
+
+  if (proseCount > 0) return false;
+  if (localeFieldCount >= 3) return true;
+  if (itemFieldCount > 0 && localeFieldCount >= 2) return true;
+  return glossaryPairCount >= 2;
+}
+
+function isTranslationGlossaryKnowledgeRef(ref) {
+  const lines = splitDirectKnowledgeLines(getRefText(ref));
+  return looksLikeTranslationGlossaryKnowledgeLines(lines);
 }
 
 function isKnownJunkKnowledgeRef(ref) {
@@ -822,13 +1044,14 @@ function isKnownJunkKnowledgeRef(ref) {
 function getKnowledgeQueryIntent(query) {
   const text = String(query || '').trim();
   if (!text) return 'general';
+  const gameplayScope = /(?:竞技场|角斗场|玩法|模式|活动|系统|副本|关卡|主线|赛季|挑战|联盟|同盟|营地|基地|玩法介绍|玩法说明)/u.test(text);
 
   if (/(?:台词|语音|配音|说了什么|原话)/u.test(text)) return 'quote';
   if (/(?:阵营|所属阵营)/u.test(text)) return 'faction';
   if (/(?:职业|定位|职阶)/u.test(text)) return 'career';
   if (/(?:稀有度|稀有|品级|品质|评级)/u.test(text)) return 'rarity';
   if (/(?:技能|基础效果|一星|二星|三星|四星|五星|大招|被动)/u.test(text)) return 'skill';
-  if (/(?:简介|介绍|背景|故事|设定|人设)/u.test(text)) return 'profile';
+  if (/(?:简介|介绍|背景|故事|设定|人设)/u.test(text) && !gameplayScope) return 'profile';
   if (/(?:阵容|配队|搭配)/u.test(text)) return 'team';
   if (
     /(?:咋样|怎么样|如何|厉害|强不强|值不值得|好不好用|能不能用|推荐吗)/u.test(text)
@@ -916,16 +1139,68 @@ function filterRefsForAnswer(query, refs) {
   let filtered = refs.filter(ref => getRefText(ref));
   if (filtered.length === 0) return [];
 
-  filtered = filtered.filter(
-    ref => !isKnownPlanningOrUiNoiseRef(ref) && !isKnownJunkKnowledgeRef(ref)
-  );
+  filtered = filtered.filter((ref) => {
+    const text = getRefText(ref);
+    if (!text) return false;
+    if (ragContext.hasTitleStyleMatch(query, text)) return true;
+    return !isKnownPlanningOrUiNoiseRef(ref) && !isKnownJunkKnowledgeRef(ref);
+  });
   if (filtered.length === 0) return [];
 
+  const nonPlanningRefs = filtered.filter(ref => !isKnownPlanningOrUiNoiseRef(ref));
+  if (nonPlanningRefs.length > 0) {
+    filtered = nonPlanningRefs;
+  }
+
+  const intent = getKnowledgeQueryIntent(query);
   const intentCompatible = filtered.filter(ref => isRefCompatibleWithQueryIntent(query, ref));
   if (intentCompatible.length > 0) {
     filtered = intentCompatible;
-  } else if (getKnowledgeQueryIntent(query) !== 'general') {
+  } else if (intent === 'profile') {
+    const strongAligned = filtered.filter(ref => hasStrongAnswerRefAlignment(query, ref));
+    if (strongAligned.length > 0) filtered = strongAligned;
+    else return [];
+  } else if (intent !== 'general') {
     return [];
+  }
+
+  filtered = prioritizeTitleMatchedRefs(query, filtered);
+  const titleAnchorRef = pickTitleAnchorRef(query, filtered);
+  if (titleAnchorRef) {
+    const anchoredRefs = filtered.filter(ref => (
+      getRefIdentity(ref) === getRefIdentity(titleAnchorRef)
+      || ragContext.hasTitleStyleMatch(query, getRefText(ref))
+      || isSameKnowledgeArticleNeighborhood(ref, titleAnchorRef)
+    ));
+    const nonGlossaryAnchoredRefs = anchoredRefs.filter(ref => !isTranslationGlossaryKnowledgeRef(ref));
+    if (nonGlossaryAnchoredRefs.length > 0) filtered = nonGlossaryAnchoredRefs;
+    else if (anchoredRefs.length > 0) filtered = anchoredRefs;
+
+    const articleAnchoredRefs = filtered.filter(ref => (
+      getRefIdentity(ref) === getRefIdentity(titleAnchorRef)
+      || isSameKnowledgeArticleNeighborhood(ref, titleAnchorRef)
+    ));
+    if (articleAnchoredRefs.length >= 2) {
+      return articleAnchoredRefs
+        .slice()
+        .sort((left, right) => {
+          const leftIsAnchor = getRefIdentity(left) === getRefIdentity(titleAnchorRef);
+          const rightIsAnchor = getRefIdentity(right) === getRefIdentity(titleAnchorRef);
+          if (leftIsAnchor !== rightIsAnchor) return leftIsAnchor ? -1 : 1;
+
+          const leftRow = Number(left?.rowIndex);
+          const rightRow = Number(right?.rowIndex);
+          if (Number.isFinite(leftRow) && Number.isFinite(rightRow) && leftRow !== rightRow) {
+            return leftRow - rightRow;
+          }
+
+          const leftPenalty = getRefMetadataPenalty(left);
+          const rightPenalty = getRefMetadataPenalty(right);
+          if (leftPenalty !== rightPenalty) return leftPenalty - rightPenalty;
+          return Number(right?.score || 0) - Number(left?.score || 0);
+        })
+        .slice(0, 12);
+    }
   }
 
   const narrow = (predicate) => {
@@ -949,7 +1224,10 @@ function filterRefsForAnswer(query, refs) {
     });
   }
 
-  narrow(ref => getRefMetadataPenalty(ref) < 12);
+  narrow(ref => (
+    getRefMetadataPenalty(ref) < 12
+    || ragContext.hasTitleStyleMatch(query, getRefText(ref))
+  ));
   narrow((ref) => {
     const intentScore = Number(
       ref?.intentScore != null
@@ -958,7 +1236,10 @@ function filterRefsForAnswer(query, refs) {
     );
     return intentScore >= 0;
   });
-  const stronglyAligned = filtered.filter(ref => hasStrongAnswerRefAlignment(query, ref));
+  const nonGlossaryFiltered = filtered.filter(ref => !isTranslationGlossaryKnowledgeRef(ref));
+  if (nonGlossaryFiltered.length > 0) filtered = nonGlossaryFiltered;
+
+  const stronglyAligned = filtered.filter(ref => hasStrongAnswerRefAlignment(query, ref, { titleAnchorRef }));
   if (stronglyAligned.length > 0) {
     filtered = stronglyAligned;
   } else if (looksLikeConstraintStyleFollowup(query) || /[，,、]/u.test(String(query || ''))) {
@@ -1042,20 +1323,29 @@ function getLiteralKnowledgeReply(query, refs) {
   const collected = [];
   const seen = new Set();
   const preferredRefs = refs
-    .filter(isPreferredKnowledgeReplyRef)
+    .filter(ref => (
+      isPreferredKnowledgeReplyRef(ref)
+      || ragContext.hasTitleStyleMatch(query, getRefText(ref))
+    ))
     .filter(ref => !isKnownJunkKnowledgeRef(ref));
   if (preferredRefs.length === 0) return '';
 
   const sourceRefs = preferredRefs.filter(ref => String(ref.matchText || ref.snippet || '').trim());
+  const nonGlossarySourceRefs = sourceRefs.filter(ref => !isTranslationGlossaryKnowledgeRef(ref));
+  const orderedSourceRefs = nonGlossarySourceRefs.length > 0 ? nonGlossarySourceRefs : sourceRefs;
 
-  for (const ref of sourceRefs) {
+  for (const ref of orderedSourceRefs) {
     const rawLines = splitDirectKnowledgeLines(ref.matchText || ref.snippet || '')
       .filter(line => !isReplySkippedKnowledgeLine(line))
       .filter(Boolean);
-    const lines = filterKnowledgeLinesByLocale(rawLines, preferredLocale);
+    const lines = buildPrimaryKnowledgeLines(
+      filterKnowledgeLinesByLocale(rawLines, preferredLocale),
+      preferredLocale
+    );
+    const hasTitleMatchedLine = lines.some(line => ragContext.hasTitleStyleMatch(query, line));
 
     if (lines.length === 0) continue;
-    if (isHeaderOnlyKnowledgeLines(lines) || isCatalogOnlyKnowledgeLines(lines)) continue;
+    if ((isHeaderOnlyKnowledgeLines(lines) || isCatalogOnlyKnowledgeLines(lines)) && !hasTitleMatchedLine) continue;
     if (!hasPreferredLocaleContent(lines, preferredLocale)) continue;
 
     const matchedIndexes = lines
@@ -1099,6 +1389,218 @@ function getLiteralKnowledgeReply(query, refs) {
 
   if (compacted.length < 2) return '';
   return compacted.join('\n');
+}
+
+function isGuideSectionHeaderLine(line) {
+  const text = String(line || '').trim();
+  if (!text) return false;
+  return /^(?:【[^】\n]{1,24}】|\[[^\]\n]{1,24}\])$/u.test(text);
+}
+
+function isGuideBodyLine(line) {
+  const text = String(line || '').trim();
+  if (!text) return false;
+  if (isGuideSectionHeaderLine(text)) return false;
+  if (ragContext.isVisualAssetLikeContent(text)) return false;
+  if (isReplySkippedKnowledgeLine(text)) return false;
+  if (/^(?:sheet|rows?|reference|context|guide title|status|publish time|asset path|category)\s*:/iu.test(text)) {
+    return false;
+  }
+  return looksLikeStructuredKnowledgeLine(text) || text.length >= 8;
+}
+
+function extractGuideReplyLine(line, preferredLocale) {
+  const text = normalizeDirectKnowledgeLine(line);
+  if (!text) return '';
+
+  const parsed = parseKnowledgeFieldLine(text);
+  const label = String(parsed?.label || '').trim();
+  const labelLooksEnumerated = /^[\d\u4e00-\u5341]+[.、]/u.test(label) || /^\d+\s*$/u.test(label);
+  if (parsed && !labelLooksEnumerated && !isKnowledgeMetadataFieldLabel(label)) {
+    const fieldLocale = getLocaleFieldLocale(label) || getSpreadsheetColumnLocale(label);
+    if (fieldLocale && !isCompatibleLocale(preferredLocale, fieldLocale)) {
+      return '';
+    }
+
+    const value = pickPreferredLocaleSegment(normalizeDirectKnowledgeLine(parsed.value), preferredLocale);
+    if (value && lineMatchesPreferredLocale(value, preferredLocale)) {
+      return value;
+    }
+  }
+
+  const preferredText = pickPreferredLocaleSegment(text, preferredLocale);
+  return lineMatchesPreferredLocale(preferredText, preferredLocale) ? preferredText : '';
+}
+
+function isGuideTitleBoundaryLine(line, query) {
+  const text = String(line || '').trim();
+  if (!text) return false;
+  if (isGuideSectionHeaderLine(text)) return false;
+  if (/^[\d\u4e00-\u5341]+[.\u3001]/u.test(text)) return false;
+  if (ragContext.hasTitleStyleMatch(query, text)) return false;
+  if (text.length > 36) return false;
+  if (/[，。；：:？！!]/u.test(text)) return false;
+  if (/(?:攻略|指南|教程|玩法|规则|机制|介绍)$/u.test(text)) return true;
+  if (/(?:arena|guide)$/iu.test(text)) return true;
+  return /(?:竞技场|战场|联赛|锦标赛|活动|模式|arena)/iu.test(text);
+}
+
+function buildDetailedGuideKnowledgeReplyFromRefs(query, refs) {
+  if (!isArticleStyleGuideQuery(query)) return '';
+  if (!Array.isArray(refs) || refs.length === 0) return '';
+  if (hasOnlyHeroAliasMappingRefs(query, refs)) return '';
+  if (hasOnlyHeaderOnlyRefs(refs)) return '';
+  if (hasOnlyCatalogRefs(refs)) return '';
+
+  const preferredLocale = detectUserLocale(query);
+  const titleAnchorRef = pickTitleAnchorRef(query, refs);
+  if (!titleAnchorRef) return '';
+
+  const sameArticleRefs = refs
+    .filter(ref => (
+      getRefIdentity(ref) === getRefIdentity(titleAnchorRef)
+      || isSameKnowledgeArticleNeighborhood(ref, titleAnchorRef)
+    ))
+    .filter(ref => !isTranslationGlossaryKnowledgeRef(ref))
+    .slice()
+    .sort((left, right) => {
+      const leftIsAnchor = getRefIdentity(left) === getRefIdentity(titleAnchorRef);
+      const rightIsAnchor = getRefIdentity(right) === getRefIdentity(titleAnchorRef);
+      if (leftIsAnchor !== rightIsAnchor) return leftIsAnchor ? -1 : 1;
+
+      const leftRow = Number(left?.rowIndex);
+      const rightRow = Number(right?.rowIndex);
+      if (Number.isFinite(leftRow) && Number.isFinite(rightRow) && leftRow !== rightRow) {
+        return leftRow - rightRow;
+      }
+
+      return Number(right?.score || 0) - Number(left?.score || 0);
+    });
+  if (sameArticleRefs.length < 2) return '';
+
+  let titleLine = '';
+  const bodyLines = [];
+  const seen = new Set();
+  let reachedNextGuide = false;
+
+  for (const ref of sameArticleRefs) {
+    if (reachedNextGuide) break;
+    const rawLines = splitDirectKnowledgeLines(ref.matchText || ref.snippet || '')
+      .filter(line => !isReplySkippedKnowledgeLine(line))
+      .filter(Boolean);
+    const lines = dedupeLines(
+      filterKnowledgeLinesByLocale(rawLines, preferredLocale)
+        .map(line => extractGuideReplyLine(line, preferredLocale))
+        .filter(Boolean)
+    );
+
+    for (const rawLine of lines) {
+      const line = String(rawLine || '').trim();
+      if (!line) continue;
+      if (!titleLine && ragContext.hasTitleStyleMatch(query, line)) {
+        titleLine = line;
+        continue;
+      }
+      if (titleLine && isGuideTitleBoundaryLine(line, query)) {
+        reachedNextGuide = true;
+        break;
+      }
+      if (!isGuideSectionHeaderLine(line) && !isGuideBodyLine(line)) continue;
+      if (seen.has(line)) continue;
+      seen.add(line);
+      bodyLines.push(line);
+    }
+  }
+
+  if (!titleLine) {
+    titleLine = String(query || '').trim();
+  }
+
+  const sectionCount = bodyLines.filter(isGuideSectionHeaderLine).length;
+  if (bodyLines.length < 4 || sectionCount === 0) return '';
+
+  const formatted = [titleLine];
+  let usedChars = titleLine.length;
+  let usedLines = 1;
+
+  for (const line of bodyLines) {
+    const needsSpacer = isGuideSectionHeaderLine(line) && formatted[formatted.length - 1] !== '';
+    const extraChars = line.length + 1 + (needsSpacer ? 1 : 0);
+    const extraLines = 1 + (needsSpacer ? 1 : 0);
+    if (usedLines + extraLines > GUIDE_KB_REPLY_MAX_LINES && formatted.length > 1) break;
+    if (usedChars + extraChars > GUIDE_KB_REPLY_MAX_CHARS && formatted.length > 1) break;
+    if (needsSpacer) {
+      formatted.push('');
+      usedChars += 1;
+      usedLines += 1;
+    }
+    formatted.push(line);
+    usedChars += line.length + 1;
+    usedLines += 1;
+  }
+
+  const compact = [];
+  for (const line of formatted) {
+    if (!line && compact[compact.length - 1] === '') continue;
+    compact.push(line);
+  }
+
+  const reply = compact.join('\n').trim();
+  return reply.split('\n').length >= 5 ? reply : '';
+}
+
+async function loadGuideNeighborhoodRefs(versionId, titleAnchorRef) {
+  const normalizedVersionId = Number(versionId);
+  const documentId = Number(titleAnchorRef?.documentId);
+  const rowIndex = Number(titleAnchorRef?.rowIndex);
+  if (!Number.isFinite(normalizedVersionId) || !Number.isFinite(documentId) || !Number.isFinite(rowIndex)) {
+    return [];
+  }
+
+  const [rows] = await db.query(
+    `SELECT id, document_id, row_index, content
+       FROM knowledge_entries
+      WHERE version_id=? AND document_id=? AND row_index BETWEEN ? AND ?
+      ORDER BY row_index ASC`,
+    [normalizedVersionId, documentId, rowIndex, rowIndex + 28]
+  );
+
+  return (Array.isArray(rows) ? rows : []).map(row => ({
+    entryId: row.id,
+    documentId: row.document_id,
+    rowIndex: row.row_index,
+    matchText: String(row.content || ''),
+    snippet: String(row.content || ''),
+    lexicalScore: 0,
+    semanticScore: 0,
+    score: 0,
+  }));
+}
+
+async function getDetailedGuideKnowledgeReply(versionIdOrQuery, queryOrRefs, maybeRefs) {
+  const hasVersionId = typeof maybeRefs !== 'undefined';
+  const versionId = hasVersionId ? versionIdOrQuery : null;
+  const query = hasVersionId ? queryOrRefs : versionIdOrQuery;
+  const refs = hasVersionId ? maybeRefs : queryOrRefs;
+
+  if (!isArticleStyleGuideQuery(query)) return '';
+  if (!Array.isArray(refs) || refs.length === 0) return '';
+
+  const titleAnchorRef = pickTitleAnchorRef(query, refs);
+  if (!hasVersionId || !titleAnchorRef) {
+    return buildDetailedGuideKnowledgeReplyFromRefs(query, refs);
+  }
+
+  try {
+    const neighborhoodRefs = await loadGuideNeighborhoodRefs(versionId, titleAnchorRef);
+    if (neighborhoodRefs.length > 0) {
+      return buildDetailedGuideKnowledgeReplyFromRefs(query, neighborhoodRefs);
+    }
+  } catch (err) {
+    console.error('[chatService] load guide neighborhood failed:', err.message);
+  }
+
+  return buildDetailedGuideKnowledgeReplyFromRefs(query, refs);
 }
 
 function parseKnowledgeFieldLine(line) {
@@ -1308,13 +1810,139 @@ function normalizeKbGroundedReply(reply) {
     .trim();
 }
 
+function looksLikeMechanicalKnowledgeDump(reply) {
+  const lines = splitDirectKnowledgeLines(reply).filter(Boolean);
+  if (lines.length < 3) return false;
+
+  const parsedCount = lines.filter(line => !!parseKnowledgeFieldLine(line)).length;
+  const structuredCount = lines.filter(looksLikeStructuredKnowledgeLine).length;
+  const titleishCount = lines.filter(line => !/[：:.。！？!?]/u.test(String(line || '').trim())).length;
+  const pipeSignal = lines.filter(line => String(line || '').includes(' | ')).length;
+
+  return (
+    structuredCount >= 3
+    && (parsedCount >= 2 || pipeSignal > 0 || titleishCount >= 2)
+  );
+}
+
+function sanitizeKnowledgeBodyLine(line) {
+  return String(line || '')
+    .replace(/^[-*+]+(?:\s*[-*+]+)*/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildKnowledgeLeadFromQuery(query, titleLine) {
+  const normalizedQuery = String(query || '')
+    .replace(/[?!.,\u3002\uFF1F\uFF01]+$/u, '')
+    .trim();
+
+  if (normalizedQuery && normalizedQuery.length <= 26 && !/[,:;\uFF1A]/u.test(normalizedQuery)) {
+    return `${normalizedQuery}\u4e3b\u8981\u770b\u8fd9\u51e0\u70b9\uff1a`;
+  }
+
+  const normalizedTitle = sanitizeKnowledgeBodyLine(titleLine)
+    .replace(/[,:\uFF1A]+$/u, '')
+    .trim();
+  if (normalizedTitle && normalizedTitle.length <= 24) {
+    return `${normalizedTitle}\u53ef\u4ee5\u5148\u6293\u8fd9\u51e0\u70b9\uff1a`;
+  }
+
+  return '\u53ef\u4ee5\u5148\u6293\u8fd9\u51e0\u70b9\uff1a';
+}
+
+function humanizeKnowledgeDraftReply(query, draftReply, preferredLocale = detectUserLocale(query)) {
+  const normalizedDraft = normalizeKbGroundedReply(trimGenericTrailingFollowup(draftReply, preferredLocale));
+  if (!normalizedDraft) return '';
+
+  const rawLines = splitDirectKnowledgeLines(normalizedDraft)
+    .map(normalizeDirectKnowledgeLine)
+    .filter(line => !isReplySkippedKnowledgeLine(line))
+    .filter(Boolean);
+  if (rawLines.length === 0) return normalizedDraft;
+
+  const localizedLines = filterKnowledgeLinesByLocale(rawLines, preferredLocale);
+  const primaryLines = buildPrimaryKnowledgeLines(localizedLines, preferredLocale);
+  const sourceLines = primaryLines.length >= 2 ? primaryLines : localizedLines;
+  const lines = dedupeLines(sourceLines).filter(Boolean);
+  if (lines.length === 0) return normalizedDraft;
+
+  let titleLine = '';
+  const bodyLines = [];
+  for (const rawLine of lines) {
+    const line = sanitizeKnowledgeBodyLine(rawLine);
+    if (!line) continue;
+
+    if (
+      !titleLine
+      && (
+        ragContext.hasTitleStyleMatch(query, line)
+        || (
+          !looksLikeStructuredKnowledgeLine(line)
+          && line.length <= 28
+          && !/[\u3002\uFF01\uFF1F!?]/u.test(line)
+        )
+      )
+    ) {
+      titleLine = line;
+      continue;
+    }
+
+    const parsed = parseKnowledgeFieldLine(line);
+    if (parsed && !isKnowledgeMetadataFieldLabel(parsed.label)) {
+      const label = String(parsed.label || '').trim();
+      const value = sanitizeKnowledgeBodyLine(parsed.value);
+      if (!value) continue;
+      if (/^[\d\u4e00-\u5341]+[.\u3001]?$/u.test(label)) {
+        bodyLines.push(value);
+      } else if (/^[\d\u4e00-\u5341]+[.\u3001]/u.test(label)) {
+        bodyLines.push(`${label} ${value}`.trim());
+      } else {
+        bodyLines.push(`${label}: ${value}`);
+      }
+      continue;
+    }
+
+    bodyLines.push(line);
+  }
+
+  const compactBody = dedupeLines(
+    bodyLines
+      .map(line => sanitizeKnowledgeBodyLine(line))
+      .filter(Boolean)
+      .filter(line => !titleLine || line !== titleLine)
+      .filter(line => !isLikelyKbSectionLabel(line, preferredLocale))
+  );
+  if (compactBody.length === 0) return titleLine || normalizedDraft;
+
+  const intro = buildKnowledgeLeadFromQuery(query, titleLine);
+  const summaryLines = compactBody.slice(0, 4);
+
+  if (summaryLines.length === 1) {
+    return intro ? `${intro}${summaryLines[0]}` : summaryLines[0];
+  }
+
+  if (summaryLines.length <= 3) {
+    const body = summaryLines
+      .map(line => line.replace(/[\u3002\uff1b;]+$/u, '').trim())
+      .filter(Boolean)
+      .join('\uFF1B');
+    return body ? `${intro}${body}\u3002` : intro;
+  }
+
+  const bullets = summaryLines.map(line => `- ${line}`).join('\n');
+  return `${intro}\n${bullets}`;
+}
 function postProcessAssistantReply(reply, query, refs, locale) {
   let output = trimGenericTrailingFollowup(reply, locale);
+  const articleStyleGuideQuery = isArticleStyleGuideQuery(query);
 
   if (Array.isArray(refs) && refs.length > 0) {
     output = stripStandaloneMarkdownEmphasis(output);
     output = stripInlineMarkdownEmphasis(output);
-    output = collapseKbSectionBlocks(output, locale);
+    if (!articleStyleGuideQuery) {
+      output = collapseKbSectionBlocks(output, locale);
+    }
     output = normalizeKbGroundedReply(output);
   }
 
@@ -1356,6 +1984,30 @@ function trimGenericTrailingFollowup(reply, locale) {
   }
 
   return lines.join('\n').trim();
+}
+
+function sanitizeHeroCardVisibleReply(reply, card, locale) {
+  const text = trimGenericTrailingFollowup(reply, locale)
+    .replace(/\r\n/g, '\n')
+    .trim();
+  if (!text) return '';
+
+  const compact = text
+    .split('\n')
+    .map(line => String(line || '').trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!compact) return '';
+
+  if (/```|基础效果|技能详情|一星|二星|三星|四星|五星|满星|技能|阵营|职业|台词|语音|稀有度|头像|立绘/u.test(compact)) {
+    return '';
+  }
+
+  const clipped = compact.length > 60 ? compact.slice(0, 60).trim() : compact;
+  return /[。！？!?]$/u.test(clipped) ? clipped : `${clipped}。`;
 }
 
 function shouldIncludeVersionLabelForLocale(value, locale) {
@@ -1562,7 +2214,52 @@ function getRecentConversationForHeroPrompt(history = [], limit = 6) {
 
 function buildHeroCardFallbackReply(card) {
   const heroName = String(card && card.name || '').trim() || '\u8fd9\u4e2a\u82f1\u96c4';
-  return `\u6211\u5148\u628a${heroName}\u7684\u5b8c\u6574\u6863\u6848\u8d34\u4e0a\u6765\uff0c\u4f60\u76f4\u63a5\u7ed3\u5408\u8fd9\u8f6e\u95ee\u9898\u770b\u5373\u53ef\u3002`;
+  return `先看下${heroName}的卡片。`;
+}
+
+function isHeroCardTeamQuery(query) {
+  return /(?:\u9635\u5bb9|\u9663\u5bb9|\u914d\u961f|\u914d\u968a|\u642d\u914d|\u63a8\u8350\u9635\u5bb9|\u63a8\u85a6\u9663\u5bb9)/u.test(String(query || '').trim());
+}
+
+function isHeroCardEvaluationQuery(query) {
+  return /(?:\u600e\u4e48\u6837|\u5982\u4f55|\u5389\u5bb3|\u5f3a\u5417|\u5f3a\u4e0d\u5f3a|\u597d\u4e0d\u597d\u7528|\u503c\u4e0d\u503c\u5f97(?:\u7ec3|\u517b)?|\u80fd\u4e0d\u80fd\u7ec3|\u63a8\u8350\u5417)/u.test(String(query || '').trim());
+}
+
+function buildHeroCardLeadReply(query, card) {
+  const heroName = String(card && card.name || '').trim() || '\u8fd9\u4e2a\u82f1\u96c4';
+  const text = String(query || '').trim();
+  const intent = getKnowledgeQueryIntent(text);
+
+  if (isHeroCardTeamQuery(text) || isHeroCardEvaluationQuery(text) || intent === 'team' || intent === 'hero_overview') {
+    return '';
+  }
+
+  switch (intent) {
+    case 'quote':
+      return card && card.quote
+        ? `${heroName}的台词在卡片里，你直接看。`
+        : buildHeroCardFallbackReply(card);
+    case 'faction':
+      return card && card.faction
+        ? `${heroName}的阵营在卡片里。`
+        : buildHeroCardFallbackReply(card);
+    case 'career':
+      return card && card.career
+        ? `${heroName}的职业在卡片里。`
+        : buildHeroCardFallbackReply(card);
+    case 'rarity':
+      return card && card.rarity
+        ? `${heroName}的稀有度我放在卡片里了。`
+        : buildHeroCardFallbackReply(card);
+    case 'skill':
+      return Array.isArray(card && card.skills) && card.skills.length > 0
+        ? `${heroName}的技能我放在卡片里了。`
+        : buildHeroCardFallbackReply(card);
+    case 'profile':
+      return `我把${heroName}的资料卡挂上了，你直接看。`;
+    default:
+      return buildHeroCardFallbackReply(card);
+  }
 }
 
 async function getHeroCardGroundedReply(
@@ -1576,6 +2273,9 @@ async function getHeroCardGroundedReply(
   const text = String(query || '').trim();
   if (!text || !card || !card.name) return '';
 
+  const deterministicLead = buildHeroCardLeadReply(text, card);
+  if (deterministicLead) return deterministicLead;
+
   const systemPrompt = buildAugmentedSystemPrompt(
     buildBaseSystemPrompt(bot, text, {
       versionContext: options.versionContext || null,
@@ -1587,6 +2287,10 @@ async function getHeroCardGroundedReply(
       'Use the resolved hero facts as constraints. Do not invent faction, career, rarity, skill effects, quotes, strength claims, or lineup conclusions that are not supported by those facts.',
       'If the user is asking for an evaluation or whether the hero is worth building, give a concise judgment tied to the shown role, rarity, and skill structure.',
       'A hero card will be attached after the visible prose. Do not mechanically enumerate every card field and do not use fixed lead-ins like "这是XX的英雄档案" unless the wording is genuinely needed.',
+      'Return only one short natural sentence. Use at most two short sentences only when the user explicitly asked for an evaluation.',
+      'Do not repeat the attached card fields, including title, faction, career, rarity, quote, avatar, skill names, or skill effects.',
+      'Do not describe skill details, star upgrades, or copy text that already belongs in the card.',
+      'For plain profile or introduction requests, prefer a short handoff line and let the attached card carry the details.',
       'Write like a natural player-facing chat reply, not a wiki entry, release note, or customer-service template.',
       'Do not mention the knowledge base, retrieval, structured data, or internal process.',
       'Keep it concise and useful.',
@@ -1613,7 +2317,8 @@ async function getHeroCardGroundedReply(
 
   try {
     const { content } = await llm.chat(messages, { model: bot.model || undefined });
-    return trimGenericTrailingFollowup(String(content || '').trim(), preferredLocale);
+    return sanitizeHeroCardVisibleReply(String(content || '').trim(), card, preferredLocale)
+      || buildHeroCardFallbackReply(card);
   } catch (err) {
     console.error('[chatService] getHeroCardGroundedReply failed:', err.message);
     return '';
@@ -1653,10 +2358,12 @@ async function polishReplyThroughAi(bot, query, draftReply, {
   const { prose, heroCardBlock } = extractTrailingHeroCardBlock(raw);
   const visibleDraft = prose || raw;
   if (!visibleDraft) return raw;
+  if (heroCardBlock) return raw;
 
   const recentAssistantSamples = getRecentAssistantSamples(history)
     .map((item, index) => `- Recent reply ${index + 1}: ${item.slice(0, 200)}`)
     .join('\n');
+  const articleStyleGuideQuery = isArticleStyleGuideQuery(query);
 
   const systemPrompt = buildAugmentedSystemPrompt(
     buildBaseSystemPrompt(bot, query, {
@@ -1673,8 +2380,13 @@ async function polishReplyThroughAi(bot, query, draftReply, {
         ? 'A hero card structured block will be attached after the rewritten prose. Rewrite only the visible prose. Do not mention the block itself.'
         : 'Output only the rewritten final answer.',
       Array.isArray(refs) && refs.length > 0
-        ? 'This draft is grounded by retrieved content. Keep it concise and faithful to the grounded facts.'
-        : 'Keep it concise and direct.',
+        ? (articleStyleGuideQuery
+            ? 'This draft is grounded by retrieved content. Keep it faithful to the grounded facts, and keep enough detail to answer a guide-style question properly.'
+            : 'This draft is grounded by retrieved content. Keep it concise and faithful to the grounded facts.')
+        : (articleStyleGuideQuery ? 'Keep it direct and sufficiently detailed.' : 'Keep it concise and direct.'),
+      articleStyleGuideQuery
+        ? 'For guide, rules, and tutorial queries, preserve the main sections, key details, and multi-part structure from the draft. Do not compress a long guide into one or two bullets.'
+        : 'If the draft is a structured guide, rules summary, or article digest, preserve the major points from the draft. Do not collapse it into a single sub-point.',
     ]
   );
 
@@ -1698,10 +2410,22 @@ async function polishReplyThroughAi(bot, query, draftReply, {
   try {
     const { content } = await llm.chat(messages, { model: bot.model || undefined });
     const rewritten = trimGenericTrailingFollowup(String(content || '').trim(), preferredLocale);
-    if (!rewritten) return raw;
+    if (!rewritten) {
+      return Array.isArray(refs) && refs.length > 0 && !articleStyleGuideQuery
+        ? humanizeKnowledgeDraftReply(query, visibleDraft, preferredLocale) || raw
+        : raw;
+    }
+    if (Array.isArray(refs) && refs.length > 0 && !articleStyleGuideQuery && looksLikeMechanicalKnowledgeDump(rewritten)) {
+      const humanized = humanizeKnowledgeDraftReply(query, rewritten, preferredLocale);
+      if (humanized) return heroCardBlock ? `${humanized}\n\n${heroCardBlock}` : humanized;
+    }
     return heroCardBlock ? `${rewritten}\n\n${heroCardBlock}` : rewritten;
   } catch (err) {
     console.error('[chatService] polishReplyThroughAi failed:', err.message);
+    const fallback = Array.isArray(refs) && refs.length > 0 && !articleStyleGuideQuery
+      ? humanizeKnowledgeDraftReply(query, visibleDraft, preferredLocale)
+      : '';
+    if (fallback) return heroCardBlock ? `${fallback}\n\n${heroCardBlock}` : fallback;
     return raw;
   }
 }
@@ -1737,12 +2461,54 @@ function isLikelyGameDomainQuery(query, {
   return GAME_QUERY_KEYWORDS.some(pattern => pattern.test(text));
 }
 
+function normalizeMediaText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function buildMediaContextBlock(mediaContext = null) {
+  if (!mediaContext || typeof mediaContext !== 'object') return '';
+
+  const kind = normalizeMediaText(mediaContext.kind);
+  const summary = normalizeMediaText(mediaContext.summary);
+  const mimeType = normalizeMediaText(mediaContext.mimeType);
+  const originalName = normalizeMediaText(mediaContext.originalName);
+  const tags = Array.isArray(mediaContext.tags)
+    ? mediaContext.tags.map(normalizeMediaText).filter(Boolean).slice(0, 6)
+    : [];
+
+  if (!kind && !summary && tags.length === 0) return '';
+
+  return [
+    '本轮消息带有用户附件，请把附件识别结果和用户文字一起理解，再回答。',
+    kind ? `附件类型：${kind === 'video' ? '视频' : '图片'}` : '',
+    summary ? `附件内容概括：${summary}` : '',
+    tags.length ? `附件关键标签：${tags.join('、')}` : '',
+    mimeType ? `附件 MIME：${mimeType}` : '',
+    originalName ? `附件文件名：${originalName}` : '',
+    '不要假装看到了识别结果之外的细节；只能基于这些可见信息和用户当前文字作答。',
+  ].filter(Boolean).join('\n');
+}
+
+function buildMediaAugmentedQuery(message, mediaContext = null) {
+  const text = String(message || '').trim();
+  const mediaContextBlock = buildMediaContextBlock(mediaContext);
+  if (!mediaContextBlock) return text;
+  return [
+    text,
+    '',
+    '[用户附件信息]',
+    mediaContextBlock,
+  ].filter(Boolean).join('\n');
+}
+
 function buildMessages(bot, history, userMessage, contextBlock, factBlock = '', liveBlock = '', versionContext = null, options = {}) {
   const budget = cfg.llm.maxPromptBytes;
   const userBytes = Buffer.byteLength(userMessage, 'utf8');
   const systemBudget = Math.max(200, budget - userBytes - 200);
   const preferredLocale = detectUserLocale(userMessage);
   const domainMode = options && options.domainMode === 'general' ? 'general' : 'game';
+  const mediaContextBlock = String(options?.mediaContextBlock || '').trim();
+  const articleStyleGuideQuery = isArticleStyleGuideQuery(userMessage);
 
   const globalConstraints = loadGlobalBotConstraints();
   const displayName = String(bot.display_name || '').trim();
@@ -1764,14 +2530,24 @@ function buildMessages(bot, history, userMessage, contextBlock, factBlock = '', 
     '不要写这类废话开头：比如“这是个很核心的问题”“不过当前知识库还没完全收录”“我能确认的是”“我不敢给你乱讲”。',
     '不要解释你自己的检索过程、判断过程、知识边界来源；用户没问就别交代系统内部机制。',
     '如果信息不足，直接说缺哪一部分；如果已知一部分，就直接给已知部分，不要先来一段大而空的铺垫。',
-    'When knowledge-base content is present, keep the answer close to that content. Do not turn it into a long article, polished tutorial, or expanded summary unless the user asked for that format.',
-    'When knowledge-base content is present, write like a normal chat reply to the player, not like a document, wiki page, release note, or customer-service template.',
-    'Prefer one direct lead sentence plus a short continuation. Only use a small bullet list when it clearly helps readability.',
-    'Avoid decorative formatting. Do not use bold-only section labels or stacked mini-headings unless the user explicitly asked for structured output.',
+    articleStyleGuideQuery
+      ? 'When knowledge-base content is present for a guide-style question, keep the answer close to that content and preserve the main sections and details instead of compressing it into a brief summary.'
+      : 'When knowledge-base content is present, keep the answer close to that content. Do not turn it into a long article, polished tutorial, or expanded summary unless the user asked for that format.',
+    articleStyleGuideQuery
+      ? 'For guide-style questions, write like a clear player-facing guide. Short section labels and grouped bullet points are allowed when they help readability.'
+      : 'When knowledge-base content is present, write like a normal chat reply to the player, not like a document, wiki page, release note, or customer-service template.',
+    articleStyleGuideQuery
+      ? 'For guide-style questions, lead with the direct answer, then keep the important grounded sections such as opening time, participation requirements, rules, rewards, and other retrieved mechanics when available.'
+      : 'Prefer one direct lead sentence plus a short continuation. Only use a small bullet list when it clearly helps readability.',
+    articleStyleGuideQuery
+      ? 'For guide-style questions, do not collapse a multi-section answer into one or two bullets.'
+      : 'Avoid decorative formatting. Do not use bold-only section labels or stacked mini-headings unless the user explicitly asked for structured output.',
     'Do not emit standalone topic-label lines such as "商城", "竞技场", or "VIP tip" followed by a separate explanation line. Fold the label into the sentence itself.',
     'Do not use inline markdown emphasis such as **Tip:**, **Note:**, or **VIP:** in normal answers.',
     'For broad beginner onboarding questions, answer the broad onboarding guidance that was retrieved. Do not switch to narrower topics such as arena, PVP, or other specific systems unless the user explicitly asked for them.',
-    'Prefer plain sentences or short bullets. Do not add markdown headings like # or ## unless the user explicitly asked for formatted output.',
+    articleStyleGuideQuery
+      ? 'Prefer plain sentences, short bullets, or lightweight section labels. Do not add markdown headings like # or ##.'
+      : 'Prefer plain sentences or short bullets. Do not add markdown headings like # or ## unless the user explicitly asked for formatted output.',
     'Do not end with generic follow-up prompts like "anything else" or "want me to expand" unless the user explicitly asks for more.',
   ].join('\n');
   const liveAnswerPolicy = liveBlock
@@ -1830,6 +2606,7 @@ function buildMessages(bot, history, userMessage, contextBlock, factBlock = '', 
     effectiveVersionPolicy,
     effectiveDefaultAnswerPolicy,
     directnessPolicy,
+    mediaContextBlock,
     liveAnswerPolicy,
     liveBlock,
     factBlock,
@@ -2101,6 +2878,12 @@ function shouldCarryGenericFollowup(message) {
   return /^(?:那|然后|再|继续|还有).{0,12}(?:呢|怎么样|咋样|多少|多大|几人|几人的)/u.test(text);
 }
 
+function hasExplicitBroadScopedObject(message) {
+  const text = String(message || '').trim();
+  if (!text) return false;
+  return /(?:这款游戏|这个游戏|该游戏|这游戏)(?:的)?(?:活动|玩法|系统|阵容|角色|英雄)?/u.test(text);
+}
+
 function getRecentGenericSubjectFromHistory(history, limit = 6) {
   const recentUserMessages = [...(Array.isArray(history) ? history : [])]
     .reverse()
@@ -2129,6 +2912,29 @@ function resolveGenericFollowupMessage(message, subject) {
   return `${name} ${text}`;
 }
 
+function answerMatchesQuestionIntent(question, answer) {
+  const normalizedQuestion = String(question || '').trim();
+  const normalizedAnswer = String(answer || '').trim();
+  if (!normalizedQuestion || !normalizedAnswer) return false;
+
+  if (
+    /(?:新手|萌新).*(?:老玩家|老手)|(?:老玩家|老手).*(?:新手|萌新)/u.test(normalizedQuestion)
+    && (!/(?:新手|萌新)/u.test(normalizedAnswer) || !/(?:老玩家|老手)/u.test(normalizedAnswer))
+  ) {
+    return false;
+  }
+
+  if (hasExplicitBroadScopedObject(normalizedQuestion) && /活动/u.test(normalizedQuestion)) {
+    const specificActivityMentioned = /(?:同盟对决|竞技场|角斗场|公会战|军团战|世界BOSS|限时副本|跨服战)/u.test(normalizedAnswer);
+    const questionHasSpecificActivity = /(?:同盟对决|竞技场|角斗场|公会战|军团战|世界BOSS|限时副本|跨服战)/u.test(normalizedQuestion);
+    if (specificActivityMentioned && !questionHasSpecificActivity) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function buildGenericContextAugmentedQuery(message, history) {
   const text = String(message || '').trim();
   if (!text || !shouldCarryGenericFollowup(text)) {
@@ -2152,10 +2958,11 @@ function buildGenericContextAugmentedQuery(message, history) {
   };
 }
 
-function hasStrongAnswerRefAlignment(query, ref) {
+function hasStrongAnswerRefAlignment(query, ref, options = {}) {
   const text = getRefText(ref);
   if (!text) return false;
 
+  const titleAnchorRef = options && options.titleAnchorRef ? options.titleAnchorRef : null;
   const titleMatch = ragContext.hasTitleStyleMatch(query, text);
   const tokenOverlap = ragContext.hasTokenOverlap(query, text);
   const intentScore = Number(
@@ -2165,6 +2972,7 @@ function hasStrongAnswerRefAlignment(query, ref) {
   );
 
   if (titleMatch) return true;
+  if (titleAnchorRef && isSameKnowledgeArticleNeighborhood(ref, titleAnchorRef)) return true;
   if (ragContext.isGenericBeginnerGuideQuery(query)) {
     return intentScore >= 12 || (intentScore >= 8 && tokenOverlap);
   }
@@ -2172,6 +2980,34 @@ function hasStrongAnswerRefAlignment(query, ref) {
     return intentScore >= 8 && tokenOverlap;
   }
   return intentScore >= 0 && tokenOverlap;
+}
+
+function shouldPreferLiteralKnowledgeDraft(query, refs, literalKnowledgeReply) {
+  const draft = String(literalKnowledgeReply || '').trim();
+  if (!draft) return false;
+
+  const articleStyleQuery = isArticleStyleGuideQuery(query);
+  if (articleStyleQuery) return false;
+
+  const lines = splitDirectKnowledgeLines(draft).filter(Boolean);
+  if (lines.length < 3) return false;
+
+  const titleAnchorRef = pickTitleAnchorRef(query, refs);
+  if (!titleAnchorRef) return false;
+
+  const sameArticleRefs = Array.isArray(refs)
+    ? refs.filter(ref => (
+      getRefIdentity(ref) === getRefIdentity(titleAnchorRef)
+      || isSameKnowledgeArticleNeighborhood(ref, titleAnchorRef)
+    ))
+    : [];
+  const isArticleStyleQuery = /(?:攻略|指南|介绍|玩法|规则|机制|教程|怎么玩|怎么打)/u.test(String(query || ''));
+
+  if (isArticleStyleQuery && sameArticleRefs.length >= 3 && lines.length >= 4) {
+    return true;
+  }
+
+  return lines.some(line => ragContext.hasTitleStyleMatch(query, line));
 }
 
 function buildHeroContextAugmentedQuery(message, heroContext) {
@@ -2193,13 +3029,14 @@ function buildHeroFollowupContextBlock(message, heroContext) {
 
 // 主流程:一次对话。onStage(可选) 在真实进入某处理阶段时被调用一次,
 // 供路由层(如 SSE)向前端推送真实进度;不传则行为与原来完全一致。
-async function handleChat({ versionId, sessionKey, message, requestMeta = {}, onStage, skipPolish = false }) {
+async function handleChat({ versionId, sessionKey, message, requestMeta = {}, mediaContext = null, onStage, skipPolish = false }) {
   const emit = stage => { if (onStage) onStage(stage); };
 
   const bot = await getBot(versionId);
   const versionContext = await getVersionContext(versionId);
   const { id: sessionId } = await findOrCreateSession(versionId, sessionKey, message);
   const preferredLocale = detectUserLocale(message);
+  const mediaContextBlock = buildMediaContextBlock(mediaContext);
 
   const history = await loadHistory(sessionId, bot.history_turns * 2);
   const userMsgId = await saveMessage(versionId, sessionId, 'user', message, null);
@@ -2221,8 +3058,9 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
     refs: draftRefs = [],
     versionContext: replyVersionContext = null,
     domainMode = 'game',
+    skipReplyPolish = false,
   } = {}) => {
-    const finalReply = skipPolish
+    const finalReply = (skipPolish || skipReplyPolish)
       ? draftReply
       : await polishReplyThroughAi(bot, query, draftReply, {
           history,
@@ -2244,7 +3082,7 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
     let factBlock = '';
     let liveBlock = '';
     const pendingSearchRetryQuery = getPendingSearchRetryQuery(message, history);
-    const effectiveMessage = pendingSearchRetryQuery || message;
+    const effectiveMessage = buildMediaAugmentedQuery(pendingSearchRetryQuery || message, mediaContext);
     const pendingWeatherQuery = getPendingWeatherQuery(message, history);
     const weatherQuery = pendingWeatherQuery || message;
     const weatherLocationHint = liveTools.extractWeatherLocation(weatherQuery);
@@ -2323,7 +3161,9 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
     const heroFollowupContextBlock = buildHeroFollowupContextBlock(message, heroContext);
 
     const [ragRefs, facts] = await Promise.all([
-      bot.rag_enabled ? ragContext.retrieve(versionId, retrievalQuery, bot.rag_top_k) : Promise.resolve([]),
+      bot.rag_enabled
+        ? ragContext.retrieve(versionId, retrievalQuery, Math.max(Number(bot.rag_top_k || 5) * 3, 12))
+        : Promise.resolve([]),
       bot.kg_enabled ? retrieveFacts(versionId, retrievalQuery) : Promise.resolve([]),
     ]);
 
@@ -2346,6 +3186,7 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
     const heroAliasReply = getHeroAliasReply(effectiveMessage, ragRefs);
     const directKnowledgeReply = getDirectKnowledgeReply(effectiveMessage, candidateRefs);
     const literalKnowledgeReply = getLiteralKnowledgeReply(effectiveMessage, candidateRefs);
+    const detailedGuideKnowledgeReply = await getDetailedGuideKnowledgeReply(versionId, effectiveMessage, candidateRefs);
     const gameDomain = !pendingSearchRetryQuery && isLikelyGameDomainQuery(effectiveMessage, {
       heroContext,
       facts,
@@ -2381,6 +3222,16 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
 
     if (gameDomain && literalKnowledgeReply) {
       contextBlock = ragContext.toContextBlock(refs);
+    }
+
+    if (gameDomain && detailedGuideKnowledgeReply) {
+      return finalizeReply(detailedGuideKnowledgeReply, {
+        query: effectiveMessage,
+        refs,
+        versionContext,
+        domainMode: 'game',
+        skipReplyPolish: true,
+      });
     }
 
     const weatherNeedsSearchFallback = weatherIntent
@@ -2530,6 +3381,15 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
       }
     }
 
+    if (gameDomain && shouldPreferLiteralKnowledgeDraft(effectiveMessage, refs, literalKnowledgeReply)) {
+      return finalizeReply(literalKnowledgeReply, {
+        query: effectiveMessage,
+        refs,
+        versionContext,
+        domainMode: 'game',
+      });
+    }
+
     const messages = buildMessages(
       bot,
       history,
@@ -2538,7 +3398,10 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
       factBlock,
       liveBlock,
       gameDomain ? versionContext : null,
-      { domainMode: gameDomain ? 'game' : 'general' }
+      {
+        domainMode: gameDomain ? 'game' : 'general',
+        mediaContextBlock,
+      }
     );
     emit('thinking');
     // 调 LLM
@@ -2565,6 +3428,58 @@ async function handleChat({ versionId, sessionKey, message, requestMeta = {}, on
   }
 }
 
+function buildHeroCardFallbackReply(card) {
+  const heroName = String(card && card.name || '').trim() || '\u8fd9\u4e2a\u82f1\u96c4';
+  return `${heroName}这张卡我先给你摆出来，关键信息都在里面。`;
+}
+
+function buildHeroCardLeadReply(query, card) {
+  const heroName = String(card && card.name || '').trim() || '\u8fd9\u4e2a\u82f1\u96c4';
+  const text = String(query || '').trim();
+  const intent = getKnowledgeQueryIntent(text);
+  const skills = Array.isArray(card && card.skills) ? card.skills : [];
+  const coreSkill = skills.find(skill => skill && skill.isCore && skill.name);
+  const firstSkill = skills.find(skill => skill && skill.name);
+  const skillName = String((coreSkill || firstSkill || {}).name || '').trim();
+  const faction = String(card && card.faction || '').trim();
+  const career = String(card && card.career || '').trim();
+  const rarity = String(card && card.rarity || '').trim();
+
+  if (isHeroCardTeamQuery(text) || isHeroCardEvaluationQuery(text) || intent === 'team' || intent === 'hero_overview') {
+    return '';
+  }
+
+  switch (intent) {
+    case 'quote':
+      return card && card.quote
+        ? `${heroName}这句台词挺贴脸的，卡片里能直接看到原话。`
+        : buildHeroCardFallbackReply(card);
+    case 'faction':
+      return card && card.faction
+        ? `${heroName}是${faction}阵营的，卡片上已经标清楚了。`
+        : buildHeroCardFallbackReply(card);
+    case 'career':
+      return card && card.career
+        ? `${heroName}走的是${career}这条路子，卡片里一眼能看明白。`
+        : buildHeroCardFallbackReply(card);
+    case 'rarity':
+      return card && card.rarity
+        ? `${heroName}是${rarity}稀有度，这里直接给你挂出来了。`
+        : buildHeroCardFallbackReply(card);
+    case 'skill':
+      return skills.length > 0
+        ? `${heroName}${skillName ? `先看${skillName}` : '的技能组'}，关键技能我已经放进卡片了。`
+        : buildHeroCardFallbackReply(card);
+    case 'profile':
+      return `${heroName}的核心信息我先帮你摊开，直接看这张卡就行。`;
+    default:
+      if (faction && career) {
+        return `${heroName}是${faction}阵营里偏${career}的英雄，先看卡会更直观。`;
+      }
+      return buildHeroCardFallbackReply(card);
+  }
+}
+
 module.exports = {
   handleChat,
   getBot,
@@ -2582,7 +3497,10 @@ module.exports = {
   shouldCarryWeatherFollowup,
   shouldSuppressRefsForReply,
   extractGenericSubjectCandidate,
+  getRecentGenericSubjectFromHistory,
   shouldCarryGenericFollowup,
+  hasExplicitBroadScopedObject,
+  answerMatchesQuestionIntent,
   buildGenericContextAugmentedQuery,
   shouldReturnSearchUnavailableFallback,
   buildSearchUnavailableReply,
@@ -2592,14 +3510,22 @@ module.exports = {
   hasOnlyHeroAliasMappingRefs,
   getHeroAliasReply,
   getLiteralKnowledgeReply,
+  getDetailedGuideKnowledgeReply,
+  shouldPreferLiteralKnowledgeDraft,
+  isArticleStyleGuideQuery,
   detectUserLocale,
   hasOnlyCatalogRefs,
   shouldUseNoHitEntityFallback,
   isLikelyGameDomainQuery,
+  buildMediaContextBlock,
+  buildMediaAugmentedQuery,
   filterRefsForAnswer,
   getKnowledgeQueryIntent,
   isRefCompatibleWithQueryIntent,
   trimGenericTrailingFollowup,
+  sanitizeHeroCardVisibleReply,
+  buildHeroCardFallbackReply,
+  buildHeroCardLeadReply,
   postProcessAssistantReply,
   extractTrailingHeroCardBlock,
   getSearchGroundedReply,
