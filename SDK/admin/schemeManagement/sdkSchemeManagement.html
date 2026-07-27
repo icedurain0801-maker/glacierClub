@@ -1104,10 +1104,19 @@ function cwRender(){
       +'</div>';
   }).join('');
   document.getElementById('cm-list').innerHTML=html;
+  cwSyncModeVisibility();
 }
 function cwPick(sdkId){
   CW.picked=CW_DATA[CW.cat].find(s=>s.id===sdkId);
   cwRender();
+}
+/* 以下快游戏 SDK 类型不支持「创建方式」选择，新建时始终为全新创建 */
+var CW_NO_MODE_IDS=['hw','mi','vivo','oppo','bili'];
+function cwSyncModeVisibility(){
+  var hide = CW.picked && CW_NO_MODE_IDS.indexOf(CW.picked.id)!==-1;
+  var sec = document.getElementById('cm-mode-section');
+  if (sec) sec.style.display = hide ? 'none' : '';
+  if (hide) cwModeSwitch('fresh');
 }
 function cwCreate(){
   const mode = CW.mode || 'quick';
@@ -1521,7 +1530,7 @@ function cwQuickClear() {
       <div class="cm-list" id="cm-list"></div>
       <div class="form-help">默认选中"移动端 → 移动端 SDK"，类型创建后不可修改</div>
 
-      <div class="form-row" style="margin-top:18px;margin-bottom:0;">
+      <div class="form-row" id="cm-mode-section" style="margin-top:18px;margin-bottom:0;">
         <label class="form-lbl" style="margin-bottom:8px;">创建方式</label>
         <div class="cm-mode-btns">
           <button class="cm-mode-btn sel" id="cm-mode-fresh" onclick="cwModeSwitch('fresh')">
@@ -1622,11 +1631,31 @@ function cwQuickClear() {
           <tr><td>小游戏</td><td>微信小游戏、抖音小游戏、B 站小游戏、支付宝、微信小程序、华为快游戏、小米快游戏、VIVO 快游戏、OPPO 快游戏</td></tr>
           <tr><td>PC 端</td><td>Windows SDK、H5 SDK</td></tr>
           <tr><td>SDK 类型单选</td><td>必填。切换分组 Tab 后默认选中该组第一项；默认整体选中「移动端 → 移动端 SDK」。<strong>类型创建后不可修改</strong></td></tr>
-          <tr><td>创建方式</td><td>二选一，默认「全新创建」：<br>· <strong>全新创建</strong>：所有参数留空，从零配置<br>· <strong>快速创建</strong>：复制一个已有方案的参数作为初始值，再进入编辑微调</td></tr>
-          <tr><td>参考方案搜索框</td><td>仅「快速创建」时展开。支持按方案名称模糊搜索，下拉选择一个已有方案作为参数来源；不选则无法提交</td></tr>
+          <tr><td>创建方式</td><td>二选一，默认「全新创建」：<br>· <strong>全新创建</strong>：从零开始创建，不需要填写参数<br>· <strong>快速创建</strong>：选择已有方案，快速同步其配置<br>（华为快游戏、小米快游戏、VIVO 快游戏、OPPO 快游戏、B 站小游戏 5 类不展示该字段，见下方说明）</td></tr>
+          <tr><td>参考方案搜索框</td><td>仅「快速创建」时展开。支持按方案名称模糊搜索，下拉选择一个已有方案；不选则无法提交</td></tr>
           <tr><td>底部操作</td><td>「取消」关闭弹窗；「创建并进入编辑」按所选类型 + 创建方式生成方案并跳转编辑页</td></tr>
         </tbody>
       </table>
+      <div class="req-rule">
+        <div class="req-rule-title">快速创建时，以下 SDK 类型不复制对应字段参数</div>
+        <table>
+          <tr><td>SDK 类型</td><td>不复制的字段名称</td></tr>
+          <tr><td>微信小游戏</td><td>消息推送密钥、推送PID、小游戏ID(AppID)、密钥、米大师密钥(现网AppKey)、米大师支付应用ID(OfferID)</td></tr>
+          <tr><td>抖音小游戏</td><td>小游戏ID(AppID)、小游戏秘钥(AppSecret)、服务器回调token、支付秘钥(PayKey)、消息推送配置token</td></tr>
+          <tr><td>支付宝小游戏</td><td>小游戏ID(AppID)、小游戏支付公钥(PublicKey)、小游戏支付私钥(PrivateKey)</td></tr>
+        </table>
+      </div>
+      <div class="req-rule">
+        <div class="req-rule-title">以下 SDK 类型不展示「创建方式」字段，始终为全新创建</div>
+        <table>
+          <tr><td>SDK 类型</td><td>说明</td></tr>
+          <tr><td>华为快游戏</td><td>隐藏「全新创建 / 快速创建」选择区及参考方案搜索框，不支持快速创建，只能全新创建</td></tr>
+          <tr><td>小米快游戏</td><td>同上</td></tr>
+          <tr><td>VIVO 快游戏</td><td>同上</td></tr>
+          <tr><td>OPPO 快游戏</td><td>同上</td></tr>
+          <tr><td>B 站小游戏</td><td>同上</td></tr>
+        </table>
+      </div>
     </div>
 
     <div class="req-section">
