@@ -719,6 +719,14 @@ tbody tr:hover td{background:#f6fbff}
 .link{color:#168cff;cursor:pointer}
 .col-actions{white-space:nowrap}
 .col-id{white-space:nowrap;word-break:keep-all}
+.col-desc{
+  max-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#5a6270;
+}
+.muted{color:#a8b0bd}
 .col-actions .link + .link{margin-left:10px}
 .empty-row td{
   height:120px;
@@ -1053,6 +1061,19 @@ tbody tr:hover td{background:#f6fbff}
 .req-table th,.req-table td{border:1px solid #eef0f3;padding:8px 10px;text-align:left}
 .req-table th{background:#fbfcfd;color:#1c2430;font-weight:600;width:130px}
 .req-table td{color:#39424f}
+/* 三列表格：字段名称 / 字段说明 / 默认值 —— 两侧等宽，中间说明列最宽 */
+.req-table-3col{table-layout:fixed}
+.req-table-3col th{width:auto;text-align:left}
+.req-table-3col thead th{background:#f4f6f9;color:#1c2430;font-weight:600}
+.req-table-3col th:nth-child(1),
+.req-table-3col td:nth-child(1){width:17%}
+.req-table-3col th:nth-child(2),
+.req-table-3col td:nth-child(2){width:66%}
+.req-table-3col th:nth-child(3),
+.req-table-3col td:nth-child(3){width:17%}
+.req-table-3col td:nth-child(1){font-weight:600;color:#1c2430;background:#fbfcfd}
+.req-table-3col td:nth-child(2){line-height:1.75;word-break:break-word}
+.req-table-3col td:nth-child(3){color:#0a68d8;font-weight:600}
 .req-ul{margin:0 0 14px;padding-left:20px;font-size:13px;color:#39424f;line-height:1.9}
 .req-ul li{margin-bottom:4px}
 </style>
@@ -1140,7 +1161,6 @@ tbody tr:hover td{background:#f6fbff}
               <label class="field">活动ID:<input type="text" class="ctrl mid" id="fActId" placeholder="请输入"></label>
               <label class="field">活动名称:<input type="text" class="ctrl mid" id="fActName" placeholder="请输入"></label>
               <button class="btn-query" type="button" onclick="doActQuery()">查 询</button>
-              <button class="btn-reset" type="button" onclick="resetActQuery()">重 置</button>
             </form>
             <section class="table-card" style="height:560px">
               <div class="table-actions">
@@ -1153,17 +1173,19 @@ tbody tr:hover td{background:#f6fbff}
               <div class="grid">
                 <table style="width:100%">
                   <colgroup>
-                    <col style="width:16.66%">
-                    <col style="width:16.66%">
-                    <col style="width:16.66%">
-                    <col style="width:16.66%">
-                    <col style="width:16.66%">
-                    <col style="width:16.7%">
+                    <col style="width:9%">
+                    <col style="width:16%">
+                    <col style="width:26%">
+                    <col style="width:15%">
+                    <col style="width:10%">
+                    <col style="width:11%">
+                    <col style="width:13%">
                   </colgroup>
                   <thead>
                     <tr>
                       <th>活动ID</th>
                       <th>活动名称</th>
+                      <th>规则说明</th>
                       <th>创建时间</th>
                       <th>状态</th>
                       <th>有效绑定</th>
@@ -1195,6 +1217,13 @@ tbody tr:hover td{background:#f6fbff}
             <!-- 筛选栏 -->
             <form class="filters" id="filters" onsubmit="return false">
               <label class="field">
+                <select class="ctrl short" id="fIdType">
+                  <option value="oldRoleId">邀请人角色ID</option>
+                  <option value="oldPassId">邀请人通行证ID</option>
+                  <option value="newRoleId">被邀请人角色ID</option>
+                  <option value="newPassId">被邀请人通行证ID</option>
+                  <option value="deviceId">被邀请人设备ID</option>
+                </select>
                 <input type="text" class="ctrl mid" id="fIdValue" placeholder="请输入">
               </label>
               <label class="field">绑定状态:
@@ -1223,7 +1252,6 @@ tbody tr:hover td{background:#f6fbff}
                 </div>
               </div>
               <button class="btn-query" type="button" onclick="doQuery()">查 询</button>
-              <button class="btn-reset" type="button" onclick="resetQuery()">重 置</button>
             </form>
 
             <!-- 表格卡片 -->
@@ -1254,7 +1282,7 @@ tbody tr:hover td{background:#f6fbff}
                       <th>邀请人通行证ID</th>
                       <th>被邀请人角色ID</th>
                       <th>被邀请人通行证ID</th>
-                      <th>设备ID</th>
+                      <th>被邀请人设备ID</th>
                       <th>绑定时间</th>
                     </tr>
                   </thead>
@@ -1370,41 +1398,76 @@ tbody tr:hover td{background:#f6fbff}
       <h2 class="req-h2">二、核心目标</h2>
       <ul class="req-ul">
         <li>支持创建周期活动，每次活动数据独立归当次活动，下一期清零重算。</li>
-        <li>记录每次绑定关系：邀请人/被邀请人角色ID、邀请人/被邀请人冰川通行证ID、设备ID、绑定时间。</li>
+        <li>记录每次绑定关系：邀请人/被邀请人角色ID、邀请人/被邀请人冰川通行证ID、被邀请人设备ID、绑定时间。</li>
         <li>提供绑定记录的查询、查看与导出能力（本页为只读，不做解绑等修改操作）。</li>
       </ul>
 
       <h2 class="req-h2">三、页面结构（两级页面）</h2>
       <p class="req-p">外层为<strong>活动列表页</strong>，内层为<strong>绑定明细页</strong>，同文件内通过 view 切换。</p>
       <ul class="req-ul">
-        <li><strong>活动列表页</strong>：顶部为活动ID + 活动名称筛选；【创建活动】按钮位于列表左上角；表格列为活动ID/活动名称/创建时间/状态/有效绑定/操作（详情/结束）；带分页器。</li>
-        <li><strong>绑定明细页</strong>：点击活动列表"详情"进入；顶部为"返回活动列表"按钮 + 当前活动名 + 活动状态摘要（活动ID/状态/创建时间/有效绑定数）；筛选栏为ID类型下拉+输入框、绑定状态、绑定时间范围；表格列为绑定ID/邀请人角色ID/邀请人通行证ID/被邀请人角色ID/被邀请人通行证ID/设备ID/绑定时间，列宽均分；带分页器与导出。</li>
+        <li><strong>活动列表页</strong>：顶部为活动ID + 活动名称筛选；【创建活动】按钮位于列表左上角；表格列为活动ID/活动名称/规则说明/创建时间/状态/有效绑定/操作（详情/结束）；规则说明列超长时省略号截断，鼠标悬停显示完整内容；带分页器。</li>
+        <li><strong>绑定明细页</strong>：点击活动列表"详情"进入；顶部为"返回活动列表"按钮 + 当前活动名 + 活动状态摘要（活动ID/状态/创建时间/有效绑定数）；筛选栏为ID类型下拉+输入框、绑定状态、绑定时间范围；表格列为绑定ID/邀请人角色ID/邀请人通行证ID/被邀请人角色ID/被邀请人通行证ID/被邀请人设备ID/绑定时间，列宽均分；带分页器与导出。</li>
       </ul>
 
       <h2 class="req-h2">四、数据模型与ID规则</h2>
       <table class="req-table">
         <tr><th>活动字段</th><td>活动ID、活动名称、创建时间、状态(进行中/已结束)、奖励规则、规则说明、有效绑定数</td></tr>
-        <tr><th>绑定记录字段</th><td>绑定ID、活动ID、邀请人角色ID、邀请人通行证ID、被邀请人角色ID、被邀请人通行证ID、设备ID、绑定时间、绑定状态(有效/已解绑)、解绑时间、解绑原因</td></tr>
-        <tr><th>活动ID规则</th><td>从 <strong>ACT-100</strong> 开始自增（ACT-100、ACT-101、ACT-102…）</td></tr>
-        <tr><th>绑定ID规则</th><td>从 <strong>B-10000</strong> 开始自增（B-10000、B-10001…）</td></tr>
+        <tr><th>绑定记录字段</th><td>绑定ID、活动ID、邀请人角色ID、邀请人通行证ID、被邀请人角色ID、被邀请人通行证ID、被邀请人设备ID、绑定时间、绑定状态(有效/已解绑)、解绑时间、解绑原因</td></tr>
+        <tr><th>活动ID规则</th><td>从 <strong>100</strong> 开始自增（100、101、102…），纯数字无前缀</td></tr>
+        <tr><th>绑定ID规则</th><td>从 <strong>10000</strong> 开始自增（10000、10001…），纯数字无前缀</td></tr>
         <tr><th>角色ID/通行证ID</th><td>均为<strong>纯数字</strong>（如 8800123、465486750），无字母前缀</td></tr>
       </table>
 
       <h2 class="req-h2">五、交互逻辑</h2>
       <ul class="req-ul">
         <li>活动列表：按活动ID/活动名称本地过滤；点击"详情"进入该活动绑定明细页；新建活动后刷新列表。</li>
+        <li>筛选栏（活动列表页与绑定明细页）均<strong>仅提供「查询」按钮，不设重置按钮</strong>；需要恢复全量时，手动清空筛选项后点击查询即可。</li>
         <li>绑定明细：切换活动 → 重新渲染该活动记录 + 更新状态摘要；返回活动列表 → 回到外层。</li>
-        <li>查询：按ID类型（邀请人/被邀请人角色ID、邀请人/被邀请人通行证ID、设备ID）+ 输入值、绑定状态、绑定时间范围本地过滤。</li>
+        <li>查询：按「ID类型 + 输入值」「绑定状态」「绑定时间范围」组合过滤，各条件之间为<strong>且</strong>关系；字段明细见下方「七、筛选字段说明」。</li>
         <li>导出：当前筛选结果导出 CSV（UTF-8 BOM）。</li>
         <li>进行中活动可点击"结束"，经二次确认后状态变为已结束，绑定记录仍仅支持查询、查看与导出。</li>
         <li>本页绑定记录为只读：仅提供查询、查看与导出，不提供解绑等修改操作；绑定状态（含已解绑）仅作展示。</li>
       </ul>
 
-      <h2 class="req-h2">六、边界与异常</h2>
+      <h2 class="req-h2">六、筛选字段说明（绑定明细页）</h2>
+      <table class="req-table req-table-3col">
+        <thead>
+          <tr>
+            <th>字段名称</th>
+            <th>字段说明</th>
+            <th>默认值</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ID类型</td>
+            <td>下拉单选，共 5 项：邀请人角色ID、邀请人通行证ID、被邀请人角色ID、被邀请人通行证ID、被邀请人设备ID。无「全部ID」选项，必须先选定一个字段再输入。</td>
+            <td>邀请人角色ID</td>
+          </tr>
+          <tr>
+            <td>ID输入值</td>
+            <td>与 ID 类型联动，<strong>仅在所选字段内做精确匹配（全等）</strong>，不做模糊包含、不跨字段匹配。例：选「被邀请人角色ID」输入 9900345，只命中该字段等于 9900345 的记录；输入 990 不会命中任何记录。为空时该条件不生效。</td>
+            <td>空</td>
+          </tr>
+          <tr>
+            <td>绑定状态</td>
+            <td>下拉单选，共 3 项：不限 / 有效 / 已解绑。「有效」= 当前生效的绑定关系，计入活动的有效绑定数；「已解绑」= 已被人工解除的记录，保留用于追溯，不计入有效绑定数。</td>
+            <td>不限</td>
+          </tr>
+          <tr>
+            <td>绑定时间</td>
+            <td>日期范围（开始日期 → 结束日期），取值为<strong>绑定关系建立的时间</strong>（即记录中的「绑定时间」字段，非解绑时间、非活动创建时间）。按日期粒度比较，含首尾两端（闭区间）；可只填开始或只填结束，单边生效。</td>
+            <td>空<br/>（不限时间范围）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 class="req-h2">七、边界与异常</h2>
       <ul class="req-ul">
         <li>无活动 / 活动无记录 → 表格展示空态。</li>
         <li>活动有进行中/已结束两种状态；进行中活动可点击"结束"，经二次确认后状态变为已结束，并模拟停止游戏请求。</li>
-        <li>同设备多账号用于反作弊排查，仅作筛选与展示，不做强约束。</li>
+        <li><strong>设备绑定唯一性限制</strong>：一个设备只能被一个角色ID绑定一次。发起绑定时校验该设备是否已存在绑定记录，若已被绑定则拒绝，并提示<strong>「绑定失败，当前设备已被绑定」</strong>。</li>
+        <li>该校验在绑定发生时由服务端执行；本页为只读展示，已绑定的设备记录可通过「被邀请人设备ID」筛选查看。</li>
         <li>奖励规则配置不在本页，活动实体仅保存规则摘要文本用于展示。</li>
       </ul>
     </div>
@@ -1443,6 +1506,7 @@ const statusBindMap = {1:{cls:"pass",text:"有效"},2:{cls:"unbind",text:"已解
 function actStatusTag(s){ const m=statusActMap[s]; return `<span class="tag ${m.cls}">${m.text}</span>`; }
 function bindStatusTag(s){ const m=statusBindMap[s]; return `<span class="tag ${m.cls}">${m.text}</span>`; }
 function displayId(value){ return String(value).replace(/^(B-|ACT-)/,""); }
+function escapeAttr(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 /* ==================== 状态 ==================== */
 let currentActId = "ACT-101";   // 默认选中进行中的活动
@@ -1479,13 +1543,6 @@ function doActQuery(silent){
   renderActList();
 }
 
-function resetActQuery(){
-  document.getElementById("fActId").value = "";
-  document.getElementById("fActName").value = "";
-  doActQuery(true);
-  showToast("已重置筛选条件");
-}
-
 function goActPage(delta){
   const totalPages = Math.max(1, Math.ceil(actFiltered.length / ACT_PAGE_SIZE));
   const next = actPageIndex + delta;
@@ -1511,6 +1568,7 @@ function renderActList(){
     return `<tr>
       <td class="col-id"><span class="link" onclick="enterDetail('${a.id}')">${displayId(a.id)}</span></td>
       <td>${a.name}</td>
+      <td class="col-desc" title="${escapeAttr(a.desc||"")}">${a.desc || '<span class="muted">—</span>'}</td>
       <td>${a.createdAt}</td>
       <td>${actStatusTag(a.status)}</td>
       <td>${a.bindingCount}</td>
@@ -1518,7 +1576,7 @@ function renderActList(){
     </tr>`;
   }).join("");
   if(pageRows.length===0){
-    el.innerHTML = `<tr class="empty-row"><td colspan="6">暂无活动</td></tr>`;
+    el.innerHTML = `<tr class="empty-row"><td colspan="7">暂无活动</td></tr>`;
   }
 }
 
@@ -1644,7 +1702,7 @@ function confirmCreateAct(){
 /* ==================== 筛选 ==================== */
 function doQuery(silent){
   const idValue = document.getElementById("fIdValue").value.trim();
-  const idType = "all";
+  const idType = document.getElementById("fIdType").value;
   const fBind = document.getElementById("fBindStatus").value;
   const sDate = document.getElementById("dr-bind-s").value;
   const eDate = document.getElementById("dr-bind-e").value;
@@ -1652,8 +1710,8 @@ function doQuery(silent){
   const list = currentBindings();
   filteredRows = list.filter(r=>{
     if(idValue){
-      const values = [r.oldRoleId, r.oldPassId, r.newRoleId, r.newPassId, r.deviceId];
-      if(!values.some(v=>String(v||"").toLowerCase().includes(idValue.toLowerCase()))) return false;
+      // ID 为精确匹配（全等），不做模糊包含
+      if(String(r[idType]||"").toLowerCase() !== idValue.toLowerCase()) return false;
     }
     if(fBind && String(r.status)!==fBind) return false;
     if(sDate && r.bindTime.slice(0,10) < sDate) return false;
@@ -1663,19 +1721,6 @@ function doQuery(silent){
   pageIndex = 1;
   renderTable();
   renderActMeta();
-}
-
-function resetQuery(){
-  document.getElementById("fIdValue").value = "";
-  document.getElementById("fBindStatus").value = "";
-  document.getElementById("dr-bind-s").value = "";
-  document.getElementById("dr-bind-e").value = "";
-  // 同步清空原生 date
-  const natives = document.querySelectorAll("#dr-bind .dr-inputs input[type='date']");
-  natives[0].value=""; natives[1].value="";
-  document.querySelectorAll("#dr-bind .dr-shortcut").forEach(b=>b.classList.remove("active"));
-  doQuery(true);
-  showToast("已重置筛选条件");
 }
 
 /* ==================== 表格渲染 ==================== */
@@ -1721,7 +1766,7 @@ function goPage(delta){
 /* ==================== 导出 ==================== */
 function exportData(){
   if(filteredRows.length===0){ showToast("当前无数据可导出"); return; }
-  const headers = ["绑定ID","邀请人角色ID","邀请人通行证ID","被邀请人角色ID","被邀请人通行证ID","设备ID","绑定时间","绑定状态","解绑时间","解绑原因"];
+  const headers = ["绑定ID","邀请人角色ID","邀请人通行证ID","被邀请人角色ID","被邀请人通行证ID","被邀请人设备ID","绑定时间","绑定状态","解绑时间","解绑原因"];
   const lines = [headers.join(",")];
   filteredRows.forEach(r=>{
     lines.push([r.id,r.oldRoleId,r.oldPassId,r.newRoleId,r.newPassId,r.deviceId,r.bindTime,statusBindMap[r.status].text,r.unbindTime||"",r.unbindReason||""].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
