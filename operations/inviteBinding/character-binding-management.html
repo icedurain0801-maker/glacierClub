@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>角色绑定管理</title>
+<style>
+:root{
+  --top:#08243a;
+  --side:#031525;
+  --side-2:#061d31;
+  --side-3:#02101c;
+  --blue:#1890ff;
+  --blue-2:#168cff;
+  --line:#e6e9ee;
+  --line-2:#f0f2f5;
+  --page:#eef2f6;
+  --text:#202733;
+  --muted:#8994a3;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;
+  background:var(--page);
+  color:var(--text);
+  font-size:13px;
+}
+button,input,select,textarea{font:inherit}
+.shell{
+  position:relative;
+  width:100vw;
+  min-width:1360px;
+  height:100vh;
+  background:var(--page);
+  overflow:hidden;
+}
+.platform{
+  height:42px;
+  display:flex;
+  align-items:center;
+  background:var(--top);
+  color:#d5e7f7;
+  box-shadow:0 1px 0 rgba(0,0,0,.18);
+}
+.plat-brand{
+  width:128px;
+  height:42px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding-left:7px;
+  color:#eef8ff;
+  font-size:15px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.plat-mark{
+  width:24px;
+  height:22px;
+  display:grid;
+  grid-template-columns:repeat(4,4px);
+  gap:2px;
+  align-items:end;
+}
+.plat-mark span{
+  display:block;
+  width:4px;
+  border-radius:2px;
+  background:#27a4ff;
+  box-shadow:0 0 6px rgba(39,164,255,.36);
+}
+.plat-mark span:nth-child(1){height:15px}
+.plat-mark span:nth-child(2){height:21px}
+.plat-mark span:nth-child(3){height:18px}
+.plat-mark span:nth-child(4){height:22px}
+.plat-nav{
+  height:42px;
+  display:flex;
+  align-items:center;
+  gap:0;
+  min-width:0;
+}
+.plat-nav a{
+  height:42px;
+  display:flex;
+  align-items:center;
+  padding:0 17px;
+  color:#d6e1ee;
+  text-decoration:none;
+  font-size:13px;
+  white-space:nowrap;
+}
+.plat-nav a.active{
+  color:#fff;
+  font-weight:600;
+}
+.workspace{
+  position:absolute;
+  inset:42px 0 0 0;
+  display:flex;
+}
+.sidebar{
+  width:214px;
+  height:100%;
+  background:var(--side);
+  color:#aebed0;
+  flex:0 0 auto;
+  overflow:hidden;
+  position:relative;
+}
+.app-logo{
+  height:50px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 24px 0 43px;
+  color:#fff;
+  font-size:17px;
+  font-weight:700;
+  background:#06192b;
+}
+.app-logo-icon{
+  width:27px;
+  height:27px;
+  border:2px solid #f1f6fb;
+  border-radius:50%;
+  position:relative;
+  flex:0 0 auto;
+}
+.app-logo-icon:before,
+.app-logo-icon:after{
+  content:"";
+  position:absolute;
+  top:9px;
+  width:5px;
+  height:7px;
+  border:2px solid #f1f6fb;
+  border-bottom:0;
+  border-radius:8px 8px 0 0;
+}
+.app-logo-icon:before{left:6px}
+.app-logo-icon:after{right:6px}
+.menu{
+  height:calc(100% - 50px);
+  overflow-y:auto;
+  padding:0 0 18px;
+}
+.menu::-webkit-scrollbar{width:6px}
+.menu::-webkit-scrollbar-thumb{background:#455a6d;border-radius:4px}
+.menu-item,
+.menu-group{
+  height:41px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 20px 0 24px;
+  color:#c5d1dd;
+  white-space:nowrap;
+  font-size:13px;
+}
+.menu-group.active-head{
+  color:#f4f8fd;
+  background:#082033;
+  font-weight:600;
+}
+.menu-dark{
+  background:var(--side-3);
+  padding:2px 5px 10px 0;
+}
+.menu-child{
+  height:39px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-left:46px;
+  color:#bbc6d2;
+  font-size:13px;
+}
+.menu-child.sub{padding-left:64px;font-size:12.5px}
+.menu-child.active{
+  margin:3px 6px 3px 5px;
+  height:34px;
+  padding-left:59px;
+  border-radius:3px;
+  background:#2394f2;
+  color:#fff;
+  font-weight:600;
+}
+.menu .ico{
+  width:14px;
+  height:14px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:#8fa3b8;
+  flex:0 0 auto;
+}
+.menu .chev{margin-left:auto;color:#788b9f;font-size:12px}
+.main{
+  flex:1;
+  min-width:0;
+  height:100%;
+  position:relative;
+  background:var(--page);
+}
+.tabsbar{
+  height:44px;
+  padding:0 16px;
+  background:#fff;
+  border-bottom:1px solid #d5dce5;
+  display:flex;
+  align-items:center;
+  gap:0;
+  box-shadow:0 2px 0 #f3f5f8;
+}
+.hamb{
+  width:38px;
+  height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#697386;
+  border-right:1px solid #eef1f5;
+}
+.hamb svg,.tool svg,.top-icon svg,.table-tool svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tool{
+  width:40px;
+  height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#6d7480;
+}
+.tabs{
+  display:flex;
+  height:44px;
+  align-items:center;
+  gap:8px;
+  padding:0 8px;
+  margin-left:6px;
+  border-left:1px solid #eef1f5;
+}
+.tab{
+  height:30px;
+  padding:0 8px 0 12px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid #e7ebf0;
+  border-radius:4px;
+  color:#5a6472;
+  background:#f7f9fc;
+  font-size:13px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.tab:hover{color:#1687ed;border-color:#cfe4fb}
+.tab.active{
+  color:#1687ed;
+  background:#eaf4ff;
+  border-color:#9ccafb;
+  font-weight:500;
+}
+.tab .close{
+  width:16px;
+  height:16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  color:#aab3bf;
+  font-size:13px;
+  line-height:1;
+}
+.tab .close:hover{background:#dfe5ec;color:#5a6472}
+.tab.active .close{color:#6ba8e8}
+.tab.active .close:hover{background:#cfe4fb;color:#1687ed}
+.top-actions{
+  margin-left:auto;
+  height:44px;
+  display:flex;
+  align-items:center;
+  gap:13px;
+  padding:0 17px 0 8px;
+  color:#2f3a48;
+}
+.search{
+  width:196px;
+  height:30px;
+  border:1px solid #dde3eb;
+  border-radius:16px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:0 9px;
+  color:#8994a3;
+}
+.search kbd{
+  margin-left:auto;
+  height:18px;
+  min-width:38px;
+  border:1px solid #cbd3dd;
+  border-radius:3px;
+  color:#667384;
+  background:#fff;
+  font-size:11px;
+  line-height:16px;
+  text-align:center;
+  font-family:inherit;
+}
+.env-select{
+  height:30px;
+  width:154px;
+  border:1px solid #dde3eb;
+  border-radius:16px;
+  padding:0 34px 0 15px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color:#334155;
+  background:#fff;
+}
+.top-link,.lang,.time,.user{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  white-space:nowrap;
+  font-size:12px;
+}
+.top-icon{
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#168cff;
+}
+.notice{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.notice .badge{
+  position:absolute;
+  top:-11px;
+  left:10px;
+  min-width:24px;
+  height:17px;
+  padding:0 5px;
+  border-radius:10px;
+  background:#ff4d4f;
+  color:#fff;
+  font-size:12px;
+  line-height:17px;
+  text-align:center;
+  font-weight:700;
+}
+.avatar{
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:#2b8fff;
+}
+.page{
+  height:calc(100% - 44px);
+  overflow:hidden;
+  background:var(--page);
+  position:relative;
+}
+.watermark{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  overflow:hidden;
+}
+.watermark span{
+  position:absolute;
+  display:block;
+  color:rgba(110,124,139,.075);
+  font-size:13px;
+  line-height:1;
+  white-space:nowrap;
+  transform:rotate(-26deg);
+}
+.content{
+  position:relative;
+  z-index:1;
+  padding:0 10px 0 10px;
+}
+/* ---------- 活动工作区 ---------- */
+.act-bar{
+  min-height:58px;
+  margin-top:6px;
+  background:#fff;
+  border-top:1px solid #d5dce5;
+  border-bottom:1px solid #dfe5ec;
+  box-shadow:0 2px 0 #f3f5f8;
+  display:flex;
+  align-items:center;
+  gap:16px;
+  padding:12px 28px;
+}
+.act-label{
+  color:#2a3340;
+  font-size:13px;
+  white-space:nowrap;
+  font-weight:500;
+}
+.act-select{
+  position:relative;
+  min-width:248px;
+  height:32px;
+}
+.act-select .as-input{
+  height:32px;
+  border:1px solid #dcdfe6;
+  border-radius:3px;
+  background:#fff;
+  padding:0 30px 0 11px;
+  display:flex;
+  align-items:center;
+  color:#2f3a48;
+  font-size:13px;
+  cursor:pointer;
+  gap:8px;
+}
+.act-select .as-input:hover{border-color:#168cff}
+.act-select .as-input .as-name{font-weight:500}
+.act-select .as-caret{
+  position:absolute;
+  right:11px;top:14px;
+  width:0;height:0;
+  border-left:4px solid transparent;
+  border-right:4px solid transparent;
+  border-top:5px solid #c8ced6;
+  pointer-events:none;
+}
+.act-select .as-panel{
+  position:absolute;
+  top:36px;left:0;
+  z-index:40;
+  min-width:100%;
+  width:max-content;
+  max-width:380px;
+  background:#fff;
+  border:1px solid #e4e7ed;
+  border-radius:4px;
+  box-shadow:0 4px 16px rgba(16,35,59,.14);
+  max-height:320px;
+  overflow-y:auto;
+}
+.act-select .as-panel::-webkit-scrollbar{width:6px}
+.act-select .as-panel::-webkit-scrollbar-thumb{background:#cfcfcf;border-radius:6px}
+.as-opt{
+  padding:8px 12px;
+  border-bottom:1px solid #f3f5f8;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.as-opt:last-child{border-bottom:0}
+.as-opt:hover{background:#f6fbff}
+.as-opt.sel{background:#eaf4ff}
+.as-opt .as-opt-name{color:#2a3340;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.as-opt .as-opt-meta{color:#8994a3;font-size:12px;white-space:nowrap}
+.as-opt-new{
+  padding:8px 12px;
+  color:#168cff;
+  font-size:13px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  border-top:1px solid #f0f2f5;
+  background:#fbfdff;
+}
+.as-opt-new:hover{background:#eaf4ff}
+.btn-create-act{
+  height:32px;
+  padding:0 14px;
+  border:1px solid #168cff;
+  border-radius:3px;
+  background:#168cff;
+  color:#fff;
+  cursor:pointer;
+  font-size:13px;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  white-space:nowrap;
+}
+.btn-create-act:hover{background:#0f7fe6;border-color:#0f7fe6}
+.act-meta{
+  display:none;
+}
+.act-meta .am-item{display:flex;align-items:center;gap:6px}
+.act-meta .am-label{color:#8994a3}
+.act-meta .am-val{color:#2a3340;font-weight:500}
+.act-meta .am-sep{width:1px;height:14px;background:#e6e9ee}
+/* ---------- 筛选 ---------- */
+.filters{
+  background:#fff;
+  min-height:56px;
+  padding:8px 20px 7px;
+  border-top:1px solid #e5e9ef;
+  border-bottom:1px solid #edf0f5;
+  display:flex;
+  flex-wrap:wrap;
+  align-content:flex-start;
+  gap:12px 9px;
+}
+.field{
+  height:28px;
+  display:flex;
+  align-items:center;
+  color:#2a3340;
+  white-space:nowrap;
+}
+.req{color:#f04134;margin-right:3px}
+.ctrl{
+  height:28px;
+  min-width:206px;
+  border:1px solid #dcdfe6;
+  background:#fff;
+  color:#2f3a48;
+  margin-left:6px;
+  padding:0 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.ctrl.short{min-width:176px}
+.ctrl.mid{min-width:205px}
+.ctrl.input{justify-content:flex-start;color:#adb5c0}
+select.ctrl{
+  margin-left:6px;
+  -webkit-appearance:none;
+  appearance:none;
+  outline:none;
+  cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,#c8ced6 50%),linear-gradient(135deg,#c8ced6 50%,transparent 50%);
+  background-position:calc(100% - 14px) 12px,calc(100% - 9px) 12px;
+  background-size:5px 5px,5px 5px,5px 5px;
+  background-repeat:no-repeat;
+}
+select.ctrl:focus{border-color:#168cff}
+input.ctrl{
+  margin-left:6px;
+  outline:none;
+  cursor:text;
+}
+input.ctrl:focus{border-color:#168cff}
+input.ctrl::placeholder{color:#adb5c0}
+/* ---------- 自定义日期范围选择器 ---------- */
+.dr-wrap{position:relative;margin-left:6px;display:inline-flex;align-items:center;gap:4px}
+.dr-input{
+  height:28px;width:118px;border:1px solid #dcdfe6;background:#fff;
+  color:#2f3a48;padding:0 8px;outline:none;font:inherit;font-size:12px;cursor:pointer;
+}
+.dr-input:focus{border-color:#168cff}
+.dr-input::placeholder{color:#adb5c0}
+.dr-sep{color:#aeb7c2;font-size:12px}
+.dr-panel{
+  position:absolute;top:32px;left:0;z-index:30;
+  background:#fff;border:1px solid #e4e7ed;border-radius:4px;
+  box-shadow:0 4px 16px rgba(16,35,59,.14);padding:10px 14px 12px;
+  min-width:290px;
+}
+.dr-shortcuts{display:flex;gap:8px;margin-bottom:10px}
+.dr-shortcut{
+  height:24px;padding:0 10px;border:1px solid #dcdfe6;border-radius:3px;
+  background:#f7f8fa;color:#4b5563;font-size:12px;cursor:pointer;
+}
+.dr-shortcut:hover{border-color:#168cff;color:#168cff;background:#eaf4ff}
+.dr-shortcut.active{border-color:#168cff;color:#168cff;background:#eaf4ff;font-weight:500}
+.dr-inputs{display:flex;align-items:center;gap:6px}
+.dr-inputs input[type="date"]{
+  height:28px;width:128px;border:1px solid #dcdfe6;border-radius:3px;
+  padding:0 7px;outline:none;font:inherit;font-size:12px;color:#2f3a48;
+}
+.dr-inputs input[type="date"]:focus{border-color:#168cff}
+.dr-inputs input[type="date"]::-webkit-calendar-picker-indicator{opacity:.45;cursor:pointer}
+.dr-inputs span{color:#aeb7c2;font-size:12px}
+.caret{
+  width:0;height:0;
+  border-left:4px solid transparent;
+  border-right:4px solid transparent;
+  border-top:5px solid #c8ced6;
+}
+.btn-query{
+  height:29px;
+  padding:0 17px;
+  border:1px solid #168cff;
+  border-radius:2px;
+  background:#168cff;
+  color:#fff;
+  cursor:pointer;
+  margin-left:1px;
+}
+.btn-reset{
+  height:29px;
+  padding:0 15px;
+  border:1px solid #dcdfe6;
+  border-radius:2px;
+  background:#fff;
+  color:#4b5563;
+  cursor:pointer;
+  margin-left:6px;
+}
+.btn-reset:hover{border-color:#168cff;color:#168cff}
+/* ---------- 表格卡片 ---------- */
+.table-card{
+  margin-top:4px;
+  height:430px;
+  background:#fff;
+  border-top:0;
+  position:relative;
+  overflow:hidden;
+}
+.table-actions{
+  height:50px;
+  display:flex;
+  align-items:center;
+  padding:0 23px;
+  gap:12px;
+}
+.btn-export{
+  height:28px;
+  padding:0 13px;
+  border:1px solid #dcdfe6;
+  background:#fff;
+  color:#4b5563;
+  border-radius:2px;
+  cursor:pointer;
+}
+.btn-export:hover{border-color:#168cff;color:#168cff}
+.batch-count{
+  color:#8994a3;
+  font-size:12px;
+}
+.batch-count b{color:#168cff;font-weight:600}
+.table-tools{
+  margin-left:auto;
+  display:flex;
+  gap:17px;
+  color:#303846;
+}
+.table-tool{
+  width:14px;
+  height:18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.grid{
+  position:absolute;
+  left:23px;
+  right:22px;
+  top:50px;
+  bottom:0;
+  overflow:auto;
+}
+.grid::-webkit-scrollbar{height:9px;width:9px}
+.grid::-webkit-scrollbar-thumb{background:#cfcfcf;border-radius:8px}
+table{
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:12px;
+  background:#fff;
+}
+thead th{
+  height:34px;
+  padding:0 10px;
+  text-align:left;
+  color:#1c2430;
+  font-weight:600;
+  border:1px solid #eef0f3;
+  border-left:0;
+  background:#fbfcfd;
+  position:sticky;
+  top:0;
+  z-index:1;
+}
+thead th:first-child{width:38px;border-left:1px solid #eef0f3;padding:0;text-align:center}
+tbody td{
+  height:46px;
+  padding:6px 10px;
+  color:#39424f;
+  border:1px solid #eef0f3;
+  border-left:0;
+  vertical-align:middle;
+  word-break:break-all;
+  line-height:1.5;
+}
+tbody td:first-child{border-left:1px solid #eef0f3;text-align:center;padding:0}
+tbody tr:hover td{background:#f6fbff}
+.tag{
+  display:inline-block;
+  padding:1px 8px;
+  border-radius:3px;
+  font-size:12px;
+  line-height:18px;
+}
+.tag.wait{color:#d48806;background:#fff7e6;border:1px solid #ffe0a3}
+.tag.pass{color:#389e0d;background:#f6ffed;border:1px solid #b7eb8f}
+.tag.reject{color:#cf1322;background:#fff1f0;border:1px solid #ffccc7}
+.tag.unbind{color:#531dab;background:#f9f0ff;border:1px solid #d3adf7}
+.tag.rebind{color:#0958d9;background:#e6f4ff;border:1px solid #91caff}
+.tag.issued{color:#389e0d;background:#f6ffed;border:1px solid #b7eb8f}
+.tag.pending{color:#d48806;background:#fff7e6;border:1px solid #ffe0a3}
+.tag.ended{color:#8994a3;background:#f4f5f7;border:1px solid #dfe3e8}
+.muted-dash{color:#b8c0cc}
+.link{color:#168cff;cursor:pointer}
+.col-actions{white-space:nowrap}
+.col-id{white-space:nowrap;word-break:keep-all}
+.col-actions .link + .link{margin-left:10px}
+.empty-row td{
+  height:120px;
+  text-align:center;
+  color:#adb5c0;
+  font-size:13px;
+  border:1px solid #eef0f3;
+  border-left:0;
+}
+.empty-row td:first-child{border-left:1px solid #eef0f3}
+/* ---------- 分页 ---------- */
+.pager{
+  position:absolute;
+  right:24px;
+  bottom:14px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  color:#5b6573;
+  font-size:12px;
+}
+.pager .pg-num{
+  min-width:24px;
+  height:24px;
+  padding:0 6px;
+  border:1px solid #dcdfe6;
+  border-radius:3px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#fff;
+  color:#5b6573;
+}
+.pager .pg-num.active{border-color:#168cff;color:#168cff;background:#eaf4ff}
+.pager .pg-arrow{
+  width:24px;
+  height:24px;
+  border:1px solid #dcdfe6;
+  border-radius:3px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#fff;
+  cursor:pointer;
+}
+.pager .pg-arrow:hover{border-color:#168cff;color:#168cff}
+.pager .pg-size{display:flex;align-items:center;gap:5px;cursor:pointer}
+.win{
+  position:absolute;
+  right:78px;
+  bottom:40px;
+  color:rgba(75,82,90,.24);
+  z-index:2;
+  font-size:14px;
+  line-height:1.6;
+}
+.win strong{
+  display:block;
+  font-size:18px;
+  font-weight:400;
+}
+/* ---------- 弹窗 ---------- */
+.modal-mask{
+  position:fixed;
+  inset:0;
+  z-index:80;
+  background:rgba(0,0,0,.32);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.hidden{display:none!important}
+.modal-mask.hidden{display:none}
+.modal{
+  width:520px;
+  background:#fff;
+  border-radius:6px;
+  box-shadow:0 6px 24px rgba(0,0,0,.18);
+  overflow:hidden;
+}
+.modal.wide{width:580px}
+.modal-head{
+  height:48px;
+  padding:0 18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid #edf0f5;
+  font-size:15px;
+  font-weight:600;
+  color:#1c2430;
+}
+.modal-head .x{
+  cursor:pointer;
+  color:#9aa3af;
+  font-size:18px;
+  line-height:1;
+}
+.modal-body{padding:22px 24px 6px}
+.form-row{
+  display:flex;
+  margin-bottom:20px;
+}
+.form-row > label{
+  width:96px;
+  flex:0 0 auto;
+  text-align:right;
+  padding-right:12px;
+  padding-top:6px;
+  color:#2a3340;
+}
+.form-row > label .req{color:#f04134;margin-right:3px}
+.form-row .field-ctrl{flex:1;min-width:0}
+.modal input[type="text"],
+.modal input[type="number"],
+.modal select{
+  width:100%;
+  height:32px;
+  border:1px solid #dcdfe6;
+  border-radius:3px;
+  padding:0 10px;
+  color:#2f3a48;
+  background:#fff;
+  outline:none;
+}
+.modal input[type="text"]:focus,
+.modal input[type="number"]:focus,
+.modal select:focus{border-color:#168cff}
+.modal input[type="date"]{
+  width:100%;
+  height:32px;
+  border:1px solid #dcdfe6;
+  border-radius:3px;
+  padding:0 8px;
+  color:#2f3a48;
+  background:#fff;
+  outline:none;
+}
+.modal input[type="date"]:focus{border-color:#168cff}
+.modal input[readonly]{background:#f7f9fc;color:#8994a3;cursor:default}
+.modal textarea{
+  width:100%;
+  height:84px;
+  border:1px solid #dcdfe6;
+  border-radius:3px;
+  padding:7px 10px;
+  color:#2f3a48;
+  resize:vertical;
+  outline:none;
+  font-family:inherit;
+}
+.modal textarea:focus{border-color:#168cff}
+.date-pair{display:flex;align-items:center;gap:8px}
+.date-pair input[type="date"]{flex:1}
+.date-pair span{color:#aeb7c2;font-size:12px}
+.modal-tip{
+  margin:-12px 0 16px 96px;
+  color:#8994a3;
+  font-size:12px;
+  line-height:1.6;
+}
+.modal-warn{
+  margin:0 0 16px;
+  padding:8px 12px;
+  background:#fff7e6;
+  border:1px solid #ffe0a3;
+  border-radius:3px;
+  color:#ad6800;
+  font-size:12px;
+  line-height:1.6;
+}
+.modal-foot{
+  padding:10px 24px 20px;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
+.btn{
+  height:32px;
+  padding:0 18px;
+  border-radius:3px;
+  cursor:pointer;
+  font-size:13px;
+}
+.btn-cancel{border:1px solid #dcdfe6;background:#fff;color:#4b5563}
+.btn-cancel:hover{border-color:#168cff;color:#168cff}
+.btn-ok{border:1px solid #168cff;background:#168cff;color:#fff}
+.btn-ok:hover{background:#0f7fe6;border-color:#0f7fe6}
+.btn-ok:disabled{background:#b6bec8;border-color:#b6bec8;cursor:not-allowed}
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;
+  top:24px;
+  left:50%;
+  transform:translateX(-50%) translateY(-100%);
+  z-index:200;
+  min-width:240px;
+  max-width:480px;
+  padding:9px 20px;
+  background:rgba(0,0,0,.78);
+  color:#fff;
+  border-radius:4px;
+  font-size:13px;
+  text-align:center;
+  opacity:0;
+  transition:all .25s;
+  pointer-events:none;
+}
+.toast.show{
+  opacity:1;
+  transform:translateX(-50%) translateY(0);
+}
+/* ---------- 需求说明 悬浮按钮 + 侧边栏 ---------- */
+.req-fab{
+  position:fixed;
+  right:24px;
+  bottom:28px;
+  z-index:60;
+  height:36px;
+  padding:0 14px 0 10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:#1c2f45;
+  color:#d8e8f5;
+  font-size:13px;
+  font-weight:600;
+  border-radius:18px;
+  cursor:pointer;
+  box-shadow:0 4px 12px rgba(16,35,59,.28);
+  transition:background .15s;
+  user-select:none;
+  white-space:nowrap;
+}
+.req-fab:hover{background:#243d56}
+.req-fab svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.req-mask{
+  position:fixed;
+  inset:0;
+  z-index:90;
+  background:rgba(0,0,0,.32);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s;
+}
+.req-mask.open{opacity:1;pointer-events:auto}
+.req-drawer{
+  position:fixed;
+  top:0;
+  right:-600px;
+  width:600px;
+  max-width:96vw;
+  height:100vh;
+  z-index:95;
+  background:#fff;
+  box-shadow:-4px 0 24px rgba(0,0,0,.14);
+  display:flex;
+  flex-direction:column;
+  transition:right .3s cubic-bezier(.4,0,.2,1);
+}
+.req-drawer.open{right:0}
+.req-head{
+  height:52px;
+  flex:0 0 auto;
+  padding:0 18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid #edf0f5;
+}
+.req-head .ttl{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-size:15px;
+  font-weight:600;
+  color:#1c2430;
+}
+.req-head .ttl:before{
+  content:"";
+  width:4px;
+  height:16px;
+  border-radius:2px;
+  background:#168cff;
+}
+.req-head .x{
+  width:28px;
+  height:28px;
+  border:0;
+  border-radius:50%;
+  background:#f4f6f9;
+  color:#8c98a6;
+  font-size:17px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.req-head .x:hover{background:#e6eaf0;color:#445}
+.req-body{
+  flex:1;
+  overflow-y:auto;
+  padding:18px 20px 28px;
+}
+.req-body::-webkit-scrollbar{width:7px}
+.req-body::-webkit-scrollbar-thumb{background:#d3d8e0;border-radius:6px}
+.req-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:16px;
+}
+.req-chip{
+  font-size:12px;
+  color:#0958d9;
+  background:#e6f4ff;
+  border:1px solid #91caff;
+  border-radius:11px;
+  padding:2px 10px;
+}
+.req-h2{
+  font-size:15px;
+  font-weight:600;
+  color:#1c2430;
+  margin:22px 0 12px;
+  padding-left:10px;
+  border-left:3px solid #168cff;
+}
+.req-h2:first-child{margin-top:0}
+.req-p{font-size:13px;color:#39424f;line-height:1.8;margin:0 0 12px}
+.req-table{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 18px}
+.req-table th,.req-table td{border:1px solid #eef0f3;padding:8px 10px;text-align:left}
+.req-table th{background:#fbfcfd;color:#1c2430;font-weight:600;width:130px}
+.req-table td{color:#39424f}
+.req-ul{margin:0 0 14px;padding-left:20px;font-size:13px;color:#39424f;line-height:1.9}
+.req-ul li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="platform">
+    <div class="plat-brand">
+      <div class="plat-mark"><span></span><span></span><span></span><span></span></div>
+      <span>冰川业务平台</span>
+    </div>
+    <nav class="plat-nav" aria-label="平台导航">
+      <a class="active">游戏运营后台</a>
+      <a>自动化运维</a>
+      <a>自动化部署</a>
+      <a>SDK 管理后台</a>
+      <a>会员管理后台</a>
+      <a>数据分析</a>
+      <a>客服后台</a>
+      <a>活动管理系统</a>
+      <a>聊天系统</a>
+      <a>联合业务后台</a>
+      <a>开放平台</a>
+      <a>通用配置</a>
+    </nav>
+  </header>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="app-logo"><span class="app-logo-icon"></span><span>游戏运营后台</span></div>
+      <nav class="menu">
+        <div class="menu-item"><span class="ico">⌂</span><span>首页</span></div>
+        <div class="menu-group"><span class="ico">♙</span><span>游戏中心</span><span class="chev">⌄</span></div>
+        <div class="menu-group"><span class="ico">♙</span><span>玩家中心</span><span class="chev">⌄</span></div>
+        <div class="menu-group active-head"><span class="ico">♙</span><span>活动中心</span><span class="chev">⌃</span></div>
+        <div class="menu-dark">
+          <div class="menu-child"><span class="ico">♧</span><span>活动配置</span><span class="chev">⌄</span></div>
+          <div class="menu-child"><span class="ico">♙</span><span>活动数据看板</span></div>
+          <div class="menu-child"><span class="ico">♙</span><span>活动奖励发放</span><span class="chev">⌄</span></div>
+          <div class="menu-child sub">即时奖励</div>
+          <div class="menu-child sub">阶梯奖励</div>
+          <div class="menu-child sub hidden">累计奖励</div>
+          <div class="menu-child"><span class="ico">♧</span><span>邀请绑定管理</span><span class="chev">⌃</span></div>
+          <div class="menu-child sub hidden">活动总览</div>
+          <div class="menu-child sub active">角色绑定管理</div>
+          <div class="menu-child sub hidden">邀请奖励明细</div>
+          <div class="menu-child"><span class="ico">♙</span><span>签到活动管理</span></div>
+        </div>
+        <div class="menu-group"><span class="ico">◌</span><span>交易中心</span><span class="chev">⌄</span></div>
+        <div class="menu-group"><span class="ico">▤</span><span>数据中心</span><span class="chev">⌄</span></div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="tabsbar">
+        <div class="hamb">
+          <svg viewBox="0 0 24 24"><line x1="5" y1="7" x2="19" y2="7"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="17" x2="19" y2="17"/></svg>
+        </div>
+        <div class="tool"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></div>
+        <div class="tabs">
+          <div class="tab home">首页 <span class="close">×</span></div>
+          <div class="tab active">角色绑定管理 <span class="close">×</span></div>
+        </div>
+        <div class="top-actions">
+          <div class="search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+            <span>输入功能名称</span><kbd>Ctrl+K</kbd>
+          </div>
+          <div class="env-select"><span>暮光</span><span class="caret"></span></div>
+          <div class="top-link"><span class="top-icon">?</span><span>帮助</span></div>
+          <div class="lang">▣ 简体</div>
+          <div class="time"><span class="top-icon">◷</span><span>UTC+8</span></div>
+          <div class="notice"><span class="badge">12</span><span class="top-icon">♟</span><span>通知</span></div>
+          <div class="user"><span class="avatar"></span><span>刘福毅</span><span>⌄</span></div>
+        </div>
+      </div>
+
+      <section class="page">
+        <div class="watermark" id="watermark"></div>
+        <div class="content">
+
+          <!-- ========== 外层：活动列表页 ========== -->
+          <div id="view-activity" style="padding-top:12px">
+            <form class="filters" id="actFilters" onsubmit="return false">
+              <label class="field">活动ID:<input type="text" class="ctrl mid" id="fActId" placeholder="请输入"></label>
+              <label class="field">活动名称:<input type="text" class="ctrl mid" id="fActName" placeholder="请输入"></label>
+              <button class="btn-query" type="button" onclick="doActQuery()">查 询</button>
+              <button class="btn-reset" type="button" onclick="resetActQuery()">重 置</button>
+            </form>
+            <section class="table-card" style="height:560px">
+              <div class="table-actions">
+                <button class="btn-create-act" type="button" onclick="openCreateAct()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  创建活动
+                </button>
+                <span class="batch-count" style="color:#5b6573;margin-left:12px">共 <b id="actTotal" style="color:#168cff">0</b> 个活动</span>
+              </div>
+              <div class="grid">
+                <table style="width:100%">
+                  <colgroup>
+                    <col style="width:16.66%">
+                    <col style="width:16.66%">
+                    <col style="width:16.66%">
+                    <col style="width:16.66%">
+                    <col style="width:16.66%">
+                    <col style="width:16.7%">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>活动ID</th>
+                      <th>活动名称</th>
+                      <th>创建时间</th>
+                      <th>状态</th>
+                      <th>有效绑定</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="actTbody"></tbody>
+                </table>
+              </div>
+              <div class="pager">
+                <span id="actPgTotal">共 0 条</span>
+                <span class="pg-arrow" id="actPgPrev" onclick="goActPage(-1)">‹</span>
+                <span class="pg-num active" id="actPgNum">1</span>
+                <span class="pg-arrow" id="actPgNext" onclick="goActPage(1)">›</span>
+                <span class="pg-size">10 条/页 <span class="caret"></span></span>
+              </div>
+            </section>
+          </div>
+
+          <!-- ========== 内层：绑定明细页 ========== -->
+          <div id="view-detail" class="hidden">
+            <div class="act-bar" style="padding-top:8px;padding-bottom:8px;height:60px">
+              <button class="btn-reset" type="button" onclick="goBack()" style="margin-right:12px">‹ 返回活动列表</button>
+              <span class="act-label" id="detailActName">—</span>
+              <div class="act-meta" id="actMeta"></div>
+              <button class="btn-reset hidden" id="endActDetailBtn" type="button" onclick="openEndAct(currentActId)">结束活动</button>
+            </div>
+
+            <!-- 筛选栏 -->
+            <form class="filters" id="filters" onsubmit="return false">
+              <label class="field">
+                <input type="text" class="ctrl mid" id="fIdValue" placeholder="请输入">
+              </label>
+              <label class="field">绑定状态:
+                <select class="ctrl short" id="fBindStatus">
+                  <option value="">不限</option>
+                  <option value="1">有效</option>
+                  <option value="2">已解绑</option>
+                </select>
+              </label>
+              <div class="field">绑定时间:
+                <div class="dr-wrap" id="dr-bind">
+                  <input class="dr-input" id="dr-bind-s" type="text" placeholder="开始日期" readonly>
+                  <span class="dr-sep">→</span>
+                  <input class="dr-input" id="dr-bind-e" type="text" placeholder="结束日期" readonly>
+                  <div class="dr-panel hidden">
+                    <div class="dr-shortcuts">
+                      <button class="dr-shortcut" type="button" data-range="week">本周</button>
+                      <button class="dr-shortcut" type="button" data-range="month">本月</button>
+                      <button class="dr-shortcut" type="button" data-range="last7">近7天</button>
+                      <button class="dr-shortcut" type="button" data-range="last30">近30天</button>
+                    </div>
+                    <div class="dr-inputs">
+                      <input type="date"><span>→</span><input type="date">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button class="btn-query" type="button" onclick="doQuery()">查 询</button>
+              <button class="btn-reset" type="button" onclick="resetQuery()">重 置</button>
+            </form>
+
+            <!-- 表格卡片 -->
+            <section class="table-card">
+              <div class="table-actions">
+                <button class="btn-export" type="button" onclick="exportData()">导出</button>
+                <div class="table-tools" aria-label="表格工具">
+                  <span class="table-tool" title="刷新"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span>
+                  <span class="table-tool" title="列设置"><svg viewBox="0 0 24 24"><path d="M12 4v16"/><path d="M8 8h8"/><path d="M8 16h8"/></svg></span>
+                  <span class="table-tool" title="设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.05.05a2.2 2.2 0 0 1-3.11 3.11l-.05-.05a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.66V21a2.2 2.2 0 0 1-4.4 0v-.08A1.8 1.8 0 0 0 8 19.26a1.8 1.8 0 0 0-2 .36l-.05.05a2.2 2.2 0 0 1-3.11-3.11l.05-.05a1.8 1.8 0 0 0 .36-2 1.8 1.8 0 0 0-1.66-1.1H1.5a2.2 2.2 0 0 1 0-4.4h.08A1.8 1.8 0 0 0 3.24 8a1.8 1.8 0 0 0-.36-2l-.05-.05a2.2 2.2 0 0 1 3.11-3.11l.05.05A1.8 1.8 0 0 0 8 3.24a1.8 1.8 0 0 0 1.1-1.66V1.5a2.2 2.2 0 0 1 4.4 0v.08A1.8 1.8 0 0 0 15 3.24a1.8 1.8 0 0 0 2-.36l.05-.05a2.2 2.2 0 0 1 3.11 3.11l-.05.05a1.8 1.8 0 0 0-.36 2 1.8 1.8 0 0 0 1.66 1.1h.08a2.2 2.2 0 0 1 0 4.4h-.08A1.8 1.8 0 0 0 19.4 15z"/></svg></span>
+                </div>
+              </div>
+              <div class="grid">
+                <table style="width:100%">
+                  <colgroup>
+                    <col style="width:14.28%">
+                    <col style="width:14.28%">
+                    <col style="width:14.28%">
+                    <col style="width:14.28%">
+                    <col style="width:14.28%">
+                    <col style="width:14.28%">
+                    <col style="width:14.32%">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>绑定ID</th>
+                      <th>邀请人角色ID</th>
+                      <th>邀请人通行证ID</th>
+                      <th>被邀请人角色ID</th>
+                      <th>被邀请人通行证ID</th>
+                      <th>设备ID</th>
+                      <th>绑定时间</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody"></tbody>
+                </table>
+              </div>
+              <div class="pager">
+                <span id="pgTotal">共 0 条</span>
+                <span class="pg-arrow" id="pgPrev" onclick="goPage(-1)">‹</span>
+                <span class="pg-num active" id="pgNum">1</span>
+                <span class="pg-arrow" id="pgNext" onclick="goPage(1)">›</span>
+                <span class="pg-size">10 条/页 <span class="caret"></span></span>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="win"><strong>激活 Windows</strong>转到“设置”以激活 Windows。</div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 创建活动弹窗 -->
+  <div class="modal-mask hidden" id="createActModal">
+    <div class="modal wide">
+      <div class="modal-head">
+        <span>创建邀请绑定活动</span>
+        <span class="x" onclick="closeCreateAct()">×</span>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label><span class="req">*</span>活动名称</label>
+          <div class="field-ctrl">
+            <input type="text" id="actName" placeholder="如：夏日老带新第3期" maxlength="40">
+          </div>
+        </div>
+        <div class="form-row">
+          <label>规则说明</label>
+          <div class="field-ctrl">
+            <textarea id="actDesc" placeholder="活动规则详细说明，如被邀请人需达到X级才算有效绑定、奖励发放时间等"></textarea>
+          </div>
+        </div>
+        <div class="modal-tip">周期活动数据独立结算：新活动创建后从0开始记录绑定，历史活动数据保留可查看，不影响新活动统计。</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-cancel" onclick="closeCreateAct()">取消</button>
+        <button class="btn btn-ok" onclick="confirmCreateAct()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 结束活动确认弹窗 -->
+  <div class="modal-mask hidden" id="endActModal">
+    <div class="modal">
+      <div class="modal-head">
+        <span>结束活动确认</span>
+        <span class="x" onclick="closeEndAct()">×</span>
+      </div>
+      <div class="modal-body">
+        <div class="modal-warn">结束活动后，游戏将停止请求，且该操作不可恢复。</div>
+        <p class="req-p" id="endActText">确认结束当前活动吗？</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-cancel" onclick="closeEndAct()">取消</button>
+        <button class="btn btn-ok" onclick="confirmEndAct()">确认结束</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 创建活动冲突确认弹窗 -->
+  <div class="modal-mask hidden" id="createConflictModal">
+    <div class="modal">
+      <div class="modal-head">
+        <span>切换进行中活动</span>
+        <span class="x" onclick="closeCreateConflict()">×</span>
+      </div>
+      <div class="modal-body">
+        <div class="modal-warn">当前已有进行中的活动，创建新活动后将自动结束该活动，游戏将停止请求。</div>
+        <p class="req-p" id="createConflictText">确认结束当前活动并创建新活动吗？</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-cancel" onclick="closeCreateConflict()">取消</button>
+        <button class="btn btn-ok" onclick="confirmCreateConflict()">确认并创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div class="toast" id="toast"><span id="toastText"></span></div>
+
+  <!-- 需求说明 -->
+  <div class="req-fab" onclick="openReq()">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+    需求说明
+  </div>
+  <div class="req-mask" id="reqMask" onclick="closeReq()"></div>
+  <aside class="req-drawer" id="reqDrawer">
+    <div class="req-head">
+      <span class="ttl">角色绑定管理 · 需求说明</span>
+      <button class="x" onclick="closeReq()">×</button>
+    </div>
+    <div class="req-body">
+      <div class="req-meta">
+        <span class="req-chip">周期活动</span>
+        <span class="req-chip">老带新</span>
+        <span class="req-chip">邀请绑定</span>
+        <span class="req-chip">两级页面</span>
+      </div>
+
+      <h2 class="req-h2">一、业务背景</h2>
+      <p class="req-p">游戏「老带新」周期活动：邀请人邀请被邀请人进入游戏，被邀请人完成首次登录后绑定到邀请人名下，邀请人据此获取邀请奖励。本页面用于后台记录该绑定关系，并按活动周期独立结算，下一期清零重算。</p>
+
+      <h2 class="req-h2">二、核心目标</h2>
+      <ul class="req-ul">
+        <li>支持创建周期活动，每次活动数据独立归当次活动，下一期清零重算。</li>
+        <li>记录每次绑定关系：邀请人/被邀请人角色ID、邀请人/被邀请人冰川通行证ID、设备ID、绑定时间。</li>
+        <li>提供绑定记录的查询、查看与导出能力（本页为只读，不做解绑等修改操作）。</li>
+      </ul>
+
+      <h2 class="req-h2">三、页面结构（两级页面）</h2>
+      <p class="req-p">外层为<strong>活动列表页</strong>，内层为<strong>绑定明细页</strong>，同文件内通过 view 切换。</p>
+      <ul class="req-ul">
+        <li><strong>活动列表页</strong>：顶部为活动ID + 活动名称筛选；【创建活动】按钮位于列表左上角；表格列为活动ID/活动名称/创建时间/状态/有效绑定/操作（详情/结束）；带分页器。</li>
+        <li><strong>绑定明细页</strong>：点击活动列表"详情"进入；顶部为"返回活动列表"按钮 + 当前活动名 + 活动状态摘要（活动ID/状态/创建时间/有效绑定数）；筛选栏为ID类型下拉+输入框、绑定状态、绑定时间范围；表格列为绑定ID/邀请人角色ID/邀请人通行证ID/被邀请人角色ID/被邀请人通行证ID/设备ID/绑定时间，列宽均分；带分页器与导出。</li>
+      </ul>
+
+      <h2 class="req-h2">四、数据模型与ID规则</h2>
+      <table class="req-table">
+        <tr><th>活动字段</th><td>活动ID、活动名称、创建时间、状态(进行中/已结束)、奖励规则、规则说明、有效绑定数</td></tr>
+        <tr><th>绑定记录字段</th><td>绑定ID、活动ID、邀请人角色ID、邀请人通行证ID、被邀请人角色ID、被邀请人通行证ID、设备ID、绑定时间、绑定状态(有效/已解绑)、解绑时间、解绑原因</td></tr>
+        <tr><th>活动ID规则</th><td>从 <strong>ACT-100</strong> 开始自增（ACT-100、ACT-101、ACT-102…）</td></tr>
+        <tr><th>绑定ID规则</th><td>从 <strong>B-10000</strong> 开始自增（B-10000、B-10001…）</td></tr>
+        <tr><th>角色ID/通行证ID</th><td>均为<strong>纯数字</strong>（如 8800123、465486750），无字母前缀</td></tr>
+      </table>
+
+      <h2 class="req-h2">五、交互逻辑</h2>
+      <ul class="req-ul">
+        <li>活动列表：按活动ID/活动名称本地过滤；点击"详情"进入该活动绑定明细页；新建活动后刷新列表。</li>
+        <li>绑定明细：切换活动 → 重新渲染该活动记录 + 更新状态摘要；返回活动列表 → 回到外层。</li>
+        <li>查询：按ID类型（邀请人/被邀请人角色ID、邀请人/被邀请人通行证ID、设备ID）+ 输入值、绑定状态、绑定时间范围本地过滤。</li>
+        <li>导出：当前筛选结果导出 CSV（UTF-8 BOM）。</li>
+        <li>进行中活动可点击"结束"，经二次确认后状态变为已结束，绑定记录仍仅支持查询、查看与导出。</li>
+        <li>本页绑定记录为只读：仅提供查询、查看与导出，不提供解绑等修改操作；绑定状态（含已解绑）仅作展示。</li>
+      </ul>
+
+      <h2 class="req-h2">六、边界与异常</h2>
+      <ul class="req-ul">
+        <li>无活动 / 活动无记录 → 表格展示空态。</li>
+        <li>活动有进行中/已结束两种状态；进行中活动可点击"结束"，经二次确认后状态变为已结束，并模拟停止游戏请求。</li>
+        <li>同设备多账号用于反作弊排查，仅作筛选与展示，不做强约束。</li>
+        <li>奖励规则配置不在本页，活动实体仅保存规则摘要文本用于展示。</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ==================== 数据 ==================== */
+let actSeq = 102;
+const activities = [
+  {id:"ACT-100", name:"夏日老带新第1期", createdAt:"2026-06-01 09:00:00", status:2, rule:"每拉新1人奖励200绑钻，单人上限5人", desc:"被邀请人需达到20级才算有效绑定，奖励于活动结束后7个工作日内发放", bindingCount:0},
+  {id:"ACT-101", name:"夏日老带新第2期", createdAt:"2026-07-01 09:30:00", status:1, rule:"每拉新1人奖励300绑钻，单人上限8人", desc:"被邀请人需达到20级才算有效绑定，奖励于活动结束后7个工作日内发放", bindingCount:0},
+  {id:"ACT-102", name:"春节老带新预热", createdAt:"2026-07-08 14:20:00", status:2, rule:"每拉新1人奖励500绑钻，单人上限10人", desc:"预热活动，被邀请人达到15级即算有效绑定", bindingCount:0}
+];
+
+let bindSeq = 10007;
+const bindingsByActivity = {
+  "ACT-100": [
+    {id:"B-10000", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900345", newPassId:"475075362", deviceId:"DEV-A8F3C2-91", bindTime:"2026-06-03 10:11:20", status:1, unbindTime:"", unbindReason:""},
+    {id:"B-10001", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900451", newPassId:"482100334", deviceId:"DEV-A8F3C2-91", bindTime:"2026-06-05 14:23:08", status:2, unbindTime:"2026-06-10 09:30:00", unbindReason:"同设备多账号疑似刷单，人工解除"},
+    {id:"B-10002", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900512", newPassId:"490012887", deviceId:"DEV-2B71E0-44", bindTime:"2026-06-08 18:07:32", status:1, unbindTime:"", unbindReason:""}
+  ],
+  "ACT-101": [
+    {id:"B-10003", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900678", newPassId:"501234421", deviceId:"DEV-A8F3C2-91", bindTime:"2026-07-02 09:41:55", status:1, unbindTime:"", unbindReason:""},
+    {id:"B-10004", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900723", newPassId:"502345882", deviceId:"DEV-C0D9A1-77", bindTime:"2026-07-03 16:33:09", status:1, unbindTime:"", unbindReason:""},
+    {id:"B-10005", oldRoleId:"6655478", oldPassId:"465486750", newRoleId:"9900755", newPassId:"503456113", deviceId:"DEV-2B71E0-44", bindTime:"2026-07-04 08:25:44", status:1, unbindTime:"", unbindReason:""},
+    {id:"B-10006", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900812", newPassId:"504567244", deviceId:"DEV-A8F3C2-91", bindTime:"2026-07-05 20:18:42", status:2, unbindTime:"2026-07-07 10:00:00", unbindReason:"玩家申诉：误绑非邀请人"},
+    {id:"B-10007", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900856", newPassId:"505678355", deviceId:"DEV-E5F2C8-12", bindTime:"2026-07-06 12:50:33", status:1, unbindTime:"", unbindReason:""}
+  ],
+  "ACT-102": []
+};
+
+const statusActMap = {1:{cls:"rebind",text:"进行中"},2:{cls:"ended",text:"已结束"}};
+const statusBindMap = {1:{cls:"pass",text:"有效"},2:{cls:"unbind",text:"已解绑"}};
+
+function actStatusTag(s){ const m=statusActMap[s]; return `<span class="tag ${m.cls}">${m.text}</span>`; }
+function bindStatusTag(s){ const m=statusBindMap[s]; return `<span class="tag ${m.cls}">${m.text}</span>`; }
+function displayId(value){ return String(value).replace(/^(B-|ACT-)/,""); }
+
+/* ==================== 状态 ==================== */
+let currentActId = "ACT-101";   // 默认选中进行中的活动
+let filteredRows = [];
+let pageIndex = 1;
+const PAGE_SIZE = 10;
+
+/* ==================== 活动工作区 ==================== */
+function getAct(id){ return activities.find(a=>a.id===id); }
+function currentAct(){ return getAct(currentActId); }
+function currentBindings(){ return bindingsByActivity[currentActId] || []; }
+
+function refreshActCounts(actId){
+  const act = getAct(actId);
+  if(!act) return;
+  const list = bindingsByActivity[actId] || [];
+  act.bindingCount = list.filter(r=>r.status===1).length;        // 有效绑定数
+}
+
+/* ==================== 活动列表 ==================== */
+let actFiltered = [];
+let actPageIndex = 1;
+const ACT_PAGE_SIZE = 10;
+
+function doActQuery(silent){
+  const fId = document.getElementById("fActId").value.trim();
+  const fName = document.getElementById("fActName").value.trim();
+  actFiltered = activities.filter(a=>{
+    if(fId && !a.id.toLowerCase().includes(fId.toLowerCase())) return false;
+    if(fName && !a.name.toLowerCase().includes(fName.toLowerCase())) return false;
+    return true;
+  });
+  actPageIndex = 1;
+  renderActList();
+}
+
+function resetActQuery(){
+  document.getElementById("fActId").value = "";
+  document.getElementById("fActName").value = "";
+  doActQuery(true);
+  showToast("已重置筛选条件");
+}
+
+function goActPage(delta){
+  const totalPages = Math.max(1, Math.ceil(actFiltered.length / ACT_PAGE_SIZE));
+  const next = actPageIndex + delta;
+  if(next<1 || next>totalPages) return;
+  actPageIndex = next;
+  renderActList();
+}
+
+function renderActList(){
+  refreshActCountsForAll();
+  const el = document.getElementById("actTbody");
+  const total = actFiltered.length;
+  document.getElementById("actTotal").textContent = total;
+  document.getElementById("actPgTotal").textContent = `共 ${total} 条`;
+  document.getElementById("actPgNum").textContent = actPageIndex;
+  const totalPages = Math.max(1, Math.ceil(total / ACT_PAGE_SIZE));
+  document.getElementById("actPgPrev").style.opacity = actPageIndex<=1 ? ".4" : "1";
+  document.getElementById("actPgNext").style.opacity = actPageIndex>=totalPages ? ".4" : "1";
+
+  const start = (actPageIndex-1)*ACT_PAGE_SIZE;
+  const pageRows = actFiltered.slice(start, start+ACT_PAGE_SIZE);
+  el.innerHTML = pageRows.map(a=>{
+    return `<tr>
+      <td class="col-id"><span class="link" onclick="enterDetail('${a.id}')">${displayId(a.id)}</span></td>
+      <td>${a.name}</td>
+      <td>${a.createdAt}</td>
+      <td>${actStatusTag(a.status)}</td>
+      <td>${a.bindingCount}</td>
+      <td class="col-actions"><span class="link" onclick="enterDetail('${a.id}')">详情</span>${a.status===1 ? ` <span class="link" onclick="openEndAct('${a.id}')">结束</span>` : ""}</td>
+    </tr>`;
+  }).join("");
+  if(pageRows.length===0){
+    el.innerHTML = `<tr class="empty-row"><td colspan="6">暂无活动</td></tr>`;
+  }
+}
+
+function renderActMeta(){
+  const act = currentAct();
+  const el = document.getElementById("actMeta");
+  const endBtn = document.getElementById("endActDetailBtn");
+  if(!act){ el.innerHTML=""; endBtn.classList.add("hidden"); return; }
+  refreshActCounts(act.id);
+  endBtn.classList.toggle("hidden", act.status!==1);
+  el.innerHTML = `
+    <span class="am-item"><span class="am-label">活动ID:</span><span class="am-val">${act.id}</span></span>
+    <span class="am-sep"></span>
+    <span class="am-item">${actStatusTag(act.status)}</span>
+    <span class="am-sep"></span>
+    <span class="am-item"><span class="am-label">创建时间:</span><span class="am-val">${act.createdAt}</span></span>
+    <span class="am-sep"></span>
+    <span class="am-item"><span class="am-label">有效绑定:</span><span class="am-val">${act.bindingCount}</span></span>`;
+}
+
+function refreshActCountsForAll(){
+  activities.forEach(a=>refreshActCounts(a.id));
+}
+
+/* ==================== 页面切换 ==================== */
+function showView(name){
+  document.getElementById("view-activity").classList.toggle("hidden", name!=="activity");
+  document.getElementById("view-detail").classList.toggle("hidden", name!=="detail");
+}
+
+function enterDetail(id){
+  currentActId = id;
+  pageIndex = 1;
+  const act = currentAct();
+  document.getElementById("detailActName").textContent = act ? act.name : "—";
+  showView("detail");
+  renderActMeta();
+  doQuery(true);
+}
+
+function goBack(){
+  showView("activity");
+  doActQuery(true);
+}
+
+/* ==================== 创建活动 ==================== */
+function openCreateAct(){
+  document.getElementById("actName").value = "";
+  document.getElementById("actDesc").value = "";
+  document.getElementById("createActModal").classList.remove("hidden");
+}
+function closeCreateAct(){ document.getElementById("createActModal").classList.add("hidden"); }
+
+let endActId = null;
+let pendingCreate = null;
+function getActiveAct(){ return activities.find(a=>a.status===1) || null; }
+function closeCreateConflict(){
+  pendingCreate = null;
+  document.getElementById("createConflictModal").classList.add("hidden");
+}
+function confirmCreateConflict(){
+  const active = getActiveAct();
+  if(active) active.status = 2;
+  const draft = pendingCreate;
+  closeCreateConflict();
+  if(draft) createActivity(draft);
+  showToast(active ? `活动「${active.name}」已结束，游戏请求已停止` : "已处理进行中活动");
+}
+function openEndAct(id){
+  const act = getAct(id);
+  if(!act || act.status!==1) return;
+  endActId = id;
+  document.getElementById("endActText").textContent = `确认结束活动「${act.name}」吗？`;
+  document.getElementById("endActModal").classList.remove("hidden");
+}
+function closeEndAct(){
+  endActId = null;
+  document.getElementById("endActModal").classList.add("hidden");
+}
+function confirmEndAct(){
+  const act = getAct(endActId);
+  if(!act || act.status!==1){ closeEndAct(); return; }
+  act.status = 2;
+  const endedName = act.name;
+  closeEndAct();
+  renderActList();
+  renderActMeta();
+  showToast(`活动「${endedName}」已结束，游戏请求已停止`);
+}
+
+function createActivity({name, desc}){
+  actSeq += 1;
+  const id = "ACT-" + actSeq;
+  const now = new Date();
+  const pad = n=>String(n).padStart(2,"0");
+  const createdAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const act = {id, name, createdAt, status:1, rule:"—", desc: desc||"—", bindingCount:0};
+  activities.unshift(act);
+  bindingsByActivity[id] = [];
+  currentActId = id;
+  pageIndex = 1;
+  doActQuery(true);
+  showToast(`活动「${name}」已创建并置顶`);
+}
+
+function confirmCreateAct(){
+  const name = document.getElementById("actName").value.trim();
+  const desc = document.getElementById("actDesc").value.trim();
+  if(!name){ showToast("请输入活动名称"); return; }
+
+  const active = getActiveAct();
+  pendingCreate = {name, desc};
+  closeCreateAct();
+  if(active){
+    document.getElementById("createConflictText").textContent = `当前进行中活动「${active.name}」将被结束，确认创建「${name}」吗？`;
+    document.getElementById("createConflictModal").classList.remove("hidden");
+    return;
+  }
+  createActivity(pendingCreate);
+  pendingCreate = null;
+}
+
+/* ==================== 筛选 ==================== */
+function doQuery(silent){
+  const idValue = document.getElementById("fIdValue").value.trim();
+  const idType = "all";
+  const fBind = document.getElementById("fBindStatus").value;
+  const sDate = document.getElementById("dr-bind-s").value;
+  const eDate = document.getElementById("dr-bind-e").value;
+
+  const list = currentBindings();
+  filteredRows = list.filter(r=>{
+    if(idValue){
+      const values = [r.oldRoleId, r.oldPassId, r.newRoleId, r.newPassId, r.deviceId];
+      if(!values.some(v=>String(v||"").toLowerCase().includes(idValue.toLowerCase()))) return false;
+    }
+    if(fBind && String(r.status)!==fBind) return false;
+    if(sDate && r.bindTime.slice(0,10) < sDate) return false;
+    if(eDate && r.bindTime.slice(0,10) > eDate) return false;
+    return true;
+  });
+  pageIndex = 1;
+  renderTable();
+  renderActMeta();
+}
+
+function resetQuery(){
+  document.getElementById("fIdValue").value = "";
+  document.getElementById("fBindStatus").value = "";
+  document.getElementById("dr-bind-s").value = "";
+  document.getElementById("dr-bind-e").value = "";
+  // 同步清空原生 date
+  const natives = document.querySelectorAll("#dr-bind .dr-inputs input[type='date']");
+  natives[0].value=""; natives[1].value="";
+  document.querySelectorAll("#dr-bind .dr-shortcut").forEach(b=>b.classList.remove("active"));
+  doQuery(true);
+  showToast("已重置筛选条件");
+}
+
+/* ==================== 表格渲染 ==================== */
+function renderTable(){
+  const total = filteredRows.length;
+  document.getElementById("pgTotal").textContent = `共 ${total} 条`;
+  document.getElementById("pgNum").textContent = pageIndex;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  document.getElementById("pgPrev").style.opacity = pageIndex<=1 ? ".4" : "1";
+  document.getElementById("pgNext").style.opacity = pageIndex>=totalPages ? ".4" : "1";
+
+  const start = (pageIndex-1)*PAGE_SIZE;
+  const pageRows = filteredRows.slice(start, start+PAGE_SIZE);
+  const tbody = document.getElementById("tbody");
+
+  if(pageRows.length===0){
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">暂无绑定记录</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = pageRows.map(r=>{
+    return `<tr>
+      <td class="col-id">${displayId(r.id)}</td>
+      <td>${r.oldRoleId}</td>
+      <td>${r.oldPassId}</td>
+      <td>${r.newRoleId}</td>
+      <td>${r.newPassId}</td>
+      <td>${r.deviceId}</td>
+      <td>${r.bindTime}</td>
+    </tr>`;
+  }).join("");
+}
+
+function goPage(delta){
+  const total = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const next = pageIndex + delta;
+  if(next<1 || next>totalPages) return;
+  pageIndex = next;
+  renderTable();
+}
+
+/* ==================== 导出 ==================== */
+function exportData(){
+  if(filteredRows.length===0){ showToast("当前无数据可导出"); return; }
+  const headers = ["绑定ID","邀请人角色ID","邀请人通行证ID","被邀请人角色ID","被邀请人通行证ID","设备ID","绑定时间","绑定状态","解绑时间","解绑原因"];
+  const lines = [headers.join(",")];
+  filteredRows.forEach(r=>{
+    lines.push([r.id,r.oldRoleId,r.oldPassId,r.newRoleId,r.newPassId,r.deviceId,r.bindTime,statusBindMap[r.status].text,r.unbindTime||"",r.unbindReason||""].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+  });
+  const act = currentAct();
+  const blob = new Blob(["\ufeff"+lines.join("\n")], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `角色绑定记录_${act?act.id:""}_page${pageIndex}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`已导出 ${filteredRows.length} 条记录`);
+}
+
+/* ==================== 需求说明抽屉 ==================== */
+function openReq(){ document.getElementById("reqDrawer").classList.add("open"); document.getElementById("reqMask").classList.add("open"); }
+function closeReq(){ document.getElementById("reqDrawer").classList.remove("open"); document.getElementById("reqMask").classList.remove("open"); }
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeReq(); closeCreateAct(); closeEndAct(); closeCreateConflict(); } });
+
+/* ==================== toast ==================== */
+let _toastTimer;
+function showToast(text){
+  const t = document.getElementById("toast");
+  document.getElementById("toastText").textContent = text;
+  t.classList.add("show");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+
+/* ==================== 日期范围选择器 ==================== */
+function fmtDate(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function getRange(type){
+  const now = new Date();
+  const y=now.getFullYear(), mo=now.getMonth(), day=now.getDate();
+  let s, e = new Date(y, mo, day);
+  if(type==="week"){
+    const dow = (now.getDay()||7)-1;
+    s = new Date(y, mo, day-dow);
+  } else if(type==="month"){
+    s = new Date(y, mo, 1);
+  } else if(type==="last7"){
+    s = new Date(y, mo, day-6);
+  } else {
+    s = new Date(y, mo, day-29);
+  }
+  return [fmtDate(s), fmtDate(e)];
+}
+function initDateRange(wrapperId){
+  const wrap = document.getElementById(wrapperId);
+  const panel = wrap.querySelector(".dr-panel");
+  const sDisp = wrap.querySelector(".dr-input:first-child");
+  const eDisp = wrap.querySelectorAll(".dr-input")[1];
+  const nativeInputs = wrap.querySelectorAll(".dr-inputs input[type='date']");
+  const sNative = nativeInputs[0], eNative = nativeInputs[1];
+  const shortcuts = wrap.querySelectorAll(".dr-shortcut");
+
+  function applyRange(sv, ev){ sDisp.value=sv; eDisp.value=ev; sNative.value=sv; eNative.value=ev; }
+  function closePanel(){ panel.classList.add("hidden"); }
+  function openPanel(){
+    document.querySelectorAll(".dr-panel:not(.hidden)").forEach(p=>p.classList.add("hidden"));
+    panel.classList.remove("hidden");
+  }
+  [sDisp, eDisp].forEach(inp=>inp.addEventListener("click", e=>{e.stopPropagation(); openPanel();}));
+  shortcuts.forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      e.stopPropagation();
+      shortcuts.forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      applyRange(...getRange(btn.dataset.range));
+      closePanel();
+    });
+  });
+  sNative.addEventListener("change", ()=>{ shortcuts.forEach(b=>b.classList.remove("active")); sDisp.value=sNative.value; });
+  eNative.addEventListener("change", ()=>{ shortcuts.forEach(b=>b.classList.remove("active")); eDisp.value=eNative.value; if(sNative.value&&eNative.value) closePanel(); });
+  panel.addEventListener("click", e=>e.stopPropagation());
+  document.addEventListener("click", closePanel);
+}
+
+/* ==================== 水印 ==================== */
+function initWatermark(){
+  const wm = document.getElementById("watermark");
+  let html = "";
+  for(let r=0; r<22; r++){
+    for(let c=0; c<14; c++){
+      const x = c*120 + (r%2?60:0);
+      const y = r*60;
+      html += `<span style="left:${x}px;top:${y}px">冰川业务平台 - 仅限内部使用</span>`;
+    }
+  }
+  wm.innerHTML = html;
+}
+
+/* ==================== init ==================== */
+initDateRange("dr-bind");
+initWatermark();
+doActQuery(true);
+showView("activity");
+</script>
+</body>
+</html>

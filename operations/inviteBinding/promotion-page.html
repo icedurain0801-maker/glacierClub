@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>游戏推广</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      background: #f5f5f5;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 375px;
+      height: 100vh;
+      max-height: 812px;
+      background: linear-gradient(135deg, #87ceeb 0%, #e0f6ff 100%);
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,.6) 0%, transparent 50%),
+        linear-gradient(135deg, #87ceeb 0%, #e0f6ff 100%);
+      border-radius: 40px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,.15);
+      position: relative;
+    }
+
+    .notch {
+      width: 150px;
+      height: 28px;
+      background: #87ceeb;
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 0 0 20px 20px;
+      z-index: 10;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px 60px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .decoration {
+      position: absolute;
+      font-size: 32px;
+      opacity: 0.6;
+    }
+    .decoration-flower { top: 20px; left: 15%; }
+    .decoration-leaf { top: 30px; right: 10%; font-size: 28px; opacity: 0.5; transform: rotate(-20deg); }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 20px;
+      z-index: 1;
+    }
+
+    .logo-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #ff6b9d 0%, #c06c84 100%);
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 16px rgba(0,0,0,.15);
+    }
+
+    .logo-title {
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #9d6bff 0%, #ffd93d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+    }
+
+    .buttons-group {
+      display: flex;
+      gap: 14px;
+      padding: 0 20px 12px;
+      flex: 0 0 auto;
+      width: 100%;
+    }
+
+    .btn {
+      flex: 1;
+      height: 48px;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-download {
+      background: rgba(127, 217, 93, 0.95);
+      color: white;
+      border: 1px solid rgba(255,255,255,.3);
+      box-shadow: 0 8px 16px rgba(127, 217, 93, 0.3);
+    }
+    .btn-download:active { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(127, 217, 93, 0.4); }
+
+    .btn-launch {
+      background: rgba(255, 217, 61, 0.95);
+      color: #333;
+      border: 1px solid rgba(255,255,255,.3);
+      box-shadow: 0 8px 16px rgba(255, 217, 61, 0.3);
+      font-weight: 700;
+    }
+    .btn-launch:active { transform: translateY(-2px); }
+
+    .notice {
+      padding: 12px 20px 20px;
+      text-align: center;
+      flex: 0 0 auto;
+    }
+
+    .notice-content {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 217, 61, 0.15);
+      padding: 6px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 217, 61, 0.4);
+      color: #8b6914;
+      font-size: 11px;
+    }
+
+    .top-bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 16px;
+      position: relative;
+      z-index: 5;
+    }
+
+    .menu-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      color: #333;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s ease;
+      backdrop-filter: blur(10px);
+    }
+    .menu-btn:active { background: rgba(255, 255, 255, 0.5); transform: scale(0.95); }
+
+    /* ========== 菜单弹窗 ========== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      animation: fadeIn .2s ease;
+    }
+    .modal-overlay.active { display: flex; align-items: flex-end; justify-content: center; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+    .modal {
+      background: white;
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      max-width: 375px;
+      max-height: 80vh;
+      overflow-y: auto;
+      animation: slideUp .3s ease;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+      position: sticky;
+      top: 0;
+      background: white;
+    }
+
+    .modal-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .modal-close {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: #999;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      padding: 20px;
+    }
+
+    .menu-item {
+      padding: 14px 0;
+      border-bottom: 1px solid #f0f0f0;
+      color: #333;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .menu-item:last-child { border-bottom: none; }
+    .menu-item:active { background: #f9f9f9; }
+    .menu-item-icon { margin-right: 10px; }
+
+    /* ========== 教程提示框 ========== */
+    .tutorial-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 200;
+      animation: fadeIn .2s ease;
+    }
+    .tutorial-overlay.active { display: flex; align-items: center; justify-content: center; }
+
+    .tutorial-box {
+      background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+      border-radius: 16px;
+      padding: 24px 20px 20px;
+      max-width: 300px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      border: 2px solid #f9c74f;
+      position: relative;
+      animation: slideUp .3s ease;
+    }
+
+    .tutorial-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .tutorial-character {
+      width: 80px;
+      height: 80px;
+      flex: 0 0 auto;
+      background: linear-gradient(135deg, #dda15e 0%, #bc6c25 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .tutorial-arrow {
+      position: absolute;
+      top: -20px;
+      right: 30px;
+      font-size: 48px;
+      animation: bounce .6s infinite;
+      z-index: 10;
+    }
+
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+    .tutorial-steps {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .tutorial-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .tutorial-step:last-child { margin-bottom: 0; }
+
+    .step-badge {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      flex: 0 0 auto;
+      box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+    }
+
+    .step-text {
+      font-size: 13px;
+      color: #5d4e37;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .tutorial-footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.6);
+      text-align: center;
+    }
+
+    .tutorial-label {
+      font-size: 12px;
+      color: #8b5a3c;
+      font-weight: 600;
+    }
+
+    .tutorial-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      color: #666;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s;
+    }
+    .tutorial-close:active { background: white; }
+
+    /* ========== 需求说明侧边栏 ========== */
+    .requirement-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      transition: all .2s;
+    }
+    .requirement-btn:hover { transform: scale(1.1); box-shadow: 0 6px 24px rgba(102, 126, 234, 0.6); }
+    .requirement-btn:active { transform: scale(0.95); }
+
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 150;
+      animation: fadeIn .2s;
+    }
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      right: -400px;
+      width: 400px;
+      height: 100vh;
+      background: white;
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+      z-index: 160;
+      overflow-y: auto;
+      transition: right .3s ease;
+    }
+    .sidebar.active { right: 0; }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: white;
+    }
+
+    .sidebar-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #333;
+    }
+
+    .sidebar-close {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: #999;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .sidebar-content {
+      padding: 20px;
+    }
+
+    .flow-section {
+      margin-bottom: 32px;
+    }
+
+    /* 带序号的章节大标题 */
+    .section-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #eef0f5;
+    }
+
+    .section-no {
+      flex: 0 0 auto;
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .section-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #2c3e50;
+      line-height: 1.3;
+    }
+
+    .section-sub {
+      font-size: 11px;
+      color: #98a2b3;
+      margin-top: 2px;
+      font-weight: 400;
+    }
+
+    /* 章节内的小标题 */
+    .sub-heading {
+      font-size: 13px;
+      font-weight: 700;
+      color: #667eea;
+      margin: 18px 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sub-heading:first-child { margin-top: 0; }
+
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      padding-left: 24px;
+    }
+
+    .flow-steps::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg, #667eea 0%, transparent 100%);
+    }
+
+    .flow-step {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .flow-step::before {
+      content: '';
+      position: absolute;
+      left: -22px;
+      top: 6px;
+      width: 12px;
+      height: 12px;
+      background: white;
+      border: 2px solid #667eea;
+      border-radius: 50%;
+    }
+
+    .step-content {
+      flex: 1;
+      padding-top: 2px;
+    }
+
+    .step-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+
+    .step-text {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .step-highlight {
+      background: #f0f4ff;
+      border-left: 2px solid #ffd93d;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #5d4e37;
+      margin-top: 8px;
+    }
+
+    /* ========== 按钮交互卡片 ========== */
+    .interaction-card {
+      background: white;
+      border: 1px solid #eee;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-body {
+      padding: 16px;
+    }
+
+    .card-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .card-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+    .card-row-icon {
+      width: 32px;
+      height: 32px;
+      background: #f0f4ff;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex: 0 0 auto;
+    }
+
+    .card-row-content {
+      flex: 1;
+    }
+
+    .card-row-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+
+    .card-row-desc {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .card-highlight {
+      background: linear-gradient(90deg, rgba(255, 217, 61, 0.15) 0%, rgba(255, 217, 61, 0) 100%);
+      border-left: 3px solid #ffd93d;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+      font-size: 12px;
+      color: #8b6914;
+      line-height: 1.6;
+      font-family: 'Monaco', 'Menlo', monospace;
+      word-break: break-all;
+    }
+
+    .card-row-desc code {
+      background: #f4f5f7;
+      border: 1px solid #e6e8eb;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 11px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      color: #d6336c;
+      word-break: break-all;
+    }
+
+    /* ========== 流程图 ========== */
+    .flow-diagram {
+      background: #fafafa;
+      padding: 20px 12px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+      margin-bottom: 20px;
+      overflow-x: auto;
+      overflow-y: visible;
+      max-height: none;
+    }
+
+    .flow-diagram svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      min-width: 100%;
+      background: white;
+    }
+
+    .flow-diagram-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .fullscreen-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .fullscreen-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+    .fullscreen-btn:active { transform: scale(0.95); }
+
+    /* ========== 全屏流程图模态框 ========== */
+    .diagram-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+    }
+    .diagram-modal.active { display: flex; }
+
+    .diagram-modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 1400px;
+      width: 95%;
+      max-height: 90vh;
+      overflow: auto;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .diagram-modal-close {
+      position: fixed;
+      top: 20px;
+      right: 30px;
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      border-radius: 50%;
+      font-size: 24px;
+      color: #333;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 301;
+      transition: all .2s;
+    }
+    .diagram-modal-close:hover { background: white; transform: scale(1.1); }
+    .diagram-modal-close:active { transform: scale(0.95); }
+
+    .diagram-modal svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: white;
+    }
+
+    /* 流程图文字节点样式 */
+    .flow-node-text {
+      font-size: 11px;
+      font-weight: 500;
+      fill: #333;
+      text-anchor: middle;
+    }
+
+    .flow-label {
+      font-size: 10px;
+      font-weight: 600;
+      fill: #667eea;
+    }
+
+    .flow-title-text {
+      font-size: 13px;
+      font-weight: 700;
+      fill: #667eea;
+    }
+
+    @media (max-width: 375px) {
+      .container { max-width: 100%; border-radius: 0; }
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="notch"></div>
+
+  <div class="top-bar">
+    <button class="menu-btn" onclick="handleMenu()">⋯</button>
+  </div>
+
+  <div class="content">
+    <div class="decoration decoration-flower">🌸</div>
+    <div class="decoration decoration-leaf">🍃</div>
+
+    <div class="logo">
+      <div class="logo-icon">✨</div>
+      <div class="logo-title">修仙式家长</div>
+    </div>
+  </div>
+
+  <div class="buttons-group">
+    <button class="btn btn-download" onclick="handleDownload()">下载游戏</button>
+    <button class="btn btn-launch" onclick="handleLaunch()">启动游戏</button>
+  </div>
+
+  <div class="notice">
+    <div class="notice-content">
+      <span>📋</span>
+      <span>请同意授权剪切板权限</span>
+    </div>
+  </div>
+</div>
+
+<!-- 菜单弹窗 -->
+<div class="modal-overlay" id="menuModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">更多选项</span>
+      <button class="modal-close" onclick="closeMenu()">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="menu-item" onclick="handleShare()">
+        <span><span class="menu-item-icon">📤</span>分享给好友</span>
+        <span style="color: #ccc;">›</span>
+      </div>
+      <div class="menu-item" onclick="handleAbout()">
+        <span><span class="menu-item-icon">ℹ️</span>关于游戏</span>
+        <span style="color: #ccc;">›</span>
+      </div>
+      <div class="menu-item" onclick="handleHelp()">
+        <span><span class="menu-item-icon">❓</span>帮助与反馈</span>
+        <span style="color: #ccc;">›</span>
+      </div>
+      <div class="menu-item" onclick="handlePrivacy()">
+        <span><span class="menu-item-icon">🔒</span>隐私政策</span>
+        <span style="color: #ccc;">›</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 教程提示框 -->
+<div class="tutorial-overlay" id="tutorialModal" onclick="closeTutorial()">
+  <div class="tutorial-box" onclick="event.stopPropagation()">
+    <div class="tutorial-arrow">👆</div>
+    <button class="tutorial-close" onclick="closeTutorial()">✕</button>
+
+    <div class="tutorial-header">
+      <div class="tutorial-character">💁‍♀️</div>
+      <div class="tutorial-steps">
+        <div class="tutorial-step">
+          <div class="step-badge">1</div>
+          <div class="step-text">点击右上角<br/>⋯</div>
+        </div>
+        <div class="tutorial-step">
+          <div class="step-badge">2</div>
+          <div class="step-text">选择在浏览器中打开</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tutorial-footer">
+      <div class="tutorial-label">即可正常下载</div>
+    </div>
+  </div>
+</div>
+
+<!-- 需求说明按钮 -->
+<button class="requirement-btn" onclick="openRequirementSidebar()">📋</button>
+
+<!-- 全屏流程图模态框 -->
+<div class="diagram-modal" id="diagramModal">
+  <button class="diagram-modal-close" onclick="closeDiagramFullscreen()">✕</button>
+  <div class="diagram-modal-content"></div>
+</div>
+
+<!-- 需求说明侧边栏 -->
+<div class="sidebar-overlay" id="requirementOverlay" onclick="closeRequirementSidebar()"></div>
+<div class="sidebar" id="requirementSidebar">
+  <div class="sidebar-header">
+    <span class="sidebar-title">需求说明</span>
+    <button class="sidebar-close" onclick="closeRequirementSidebar()">✕</button>
+  </div>
+
+  <div class="sidebar-content">
+    <!-- 流程图 -->
+    <div class="flow-section">
+      <div class="flow-diagram-header">
+        <div class="section-heading" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
+          <div class="section-no">01</div>
+          <div>
+            <div class="section-name">邀请绑定流程图</div>
+            <div class="section-sub">移动端 / 小游戏端双分支总览</div>
+          </div>
+        </div>
+        <button class="fullscreen-btn" onclick="openDiagramFullscreen()">🔍 全屏查看</button>
+      </div>
+      <div class="flow-diagram" id="flowDiagram">
+        <svg viewBox="0 0 1400 620" xmlns="http://www.w3.org/2000/svg" style="background: white;">
+          <!-- 定义箭头标记 -->
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#333" />
+            </marker>
+            <marker id="arrowhead-yellow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#ffc107" />
+            </marker>
+            <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#52b788" />
+            </marker>
+          </defs>
+
+          <!-- ==================== 移动端流程（y 30 ~ 310） ==================== -->
+          <text x="30" y="32" font-size="15" font-weight="bold" fill="#667eea">📱 移动端流程</text>
+
+          <!-- 上排：未安装分支（中心 y=80） -->
+          <rect x="430" y="60" width="104" height="40" fill="#f5e6d3" stroke="#d4a574" stroke-width="2" rx="4"/>
+          <text x="482" y="85" text-anchor="middle" font-size="11" fill="#333">跳转应用商店</text>
+
+          <rect x="574" y="60" width="104" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="626" y="85" text-anchor="middle" font-size="11" fill="#333">安装后打开</text>
+
+          <line x1="534" y1="80" x2="568" y2="80" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <!-- 主排（中心 y=190） -->
+          <ellipse cx="85" cy="190" rx="52" ry="26" fill="#e8ecff" stroke="#667eea" stroke-width="2"/>
+          <text x="85" y="194" text-anchor="middle" font-size="11" fill="#333">用户分享邀请</text>
+
+          <line x1="137" y1="190" x2="166" y2="190" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <rect x="172" y="170" width="100" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="222" y="195" text-anchor="middle" font-size="11" fill="#333">用户点击链接</text>
+
+          <line x1="272" y1="190" x2="297" y2="190" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <!-- 决策1 -->
+          <polygon points="355,158 407,190 355,222 303,190" fill="#ffc107" stroke="#f9c74f" stroke-width="2"/>
+          <text x="355" y="187" text-anchor="middle" font-size="10" font-weight="600" fill="#333">是否已安装</text>
+          <text x="355" y="200" text-anchor="middle" font-size="10" font-weight="600" fill="#333">APP</text>
+
+          <!-- 否：向上再向右 -->
+          <path d="M 355 158 L 355 80 L 424 80" fill="none" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+          <text x="332" y="122" font-size="11" font-weight="bold" fill="#ff6b6b">否</text>
+
+          <!-- 是：向右 -->
+          <line x1="407" y1="190" x2="472" y2="190" stroke="#52b788" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+          <text x="428" y="182" font-size="11" font-weight="bold" fill="#52b788">是</text>
+
+          <rect x="574" y="170" width="104" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="626" y="195" text-anchor="middle" font-size="11" fill="#333">直接唤起APP</text>
+
+          <!-- 汇聚：上排绕行 + 主排直行 -->
+          <path d="M 678 80 L 730 80 L 730 190" fill="none" stroke="#333" stroke-width="2"/>
+          <line x1="678" y1="190" x2="730" y2="190" stroke="#333" stroke-width="2"/>
+          <line x1="730" y1="190" x2="754" y2="190" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <rect x="760" y="170" width="100" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="810" y="195" text-anchor="middle" font-size="11" fill="#333">参数解析</text>
+
+          <line x1="860" y1="190" x2="884" y2="190" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <!-- 决策2 -->
+          <polygon points="945,158 1000,190 945,222 890,190" fill="#ffc107" stroke="#f9c74f" stroke-width="2"/>
+          <text x="945" y="187" text-anchor="middle" font-size="10" font-weight="600" fill="#333">参数有效性</text>
+          <text x="945" y="200" text-anchor="middle" font-size="10" font-weight="600" fill="#333">验证</text>
+
+          <line x1="1000" y1="190" x2="1069" y2="190" stroke="#52b788" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+          <text x="1018" y="182" font-size="11" font-weight="bold" fill="#52b788">有效</text>
+
+          <rect x="1075" y="170" width="110" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="1130" y="195" text-anchor="middle" font-size="11" fill="#333">绑定邀请关系</text>
+
+          <line x1="1185" y1="190" x2="1211" y2="190" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <ellipse cx="1275" cy="190" rx="58" ry="30" fill="#d4f5d4" stroke="#52b788" stroke-width="2"/>
+          <text x="1275" y="188" text-anchor="middle" font-size="11" font-weight="600" fill="#2d6a4f">发放奖励</text>
+          <text x="1275" y="201" text-anchor="middle" font-size="9" fill="#40916c">（游戏侧）</text>
+          <text x="1275" y="238" text-anchor="middle" font-size="9" fill="#e8590c">⚠ 游戏自行发放</text>
+          <text x="1275" y="250" text-anchor="middle" font-size="9" fill="#e8590c">平台不处理</text>
+
+          <!-- 无效：向下（中心 y=290） -->
+          <line x1="945" y1="222" x2="945" y2="264" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+          <text x="955" y="248" font-size="11" font-weight="bold" fill="#ff6b6b">无效</text>
+
+          <rect x="890" y="270" width="110" height="40" fill="#ffe8e8" stroke="#ff6b6b" stroke-width="2" rx="4"/>
+          <text x="945" y="295" text-anchor="middle" font-size="11" fill="#c92a2a">忽略或报错</text>
+
+          <!-- 分隔线 -->
+          <line x1="30" y1="350" x2="1370" y2="350" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="6,6"/>
+
+          <!-- ==================== 小游戏端流程（y 385 ~ 585） ==================== -->
+          <text x="30" y="392" font-size="15" font-weight="bold" fill="#667eea">🎮 小游戏端流程</text>
+
+          <!-- 主排（中心 y=460） -->
+          <ellipse cx="90" cy="460" rx="58" ry="28" fill="#e8ecff" stroke="#667eea" stroke-width="2"/>
+          <text x="90" y="456" text-anchor="middle" font-size="11" fill="#333">游戏生成</text>
+          <text x="90" y="470" text-anchor="middle" font-size="11" fill="#333">分享卡片</text>
+
+          <line x1="148" y1="460" x2="174" y2="460" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <rect x="180" y="440" width="110" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="235" y="465" text-anchor="middle" font-size="11" fill="#333">卡片写入参数</text>
+
+          <line x1="290" y1="460" x2="314" y2="460" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <rect x="320" y="440" width="100" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="370" y="465" text-anchor="middle" font-size="11" fill="#333">用户点击卡片</text>
+
+          <line x1="420" y1="460" x2="444" y2="460" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <rect x="450" y="440" width="110" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="505" y="465" text-anchor="middle" font-size="11" fill="#333">上传双方参数</text>
+
+          <line x1="560" y1="460" x2="584" y2="460" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <rect x="590" y="440" width="100" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="640" y="465" text-anchor="middle" font-size="11" fill="#333">平台后端处理</text>
+
+          <line x1="690" y1="460" x2="714" y2="460" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <!-- 决策 -->
+          <polygon points="775,428 830,460 775,492 720,460" fill="#ffc107" stroke="#f9c74f" stroke-width="2"/>
+          <text x="775" y="457" text-anchor="middle" font-size="10" font-weight="600" fill="#333">参数有效性</text>
+          <text x="775" y="470" text-anchor="middle" font-size="10" font-weight="600" fill="#333">验证</text>
+
+          <line x1="830" y1="460" x2="894" y2="460" stroke="#52b788" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+          <text x="846" y="452" font-size="11" font-weight="bold" fill="#52b788">有效</text>
+
+          <rect x="900" y="440" width="110" height="40" fill="#e8ecff" stroke="#667eea" stroke-width="2" rx="4"/>
+          <text x="955" y="465" text-anchor="middle" font-size="11" fill="#333">绑定邀请关系</text>
+
+          <line x1="1010" y1="460" x2="1036" y2="460" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+          <ellipse cx="1100" cy="460" rx="58" ry="30" fill="#d4f5d4" stroke="#52b788" stroke-width="2"/>
+          <text x="1100" y="458" text-anchor="middle" font-size="11" font-weight="600" fill="#2d6a4f">发放奖励</text>
+          <text x="1100" y="471" text-anchor="middle" font-size="9" fill="#40916c">（游戏侧）</text>
+          <text x="1100" y="508" text-anchor="middle" font-size="9" fill="#e8590c">⚠ 游戏自行发放</text>
+          <text x="1100" y="520" text-anchor="middle" font-size="9" fill="#e8590c">平台不处理</text>
+
+          <!-- 无效：向下（中心 y=560） -->
+          <line x1="775" y1="492" x2="775" y2="534" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+          <text x="785" y="518" font-size="11" font-weight="bold" fill="#ff6b6b">无效</text>
+
+          <rect x="720" y="540" width="110" height="40" fill="#ffe8e8" stroke="#ff6b6b" stroke-width="2" rx="4"/>
+          <text x="775" y="565" text-anchor="middle" font-size="11" fill="#c92a2a">忽略或报错</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 详细流程说明 -->
+    <div class="flow-section">
+      <div class="section-heading">
+        <div class="section-no">02</div>
+        <div>
+          <div class="section-name">📱 移动端方案</div>
+          <div class="section-sub">中转页 + 深度链接，覆盖已安装与未安装两种路径</div>
+        </div>
+      </div>
+
+      <div class="sub-heading">2.1 · 流程步骤</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">1. 分享邀请</div>
+            <div class="step-text">玩家在游戏内分享邀请链接到微信、QQ、朋友圈等</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">2. 打开链接</div>
+            <div class="step-text">被邀请人打开分享链接（前端处理的中转页）</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">3. 下载游戏</div>
+            <div class="step-text">点击下载按钮，前往对应应用商店下载</div>
+            <div class="step-highlight">📌 应用商店下载完成后会回到中转页</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">4. 启动游戏</div>
+            <div class="step-text">点击启动按钮，将邀请人 UUID + 角色 ID + 被邀请人 UUID + 角色 ID 作为启动参数传入 APK</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">5. 后端绑定</div>
+            <div class="step-text">平台后端接收参数后，将两个玩家对象绑定，并提供通用查询接口</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">6. 定时查询</div>
+            <div class="step-text">游戏通过平台查询接口定时抓取邀请状态，以及被邀请人的累计账号充值额</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">7. 返利发放</div>
+            <div class="step-text">游戏根据拉取到的累计充值额，自行计算返利档位并发放奖励给邀请人</div>
+            <div class="step-highlight">⚠️ 奖励由<strong>游戏侧发放</strong>，平台只提供数据，不参与发奖</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-heading">2.2 · 深度链接技术方案</div>
+
+      <div class="interaction-card">
+        <div class="card-header">📖 整体机制</div>
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">🔗</div>
+            <div class="card-row-content">
+              <div class="card-row-label">邀请者分享专属深度链接</div>
+              <div class="card-row-desc">链接中携带邀请者的 uuid、角色 ID、账号 ID</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">✅</div>
+            <div class="card-row-content">
+              <div class="card-row-label">已安装 App</div>
+              <div class="card-row-desc">点击链接直接唤起 App，参数随启动 Intent / URL 一并传入</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">📥</div>
+            <div class="card-row-content">
+              <div class="card-row-label">未安装 App（延迟安装）</div>
+              <div class="card-row-desc">先引导至应用商店下载，用户首次打开 App 时再尝试获取参数</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="interaction-card">
+        <div class="card-header">🛠 实现步骤</div>
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">1️⃣</div>
+            <div class="card-row-content">
+              <div class="card-row-label">生成专属链接</div>
+              <div class="card-row-desc">用户分享时，App 向服务端请求生成一个包含邀请者标识的专属深度链接（暂定）</div>
+              <div class="card-highlight">https://yourdomain.com/invite?inviter_id=123</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">2️⃣</div>
+            <div class="card-row-content">
+              <div class="card-row-label">配置 App · iOS</div>
+              <div class="card-row-desc">
+                配置 URL Schemes；在 AppDelegate 中处理<br/>
+                <code>application(_:open:options:)</code> 或<br/>
+                <code>application(_:continue:restorationHandler:)</code><br/>
+                解析传入 URL 中的参数
+              </div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">2️⃣</div>
+            <div class="card-row-content">
+              <div class="card-row-label">配置 App · Android</div>
+              <div class="card-row-desc">
+                配置 Intent Filter（支持 http/https 的自定义 Scheme）；在 Activity 的
+                <code>onCreate</code> 或 <code>onNewIntent</code> 中通过
+                <code>getIntent().getData()</code> 解析传入 URI 中的参数
+              </div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">3️⃣</div>
+            <div class="card-row-content">
+              <div class="card-row-label">传递参数</div>
+              <div class="card-row-desc">
+                • <strong>直接唤起</strong>：App 被唤起时，直接从启动 Intent / URL 中解析出 inviter_id<br/>
+                • <strong>延迟安装</strong>：借助剪贴板来传递参数
+              </div>
+              <div class="card-highlight">⚠️ 无剪贴板权限则无法完成绑定，此情况运营已知悉，不需要额外处理</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">4️⃣</div>
+            <div class="card-row-content">
+              <div class="card-row-label">上报绑定关系</div>
+              <div class="card-row-desc">App 获取到 inviter_id 后，在用户首次启动的节点，将其与新用户的 user_id 一同发送给服务端，记录邀请关系</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-heading">2.3 · 中转页按钮交互</div>
+
+      <!-- 下载游戏卡片 -->
+      <div class="interaction-card">
+        <div class="card-header">📥 下载游戏</div>
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">🔗</div>
+            <div class="card-row-content">
+              <div class="card-row-label">跳转应用商店</div>
+              <div class="card-row-desc">根据设备系统（iOS/Android）跳转至对应的官方应用商店</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">⬅️</div>
+            <div class="card-row-content">
+              <div class="card-row-label">自动返回中转页</div>
+              <div class="card-row-desc">用户在应用商店完成下载后，系统会自动返回中转页</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">✅</div>
+            <div class="card-row-content">
+              <div class="card-row-label">继续启动</div>
+              <div class="card-row-desc">用户可点击「启动游戏」进行安装或直接启动游戏</div>
+            </div>
+          </div>
+
+          <div class="card-highlight">
+            💡 <strong>关键处理</strong><br/>
+            需配置应用商店返回链接，确保用户能正确回到中转页而非被困在商店内
+          </div>
+        </div>
+      </div>
+
+      <!-- 启动游戏卡片 -->
+      <div class="interaction-card">
+        <div class="card-header">🚀 启动游戏</div>
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">🎮</div>
+            <div class="card-row-content">
+              <div class="card-row-label">调用 DeepLink 启动</div>
+              <div class="card-row-desc">通过 URL Scheme 或 DeepLink 启动已安装的游戏应用</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">📦</div>
+            <div class="card-row-content">
+              <div class="card-row-label">拼接启动参数</div>
+              <div class="card-row-desc">在 URL 中包含邀请人和被邀请人的 UUID 与角色 ID</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🔄</div>
+            <div class="card-row-content">
+              <div class="card-row-label">游戏接收绑定</div>
+              <div class="card-row-desc">游戏解析参数后，向平台后端发送邀请关系绑定请求</div>
+            </div>
+          </div>
+
+          <div class="card-highlight">
+            📌 <strong>参数格式</strong><br/>
+            game://invite?inviter_uuid=xxx&amp;inviter_role_id=yyy&amp;invitee_uuid=aaa&amp;invitee_role_id=bbb
+          </div>
+        </div>
+      </div>
+
+      <!-- 右上角菜单卡片 -->
+      <div class="interaction-card">
+        <div class="card-header">⋯ 点击右上角「更多」</div>
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">💬</div>
+            <div class="card-row-content">
+              <div class="card-row-label">弹出教程提示</div>
+              <div class="card-row-desc">显示步骤指引：「点击右上角 ⋯」「选择在浏览器中打开」</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🌐</div>
+            <div class="card-row-content">
+              <div class="card-row-label">浏览器打开</div>
+              <div class="card-row-desc">确保用户用系统默认浏览器打开中转页，而非 WebView 内打开</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🎯</div>
+            <div class="card-row-content">
+              <div class="card-row-label">修复跳转问题</div>
+              <div class="card-row-desc">避免在微信/QQ/小红书等 APP 内打开时应用商店跳转失败</div>
+            </div>
+          </div>
+
+          <div class="card-highlight">
+            ⚠️ <strong>使用场景</strong><br/>
+            当用户在社交 APP（微信/QQ/抖音等）内打开邀请链接时，这些 APP 会用内置浏览器打开，导致应用商店跳转被拦截。此时需要用户手动点击右上角菜单，选择「在浏览器中打开」才能正常跳转
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 小游戏端方案 -->
+    <div class="flow-section">
+      <div class="section-heading">
+        <div class="section-no">03</div>
+        <div>
+          <div class="section-name">🎮 小游戏端方案</div>
+          <div class="section-sub">参数写入分享卡片，无需中转页与深度链接</div>
+        </div>
+      </div>
+
+      <div class="sub-heading">3.1 · 流程步骤</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">1. 生成分享卡片</div>
+            <div class="step-text">游戏直接将邀请人 UUID + 角色 ID 写入分享卡片参数</div>
+            <div class="step-highlight">🚀 流程更简洁，无需中转页</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">2. 点击卡片</div>
+            <div class="step-text">被邀请人点击邀请卡片或链接</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">3. 上传绑定</div>
+            <div class="step-text">立即上传自己的 UUID + 角色 ID，以及邀请人的 UUID + 角色 ID 给平台后端</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="step-content">
+            <div class="step-label">4. 后续流程</div>
+            <div class="step-text">平台后端绑定、游戏查询、返利计算的流程与移动端一致</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-heading">3.2 · 与移动端的差异</div>
+      <div class="interaction-card">
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">🚫</div>
+            <div class="card-row-content">
+              <div class="card-row-label">无需中转页</div>
+              <div class="card-row-desc">不存在应用商店下载与返回环节，省去「下载游戏 / 启动游戏」两个按钮</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🚫</div>
+            <div class="card-row-content">
+              <div class="card-row-label">无需深度链接与剪贴板</div>
+              <div class="card-row-desc">参数直接写在分享卡片里，不涉及 URL Scheme / Intent Filter，也不依赖剪贴板权限</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">✅</div>
+            <div class="card-row-content">
+              <div class="card-row-label">后端流程一致</div>
+              <div class="card-row-desc">绑定邀请关系、状态查询接口、按充值额返利，与移动端复用同一套后端能力</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 平台查询接口 -->
+    <div class="flow-section">
+      <div class="section-heading">
+        <div class="section-no">04</div>
+        <div>
+          <div class="section-name">🔌 平台查询接口</div>
+          <div class="section-sub">供游戏服务端定时拉取邀请关系与充值数据</div>
+        </div>
+      </div>
+
+      <div class="interaction-card">
+        <div class="card-header">4.1 · 📤 返回字段</div>
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">👤</div>
+            <div class="card-row-content">
+              <div class="card-row-label">邀请人标识</div>
+              <div class="card-row-desc">inviter_uuid、inviter_role_id、inviter_account_id</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🙋</div>
+            <div class="card-row-content">
+              <div class="card-row-label">被邀请人标识</div>
+              <div class="card-row-desc">invitee_uuid、invitee_role_id、invitee_account_id</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">💰</div>
+            <div class="card-row-content">
+              <div class="card-row-label">被邀请人累计账号充值额</div>
+              <div class="card-row-desc">按<strong>账号维度</strong>统计的累计充值总额（非单角色、非单笔），游戏据此计算返利档位</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🕐</div>
+            <div class="card-row-content">
+              <div class="card-row-label">绑定信息</div>
+              <div class="card-row-desc">绑定状态、绑定时间，用于游戏侧判断邀请关系是否生效</div>
+            </div>
+          </div>
+
+          <div class="card-highlight">
+            📌 <strong>职责边界</strong><br/>
+            平台只负责「绑定关系 + 充值额统计」的数据输出；奖励发放规则、档位与到账全部由<strong>游戏侧</strong>处理，平台不参与
+          </div>
+        </div>
+      </div>
+
+      <div class="interaction-card">
+        <div class="card-header">4.2 · 🔄 调用方式</div>
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">⏱</div>
+            <div class="card-row-content">
+              <div class="card-row-label">定时轮询</div>
+              <div class="card-row-desc">游戏服务端定时调用该接口，拉取邀请状态与最新累计充值额</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🔁</div>
+            <div class="card-row-content">
+              <div class="card-row-label">通用接口</div>
+              <div class="card-row-desc">移动端与小游戏端复用同一接口，游戏侧无需区分来源</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 关键信息 -->
+    <div class="flow-section">
+      <div class="section-heading">
+        <div class="section-no">05</div>
+        <div>
+          <div class="section-name">关键角色与职责</div>
+          <div class="section-sub">各环节的分工边界</div>
+        </div>
+      </div>
+
+      <div class="interaction-card">
+        <div class="card-body">
+          <div class="card-row">
+            <div class="card-row-icon">🌐</div>
+            <div class="card-row-content">
+              <div class="card-row-label">中转页（前端）</div>
+              <div class="card-row-desc">承载下载引导与启动唤起，处理应用商店跳转与返回</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">📦</div>
+            <div class="card-row-content">
+              <div class="card-row-label">启动参数</div>
+              <div class="card-row-desc">包含邀请人与被邀请人的 UUID、角色 ID、账号 ID</div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🖧</div>
+            <div class="card-row-content">
+              <div class="card-row-label">平台后端</div>
+              <div class="card-row-desc">绑定邀请关系，提供统一查询接口，输出邀请状态与被邀请人累计账号充值额。<strong>不参与奖励发放</strong></div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card-row-icon">🎮</div>
+            <div class="card-row-content">
+              <div class="card-row-label">游戏服务端</div>
+              <div class="card-row-desc">定时调用查询接口抓取邀请状态与累计充值额，<strong>自行制定返利规则并发放奖励</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function handleDownload() {
+    console.log('下载游戏');
+    // TODO: 连接下载链接
+  }
+
+  function handleLaunch() {
+    console.log('启动游戏');
+    // TODO: 连接游戏启动链接或跳转
+  }
+
+  function handleMenu() {
+    showTutorial();
+  }
+
+  function closeMenu() {
+    document.getElementById('menuModal').classList.remove('active');
+  }
+
+  function handleShare() {
+    console.log('分享给好友');
+    closeMenu();
+    // TODO: 分享逻辑
+  }
+
+  function handleAbout() {
+    console.log('关于游戏');
+    closeMenu();
+    // TODO: 关于游戏详情
+  }
+
+  function handleHelp() {
+    console.log('帮助与反馈');
+    closeMenu();
+    // TODO: 帮助与反馈页面
+  }
+
+  function handlePrivacy() {
+    console.log('隐私政策');
+    closeMenu();
+    // TODO: 隐私政策页面
+  }
+
+  // 点击背景关闭菜单
+  document.getElementById('menuModal').addEventListener('click', (e) => {
+    if (e.target.id === 'menuModal') closeMenu();
+  });
+
+  function showTutorial() {
+    document.getElementById('tutorialModal').classList.add('active');
+  }
+
+  function closeTutorial() {
+    document.getElementById('tutorialModal').classList.remove('active');
+  }
+
+  function openRequirementSidebar() {
+    document.getElementById('requirementOverlay').classList.add('active');
+    document.getElementById('requirementSidebar').classList.add('active');
+  }
+
+  function closeRequirementSidebar() {
+    document.getElementById('requirementOverlay').classList.remove('active');
+    document.getElementById('requirementSidebar').classList.remove('active');
+  }
+
+  function openDiagramFullscreen() {
+    const diagramSvg = document.getElementById('flowDiagram').querySelector('svg');
+    const clonedSvg = diagramSvg.cloneNode(true);
+    const modal = document.getElementById('diagramModal');
+    const modalContent = modal.querySelector('.diagram-modal-content');
+    const existingSvg = modalContent.querySelector('svg');
+    if (existingSvg) existingSvg.remove();
+    modalContent.appendChild(clonedSvg);
+    modal.classList.add('active');
+  }
+
+  function closeDiagramFullscreen() {
+    document.getElementById('diagramModal').classList.remove('active');
+  }
+
+  // 点击背景关闭全屏流程图
+  document.getElementById('diagramModal').addEventListener('click', (e) => {
+    if (e.target.id === 'diagramModal') closeDiagramFullscreen();
+  });
+
+  // 按 ESC 关闭全屏
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeDiagramFullscreen();
+    }
+  });
+
+</script>
+
+</body>
+</html>
