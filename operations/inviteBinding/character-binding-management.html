@@ -726,6 +726,7 @@ tbody tr:hover td{background:#f6fbff}
   white-space:nowrap;
   color:#5a6270;
 }
+.col-range{white-space:nowrap;font-size:11.5px;line-height:1.6;color:#39424f}
 .muted{color:#a8b0bd}
 .col-actions .link + .link{margin-left:10px}
 .empty-row td{
@@ -882,6 +883,22 @@ tbody tr:hover td{background:#f6fbff}
 .date-pair{display:flex;align-items:center;gap:8px}
 .date-pair input[type="date"]{flex:1}
 .date-pair span{color:#aeb7c2;font-size:12px}
+.dt-pair{display:flex;align-items:center;gap:8px}
+.dt-pair input[type="datetime-local"]{
+  flex:1;
+  min-width:0;
+  height:32px;
+  border:1px solid #dcdfe6;
+  border-radius:3px;
+  padding:0 8px;
+  color:#2f3a48;
+  background:#fff;
+  outline:none;
+  font:inherit;
+}
+.dt-pair input[type="datetime-local"]:focus{border-color:#168cff}
+.dt-pair input[type="datetime-local"]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
+.dt-pair span{color:#aeb7c2;font-size:12px;flex:0 0 auto}
 .modal-tip{
   margin:-12px 0 16px 96px;
   color:#8994a3;
@@ -1173,19 +1190,21 @@ tbody tr:hover td{background:#f6fbff}
               <div class="grid">
                 <table style="width:100%">
                   <colgroup>
-                    <col style="width:9%">
-                    <col style="width:16%">
-                    <col style="width:26%">
-                    <col style="width:15%">
-                    <col style="width:10%">
-                    <col style="width:11%">
+                    <col style="width:6%">
+                    <col style="width:12%">
+                    <col style="width:17%">
+                    <col style="width:24%">
                     <col style="width:13%">
+                    <col style="width:8%">
+                    <col style="width:9%">
+                    <col style="width:11%">
                   </colgroup>
                   <thead>
                     <tr>
                       <th>活动ID</th>
                       <th>活动名称</th>
                       <th>规则说明</th>
+                      <th>活动时间</th>
                       <th>创建时间</th>
                       <th>状态</th>
                       <th>有效绑定</th>
@@ -1211,7 +1230,6 @@ tbody tr:hover td{background:#f6fbff}
               <button class="btn-reset" type="button" onclick="goBack()" style="margin-right:12px">‹ 返回活动列表</button>
               <span class="act-label" id="detailActName">—</span>
               <div class="act-meta" id="actMeta"></div>
-              <button class="btn-reset hidden" id="endActDetailBtn" type="button" onclick="openEndAct(currentActId)">结束活动</button>
             </div>
 
             <!-- 筛选栏 -->
@@ -1225,13 +1243,6 @@ tbody tr:hover td{background:#f6fbff}
                   <option value="deviceId">被邀请人设备ID</option>
                 </select>
                 <input type="text" class="ctrl mid" id="fIdValue" placeholder="请输入">
-              </label>
-              <label class="field">绑定状态:
-                <select class="ctrl short" id="fBindStatus">
-                  <option value="">不限</option>
-                  <option value="1">有效</option>
-                  <option value="2">已解绑</option>
-                </select>
               </label>
               <div class="field">绑定时间:
                 <div class="dr-wrap" id="dr-bind">
@@ -1305,11 +1316,11 @@ tbody tr:hover td{background:#f6fbff}
     </main>
   </div>
 
-  <!-- 创建活动弹窗 -->
+  <!-- 创建/编辑活动弹窗 -->
   <div class="modal-mask hidden" id="createActModal">
     <div class="modal wide">
       <div class="modal-head">
-        <span>创建邀请绑定活动</span>
+        <span id="actModalTitle">创建邀请绑定活动</span>
         <span class="x" onclick="closeCreateAct()">×</span>
       </div>
       <div class="modal-body">
@@ -1320,52 +1331,26 @@ tbody tr:hover td{background:#f6fbff}
           </div>
         </div>
         <div class="form-row">
+          <label><span class="req">*</span>活动时间</label>
+          <div class="field-ctrl">
+            <div class="dt-pair">
+              <input type="datetime-local" id="actStart" step="60">
+              <span>→</span>
+              <input type="datetime-local" id="actEnd" step="60">
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
           <label>规则说明</label>
           <div class="field-ctrl">
             <textarea id="actDesc" placeholder="活动规则详细说明，如被邀请人需达到X级才算有效绑定、奖励发放时间等"></textarea>
           </div>
         </div>
-        <div class="modal-tip">周期活动数据独立结算：新活动创建后从0开始记录绑定，历史活动数据保留可查看，不影响新活动统计。</div>
+        <div class="modal-tip" id="actModalTip">周期活动数据独立结算：新活动创建后从0开始记录绑定，历史活动数据保留可查看，不影响新活动统计。</div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-cancel" onclick="closeCreateAct()">取消</button>
-        <button class="btn btn-ok" onclick="confirmCreateAct()">创建</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 结束活动确认弹窗 -->
-  <div class="modal-mask hidden" id="endActModal">
-    <div class="modal">
-      <div class="modal-head">
-        <span>结束活动确认</span>
-        <span class="x" onclick="closeEndAct()">×</span>
-      </div>
-      <div class="modal-body">
-        <div class="modal-warn">结束活动后，游戏将停止请求，且该操作不可恢复。</div>
-        <p class="req-p" id="endActText">确认结束当前活动吗？</p>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-cancel" onclick="closeEndAct()">取消</button>
-        <button class="btn btn-ok" onclick="confirmEndAct()">确认结束</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 创建活动冲突确认弹窗 -->
-  <div class="modal-mask hidden" id="createConflictModal">
-    <div class="modal">
-      <div class="modal-head">
-        <span>切换进行中活动</span>
-        <span class="x" onclick="closeCreateConflict()">×</span>
-      </div>
-      <div class="modal-body">
-        <div class="modal-warn">当前已有进行中的活动，创建新活动后将自动结束该活动，游戏将停止请求。</div>
-        <p class="req-p" id="createConflictText">确认结束当前活动并创建新活动吗？</p>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-cancel" onclick="closeCreateConflict()">取消</button>
-        <button class="btn btn-ok" onclick="confirmCreateConflict()">确认并创建</button>
+        <button class="btn btn-ok" id="actModalOk" onclick="confirmCreateAct()">创建</button>
       </div>
     </div>
   </div>
@@ -1405,28 +1390,34 @@ tbody tr:hover td{background:#f6fbff}
       <h2 class="req-h2">三、页面结构（两级页面）</h2>
       <p class="req-p">外层为<strong>活动列表页</strong>，内层为<strong>绑定明细页</strong>，同文件内通过 view 切换。</p>
       <ul class="req-ul">
-        <li><strong>活动列表页</strong>：顶部为活动ID + 活动名称筛选；【创建活动】按钮位于列表左上角；表格列为活动ID/活动名称/规则说明/创建时间/状态/有效绑定/操作（详情/结束）；规则说明列超长时省略号截断，鼠标悬停显示完整内容；带分页器。</li>
-        <li><strong>绑定明细页</strong>：点击活动列表"详情"进入；顶部为"返回活动列表"按钮 + 当前活动名 + 活动状态摘要（活动ID/状态/创建时间/有效绑定数）；筛选栏为ID类型下拉+输入框、绑定状态、绑定时间范围；表格列为绑定ID/邀请人角色ID/邀请人通行证ID/被邀请人角色ID/被邀请人通行证ID/被邀请人设备ID/绑定时间，列宽均分；带分页器与导出。</li>
+        <li><strong>活动列表页</strong>：顶部为活动ID + 活动名称筛选；【创建活动】按钮位于列表左上角；表格列为活动ID/活动名称/规则说明/活动时间/创建时间/状态/有效绑定/操作（详情 + 编辑）；规则说明列超长时省略号截断，鼠标悬停显示完整内容；带分页器。其中「编辑」入口按状态收紧：<strong>已结束活动不展示编辑入口</strong>，未开启与进行中活动展示。</li>
+        <li><strong>绑定明细页</strong>：点击活动列表"详情"进入；顶部为"返回活动列表"按钮 + 当前活动名 + 活动状态摘要（活动ID/状态/活动时间/创建时间/有效绑定数）；筛选栏为ID类型下拉+输入框、绑定时间范围；表格列为绑定ID/邀请人角色ID/邀请人通行证ID/被邀请人角色ID/被邀请人通行证ID/被邀请人设备ID/绑定时间，列宽均分；带分页器与导出。</li>
+        <li><strong>创建活动弹窗</strong>：必填活动名称与活动时间（开始时间 → 结束时间，<strong>精确到分钟</strong>），选填规则说明；结束时间必须晚于开始时间，校验不通过时提示并阻止创建。</li>
+        <li><strong>编辑活动弹窗</strong>：复用创建弹窗，弹窗标题随状态切换（如「编辑活动（进行中）」）。可编辑字段为<strong>活动名称、规则说明、开始时间、结束时间</strong>，各字段可编辑性按活动状态收紧：<strong>未开启</strong>全部可编辑；<strong>进行中</strong>锁定开始时间、可改结束时间（结束时间不得早于当前时间，设为当前时间即提前结束活动）；<strong>已结束</strong>不显示编辑入口（列表页已隐藏）。编辑保存时复用时间冲突校验（排除自身）、结束时间晚于开始时间校验。</li>
       </ul>
 
       <h2 class="req-h2">四、数据模型与ID规则</h2>
       <table class="req-table">
-        <tr><th>活动字段</th><td>活动ID、活动名称、创建时间、状态(进行中/已结束)、奖励规则、规则说明、有效绑定数</td></tr>
-        <tr><th>绑定记录字段</th><td>绑定ID、活动ID、邀请人角色ID、邀请人通行证ID、被邀请人角色ID、被邀请人通行证ID、被邀请人设备ID、绑定时间、绑定状态(有效/已解绑)、解绑时间、解绑原因</td></tr>
+        <tr><th>活动字段</th><td>活动ID、活动名称、活动开始时间、活动结束时间（均精确到分钟）、创建时间、奖励规则、规则说明、有效绑定数</td></tr>
+        <tr><th>活动状态</th><td><strong>不落库</strong>，由活动时间与当前时间实时推导：<strong>未开启</strong>（当前时间 &lt; 开始时间）/ <strong>进行中</strong>（开始 ≤ 当前 ≤ 结束）/ <strong>已结束</strong>（当前时间 &gt; 结束时间）</td></tr>
+        <tr><th>绑定记录字段</th><td>绑定ID、活动ID、邀请人角色ID、邀请人通行证ID、被邀请人角色ID、被邀请人通行证ID、被邀请人设备ID、绑定时间</td></tr>
         <tr><th>活动ID规则</th><td>从 <strong>100</strong> 开始自增（100、101、102…），纯数字无前缀</td></tr>
         <tr><th>绑定ID规则</th><td>从 <strong>10000</strong> 开始自增（10000、10001…），纯数字无前缀</td></tr>
         <tr><th>角色ID/通行证ID</th><td>均为<strong>纯数字</strong>（如 8800123、465486750），无字母前缀</td></tr>
+        <tr><th>编辑权限矩阵</th><td>按活动状态收紧字段可编辑性：<br/><strong>未开启</strong> — 名称✅ / 规则说明✅ / 开始时间✅ / 结束时间✅<br/><strong>进行中</strong> — 名称✅ / 规则说明✅ / 开始时间🔒锁定 / 结束时间✅（不得早于当前时间）<br/><strong>已结束</strong> — 列表页不展示编辑入口</td></tr>
       </table>
 
       <h2 class="req-h2">五、交互逻辑</h2>
       <ul class="req-ul">
         <li>活动列表：按活动ID/活动名称本地过滤；点击"详情"进入该活动绑定明细页；新建活动后刷新列表。</li>
+        <li><strong>编辑活动</strong>：活动列表操作列提供「编辑」入口，复用创建弹窗，弹窗标题随状态切换（如「编辑活动（进行中）」）。可编辑字段为活动名称、规则说明、开始时间、结束时间，各字段可编辑性按活动状态收紧——<strong>已结束活动不展示编辑入口</strong>；未开启全部可编辑；进行中锁定开始时间、可改结束时间（结束时间不得早于当前时间，设为当前时间即提前结束活动）。编辑保存时复用时间冲突校验（排除自身）、结束时间晚于开始时间校验。</li>
         <li>筛选栏（活动列表页与绑定明细页）均<strong>仅提供「查询」按钮，不设重置按钮</strong>；需要恢复全量时，手动清空筛选项后点击查询即可。</li>
         <li>绑定明细：切换活动 → 重新渲染该活动记录 + 更新状态摘要；返回活动列表 → 回到外层。</li>
-        <li>查询：按「ID类型 + 输入值」「绑定状态」「绑定时间范围」组合过滤，各条件之间为<strong>且</strong>关系；字段明细见下方「七、筛选字段说明」。</li>
+        <li>查询：按「ID类型 + 输入值」「绑定时间范围」组合过滤，各条件之间为<strong>且</strong>关系；字段明细见下方「七、筛选字段说明」。</li>
         <li>导出：当前筛选结果导出 CSV（UTF-8 BOM）。</li>
-        <li>进行中活动可点击"结束"，经二次确认后状态变为已结束，绑定记录仍仅支持查询、查看与导出。</li>
-        <li>本页绑定记录为只读：仅提供查询、查看与导出，不提供解绑等修改操作；绑定状态（含已解绑）仅作展示。</li>
+        <li>新建活动<strong>不会改变任何已有活动的状态</strong>；各活动的活动时间<strong>不允许重叠</strong>，创建时若与已有活动时间冲突则提示冲突对象并阻止创建。</li>
+        <li>活动状态无需人工干预，随活动时间到点自动流转（未开启 → 进行中 → 已结束）；页面不提供"结束活动"操作。</li>
+        <li>本页绑定记录为只读：仅提供查询、查看与导出，不提供解绑等修改操作。</li>
       </ul>
 
       <h2 class="req-h2">六、筛选字段说明（绑定明细页）</h2>
@@ -1450,13 +1441,8 @@ tbody tr:hover td{background:#f6fbff}
             <td>空</td>
           </tr>
           <tr>
-            <td>绑定状态</td>
-            <td>下拉单选，共 3 项：不限 / 有效 / 已解绑。「有效」= 当前生效的绑定关系，计入活动的有效绑定数；「已解绑」= 已被人工解除的记录，保留用于追溯，不计入有效绑定数。</td>
-            <td>不限</td>
-          </tr>
-          <tr>
             <td>绑定时间</td>
-            <td>日期范围（开始日期 → 结束日期），取值为<strong>绑定关系建立的时间</strong>（即记录中的「绑定时间」字段，非解绑时间、非活动创建时间）。按日期粒度比较，含首尾两端（闭区间）；可只填开始或只填结束，单边生效。</td>
+            <td>日期范围（开始日期 → 结束日期），取值为<strong>绑定关系建立的时间</strong>（即记录中的「绑定时间」字段，非活动创建时间）。按日期粒度比较，含首尾两端（闭区间）；可只填开始或只填结束，单边生效。</td>
             <td>空<br/>（不限时间范围）</td>
           </tr>
         </tbody>
@@ -1465,7 +1451,7 @@ tbody tr:hover td{background:#f6fbff}
       <h2 class="req-h2">七、边界与异常</h2>
       <ul class="req-ul">
         <li>无活动 / 活动无记录 → 表格展示空态。</li>
-        <li>活动有进行中/已结束两种状态；进行中活动可点击"结束"，经二次确认后状态变为已结束，并模拟停止游戏请求。</li>
+        <li>活动有未开启/进行中/已结束三种状态，全部由活动时间自动判定，同一时刻可存在多个未开启活动（时间不重叠）。</li>
         <li><strong>设备绑定唯一性限制</strong>：一个设备只能被一个角色ID绑定一次。发起绑定时校验该设备是否已存在绑定记录，若已被绑定则拒绝，并提示<strong>「绑定失败，当前设备已被绑定」</strong>。</li>
         <li>该校验在绑定发生时由服务端执行；本页为只读展示，已绑定的设备记录可通过「被邀请人设备ID」筛选查看。</li>
         <li>奖励规则配置不在本页，活动实体仅保存规则摘要文本用于展示。</li>
@@ -1478,33 +1464,47 @@ tbody tr:hover td{background:#f6fbff}
 /* ==================== 数据 ==================== */
 let actSeq = 102;
 const activities = [
-  {id:"ACT-100", name:"夏日老带新第1期", createdAt:"2026-06-01 09:00:00", status:2, rule:"每拉新1人奖励200绑钻，单人上限5人", desc:"被邀请人需达到20级才算有效绑定，奖励于活动结束后7个工作日内发放", bindingCount:0},
-  {id:"ACT-101", name:"夏日老带新第2期", createdAt:"2026-07-01 09:30:00", status:1, rule:"每拉新1人奖励300绑钻，单人上限8人", desc:"被邀请人需达到20级才算有效绑定，奖励于活动结束后7个工作日内发放", bindingCount:0},
-  {id:"ACT-102", name:"春节老带新预热", createdAt:"2026-07-08 14:20:00", status:2, rule:"每拉新1人奖励500绑钻，单人上限10人", desc:"预热活动，被邀请人达到15级即算有效绑定", bindingCount:0}
+  {id:"ACT-100", name:"夏日老带新第1期", createdAt:"2026-06-01 09:00:00", startAt:"2026-06-01 10:00", endAt:"2026-06-30 23:59", rule:"每拉新1人奖励200绑钻，单人上限5人", desc:"被邀请人需达到20级才算有效绑定，奖励于活动结束后7个工作日内发放", bindingCount:0},
+  {id:"ACT-101", name:"夏日老带新第2期", createdAt:"2026-07-01 09:30:00", startAt:"2026-07-01 10:00", endAt:"2026-07-31 23:59", rule:"每拉新1人奖励300绑钻，单人上限8人", desc:"被邀请人需达到20级才算有效绑定，奖励于活动结束后7个工作日内发放", bindingCount:0},
+  {id:"ACT-102", name:"春节老带新预热", createdAt:"2026-07-08 14:20:00", startAt:"2026-08-05 10:00", endAt:"2026-08-20 23:59", rule:"每拉新1人奖励500绑钻，单人上限10人", desc:"预热活动，被邀请人达到15级即算有效绑定", bindingCount:0}
 ];
 
 let bindSeq = 10007;
 const bindingsByActivity = {
   "ACT-100": [
-    {id:"B-10000", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900345", newPassId:"475075362", deviceId:"DEV-A8F3C2-91", bindTime:"2026-06-03 10:11:20", status:1, unbindTime:"", unbindReason:""},
-    {id:"B-10001", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900451", newPassId:"482100334", deviceId:"DEV-A8F3C2-91", bindTime:"2026-06-05 14:23:08", status:2, unbindTime:"2026-06-10 09:30:00", unbindReason:"同设备多账号疑似刷单，人工解除"},
-    {id:"B-10002", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900512", newPassId:"490012887", deviceId:"DEV-2B71E0-44", bindTime:"2026-06-08 18:07:32", status:1, unbindTime:"", unbindReason:""}
+    {id:"B-10000", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900345", newPassId:"475075362", deviceId:"DEV-A8F3C2-91", bindTime:"2026-06-03 10:11:20"},
+    {id:"B-10001", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900451", newPassId:"482100334", deviceId:"DEV-B7E4D1-22", bindTime:"2026-06-05 14:23:08"},
+    {id:"B-10002", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900512", newPassId:"490012887", deviceId:"DEV-2B71E0-44", bindTime:"2026-06-08 18:07:32"}
   ],
   "ACT-101": [
-    {id:"B-10003", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900678", newPassId:"501234421", deviceId:"DEV-A8F3C2-91", bindTime:"2026-07-02 09:41:55", status:1, unbindTime:"", unbindReason:""},
-    {id:"B-10004", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900723", newPassId:"502345882", deviceId:"DEV-C0D9A1-77", bindTime:"2026-07-03 16:33:09", status:1, unbindTime:"", unbindReason:""},
-    {id:"B-10005", oldRoleId:"6655478", oldPassId:"465486750", newRoleId:"9900755", newPassId:"503456113", deviceId:"DEV-2B71E0-44", bindTime:"2026-07-04 08:25:44", status:1, unbindTime:"", unbindReason:""},
-    {id:"B-10006", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900812", newPassId:"504567244", deviceId:"DEV-A8F3C2-91", bindTime:"2026-07-05 20:18:42", status:2, unbindTime:"2026-07-07 10:00:00", unbindReason:"玩家申诉：误绑非邀请人"},
-    {id:"B-10007", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900856", newPassId:"505678355", deviceId:"DEV-E5F2C8-12", bindTime:"2026-07-06 12:50:33", status:1, unbindTime:"", unbindReason:""}
+    {id:"B-10003", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900678", newPassId:"501234421", deviceId:"DEV-F1A9C3-33", bindTime:"2026-07-02 09:41:55"},
+    {id:"B-10004", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900723", newPassId:"502345882", deviceId:"DEV-C0D9A1-77", bindTime:"2026-07-03 16:33:09"},
+    {id:"B-10005", oldRoleId:"6655478", oldPassId:"465486750", newRoleId:"9900755", newPassId:"503456113", deviceId:"DEV-H3L6N8-55", bindTime:"2026-07-04 08:25:44"},
+    {id:"B-10006", oldRoleId:"8800123", oldPassId:"465486750", newRoleId:"9900812", newPassId:"504567244", deviceId:"DEV-G2K5M7-44", bindTime:"2026-07-05 20:18:42"},
+    {id:"B-10007", oldRoleId:"7712034", oldPassId:"342359112", newRoleId:"9900856", newPassId:"505678355", deviceId:"DEV-E5F2C8-12", bindTime:"2026-07-06 12:50:33"}
   ],
   "ACT-102": []
 };
 
-const statusActMap = {1:{cls:"rebind",text:"进行中"},2:{cls:"ended",text:"已结束"}};
-const statusBindMap = {1:{cls:"pass",text:"有效"},2:{cls:"unbind",text:"已解绑"}};
+const statusActMap = {0:{cls:"wait",text:"未开启"},1:{cls:"rebind",text:"进行中"},2:{cls:"ended",text:"已结束"}};
+
+// 当前时间，格式 YYYY-MM-DD HH:mm，用于与活动起止时间做字符串比较
+function nowStr(){
+  const d = new Date();
+  const p = n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// 活动状态完全由活动时间推导：未到开始时间=未开启(0)，区间内=进行中(1)，超过结束时间=已结束(2)
+function actStatus(act){
+  if(!act || !act.startAt || !act.endAt) return 0;
+  const now = nowStr();
+  if(now < act.startAt) return 0;
+  if(now > act.endAt) return 2;
+  return 1;
+}
 
 function actStatusTag(s){ const m=statusActMap[s]; return `<span class="tag ${m.cls}">${m.text}</span>`; }
-function bindStatusTag(s){ const m=statusBindMap[s]; return `<span class="tag ${m.cls}">${m.text}</span>`; }
 function displayId(value){ return String(value).replace(/^(B-|ACT-)/,""); }
 function escapeAttr(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
@@ -1569,28 +1569,29 @@ function renderActList(){
       <td class="col-id"><span class="link" onclick="enterDetail('${a.id}')">${displayId(a.id)}</span></td>
       <td>${a.name}</td>
       <td class="col-desc" title="${escapeAttr(a.desc||"")}">${a.desc || '<span class="muted">—</span>'}</td>
+      <td class="col-range">${a.startAt && a.endAt ? `${a.startAt} ~ ${a.endAt}` : '<span class="muted">—</span>'}</td>
       <td>${a.createdAt}</td>
-      <td>${actStatusTag(a.status)}</td>
+      <td>${actStatusTag(actStatus(a))}</td>
       <td>${a.bindingCount}</td>
-      <td class="col-actions"><span class="link" onclick="enterDetail('${a.id}')">详情</span>${a.status===1 ? ` <span class="link" onclick="openEndAct('${a.id}')">结束</span>` : ""}</td>
+      <td class="col-actions"><span class="link" onclick="enterDetail('${a.id}')">详情</span>${actStatus(a)===2 ? '' : ` <span class="link" onclick="openEditAct('${a.id}')">编辑</span>`}</td>
     </tr>`;
   }).join("");
   if(pageRows.length===0){
-    el.innerHTML = `<tr class="empty-row"><td colspan="7">暂无活动</td></tr>`;
+    el.innerHTML = `<tr class="empty-row"><td colspan="8">暂无活动</td></tr>`;
   }
 }
 
 function renderActMeta(){
   const act = currentAct();
   const el = document.getElementById("actMeta");
-  const endBtn = document.getElementById("endActDetailBtn");
-  if(!act){ el.innerHTML=""; endBtn.classList.add("hidden"); return; }
+  if(!act){ el.innerHTML=""; return; }
   refreshActCounts(act.id);
-  endBtn.classList.toggle("hidden", act.status!==1);
   el.innerHTML = `
     <span class="am-item"><span class="am-label">活动ID:</span><span class="am-val">${act.id}</span></span>
     <span class="am-sep"></span>
-    <span class="am-item">${actStatusTag(act.status)}</span>
+    <span class="am-item">${actStatusTag(actStatus(act))}</span>
+    <span class="am-sep"></span>
+    <span class="am-item"><span class="am-label">活动时间:</span><span class="am-val">${act.startAt && act.endAt ? `${act.startAt} ~ ${act.endAt}` : "—"}</span></span>
     <span class="am-sep"></span>
     <span class="am-item"><span class="am-label">创建时间:</span><span class="am-val">${act.createdAt}</span></span>
     <span class="am-sep"></span>
@@ -1623,57 +1624,83 @@ function goBack(){
 }
 
 /* ==================== 创建活动 ==================== */
+// 弹窗模式：null=创建，活动ID=编辑该活动
+let editingActId = null;
+
+// datetime-local 的值形如 2026-07-29T16:30，转成 2026-07-29 16:30
+function fmtDateTime(v){ return v ? v.replace("T"," ") : ""; }
+// 反向：2026-07-29 16:30 → 2026-07-29T16:30，回填 datetime-local
+function toDateTimeLocal(v){ return v ? v.replace(" ","T") : ""; }
+
+function setInputState(id, locked, placeholder){
+  const el = document.getElementById(id);
+  el.disabled = locked;
+  el.style.background = locked ? "#f4f5f7" : "";
+  el.style.color = locked ? "#a8b0bd" : "";
+  if(placeholder !== undefined) el.placeholder = placeholder;
+}
+
 function openCreateAct(){
+  editingActId = null;
+  document.getElementById("actModalTitle").textContent = "创建邀请绑定活动";
+  document.getElementById("actModalOk").textContent = "创建";
+  document.getElementById("actModalTip").textContent = "周期活动数据独立结算：新活动创建后从0开始记录绑定，历史活动数据保留可查看，不影响新活动统计。";
   document.getElementById("actName").value = "";
   document.getElementById("actDesc").value = "";
+  document.getElementById("actStart").value = "";
+  document.getElementById("actEnd").value = "";
+  setInputState("actStart", false, "");
+  setInputState("actEnd", false, "");
   document.getElementById("createActModal").classList.remove("hidden");
 }
-function closeCreateAct(){ document.getElementById("createActModal").classList.add("hidden"); }
 
-let endActId = null;
-let pendingCreate = null;
-function getActiveAct(){ return activities.find(a=>a.status===1) || null; }
-function closeCreateConflict(){
-  pendingCreate = null;
-  document.getElementById("createConflictModal").classList.add("hidden");
-}
-function confirmCreateConflict(){
-  const active = getActiveAct();
-  if(active) active.status = 2;
-  const draft = pendingCreate;
-  closeCreateConflict();
-  if(draft) createActivity(draft);
-  showToast(active ? `活动「${active.name}」已结束，游戏请求已停止` : "已处理进行中活动");
-}
-function openEndAct(id){
+function openEditAct(id){
   const act = getAct(id);
-  if(!act || act.status!==1) return;
-  endActId = id;
-  document.getElementById("endActText").textContent = `确认结束活动「${act.name}」吗？`;
-  document.getElementById("endActModal").classList.remove("hidden");
-}
-function closeEndAct(){
-  endActId = null;
-  document.getElementById("endActModal").classList.add("hidden");
-}
-function confirmEndAct(){
-  const act = getAct(endActId);
-  if(!act || act.status!==1){ closeEndAct(); return; }
-  act.status = 2;
-  const endedName = act.name;
-  closeEndAct();
-  renderActList();
-  renderActMeta();
-  showToast(`活动「${endedName}」已结束，游戏请求已停止`);
+  if(!act) return;
+  editingActId = id;
+  const st = actStatus(act);
+  document.getElementById("actModalTitle").textContent = `编辑活动（${actStatusTag(st).replace(/<[^>]+>/g,"")}）`;
+  document.getElementById("actModalOk").textContent = "保存";
+  document.getElementById("actName").value = act.name;
+  document.getElementById("actDesc").value = act.desc === "—" ? "" : act.desc;
+  document.getElementById("actStart").value = toDateTimeLocal(act.startAt);
+  document.getElementById("actEnd").value = toDateTimeLocal(act.endAt);
+
+  if(st===0){
+    setInputState("actStart", false, "");
+    setInputState("actEnd", false, "");
+    document.getElementById("actModalTip").textContent = "未开启活动：活动开始时间与结束时间均可编辑。";
+  }else if(st===1){
+    setInputState("actStart", true, "已开始，不可修改");
+    setInputState("actEnd", false, "");
+    document.getElementById("actModalTip").textContent = "进行中活动：只能修改结束时间；结束时间不得早于当前时间，设为当前时间即提前结束活动。";
+  }else{
+    setInputState("actStart", true, "已结束，不可修改");
+    setInputState("actEnd", true, "已结束，不可修改");
+    document.getElementById("actModalTip").textContent = "已结束活动：活动开始与结束时间均不可修改，仅可修改活动名称与规则说明。";
+  }
+  document.getElementById("createActModal").classList.remove("hidden");
 }
 
-function createActivity({name, desc}){
+function closeCreateAct(){ editingActId = null; document.getElementById("createActModal").classList.add("hidden"); }
+
+// 找出与给定时间区间冲突的活动（闭区间重叠即冲突），excludeId 用于编辑时排除自身
+function findTimeConflict(startAt, endAt, excludeId){
+  return activities.find(a=>{
+    if(excludeId && a.id===excludeId) return false;
+    if(!a.startAt || !a.endAt) return false;
+    return a.startAt <= endAt && startAt <= a.endAt;
+  }) || null;
+}
+
+function createActivity({name, desc, startAt, endAt}){
   actSeq += 1;
   const id = "ACT-" + actSeq;
   const now = new Date();
   const pad = n=>String(n).padStart(2,"0");
   const createdAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  const act = {id, name, createdAt, status:1, rule:"—", desc: desc||"—", bindingCount:0};
+  // 状态不落库，由 actStatus() 按活动时间实时推导
+  const act = {id, name, createdAt, startAt, endAt, rule:"—", desc: desc||"—", bindingCount:0};
   activities.unshift(act);
   bindingsByActivity[id] = [];
   currentActId = id;
@@ -1685,25 +1712,73 @@ function createActivity({name, desc}){
 function confirmCreateAct(){
   const name = document.getElementById("actName").value.trim();
   const desc = document.getElementById("actDesc").value.trim();
+  const startRaw = document.getElementById("actStart").value;
+  const endRaw = document.getElementById("actEnd").value;
   if(!name){ showToast("请输入活动名称"); return; }
 
-  const active = getActiveAct();
-  pendingCreate = {name, desc};
-  closeCreateAct();
-  if(active){
-    document.getElementById("createConflictText").textContent = `当前进行中活动「${active.name}」将被结束，确认创建「${name}」吗？`;
-    document.getElementById("createConflictModal").classList.remove("hidden");
+  // ===== 编辑模式 =====
+  if(editingActId){
+    const act = getAct(editingActId);
+    if(!act){ closeCreateAct(); return; }
+    const st = actStatus(act);
+    const updates = {name, desc: desc||"—"};
+
+    if(st===0){
+      // 未开启：起止时间均可改
+      if(!startRaw){ showToast("请选择活动开始时间"); return; }
+      if(!endRaw){ showToast("请选择活动结束时间"); return; }
+      if(endRaw <= startRaw){ showToast("结束时间必须晚于开始时间"); return; }
+      updates.startAt = fmtDateTime(startRaw);
+      updates.endAt = fmtDateTime(endRaw);
+    }else if(st===1){
+      // 进行中：只改结束时间，且不得早于当前时间
+      if(!endRaw){ showToast("请选择活动结束时间"); return; }
+      const endAt = fmtDateTime(endRaw);
+      if(endAt <= act.startAt){ showToast("结束时间必须晚于开始时间"); return; }
+      if(endAt < nowStr()){ showToast("结束时间不能早于当前时间"); return; }
+      updates.endAt = endAt;
+    }
+    // st===2 已结束：时间不进入校验，沿用原值，仅改名称与说明
+
+    const finalStart = updates.startAt || act.startAt;
+    const finalEnd = updates.endAt || act.endAt;
+    const conflict = findTimeConflict(finalStart, finalEnd, act.id);
+    if(conflict){
+      showToast(`活动时间与「${conflict.name}」（${conflict.startAt} ~ ${conflict.endAt}）冲突，请调整`);
+      return;
+    }
+
+    Object.assign(act, updates);
+    closeCreateAct();
+    renderActList();
+    renderActMeta();
+    showToast(`活动「${name}」已保存`);
     return;
   }
-  createActivity(pendingCreate);
-  pendingCreate = null;
+
+  // ===== 创建模式 =====
+  if(!startRaw){ showToast("请选择活动开始时间"); return; }
+  if(!endRaw){ showToast("请选择活动结束时间"); return; }
+  if(endRaw <= startRaw){ showToast("结束时间必须晚于开始时间"); return; }
+
+  const startAt = fmtDateTime(startRaw);
+  const endAt = fmtDateTime(endRaw);
+
+  // 活动时间不可与已有活动重叠
+  const conflict = findTimeConflict(startAt, endAt);
+  if(conflict){
+    showToast(`活动时间与「${conflict.name}」（${conflict.startAt} ~ ${conflict.endAt}）冲突，请调整`);
+    return;
+  }
+
+  closeCreateAct();
+  createActivity({name, desc, startAt, endAt});
 }
 
 /* ==================== 筛选 ==================== */
 function doQuery(silent){
   const idValue = document.getElementById("fIdValue").value.trim();
   const idType = document.getElementById("fIdType").value;
-  const fBind = document.getElementById("fBindStatus").value;
   const sDate = document.getElementById("dr-bind-s").value;
   const eDate = document.getElementById("dr-bind-e").value;
 
@@ -1713,7 +1788,6 @@ function doQuery(silent){
       // ID 为精确匹配（全等），不做模糊包含
       if(String(r[idType]||"").toLowerCase() !== idValue.toLowerCase()) return false;
     }
-    if(fBind && String(r.status)!==fBind) return false;
     if(sDate && r.bindTime.slice(0,10) < sDate) return false;
     if(eDate && r.bindTime.slice(0,10) > eDate) return false;
     return true;
@@ -1766,10 +1840,10 @@ function goPage(delta){
 /* ==================== 导出 ==================== */
 function exportData(){
   if(filteredRows.length===0){ showToast("当前无数据可导出"); return; }
-  const headers = ["绑定ID","邀请人角色ID","邀请人通行证ID","被邀请人角色ID","被邀请人通行证ID","被邀请人设备ID","绑定时间","绑定状态","解绑时间","解绑原因"];
+  const headers = ["绑定ID","邀请人角色ID","邀请人通行证ID","被邀请人角色ID","被邀请人通行证ID","被邀请人设备ID","绑定时间"];
   const lines = [headers.join(",")];
   filteredRows.forEach(r=>{
-    lines.push([r.id,r.oldRoleId,r.oldPassId,r.newRoleId,r.newPassId,r.deviceId,r.bindTime,statusBindMap[r.status].text,r.unbindTime||"",r.unbindReason||""].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+    lines.push([r.id,r.oldRoleId,r.oldPassId,r.newRoleId,r.newPassId,r.deviceId,r.bindTime].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
   });
   const act = currentAct();
   const blob = new Blob(["\ufeff"+lines.join("\n")], {type:"text/csv;charset=utf-8;"});
@@ -1787,7 +1861,7 @@ function exportData(){
 /* ==================== 需求说明抽屉 ==================== */
 function openReq(){ document.getElementById("reqDrawer").classList.add("open"); document.getElementById("reqMask").classList.add("open"); }
 function closeReq(){ document.getElementById("reqDrawer").classList.remove("open"); document.getElementById("reqMask").classList.remove("open"); }
-document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeReq(); closeCreateAct(); closeEndAct(); closeCreateConflict(); } });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeReq(); closeCreateAct(); } });
 
 /* ==================== toast ==================== */
 let _toastTimer;
