@@ -16,9 +16,9 @@
     .intro { margin:0 auto 24px; max-width:460px; color:var(--muted); }
     .captcha-card { width:100%; max-width:330px; margin:0 auto; padding:18px; text-align:left; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 12px 32px rgba(38,50,56,.1); transition:opacity .22s ease, visibility .22s ease; }
     .captcha-card.completed { opacity:0; visibility:hidden; pointer-events:none; }
-    .card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-    .card-head h2 { margin:0; font-size:17px; font-weight:650; }
-    .icon-button { width:32px; height:32px; display:grid; place-items:center; border:0; border-radius:50%; color:#748087; background:transparent; cursor:pointer; }
+    .card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+    .card-head h2 { margin:0; font-size:14px; font-weight:650; }
+    .icon-button { width:24px; height:24px; display:grid; place-items:center; border:0; border-radius:50%; color:#748087; background:transparent; cursor:pointer; }
     .icon-button:hover,.icon-button:focus-visible { background:#eef3f5; color:var(--ink); outline:0; }
     .canvas-wrap { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; border-radius:5px; background:#e9eef0; }
     canvas { display:block; width:100%; height:100%; }
@@ -29,9 +29,9 @@
     .error-title { margin:0 0 4px; font-weight:650; }
     .error-copy { margin:0 0 10px; color:var(--muted); font-size:12px; }
     .text-button { padding:4px 8px; border:0; color:var(--accent); background:transparent; cursor:pointer; text-decoration:underline; }
-    .slider { position:relative; height:48px; margin-top:14px; padding:5px; border:1px solid var(--line); border-radius:24px; background:#edf1f2; touch-action:none; user-select:none; }
-    .track-fill { position:absolute; inset:5px auto 5px 5px; width:40px; border-radius:20px; background:#d8edf7; pointer-events:none; }
-    .handle { position:absolute; z-index:2; top:5px; left:5px; width:40px; height:38px; display:grid; place-items:center; border:0; border-radius:20px; color:#fff; background:var(--accent); cursor:grab; box-shadow:0 2px 7px rgba(20,150,210,.32); touch-action:none; }
+    .slider { position:relative; height:42px; margin-top:9px; padding:4px; border:1px solid var(--line); border-radius:22px; background:#edf1f2; touch-action:none; user-select:none; }
+    .track-fill { position:absolute; inset:4px auto 4px 4px; width:34px; border-radius:18px; background:#d8edf7; pointer-events:none; }
+    .handle { position:absolute; z-index:2; top:4px; left:4px; width:34px; height:32px; display:grid; place-items:center; border:0; border-radius:18px; color:#fff; background:linear-gradient(135deg,#169ed6,#0d7ec0); cursor:grab; box-shadow:0 2px 7px rgba(22,158,214,.32); touch-action:none; }
     .handle:active { cursor:grabbing; }
     .handle:focus-visible { outline:3px solid rgba(20,150,210,.3); outline-offset:2px; }
     .handle svg { width:17px; height:17px; }
@@ -69,39 +69,42 @@
     @media (max-width:520px) { body { padding:20px 14px 86px; } h1 { font-size:24px; } .captcha-card { padding:17px; } .requirements-button { right:16px; bottom:16px; } }
     /* 手机外壳 */
     .phone { width:390px; max-width:100%; background:#000; border-radius:48px; padding:10px; box-shadow:0 0 0 2px #1f2937, 0 24px 60px rgba(0,0,0,.35); position:relative; }
-    .phone-screen { position:relative; width:100%; aspect-ratio:9/19.5; background:#f4f6f7; border-radius:38px; overflow:hidden; display:flex; flex-direction:column; }
-    .status-bar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 28px 0 32px; font-size:15px; font-weight:600; color:#263238; flex-shrink:0; }
+    .phone-screen { position:relative; width:100%; aspect-ratio:9/19.5; border-radius:38px; overflow:hidden; display:flex; flex-direction:column; background:linear-gradient(160deg,#061829 0%,#073d5e 32%,#2a0e4a 62%,#040813 100%); }
+    .status-bar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 28px 0 32px; font-size:15px; font-weight:600; color:#dae8ff; flex-shrink:0; }
     .status-bar .right { display:flex; align-items:center; gap:6px; }
     .signal-dots { display:flex; align-items:flex-end; gap:2px; height:12px; }
-    .signal-dots i { width:3px; background:#263238; border-radius:1px; display:block; }
-    .battery { width:25px; height:12px; border:1.5px solid #263238; border-radius:3px; padding:1px; position:relative; opacity:.85; }
-    .battery::after { content:''; position:absolute; top:3px; right:-3px; width:2px; height:6px; background:#263238; border-radius:0 1px 1px 0; }
-    .battery i { display:block; height:100%; width:80%; background:#263238; border-radius:1px; }
+    .signal-dots i { width:3px; background:#dae8ff; border-radius:1px; display:block; }
+    .battery { width:25px; height:12px; border:1.5px solid #dae8ff; border-radius:3px; padding:1px; position:relative; opacity:.85; }
+    .battery::after { content:''; position:absolute; top:3px; right:-3px; width:2px; height:6px; background:#dae8ff; border-radius:0 1px 1px 0; }
+    .battery i { display:block; height:100%; width:80%; background:#dae8ff; border-radius:1px; }
     .notch { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:32px; background:#000; border-radius:999px; z-index:5; }
-    .home-indicator { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; background:rgba(38,50,56,.4); border-radius:999px; z-index:5; }
+    .home-indicator { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; background:rgba(255,255,255,.6); border-radius:999px; z-index:5; }
     .phone-content { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px 20px 40px; overflow:auto; }
     .phone-eyebrow { margin:0 0 4px; color:var(--muted); font-size:10px; letter-spacing:.16em; text-transform:uppercase; text-align:center; }
     .phone-title { margin:0 0 16px; font-size:17px; font-weight:650; text-align:center; }
     @media (max-width:440px) { .phone { width:100%; border-radius:36px; padding:8px; } .phone-screen { border-radius:28px; } }
     /* 登录表单 */
-    .login-card { width:100%; max-width:300px; margin:0 auto; text-align:left; }
-    .login-card h2 { margin:0 0 4px; font-size:20px; font-weight:650; text-align:center; }
-    .login-sub { margin:0 0 20px; font-size:12px; color:var(--muted); text-align:center; }
-    .field { margin-bottom:14px; }
-    .field label { display:block; margin-bottom:6px; font-size:12px; color:var(--muted); }
-    .field input { width:100%; height:40px; padding:0 12px; border:1px solid var(--line); border-radius:6px; font:14px/1.5 inherit; color:var(--ink); background:#fff; }
-    .field input:focus { outline:0; border-color:var(--accent); box-shadow:0 0 0 3px rgba(20,150,210,.15); }
-    .login-btn { width:100%; height:42px; margin-top:4px; border:0; border-radius:6px; color:#fff; background:var(--accent); font-size:15px; font-weight:600; cursor:pointer; }
+    .login-card { position:relative; width:100%; max-width:300px; margin:0 auto; text-align:left; background:#fff; border-radius:8px; padding:20px 16px 14px; box-shadow:0 0 0 1px rgba(100,200,255,.15),0 14px 34px rgba(0,0,0,.35); overflow:hidden; }
+    .login-card h2 { margin:0 0 4px; font-size:14px; font-weight:600; text-align:center; color:#1a2433; }
+    .login-sub { margin:0 0 16px; font-size:12px; color:var(--muted); text-align:center; }
+    .field { margin-bottom:9px; }
+    .field label { display:block; margin-bottom:4px; font-size:9px; color:#7a8494; }
+    .field input { width:100%; height:36px; padding:0 10px; border:0; border-radius:6px; font:11px/1.5 inherit; color:#5a6878; background:#f4f8fc; }
+    .field input:focus { outline:0; background:#eaf4fc; }
+    .login-btn { width:100%; height:36px; margin-top:5px; border:0; border-radius:20px; color:#fff; background:linear-gradient(135deg,#169ed6,#0d7ec0); font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(22,158,214,.3); }
     .login-btn:active { background:#0b7aaf; }
     .login-btn:focus-visible { outline:3px solid rgba(20,150,210,.3); outline-offset:2px; }
     .login-status { margin-top:12px; min-height:20px; font-size:12px; text-align:center; color:var(--muted); }
     .login-status.error { color:var(--danger); }
     .login-status.warn { color:#d97706; }
     .fail-counter { margin-top:8px; font-size:11px; text-align:center; color:var(--muted); }
-    .toggle-row { display:flex; justify-content:center; gap:18px; margin:0 0 18px; font-size:13px; }
-    .toggle-row button { padding:6px 0; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--muted); cursor:pointer; }
-    .toggle-row button.active { color:var(--ink); border-bottom-color:var(--accent); font-weight:600; }
-    .captcha-card { display:none; }
+    .toggle-row { display:flex; align-items:center; justify-content:center; gap:4px; width:100%; max-width:300px; margin:0 auto 18px; padding:4px; border:1px solid rgba(151,208,239,.42); border-radius:999px; background:rgba(4,18,40,.72); box-shadow:0 4px 14px rgba(0,0,0,.2); font-size:11px; }
+    .toggle-row button { flex:1; min-width:0; height:30px; padding:0 8px; border:0; border-radius:999px; background:transparent; color:#b9d8ef; cursor:pointer; white-space:nowrap; transition:background .18s ease, color .18s ease, box-shadow .18s ease; }
+    .toggle-row button:hover { color:#fff; background:rgba(53,157,211,.2); }
+    .toggle-row button.active { color:#fff; background:linear-gradient(135deg,#169ed6,#0d7ec0); font-weight:600; box-shadow:0 3px 9px rgba(22,158,214,.38); }
+    .captcha-overlay { position:absolute; inset:0; z-index:8; background:rgba(5,12,28,.45); opacity:0; pointer-events:none; transition:opacity .22s ease; border-radius:8px; }
+    .captcha-overlay.visible { opacity:1; pointer-events:auto; }
+    .captcha-card { position:absolute; z-index:9; top:50%; left:50%; transform:translate(-50%,-50%); display:none; width:78%; max-width:232px; padding:10px 10px 11px; text-align:left; background:#fff; border:0; border-radius:8px; box-shadow:0 0 0 1px rgba(100,200,255,.15),0 12px 30px rgba(0,0,0,.45); overflow:hidden; }
     .captcha-card.visible { display:block; }
     .captcha-card.completed { opacity:0; visibility:hidden; pointer-events:none; }
   </style>
@@ -140,8 +143,8 @@
           <button type="submit" class="login-btn" id="loginBtn">登录</button>
           <div class="login-status" id="loginStatus" role="status" aria-live="polite"></div>
           <div class="fail-counter" id="failCounter">连续失败 0/3 次后触发滑块验证</div>
-        </form>
 
+        <div class="captcha-overlay" id="captchaOverlay"></div>
         <section class="captcha-card" id="captchaCard" aria-label="滑动图片验证码">
       <div class="card-head">
         <h2>安全验证</h2>
@@ -161,13 +164,16 @@
         </button>
         <span class="slider-label">向右拖动滑块完成拼图</span>
       </div>
-      <div class="status" id="status" role="status" aria-live="polite">将拼图块拖入缺口。</div>
-      <div class="actions"><button class="secondary" id="refresh" type="button">刷新</button><span id="attempts">尝试次数：0</span></div>
-      <div class="test-tools">
-        <label><input id="simulateFailure" type="checkbox"> 模拟弱网图片加载失败</label>
-        <button id="reopen" type="button">重新打开验证</button>
+      <div class="hidden-tools" hidden>
+        <div class="status" id="status" role="status" aria-live="polite">将拼图块拖入缺口。</div>
+        <div class="actions"><button class="secondary" id="refresh" type="button">刷新</button><span id="attempts">尝试次数：0</span></div>
+        <div class="test-tools">
+          <label><input id="simulateFailure" type="checkbox"> 模拟弱网图片加载失败</label>
+          <button id="reopen" type="button">重新打开验证</button>
+        </div>
       </div>
     </section>
+        </form>
       </div>
       <div class="home-indicator"></div>
     </div>
@@ -253,6 +259,7 @@
       const loginStatus = document.getElementById('loginStatus');
       const failCounter = document.getElementById('failCounter');
       const captchaCard = document.getElementById('captchaCard');
+      const captchaOverlay = document.getElementById('captchaOverlay');
       const tabAccount = document.getElementById('tabAccount');
       const tabPhone = document.getElementById('tabPhone');
       const accountField = document.getElementById('accountField');
@@ -270,8 +277,18 @@
 
       function setLoginStatus(text, kind) { loginStatus.textContent = text; loginStatus.className = `login-status${kind ? ` ${kind}` : ''}`; }
 
-      function showCaptcha() { captchaCard.classList.add('visible'); captchaCard.classList.remove('completed'); loadPuzzle(); }
-      function hideCaptcha() { captchaCard.classList.remove('visible'); captchaCard.classList.remove('completed'); }
+      function showCaptcha() {
+        captchaCard.classList.add('visible');
+        captchaOverlay.classList.add('visible');
+        captchaCard.classList.remove('completed');
+        // 弹窗从 display:none 变为可见后再读取轨道宽度，避免初始拖动范围为 0。
+        window.requestAnimationFrame(() => {
+          updateSliderMetrics();
+          setOffset(0);
+          loadPuzzle();
+        });
+      }
+      function hideCaptcha() { captchaCard.classList.remove('visible'); captchaOverlay.classList.remove('visible'); captchaCard.classList.remove('completed'); }
 
       tabAccount.addEventListener('click', () => {
         loginMode.account = true; tabAccount.classList.add('active'); tabPhone.classList.remove('active');
@@ -320,6 +337,7 @@
       let dragging = false;
       let attempts = 0;
       let solved = false;
+      let sceneReady = false;
       let loadToken = 0;
       let closeTimer;
 
@@ -341,6 +359,10 @@
       }
 
       function paintScene() {
+        if (sceneReady) {
+          ctx.drawImage(sourceCanvas, 0, 0);
+          return;
+        }
         const hue = Math.floor(Math.random() * 360);
         const gradient = ctx.createLinearGradient(0, 0, 320, 180);
         gradient.addColorStop(0, `hsl(${hue}, 58%, 76%)`);
@@ -359,6 +381,7 @@
         ctx.font = '600 12px system-ui'; ctx.fillText('SLIDING IMAGE CAPTCHA', 15, 22);
         sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
         sourceCtx.drawImage(canvas, 0, 0);
+        sceneReady = true;
       }
 
       function drawPuzzle() {
@@ -377,18 +400,29 @@
         }
       }
 
-      function setOffset(value) {
-        offset = Math.max(0, Math.min(maxOffset, value));
-        handle.style.left = `${5 + offset}px`;
-        trackFill.style.width = `${40 + offset}px`;
-        handle.setAttribute('aria-valuenow', String(Math.round((offset / Math.max(1, maxOffset)) * 100)));
-        drawPuzzle();
+      const sliderInset = 4;
+      const handleWidth = 34;
+
+      function updateSliderMetrics() {
+        maxOffset = Math.max(0, slider.clientWidth - sliderInset * 2 - handleWidth);
       }
 
-      function setStatus(text, kind) { status.textContent = text; status.className = `status${kind ? ` ${kind}` : ''}`; }
+      function setOffset(value) {
+        offset = Math.max(0, Math.min(maxOffset, value));
+        handle.style.left = `${sliderInset + offset}px`;
+        trackFill.style.width = `${handleWidth + offset}px`;
+        handle.setAttribute('aria-valuenow', String(Math.round((offset / Math.max(1, maxOffset)) * 100)));
+        if (sceneReady) drawPuzzle();
+      }
+
+      function setStatus(text, kind) {
+        if (!status) return;
+        status.textContent = text;
+        status.className = `status${kind ? ` ${kind}` : ''}`;
+      }
 
       function generatePuzzle() {
-        clearTimeout(closeTimer); solved = false; setOffset(0); setStatus('将拼图块拖入缺口。');
+        clearTimeout(closeTimer); solved = false; sceneReady = false; setOffset(0); setStatus('将拼图块拖入缺口。');
         const min = 15; const max = canvas.width - gapSize - 15;
         gapX = min + Math.floor(Math.random() * (max - min + 1));
         drawPuzzle();
@@ -405,7 +439,7 @@
       }
 
       function finishAttempt() {
-        if (!dragging || solved) return; dragging = false; attempts += 1; attemptsLabel.textContent = `尝试次数：${attempts}`;
+        if (!dragging || solved) return; dragging = false; attempts += 1; if (attemptsLabel) attemptsLabel.textContent = `尝试次数：${attempts}`;
         const pieceX = 15 + (gapX - 15) * (offset / Math.max(1, maxOffset));
         if (Math.abs(pieceX - gapX) <= tolerance) {
           solved = true; setOffset(maxOffset); setStatus('验证成功', 'success'); drawPuzzle();
@@ -419,19 +453,28 @@
       }
 
       function pointerMove(event) {
-        if (!dragging) return; const point = event.touches ? event.touches[0] : event; const rect = slider.getBoundingClientRect();
-        setOffset(point.clientX - rect.left - 25);
+        if (!dragging) return;
+        const point = event.touches ? event.touches[0] : event;
+        const rect = slider.getBoundingClientRect();
+        setOffset(point.clientX - rect.left - sliderInset - handleWidth / 2);
       }
-      handle.addEventListener('pointerdown', (event) => { if (solved) return; dragging = true; handle.setPointerCapture?.(event.pointerId); event.preventDefault(); });
+      handle.addEventListener('pointerdown', (event) => {
+        if (solved || !maxOffset) return;
+        dragging = true;
+        handle.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      });
+      slider.addEventListener('pointermove', pointerMove);
       window.addEventListener('pointermove', pointerMove);
       window.addEventListener('pointerup', finishAttempt);
+      handle.addEventListener('lostpointercapture', () => { if (dragging) finishAttempt(); });
       handle.addEventListener('keydown', (event) => { if (event.key === 'ArrowRight') { setOffset(offset + 4); event.preventDefault(); } if (event.key === 'ArrowLeft') { setOffset(offset - 4); event.preventDefault(); } if (event.key === 'Home') { setOffset(0); event.preventDefault(); } if (event.key === 'End') { setOffset(maxOffset); event.preventDefault(); } if (event.key === ' ') { dragging = true; finishAttempt(); event.preventDefault(); } });
-      document.getElementById('refresh').addEventListener('click', loadPuzzle);
+      document.getElementById('refresh')?.addEventListener('click', loadPuzzle);
       document.getElementById('errorRefresh').addEventListener('click', loadPuzzle);
-      document.getElementById('reopen').addEventListener('click', () => { showCaptcha(); });
+      document.getElementById('reopen')?.addEventListener('click', () => { showCaptcha(); });
       document.getElementById('closeCaptcha').addEventListener('click', () => { hideCaptcha(); captchaArmed = false; setStatus('验证已关闭，重新登录可再次触发。'); setLoginStatus('已取消验证，请重新登录', ''); });
-      window.addEventListener('resize', () => { maxOffset = Math.max(0, slider.clientWidth - 50); setOffset(offset); });
-      maxOffset = Math.max(0, slider.clientWidth - 50);
+      window.addEventListener('resize', () => { updateSliderMetrics(); setOffset(offset); });
+      updateSliderMetrics();
 
       const drawer = document.getElementById('requirementsDrawer'); const backdrop = document.getElementById('backdrop');
       function openDrawer() { drawer.classList.add('open'); backdrop.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); document.getElementById('closeRequirements').focus(); }
