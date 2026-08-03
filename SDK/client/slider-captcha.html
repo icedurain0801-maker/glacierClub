@@ -14,7 +14,7 @@
     .eyebrow { margin:0 0 8px; color:var(--muted); font-size:11px; letter-spacing:.16em; text-transform:uppercase; }
     h1 { margin:0 0 8px; font-size:28px; line-height:1.2; font-weight:650; }
     .intro { margin:0 auto 24px; max-width:460px; color:var(--muted); }
-    .captcha-card { width:min(100%, 390px); margin:0 auto; padding:22px; text-align:left; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 12px 32px rgba(38,50,56,.1); transition:opacity .22s ease, visibility .22s ease; }
+    .captcha-card { width:100%; max-width:330px; margin:0 auto; padding:18px; text-align:left; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 12px 32px rgba(38,50,56,.1); transition:opacity .22s ease, visibility .22s ease; }
     .captcha-card.completed { opacity:0; visibility:hidden; pointer-events:none; }
     .card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
     .card-head h2 { margin:0; font-size:17px; font-weight:650; }
@@ -67,15 +67,82 @@
     .drawer-body td { color:#4b5960; }
     .drawer-body .note { margin:4px 0 0; padding:8px 10px; border-left:3px solid var(--accent); background:#eef7fb; color:#3a5560; font-size:12px; border-radius:0 4px 4px 0; }
     @media (max-width:520px) { body { padding:20px 14px 86px; } h1 { font-size:24px; } .captcha-card { padding:17px; } .requirements-button { right:16px; bottom:16px; } }
+    /* 手机外壳 */
+    .phone { width:390px; max-width:100%; background:#000; border-radius:48px; padding:10px; box-shadow:0 0 0 2px #1f2937, 0 24px 60px rgba(0,0,0,.35); position:relative; }
+    .phone-screen { position:relative; width:100%; aspect-ratio:9/19.5; background:#f4f6f7; border-radius:38px; overflow:hidden; display:flex; flex-direction:column; }
+    .status-bar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 28px 0 32px; font-size:15px; font-weight:600; color:#263238; flex-shrink:0; }
+    .status-bar .right { display:flex; align-items:center; gap:6px; }
+    .signal-dots { display:flex; align-items:flex-end; gap:2px; height:12px; }
+    .signal-dots i { width:3px; background:#263238; border-radius:1px; display:block; }
+    .battery { width:25px; height:12px; border:1.5px solid #263238; border-radius:3px; padding:1px; position:relative; opacity:.85; }
+    .battery::after { content:''; position:absolute; top:3px; right:-3px; width:2px; height:6px; background:#263238; border-radius:0 1px 1px 0; }
+    .battery i { display:block; height:100%; width:80%; background:#263238; border-radius:1px; }
+    .notch { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:32px; background:#000; border-radius:999px; z-index:5; }
+    .home-indicator { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; background:rgba(38,50,56,.4); border-radius:999px; z-index:5; }
+    .phone-content { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px 20px 40px; overflow:auto; }
+    .phone-eyebrow { margin:0 0 4px; color:var(--muted); font-size:10px; letter-spacing:.16em; text-transform:uppercase; text-align:center; }
+    .phone-title { margin:0 0 16px; font-size:17px; font-weight:650; text-align:center; }
+    @media (max-width:440px) { .phone { width:100%; border-radius:36px; padding:8px; } .phone-screen { border-radius:28px; } }
+    /* 登录表单 */
+    .login-card { width:100%; max-width:300px; margin:0 auto; text-align:left; }
+    .login-card h2 { margin:0 0 4px; font-size:20px; font-weight:650; text-align:center; }
+    .login-sub { margin:0 0 20px; font-size:12px; color:var(--muted); text-align:center; }
+    .field { margin-bottom:14px; }
+    .field label { display:block; margin-bottom:6px; font-size:12px; color:var(--muted); }
+    .field input { width:100%; height:40px; padding:0 12px; border:1px solid var(--line); border-radius:6px; font:14px/1.5 inherit; color:var(--ink); background:#fff; }
+    .field input:focus { outline:0; border-color:var(--accent); box-shadow:0 0 0 3px rgba(20,150,210,.15); }
+    .login-btn { width:100%; height:42px; margin-top:4px; border:0; border-radius:6px; color:#fff; background:var(--accent); font-size:15px; font-weight:600; cursor:pointer; }
+    .login-btn:active { background:#0b7aaf; }
+    .login-btn:focus-visible { outline:3px solid rgba(20,150,210,.3); outline-offset:2px; }
+    .login-status { margin-top:12px; min-height:20px; font-size:12px; text-align:center; color:var(--muted); }
+    .login-status.error { color:var(--danger); }
+    .login-status.warn { color:#d97706; }
+    .fail-counter { margin-top:8px; font-size:11px; text-align:center; color:var(--muted); }
+    .toggle-row { display:flex; justify-content:center; gap:18px; margin:0 0 18px; font-size:13px; }
+    .toggle-row button { padding:6px 0; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--muted); cursor:pointer; }
+    .toggle-row button.active { color:var(--ink); border-bottom-color:var(--accent); font-weight:600; }
+    .captcha-card { display:none; }
+    .captcha-card.visible { display:block; }
+    .captcha-card.completed { opacity:0; visibility:hidden; pointer-events:none; }
   </style>
 </head>
 <body>
-  <main class="page">
-    <p class="eyebrow">SDK 安全组件</p>
-    <h1>滑动图片验证码</h1>
-    <p class="intro">完成拼图即可继续。此独立原型遵循最终测试用例规则。</p>
+  <div class="phone">
+    <div class="phone-screen">
+      <div class="notch"></div>
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="right">
+          <div class="signal-dots"><i style="height:4px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:11px"></i></div>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true"><path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="#263238"/><path d="M3 7.5a7 7 0 0110 0" stroke="#263238" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M1 4.5a11 11 0 0114 0" stroke="#263238" stroke-width="1.3" fill="none" stroke-linecap="round" opacity="0.7"/></svg>
+          <div class="battery"><i></i></div>
+        </div>
+      </div>
+      <div class="phone-content">
+        <div class="toggle-row">
+          <button type="button" id="tabAccount" class="active">账号登录</button>
+          <button type="button" id="tabPhone">手机号+验证码</button>
+        </div>
 
-    <section class="captcha-card" aria-label="滑动图片验证码">
+        <form class="login-card" id="loginForm">
+          <div class="field" id="accountField">
+            <label for="accountInput">账号</label>
+            <input id="accountInput" type="text" autocomplete="off" placeholder="请输入账号">
+          </div>
+          <div class="field" id="phoneField" style="display:none">
+            <label for="phoneInput">手机号</label>
+            <input id="phoneInput" type="tel" autocomplete="off" placeholder="请输入手机号">
+          </div>
+          <div class="field">
+            <label for="passwordInput" id="codeLabel">密码</label>
+            <input id="passwordInput" type="text" autocomplete="off" placeholder="请输入密码">
+          </div>
+          <button type="submit" class="login-btn" id="loginBtn">登录</button>
+          <div class="login-status" id="loginStatus" role="status" aria-live="polite"></div>
+          <div class="fail-counter" id="failCounter">连续失败 0/3 次后触发滑块验证</div>
+        </form>
+
+        <section class="captcha-card" id="captchaCard" aria-label="滑动图片验证码">
       <div class="card-head">
         <h2>安全验证</h2>
         <button class="icon-button" id="closeCaptcha" type="button" aria-label="关闭验证" title="关闭验证">&times;</button>
@@ -101,7 +168,10 @@
         <button id="reopen" type="button">重新打开验证</button>
       </div>
     </section>
-  </main>
+      </div>
+      <div class="home-indicator"></div>
+    </div>
+  </div>
 
   <button class="requirements-button" id="openRequirements" type="button" aria-label="打开需求说明" title="需求说明">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3.8h9.7A2.3 2.3 0 0118 6.1v14.1H7.5A2.5 2.5 0 015 17.7V4.8a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h7M8 11.5h7M8 15h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M18 20.2h-1.8" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -132,7 +202,7 @@
         <tbody>
           <tr><td>图片来源</td><td>从共用的 10 张图片中随机抽取，每次验证图片均不一致</td></tr>
           <tr><td>缺口尺寸</td><td>约 <strong>40 × 40 px</strong>，边缘明显可见</td></tr>
-          <tr><td>缺口位置</td><td>距图片左右边缘至少 <strong>20 px</strong>，位置随机</td></tr>
+          <tr><td>缺口位置</td><td>距图片左右边缘至少 <strong>15 px</strong>，位置随机</td></tr>
           <tr><td>刷新行为</td><td>必须同时更新图片和对应的缺口</td></tr>
           <tr><td>加载异常</td><td>展示加载或错误状态，加载失败时提供刷新入口，不允许出现空白验证框</td></tr>
         </tbody>
@@ -177,6 +247,58 @@
 
   <script>
     (() => {
+      // —— 登录失败计数与触发拼图验证 ——
+      const loginForm = document.getElementById('loginForm');
+      const loginBtn = document.getElementById('loginBtn');
+      const loginStatus = document.getElementById('loginStatus');
+      const failCounter = document.getElementById('failCounter');
+      const captchaCard = document.getElementById('captchaCard');
+      const tabAccount = document.getElementById('tabAccount');
+      const tabPhone = document.getElementById('tabPhone');
+      const accountField = document.getElementById('accountField');
+      const phoneField = document.getElementById('phoneField');
+      const accountInput = document.getElementById('accountInput');
+      const phoneInput = document.getElementById('phoneInput');
+      const passwordInput = document.getElementById('passwordInput');
+      const codeLabel = document.getElementById('codeLabel');
+      const loginMode = { account: true }; // true=账号登录, false=手机号+验证码
+      const failThreshold = 3;
+      let failCount = 0;
+      let captchaArmed = false; // 是否已触发过拼图验证（验证成功后重置以允许下次再触发）
+
+      function updateFailCounter() { failCounter.textContent = `连续失败 ${failCount}/${failThreshold} 次后触发滑块验证`; }
+
+      function setLoginStatus(text, kind) { loginStatus.textContent = text; loginStatus.className = `login-status${kind ? ` ${kind}` : ''}`; }
+
+      function showCaptcha() { captchaCard.classList.add('visible'); captchaCard.classList.remove('completed'); loadPuzzle(); }
+      function hideCaptcha() { captchaCard.classList.remove('visible'); captchaCard.classList.remove('completed'); }
+
+      tabAccount.addEventListener('click', () => {
+        loginMode.account = true; tabAccount.classList.add('active'); tabPhone.classList.remove('active');
+        accountField.style.display = ''; phoneField.style.display = 'none'; codeLabel.textContent = '密码'; passwordInput.placeholder = '请输入密码'; setLoginStatus(''); passwordInput.value = '';
+      });
+      tabPhone.addEventListener('click', () => {
+        loginMode.account = false; tabPhone.classList.add('active'); tabAccount.classList.remove('active');
+        accountField.style.display = 'none'; phoneField.style.display = ''; codeLabel.textContent = '验证码'; passwordInput.placeholder = '请输入验证码'; setLoginStatus(''); passwordInput.value = '';
+      });
+
+      loginForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (captchaArmed) { setLoginStatus('请先完成滑块验证', 'warn'); return; }
+        // 模拟登录：任意非空输入都算一次失败（demo 演示用）
+        const inputVal = loginMode.account ? accountInput.value.trim() : phoneInput.value.trim();
+        if (!inputVal || !passwordInput.value.trim()) { setLoginStatus('请填写完整信息', 'warn'); return; }
+        failCount += 1; updateFailCounter(); accountInput.value = ''; passwordInput.value = '';
+        if (failCount < failThreshold) {
+          loginMode.account ? setLoginStatus(`账号或密码错误，已失败 ${failCount} 次`, 'error') : setLoginStatus(`验证码错误，已失败 ${failCount} 次`, 'error');
+          return;
+        }
+        // 第 3 次失败：toast 与拼图验证同时出现
+        setLoginStatus(`登录失败，已触发安全验证`, 'error');
+        captchaArmed = true; showCaptcha();
+      });
+      updateFailCounter();
+
       const canvas = document.getElementById('puzzleCanvas');
       const ctx = canvas.getContext('2d');
       const sourceCanvas = document.createElement('canvas');
@@ -247,7 +369,7 @@
         ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2; ctx.stroke();
         ctx.restore();
         if (!solved) {
-          const pieceX = 20 + (gapX - 20) * (offset / Math.max(1, maxOffset));
+          const pieceX = 15 + (gapX - 15) * (offset / Math.max(1, maxOffset));
           ctx.save(); puzzlePath(ctx, pieceX, 68, gapSize); ctx.clip();
           ctx.drawImage(sourceCanvas, gapX, 68, gapSize, gapSize, pieceX, 68, gapSize, gapSize);
           ctx.restore();
@@ -267,7 +389,7 @@
 
       function generatePuzzle() {
         clearTimeout(closeTimer); solved = false; setOffset(0); setStatus('将拼图块拖入缺口。');
-        const min = 20; const max = canvas.width - gapSize - 20;
+        const min = 15; const max = canvas.width - gapSize - 15;
         gapX = min + Math.floor(Math.random() * (max - min + 1));
         drawPuzzle();
       }
@@ -284,10 +406,15 @@
 
       function finishAttempt() {
         if (!dragging || solved) return; dragging = false; attempts += 1; attemptsLabel.textContent = `尝试次数：${attempts}`;
-        const pieceX = 20 + (gapX - 20) * (offset / Math.max(1, maxOffset));
+        const pieceX = 15 + (gapX - 15) * (offset / Math.max(1, maxOffset));
         if (Math.abs(pieceX - gapX) <= tolerance) {
           solved = true; setOffset(maxOffset); setStatus('验证成功', 'success'); drawPuzzle();
-          closeTimer = window.setTimeout(() => { document.querySelector('.captcha-card').classList.add('completed'); setStatus('验证完成。'); }, 1000);
+          closeTimer = window.setTimeout(() => {
+            captchaCard.classList.add('completed');
+            failCount = 0; updateFailCounter(); captchaArmed = false;
+            hideCaptcha();
+            setLoginStatus('验证成功，请重新登录', '');
+          }, 1000);
         } else { setStatus('验证失败，请重试。', 'error'); window.setTimeout(() => { if (!solved) { setOffset(0); setStatus('将拼图块拖入缺口。'); } }, 320); }
       }
 
@@ -301,10 +428,10 @@
       handle.addEventListener('keydown', (event) => { if (event.key === 'ArrowRight') { setOffset(offset + 4); event.preventDefault(); } if (event.key === 'ArrowLeft') { setOffset(offset - 4); event.preventDefault(); } if (event.key === 'Home') { setOffset(0); event.preventDefault(); } if (event.key === 'End') { setOffset(maxOffset); event.preventDefault(); } if (event.key === ' ') { dragging = true; finishAttempt(); event.preventDefault(); } });
       document.getElementById('refresh').addEventListener('click', loadPuzzle);
       document.getElementById('errorRefresh').addEventListener('click', loadPuzzle);
-      document.getElementById('reopen').addEventListener('click', () => { document.querySelector('.captcha-card').classList.remove('completed'); loadPuzzle(); });
-      document.getElementById('closeCaptcha').addEventListener('click', () => { document.querySelector('.captcha-card').classList.add('completed'); setStatus('验证已关闭，重新打开后可再次验证。'); });
+      document.getElementById('reopen').addEventListener('click', () => { showCaptcha(); });
+      document.getElementById('closeCaptcha').addEventListener('click', () => { hideCaptcha(); captchaArmed = false; setStatus('验证已关闭，重新登录可再次触发。'); setLoginStatus('已取消验证，请重新登录', ''); });
       window.addEventListener('resize', () => { maxOffset = Math.max(0, slider.clientWidth - 50); setOffset(offset); });
-      maxOffset = Math.max(0, slider.clientWidth - 50); loadPuzzle();
+      maxOffset = Math.max(0, slider.clientWidth - 50);
 
       const drawer = document.getElementById('requirementsDrawer'); const backdrop = document.getElementById('backdrop');
       function openDrawer() { drawer.classList.add('open'); backdrop.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); document.getElementById('closeRequirements').focus(); }

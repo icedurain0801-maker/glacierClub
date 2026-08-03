@@ -19,7 +19,7 @@ Create an English, standalone HTML demo in `SDK/client/slider-captcha.html`. The
 ## CAPTCHA Behavior
 
 1. A puzzle is generated automatically on load.
-2. The gap is 40 x 40 pixels and stays at least 20 pixels from the image's left and right edges.
+2. The gap is 40 x 40 pixels and stays at least 15 pixels from the image's left and right edges.
 3. The puzzle piece starts at the slider origin and follows the handle continuously.
 4. The handle and piece are clamped to the track. Pointer capture supports both desktop and mobile interaction.
 5. Releasing the handle checks alignment with a 20-pixel tolerance. A successful alignment shows `Verification successful`, keeps the solved state visible, then closes the card after one second. An incorrect release shows `Verification failed, please try again` and returns the piece to the origin.
