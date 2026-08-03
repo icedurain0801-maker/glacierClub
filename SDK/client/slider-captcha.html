@@ -107,6 +107,10 @@
     .captcha-card { position:absolute; z-index:9; top:50%; left:50%; transform:translate(-50%,-50%); display:none; width:78%; max-width:232px; padding:10px 10px 11px; text-align:left; background:#fff; border:0; border-radius:8px; box-shadow:0 0 0 1px rgba(100,200,255,.15),0 12px 30px rgba(0,0,0,.45); overflow:hidden; }
     .captcha-card.visible { display:block; }
     .captcha-card.completed { opacity:0; visibility:hidden; pointer-events:none; }
+    .captcha-toast { position:absolute; z-index:12; left:50%; top:8px; transform:translate(-50%,-8px); max-width:82%; padding:7px 12px; border-radius:999px; color:#fff; font-size:11px; line-height:1.2; text-align:center; opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s ease, transform .18s ease, visibility .18s ease; box-shadow:0 6px 16px rgba(0,0,0,.24); }
+    .captcha-toast.visible { opacity:1; visibility:visible; transform:translate(-50%,0); }
+    .captcha-toast.error { background:rgba(190,55,67,.94); }
+    .captcha-toast.success { background:rgba(25,145,91,.94); }
   </style>
 </head>
 <body>
@@ -145,6 +149,7 @@
           <div class="fail-counter" id="failCounter">连续失败 0/3 次后触发滑块验证</div>
 
         <div class="captcha-overlay" id="captchaOverlay"></div>
+        <div class="captcha-toast" id="captchaToast" role="status" aria-live="polite"></div>
         <section class="captcha-card" id="captchaCard" aria-label="滑动图片验证码">
       <div class="card-head">
         <h2>安全验证</h2>
@@ -260,6 +265,8 @@
       const failCounter = document.getElementById('failCounter');
       const captchaCard = document.getElementById('captchaCard');
       const captchaOverlay = document.getElementById('captchaOverlay');
+      const captchaToast = document.getElementById('captchaToast');
+      let toastTimer;
       const tabAccount = document.getElementById('tabAccount');
       const tabPhone = document.getElementById('tabPhone');
       const accountField = document.getElementById('accountField');
@@ -277,6 +284,15 @@
 
       function setLoginStatus(text, kind) { loginStatus.textContent = text; loginStatus.className = `login-status${kind ? ` ${kind}` : ''}`; }
 
+      function showCaptchaToast(text, kind) {
+        clearTimeout(toastTimer);
+        captchaToast.textContent = text;
+        captchaToast.className = `captcha-toast ${kind} visible`;
+        toastTimer = window.setTimeout(() => {
+          captchaToast.classList.remove('visible');
+        }, 1500);
+      }
+
       function showCaptcha() {
         captchaCard.classList.add('visible');
         captchaOverlay.classList.add('visible');
@@ -288,7 +304,14 @@
           loadPuzzle();
         });
       }
-      function hideCaptcha() { captchaCard.classList.remove('visible'); captchaOverlay.classList.remove('visible'); captchaCard.classList.remove('completed'); }
+      function hideCaptcha() {
+        captchaCard.classList.remove('visible');
+        captchaOverlay.classList.remove('visible');
+        captchaCard.classList.remove('completed');
+        captchaToast.classList.remove('visible');
+        // 关闭后让下次打开时重新生成图片和缺口位置
+        sceneReady = false;
+      }
 
       tabAccount.addEventListener('click', () => {
         loginMode.account = true; tabAccount.classList.add('active'); tabPhone.classList.remove('active');
@@ -422,7 +445,9 @@
       }
 
       function generatePuzzle() {
-        clearTimeout(closeTimer); solved = false; sceneReady = false; setOffset(0); setStatus('将拼图块拖入缺口。');
+        clearTimeout(closeTimer); solved = false;
+        if (sceneReady) { setOffset(0); setStatus('将拼图块拖入缺口。'); drawPuzzle(); return; }
+        sceneReady = false; setOffset(0); setStatus('将拼图块拖入缺口。');
         const min = 15; const max = canvas.width - gapSize - 15;
         gapX = min + Math.floor(Math.random() * (max - min + 1));
         drawPuzzle();
@@ -442,14 +467,24 @@
         if (!dragging || solved) return; dragging = false; attempts += 1; if (attemptsLabel) attemptsLabel.textContent = `尝试次数：${attempts}`;
         const pieceX = 15 + (gapX - 15) * (offset / Math.max(1, maxOffset));
         if (Math.abs(pieceX - gapX) <= tolerance) {
-          solved = true; setOffset(maxOffset); setStatus('验证成功', 'success'); drawPuzzle();
+          solved = true; showCaptchaToast('验证成功', 'success'); setOffset(maxOffset); setStatus('验证成功', 'success'); drawPuzzle();
           closeTimer = window.setTimeout(() => {
             captchaCard.classList.add('completed');
             failCount = 0; updateFailCounter(); captchaArmed = false;
             hideCaptcha();
             setLoginStatus('验证成功，请重新登录', '');
           }, 1000);
-        } else { setStatus('验证失败，请重试。', 'error'); window.setTimeout(() => { if (!solved) { setOffset(0); setStatus('将拼图块拖入缺口。'); } }, 320); }
+        } else {
+          showCaptchaToast('验证失败，请重试', 'error');
+          setStatus('验证失败，请重试。', 'error');
+          window.setTimeout(() => {
+            if (!solved) {
+              // 失败后重新生成新的拼图背景和缺口位置
+              sceneReady = false;
+              generatePuzzle();
+            }
+          }, 320);
+        }
       }
 
       function pointerMove(event) {
