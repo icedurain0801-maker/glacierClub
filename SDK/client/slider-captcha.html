@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>滑动图片验证码</title>
+  <style>
+    :root { --ink:#263238; --muted:#66737b; --line:#d9e0e4; --accent:#1496d2; --danger:#d94f4f; --success:#249b62; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; min-height:100%; }
+    body { min-height:100vh; display:grid; place-items:center; padding:32px 20px; color:var(--ink); background:#f4f6f7; font:14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Arial, sans-serif; }
+    button { font:inherit; }
+    .page { width:min(100%, 620px); text-align:center; }
+    .eyebrow { margin:0 0 8px; color:var(--muted); font-size:11px; letter-spacing:.16em; text-transform:uppercase; }
+    h1 { margin:0 0 8px; font-size:28px; line-height:1.2; font-weight:650; }
+    .intro { margin:0 auto 24px; max-width:460px; color:var(--muted); }
+    .captcha-card { width:min(100%, 390px); margin:0 auto; padding:22px; text-align:left; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 12px 32px rgba(38,50,56,.1); transition:opacity .22s ease, visibility .22s ease; }
+    .captcha-card.completed { opacity:0; visibility:hidden; pointer-events:none; }
+    .card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .card-head h2 { margin:0; font-size:17px; font-weight:650; }
+    .icon-button { width:32px; height:32px; display:grid; place-items:center; border:0; border-radius:50%; color:#748087; background:transparent; cursor:pointer; }
+    .icon-button:hover,.icon-button:focus-visible { background:#eef3f5; color:var(--ink); outline:0; }
+    .canvas-wrap { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; border-radius:5px; background:#e9eef0; }
+    canvas { display:block; width:100%; height:100%; }
+    .loading-cover,.error-cover { position:absolute; inset:0; display:grid; place-items:center; padding:20px; text-align:center; background:rgba(247,249,250,.94); }
+    .loading-cover[hidden],.error-cover[hidden] { display:none; }
+    .spinner { width:24px; height:24px; margin:0 auto 8px; border:3px solid #cbd6db; border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .error-title { margin:0 0 4px; font-weight:650; }
+    .error-copy { margin:0 0 10px; color:var(--muted); font-size:12px; }
+    .text-button { padding:4px 8px; border:0; color:var(--accent); background:transparent; cursor:pointer; text-decoration:underline; }
+    .slider { position:relative; height:48px; margin-top:14px; padding:5px; border:1px solid var(--line); border-radius:24px; background:#edf1f2; touch-action:none; user-select:none; }
+    .track-fill { position:absolute; inset:5px auto 5px 5px; width:40px; border-radius:20px; background:#d8edf7; pointer-events:none; }
+    .handle { position:absolute; z-index:2; top:5px; left:5px; width:40px; height:38px; display:grid; place-items:center; border:0; border-radius:20px; color:#fff; background:var(--accent); cursor:grab; box-shadow:0 2px 7px rgba(20,150,210,.32); touch-action:none; }
+    .handle:active { cursor:grabbing; }
+    .handle:focus-visible { outline:3px solid rgba(20,150,210,.3); outline-offset:2px; }
+    .handle svg { width:17px; height:17px; }
+    .slider-label { position:absolute; inset:0; display:grid; place-items:center; color:#87949a; font-size:11px; pointer-events:none; }
+    .status { min-height:22px; margin:10px 2px 0; font-size:12px; color:var(--muted); }
+    .status.success { color:var(--success); font-weight:650; }
+    .status.error { color:var(--danger); }
+    .actions { display:flex; justify-content:space-between; align-items:center; margin-top:13px; }
+    .secondary { padding:7px 10px; border:1px solid var(--line); border-radius:5px; color:var(--ink); background:#fff; cursor:pointer; }
+    .secondary:hover,.secondary:focus-visible { border-color:#aebdc4; background:#f8fafb; outline:0; }
+    .test-tools { margin:20px auto 0; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    .test-tools label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+    .test-tools button { margin-top:8px; padding:0; border:0; color:var(--accent); background:transparent; cursor:pointer; text-decoration:underline; }
+    .requirements-button { position:fixed; right:22px; bottom:22px; width:48px; height:48px; display:grid; place-items:center; border:1px solid #b9d9e8; border-radius:50%; color:#fff; background:var(--accent); box-shadow:0 7px 18px rgba(20,150,210,.28); cursor:pointer; }
+    .requirements-button:hover,.requirements-button:focus-visible { background:#087fb6; outline:3px solid rgba(20,150,210,.2); outline-offset:3px; }
+    .requirements-button svg { width:22px; height:22px; }
+    .backdrop { position:fixed; inset:0; z-index:10; background:rgba(23,32,37,.34); opacity:0; pointer-events:none; transition:opacity .22s ease; }
+    .backdrop.open { opacity:1; pointer-events:auto; }
+    .drawer { position:fixed; z-index:11; top:0; right:0; width:min(440px, 94vw); height:100vh; display:flex; flex-direction:column; background:#fff; box-shadow:-12px 0 32px rgba(23,32,37,.18); transform:translateX(100%); transition:transform .24s ease; }
+    .drawer.open { transform:translateX(0); }
+    .drawer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:24px 22px 16px; border-bottom:1px solid var(--line); }
+    .drawer-head h2 { margin:0; font-size:18px; }
+    .drawer-head p { margin:3px 0 0; color:var(--muted); font-size:12px; }
+    .drawer-body { overflow:auto; padding:18px 22px 34px; text-align:left; }
+    .drawer-body h3 { margin:20px 0 7px; font-size:13px; }
+    .drawer-body h3:first-child { margin-top:0; }
+    .drawer-body ul { margin:0; padding-left:18px; color:#4b5960; }
+    .drawer-body li { margin:5px 0; }
+    .drawer-body strong { color:var(--ink); }
+    .drawer-body table { width:100%; border-collapse:collapse; margin:6px 0 4px; font-size:12px; }
+    .drawer-body th, .drawer-body td { padding:6px 8px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+    .drawer-body th { background:#f3f6f7; color:var(--ink); font-weight:600; width:38%; }
+    .drawer-body td { color:#4b5960; }
+    .drawer-body .note { margin:4px 0 0; padding:8px 10px; border-left:3px solid var(--accent); background:#eef7fb; color:#3a5560; font-size:12px; border-radius:0 4px 4px 0; }
+    @media (max-width:520px) { body { padding:20px 14px 86px; } h1 { font-size:24px; } .captcha-card { padding:17px; } .requirements-button { right:16px; bottom:16px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">SDK 安全组件</p>
+    <h1>滑动图片验证码</h1>
+    <p class="intro">完成拼图即可继续。此独立原型遵循最终测试用例规则。</p>
+
+    <section class="captcha-card" aria-label="滑动图片验证码">
+      <div class="card-head">
+        <h2>安全验证</h2>
+        <button class="icon-button" id="closeCaptcha" type="button" aria-label="关闭验证" title="关闭验证">&times;</button>
+      </div>
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="puzzleCanvas" width="320" height="180" aria-label="生成的拼图图片"></canvas>
+        <div class="loading-cover" id="loadingCover" hidden><div><div class="spinner"></div><div>图片加载中...</div></div></div>
+        <div class="error-cover" id="errorCover" hidden>
+          <div><p class="error-title">图片加载失败</p><p class="error-copy">刷新以加载新的拼图图片。</p><button class="text-button" id="errorRefresh" type="button">刷新图片</button></div>
+        </div>
+      </div>
+      <div class="slider" id="slider" aria-label="拼图滑块">
+        <div class="track-fill" id="trackFill"></div>
+        <button class="handle" id="handle" type="button" aria-label="拖动拼图块" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5l8 7-8 7M3 5l8 7-8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="slider-label">向右拖动滑块完成拼图</span>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite">将拼图块拖入缺口。</div>
+      <div class="actions"><button class="secondary" id="refresh" type="button">刷新</button><span id="attempts">尝试次数：0</span></div>
+      <div class="test-tools">
+        <label><input id="simulateFailure" type="checkbox"> 模拟弱网图片加载失败</label>
+        <button id="reopen" type="button">重新打开验证</button>
+      </div>
+    </section>
+  </main>
+
+  <button class="requirements-button" id="openRequirements" type="button" aria-label="打开需求说明" title="需求说明">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3.8h9.7A2.3 2.3 0 0118 6.1v14.1H7.5A2.5 2.5 0 015 17.7V4.8a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h7M8 11.5h7M8 15h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M18 20.2h-1.8" stroke="currentColor" stroke-width="1.8"/></svg>
+  </button>
+  <div class="backdrop" id="backdrop"></div>
+  <aside class="drawer" id="requirementsDrawer" aria-labelledby="drawerTitle" aria-hidden="true">
+    <div class="drawer-head"><div><h2 id="drawerTitle">滑动图片验证码</h2><p>最终测试用例规则 · v1.7.0</p></div><button class="icon-button" id="closeRequirements" type="button" aria-label="关闭需求说明">&times;</button></div>
+    <div class="drawer-body">
+      <h3>1. 登录触发规则</h3>
+      <p>支持拼图验证的登录方式：</p>
+      <table>
+        <thead><tr><th>登录方式</th><th>触发的错误类型</th></tr></thead>
+        <tbody>
+          <tr><td>账密登录</td><td>账号不存在、账号输入错误、密码输入错误、账号 + 密码组合错误</td></tr>
+          <tr><td>手机号 + 验证码登录</td><td>验证码校验错误</td></tr>
+        </tbody>
+      </table>
+      <p class="note">同一设备或 UID 连续失败 3 次后，第 3 次失败的 toast 与拼图验证页面同时出现；下次登录需在验证成功后才允许继续。同一登录方式的不同错误类型次数按设备累加。</p>
+      <h3>2. 验证过程与时间窗口</h3>
+      <ul>
+        <li>关闭验证窗口会回到登录页，并取消本次登录操作。</li>
+        <li>错误窗口以北京时间为准，统计首次失败向后 6 小时内的错误次数。</li>
+        <li>超过 6 小时的错误次数不再计入，并重置计数。</li>
+      </ul>
+      <h3>3. 图片与缺口规则</h3>
+      <table>
+        <thead><tr><th>项目</th><th>规则</th></tr></thead>
+        <tbody>
+          <tr><td>图片来源</td><td>从共用的 10 张图片中随机抽取，每次验证图片均不一致</td></tr>
+          <tr><td>缺口尺寸</td><td>约 <strong>40 × 40 px</strong>，边缘明显可见</td></tr>
+          <tr><td>缺口位置</td><td>距图片左右边缘至少 <strong>20 px</strong>，位置随机</td></tr>
+          <tr><td>刷新行为</td><td>必须同时更新图片和对应的缺口</td></tr>
+          <tr><td>加载异常</td><td>展示加载或错误状态，加载失败时提供刷新入口，不允许出现空白验证框</td></tr>
+        </tbody>
+      </table>
+      <h3>4. 拖动与松手规则</h3>
+      <ul>
+        <li>拼图块需随滑块从起点到终点连续跟随移动。</li>
+        <li>滑块不可超出轨道范围，需同时支持鼠标与触摸操作。</li>
+        <li>中途松手会立即校验当前位置；未对齐则拼图块返回起点，允许再次拖动。</li>
+        <li>拼图块与缺口相对位置一致即为通过，允许约 <strong>20 px</strong> 的识别误差，不要求像素级完全重合。</li>
+      </ul>
+      <h3>5. 验证结果反馈</h3>
+      <table>
+        <thead><tr><th>结果</th><th>提示</th><th>后续行为</th></tr></thead>
+        <tbody>
+          <tr><td>验证成功</td><td>验证成功</td><td>约 1 秒后验证框消失，返回登录界面</td></tr>
+          <tr><td>验证失败</td><td>验证失败，请重试</td><td>验证框保持显示，可重新验证</td></tr>
+        </tbody>
+      </table>
+      <h3>6. 适配与体验</h3>
+      <table>
+        <thead><tr><th>维度</th><th>要求</th></tr></thead>
+        <tbody>
+          <tr><td>屏幕方向</td><td>竖屏与横屏均需支持</td></tr>
+          <tr><td>网络环境</td><td>弱网下需有加载状态和刷新入口</td></tr>
+          <tr><td>终端兼容</td><td>Android 与 iOS 模拟器及真机</td></tr>
+          <tr><td>状态反馈</td><td>拖动、加载、刷新、关闭、成功、失败等状态应清晰、响应及时</td></tr>
+        </tbody>
+      </table>
+      <h3>7. SDK 管理后台配置</h3>
+      <table>
+        <thead><tr><th>配置状态</th><th>行为</th></tr></thead>
+        <tbody>
+          <tr><td>入口位置</td><td>方案列表、方案新增/编辑页面提供「滑块验证功能」配置项</td></tr>
+          <tr><td>默认开启</td><td>合规方案默认开启滑块验证</td></tr>
+          <tr><td>关闭并保存</td><td>SDK 登录流程不再弹出验证窗口</td></tr>
+          <tr><td>重新打开并保存</td><td>下次进入 SDK 时恢复滑块验证功能</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </aside>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('puzzleCanvas');
+      const ctx = canvas.getContext('2d');
+      const sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width = canvas.width; sourceCanvas.height = canvas.height;
+      const sourceCtx = sourceCanvas.getContext('2d');
+      const slider = document.getElementById('slider');
+      const handle = document.getElementById('handle');
+      const trackFill = document.getElementById('trackFill');
+      const status = document.getElementById('status');
+      const attemptsLabel = document.getElementById('attempts');
+      const loadingCover = document.getElementById('loadingCover');
+      const errorCover = document.getElementById('errorCover');
+      const simulateFailure = document.getElementById('simulateFailure');
+      const gapSize = 40;
+      const tolerance = 20;
+      let gapX = 0;
+      let offset = 0;
+      let maxOffset = 0;
+      let dragging = false;
+      let attempts = 0;
+      let solved = false;
+      let loadToken = 0;
+      let closeTimer;
+
+      function puzzlePath(context, x, y, size) {
+        context.beginPath();
+        context.moveTo(x, y);
+        context.lineTo(x + size * .35, y);
+        context.arc(x + size * .5, y, size * .15, Math.PI, 0, false);
+        context.lineTo(x + size, y);
+        context.lineTo(x + size, y + size * .35);
+        context.arc(x + size, y + size * .5, size * .15, -Math.PI / 2, Math.PI / 2, false);
+        context.lineTo(x + size, y + size);
+        context.lineTo(x + size * .62, y + size);
+        context.arc(x + size * .5, y + size, size * .12, 0, Math.PI, true);
+        context.lineTo(x, y + size);
+        context.lineTo(x, y + size * .64);
+        context.arc(x, y + size * .5, size * .14, Math.PI / 2, -Math.PI / 2, true);
+        context.closePath();
+      }
+
+      function paintScene() {
+        const hue = Math.floor(Math.random() * 360);
+        const gradient = ctx.createLinearGradient(0, 0, 320, 180);
+        gradient.addColorStop(0, `hsl(${hue}, 58%, 76%)`);
+        gradient.addColorStop(1, `hsl(${(hue + 60) % 360}, 62%, 44%)`);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 320, 180);
+        for (let i = 0; i < 8; i += 1) {
+          ctx.fillStyle = `hsla(${(hue + i * 20) % 360}, 80%, 90%, .18)`;
+          ctx.beginPath();
+          ctx.arc(25 + i * 46, 30 + (i % 3) * 48, 18 + (i % 4) * 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = 'rgba(20, 42, 52, .48)';
+        ctx.beginPath(); ctx.moveTo(0, 145); ctx.lineTo(65, 96); ctx.lineTo(126, 138); ctx.lineTo(188, 82); ctx.lineTo(250, 132); ctx.lineTo(320, 92); ctx.lineTo(320, 180); ctx.lineTo(0, 180); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.23)';
+        ctx.font = '600 12px system-ui'; ctx.fillText('SLIDING IMAGE CAPTCHA', 15, 22);
+        sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+        sourceCtx.drawImage(canvas, 0, 0);
+      }
+
+      function drawPuzzle() {
+        paintScene();
+        ctx.save();
+        puzzlePath(ctx, gapX, 68, gapSize);
+        ctx.fillStyle = 'rgba(25, 37, 43, .5)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.restore();
+        if (!solved) {
+          const pieceX = 20 + (gapX - 20) * (offset / Math.max(1, maxOffset));
+          ctx.save(); puzzlePath(ctx, pieceX, 68, gapSize); ctx.clip();
+          ctx.drawImage(sourceCanvas, gapX, 68, gapSize, gapSize, pieceX, 68, gapSize, gapSize);
+          ctx.restore();
+          ctx.save(); puzzlePath(ctx, pieceX, 68, gapSize); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+        }
+      }
+
+      function setOffset(value) {
+        offset = Math.max(0, Math.min(maxOffset, value));
+        handle.style.left = `${5 + offset}px`;
+        trackFill.style.width = `${40 + offset}px`;
+        handle.setAttribute('aria-valuenow', String(Math.round((offset / Math.max(1, maxOffset)) * 100)));
+        drawPuzzle();
+      }
+
+      function setStatus(text, kind) { status.textContent = text; status.className = `status${kind ? ` ${kind}` : ''}`; }
+
+      function generatePuzzle() {
+        clearTimeout(closeTimer); solved = false; setOffset(0); setStatus('将拼图块拖入缺口。');
+        const min = 20; const max = canvas.width - gapSize - 20;
+        gapX = min + Math.floor(Math.random() * (max - min + 1));
+        drawPuzzle();
+      }
+
+      function loadPuzzle() {
+        const token = ++loadToken;
+        loadingCover.hidden = false; errorCover.hidden = true; slider.style.pointerEvents = 'none'; setStatus('图片加载中...');
+        window.setTimeout(() => {
+          if (token !== loadToken) return;
+          if (simulateFailure.checked) { loadingCover.hidden = true; errorCover.hidden = false; setStatus('图片加载失败，请刷新重试。', 'error'); return; }
+          loadingCover.hidden = true; slider.style.pointerEvents = 'auto'; generatePuzzle();
+        }, 420);
+      }
+
+      function finishAttempt() {
+        if (!dragging || solved) return; dragging = false; attempts += 1; attemptsLabel.textContent = `尝试次数：${attempts}`;
+        const pieceX = 20 + (gapX - 20) * (offset / Math.max(1, maxOffset));
+        if (Math.abs(pieceX - gapX) <= tolerance) {
+          solved = true; setOffset(maxOffset); setStatus('验证成功', 'success'); drawPuzzle();
+          closeTimer = window.setTimeout(() => { document.querySelector('.captcha-card').classList.add('completed'); setStatus('验证完成。'); }, 1000);
+        } else { setStatus('验证失败，请重试。', 'error'); window.setTimeout(() => { if (!solved) { setOffset(0); setStatus('将拼图块拖入缺口。'); } }, 320); }
+      }
+
+      function pointerMove(event) {
+        if (!dragging) return; const point = event.touches ? event.touches[0] : event; const rect = slider.getBoundingClientRect();
+        setOffset(point.clientX - rect.left - 25);
+      }
+      handle.addEventListener('pointerdown', (event) => { if (solved) return; dragging = true; handle.setPointerCapture?.(event.pointerId); event.preventDefault(); });
+      window.addEventListener('pointermove', pointerMove);
+      window.addEventListener('pointerup', finishAttempt);
+      handle.addEventListener('keydown', (event) => { if (event.key === 'ArrowRight') { setOffset(offset + 4); event.preventDefault(); } if (event.key === 'ArrowLeft') { setOffset(offset - 4); event.preventDefault(); } if (event.key === 'Home') { setOffset(0); event.preventDefault(); } if (event.key === 'End') { setOffset(maxOffset); event.preventDefault(); } if (event.key === ' ') { dragging = true; finishAttempt(); event.preventDefault(); } });
+      document.getElementById('refresh').addEventListener('click', loadPuzzle);
+      document.getElementById('errorRefresh').addEventListener('click', loadPuzzle);
+      document.getElementById('reopen').addEventListener('click', () => { document.querySelector('.captcha-card').classList.remove('completed'); loadPuzzle(); });
+      document.getElementById('closeCaptcha').addEventListener('click', () => { document.querySelector('.captcha-card').classList.add('completed'); setStatus('验证已关闭，重新打开后可再次验证。'); });
+      window.addEventListener('resize', () => { maxOffset = Math.max(0, slider.clientWidth - 50); setOffset(offset); });
+      maxOffset = Math.max(0, slider.clientWidth - 50); loadPuzzle();
+
+      const drawer = document.getElementById('requirementsDrawer'); const backdrop = document.getElementById('backdrop');
+      function openDrawer() { drawer.classList.add('open'); backdrop.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); document.getElementById('closeRequirements').focus(); }
+      function closeDrawer() { drawer.classList.remove('open'); backdrop.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true'); }
+      document.getElementById('openRequirements').addEventListener('click', openDrawer); document.getElementById('closeRequirements').addEventListener('click', closeDrawer); backdrop.addEventListener('click', closeDrawer); window.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeDrawer(); });
+    })();
+  </script>
+</body>
+</html>
