@@ -352,12 +352,42 @@ function splitNormalizedLines(content) {
     .filter(Boolean);
 }
 
+function isPlanningOrUiNoiseContent(content) {
+  const text = String(content || '');
+  if (!text) return false;
+
+  return /(?:百科UI需求|基础攻略百科UI需求|产粮排期|攻略长图版式参考|攻略版式参考|长图版式参考|版式参考|贴文内容参考|期望带有的元素和设计方向|资料网盘|关联文档|预计产出时间|百科分类|攻略信息|内容主题|已做模板|UI需求)/iu.test(text)
+    || /(?:schedule|ui\s*requirement|reference\s+doc|asset\s*path|publish\s*time|layout\s*reference)/iu.test(text);
+}
+
 function isLikelyFieldLine(line) {
   return /^[^:\s][^:\n]{0,30}:\s*/u.test(String(line || ''));
 }
 
 function isLikelyAssetLine(line) {
   return /(?:https?:\/\/|\\\\|\/kb-images\/)/iu.test(String(line || ''));
+}
+
+function scorePlayerFacingBody(content) {
+  const lines = splitNormalizedLines(content).filter(
+    line => !/^(?:sheet|rows?|reference|context|guide title|status|publish time|asset path|category)\s*:/iu.test(line)
+  );
+  if (lines.length === 0) return -6;
+
+  const proseLines = lines.filter(line => isLikelyProseLine(line) && !isLikelyFieldLine(line)).length;
+  const enumeratedLines = lines.filter(line => /^(?:[一二三四五六七八九十]+[、.]|\d+[.、]|[-*])\s*/u.test(line)).length;
+  const sectionLines = lines.filter(line => /^(?:【[^】\n]{1,24}】|\[[^\]\n]{1,24}\])$/u.test(line)).length;
+  const metaLikeLines = lines.filter(
+    line => isLikelyFieldLine(line) && !/(?:技能|效果|介绍|简介|规则|机制|说明|攻略|指南|玩法)/u.test(line)
+  ).length;
+
+  let score = 0;
+  score += proseLines * 4;
+  score += enumeratedLines * 3;
+  score += sectionLines * 2;
+  score -= metaLikeLines * 2;
+  if (isPlanningOrUiNoiseContent(content)) score -= 24;
+  return score;
 }
 
 function isLikelyProseLine(line) {
@@ -393,6 +423,7 @@ function scoreMetadataPenalty(content) {
   else if (proseLines <= 2 && fieldLines >= 6) penalty += 4;
   if (guideSignals >= 3) penalty = Math.max(0, penalty - 12);
   if (guideSignals >= 5) penalty = 0;
+  if (isPlanningOrUiNoiseContent(content)) penalty += 18;
 
   return penalty;
 }
@@ -452,6 +483,7 @@ function shouldSuppressWeakRef(query, ref) {
   if (lexicalScore >= 20 && !isMetadataHeavyContent(text) && !isVisualAssetLikeContent(text)) return false;
 
   if (isVisualAssetLikeContent(text)) return true;
+  if (isPlanningOrUiNoiseContent(text) && scorePlayerFacingBody(text) <= 0) return true;
   if (isDialogueOrQuoteOnlyContent(text) && lexicalScore < 30) return true;
   if (isMetadataHeavyContent(text) && lexicalScore < 18) return true;
   return false;
@@ -587,6 +619,10 @@ function scoreTitleAnchorCandidate(query, ref) {
       score -= 80;
       continue;
     }
+    if (/(?:icon的图标id|icon图标id|icon\s*id|图标id|图标编号|图标资源|素材网盘|id查询网盘|ui素材)/iu.test(line)) {
+      score -= 240;
+      continue;
+    }
 
     if (isLikelyFieldLine(line)) {
       const fieldValue = line.replace(/^[^:]+:\s*/u, '').trim();
@@ -599,8 +635,10 @@ function scoreTitleAnchorCandidate(query, ref) {
 
   if (/^row\s*:\s*\d+/imu.test(text)) score += 16;
   if (/^rows\s*:\s*\d+\s*-\s*\d+/imu.test(text)) score -= 12;
-  if (isAssetNoiseTitleContent(text)) score -= 160;
+  if (isAssetNoiseTitleContent(text)) score -= 360;
   if (isMetadataHeavyContent(text)) score -= 12;
+  if (isPlanningOrUiNoiseContent(text)) score -= 220;
+  score += scorePlayerFacingBody(text) * 6;
 
   score += Math.min(24, Number(ref?.lexicalScore || 0));
   score += Math.round(Number(ref?.semanticScore || ref?.score || 0) * 20);
@@ -645,6 +683,49 @@ function isSameKnowledgeArticleNeighborhood(ref, anchorRef, maxDistance = 28) {
   }
 
   return false;
+}
+
+function sortRefsAroundTitleAnchor(query, refs, titleAnchorRef = pickTitleAnchorRef(query, refs)) {
+  if (!Array.isArray(refs) || refs.length === 0) return [];
+  if (!titleAnchorRef) return refs.slice();
+
+  return refs
+    .slice()
+    .sort((left, right) => {
+      const leftIsAnchor = left.entryId === titleAnchorRef.entryId;
+      const rightIsAnchor = right.entryId === titleAnchorRef.entryId;
+      if (leftIsAnchor !== rightIsAnchor) return leftIsAnchor ? -1 : 1;
+
+      const leftSameArticle = leftIsAnchor || isSameKnowledgeArticleNeighborhood(left, titleAnchorRef);
+      const rightSameArticle = rightIsAnchor || isSameKnowledgeArticleNeighborhood(right, titleAnchorRef);
+      if (leftSameArticle !== rightSameArticle) return leftSameArticle ? -1 : 1;
+
+      const leftRow = Number(left?.rowIndex);
+      const rightRow = Number(right?.rowIndex);
+      const anchorRow = Number(titleAnchorRef?.rowIndex);
+      if (
+        leftSameArticle
+        && rightSameArticle
+        && Number.isFinite(leftRow)
+        && Number.isFinite(rightRow)
+        && Number.isFinite(anchorRow)
+        && leftRow !== rightRow
+      ) {
+        const leftOrder = leftRow < anchorRow ? (1000 + (anchorRow - leftRow)) : (leftRow - anchorRow);
+        const rightOrder = rightRow < anchorRow ? (1000 + (anchorRow - rightRow)) : (rightRow - anchorRow);
+        if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      }
+
+      if (leftSameArticle && rightSameArticle && Number.isFinite(leftRow) && Number.isFinite(rightRow) && leftRow !== rightRow) {
+        return leftRow - rightRow;
+      }
+
+      const leftPenalty = scoreMetadataPenalty(left?.matchText || left?.snippet || '');
+      const rightPenalty = scoreMetadataPenalty(right?.matchText || right?.snippet || '');
+      if (leftPenalty !== rightPenalty) return leftPenalty - rightPenalty;
+
+      return Number(right?.score || 0) - Number(left?.score || 0);
+    });
 }
 
 function scoreIntentAlignment(query, content) {
@@ -766,6 +847,7 @@ function filterRelevantRefs(query, refs) {
 
     if (sameArticleNeighborhood) {
       if (isVisualAssetLikeContent(intentText)) return false;
+      if (isPlanningOrUiNoiseContent(intentText) && !isGuideSectionLikeContent(intentText)) return false;
       if (ref.entryId === titleAnchorRef.entryId) return true;
       if (hasTitleStyleMatch(query, intentText)) return true;
       if (isGuideSectionLikeContent(intentText)) return true;
@@ -776,6 +858,7 @@ function filterRelevantRefs(query, refs) {
       return false;
     }
 
+    if (isPlanningOrUiNoiseContent(intentText) && scorePlayerFacingBody(intentText) <= 0) return false;
     if (intentScore <= -12) return false;
     if (shouldSuppressWeakRef(query, { ...ref, intentScore })) return false;
     if (lexicalScore >= 10) return true;
@@ -833,6 +916,51 @@ async function lexicalSearch(versionId, query, limit = LEXICAL_SEARCH_LIMIT) {
     .slice(0, limit);
 }
 
+async function titleAnchorSearch(versionId, query, limit = 12) {
+  const text = String(query || '').trim();
+  if (!text) return [];
+
+  const needles = extractTitleNeedles(text)
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .filter(item => item.length >= 2)
+    .slice(0, 6);
+  if (needles.length === 0) return [];
+
+  const whereClause = needles.map(() => 'content LIKE ?').join(' OR ');
+  const [rows] = await db.query(
+    `SELECT id, document_id, row_index, content
+     FROM knowledge_entries
+     WHERE version_id=? AND (${whereClause})
+     LIMIT 240`,
+    [versionId, ...needles.map(needle => `%${needle}%`)]
+  );
+
+  return rows
+    .filter(row => hasTitleStyleMatch(text, row.content))
+    .map((row) => {
+      const lexicalScore = scoreLexicalMatch(text, row.content);
+      return {
+        entryId: row.id,
+        documentId: row.document_id,
+        rowIndex: row.row_index,
+        lexicalScore,
+        semanticScore: 0,
+        score: Math.max(lexicalScore / 100, 0),
+        snippet: buildRelevantSnippet(row.content, text),
+        matchText: row.content,
+      };
+    })
+    .sort((left, right) => {
+      const leftScore = scoreTitleAnchorCandidate(text, left);
+      const rightScore = scoreTitleAnchorCandidate(text, right);
+      if (rightScore !== leftScore) return rightScore - leftScore;
+      if (right.lexicalScore !== left.lexicalScore) return right.lexicalScore - left.lexicalScore;
+      return Number(right?.score || 0) - Number(left?.score || 0);
+    })
+    .slice(0, limit);
+}
+
 async function loadImagesByEntry(ids) {
   try {
     const [imgRows] = await db.query(
@@ -887,15 +1015,17 @@ async function retrieve(versionId, query, topK = 5) {
     }
 
     const lexicalHits = await lexicalSearch(versionId, query);
+    const titleHits = await titleAnchorSearch(versionId, query);
     const ids = [...new Set([
       ...vectorHits.map(hit => hit.entryId),
       ...lexicalHits.map(hit => hit.entryId),
+      ...titleHits.map(hit => hit.entryId),
     ])];
     if (ids.length === 0) return [];
 
     const recordsById = await loadEntryRecords(versionId, ids);
     const vectorById = new Map(vectorHits.map(hit => [hit.entryId, hit]));
-    const lexicalById = new Map(lexicalHits.map(hit => [hit.entryId, hit]));
+    const lexicalById = new Map([...lexicalHits, ...titleHits].map(hit => [hit.entryId, hit]));
     const seedRefs = buildRefsFromRecords(query, recordsById, ids, vectorById, lexicalById, new Map());
     const titleAnchorRef = pickTitleAnchorRef(query, seedRefs);
 
@@ -916,54 +1046,7 @@ async function retrieve(versionId, query, topK = 5) {
     const refs = buildRefsFromRecords(query, recordsById, ids, vectorById, lexicalById, imagesByEntry);
     let filtered = filterRelevantRefs(query, rerankRefsByIntent(query, refs));
 
-    if (isArticleStyleGuideQuery(query)) {
-      const titleAnchorRef = pickTitleAnchorRef(query, filtered);
-      if (titleAnchorRef) {
-        filtered = filtered
-          .slice()
-          .sort((left, right) => {
-            const leftIsAnchor = left.entryId === titleAnchorRef.entryId;
-            const rightIsAnchor = right.entryId === titleAnchorRef.entryId;
-            if (leftIsAnchor !== rightIsAnchor) return leftIsAnchor ? -1 : 1;
-
-            const leftSameArticle = (
-              leftIsAnchor
-              || isSameKnowledgeArticleNeighborhood(left, titleAnchorRef)
-            );
-            const rightSameArticle = (
-              rightIsAnchor
-              || isSameKnowledgeArticleNeighborhood(right, titleAnchorRef)
-            );
-            if (leftSameArticle !== rightSameArticle) return leftSameArticle ? -1 : 1;
-
-            const leftRow = Number(left?.rowIndex);
-            const rightRow = Number(right?.rowIndex);
-            const anchorRow = Number(titleAnchorRef?.rowIndex);
-            if (
-              leftSameArticle
-              && rightSameArticle
-              && Number.isFinite(leftRow)
-              && Number.isFinite(rightRow)
-              && Number.isFinite(anchorRow)
-              && leftRow !== rightRow
-            ) {
-              const leftOrder = leftRow < anchorRow ? (1000 + (anchorRow - leftRow)) : (leftRow - anchorRow);
-              const rightOrder = rightRow < anchorRow ? (1000 + (anchorRow - rightRow)) : (rightRow - anchorRow);
-              if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-            }
-
-            if (leftSameArticle && rightSameArticle && Number.isFinite(leftRow) && Number.isFinite(rightRow) && leftRow !== rightRow) {
-              return leftRow - rightRow;
-            }
-
-            const leftPenalty = scoreMetadataPenalty(left?.matchText || left?.snippet || '');
-            const rightPenalty = scoreMetadataPenalty(right?.matchText || right?.snippet || '');
-            if (leftPenalty !== rightPenalty) return leftPenalty - rightPenalty;
-
-            return Number(right?.score || 0) - Number(left?.score || 0);
-          });
-      }
-    }
+    filtered = sortRefsAroundTitleAnchor(query, filtered);
 
     return filtered.slice(0, topK);
   } catch (err) {
@@ -976,6 +1059,7 @@ function toContextBlock(refs) {
   if (!refs || refs.length === 0) return '';
   const preferredRefs = refs.filter(
     ref => !isMetadataHeavyContent(ref.matchText || ref.snippet || '')
+      && !isPlanningOrUiNoiseContent(ref.matchText || ref.snippet || '')
   );
   const sourceRefs = preferredRefs.length > 0 ? preferredRefs : refs;
   const articleStyleGuideQuery = isArticleStyleGuideQuery(sourceRefs[0]?.query || '');
@@ -1015,6 +1099,7 @@ module.exports = {
   buildPromptExcerpt,
   hasTitleStyleMatch,
   pickTitleAnchorRef,
+  sortRefsAroundTitleAnchor,
   scoreMetadataPenalty,
   isMetadataHeavyContent,
   isVisualAssetLikeContent,

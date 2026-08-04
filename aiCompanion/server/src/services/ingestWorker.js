@@ -197,6 +197,13 @@ async function processJob(job) {
       fs.mkdirSync(docDir, { recursive: true });
       const entryByImageKey = new Map(allRows.map(r => [r.imageKey, entryIdByRow.get(r.rowIndex)]));
       const rowIndexByImageKey = new Map(allRows.map(r => [r.imageKey, r.rowIndex]));
+      // 图片所属 knowledge_entry 的"项目"字段值(如 角色阵营/角色职业/角色头像/技能icon)。
+      // 用于英雄卡片按字段精准定位图片，替代靠文件名 row/col 启发式猜图。
+      const fieldLabelByEntryId = new Map(allRows.map(r => {
+        const obj = r.obj || {};
+        const label = obj['项目'] || obj['字段'] || obj['类型'] || '';
+        return [entryIdByRow.get(r.rowIndex), String(label || '').trim().slice(0, 64)];
+      }));
       const rowsBySheet = new Map();
       for (const row of allRows) {
         if (!rowsBySheet.has(row.sheetIndex)) rowsBySheet.set(row.sheetIndex, []);
@@ -206,14 +213,15 @@ async function processJob(job) {
         const entryId = findImageEntryId(imageKey, entryByImageKey, rowsBySheet, entryIdByRow);
         if (!entryId) continue;
         const rowIndex = rowIndexByImageKey.get(imageKey) || String(imageKey).replace(/:/g, '_');
+        const fieldLabel = fieldLabelByEntryId.get(entryId) || null;
         for (let n = 0; n < images.length; n++) {
           const { buffer, ext } = images[n];
           const filename = `${rowIndex}_${n + 1}.${ext}`;
           fs.writeFileSync(path.join(docDir, filename), buffer);
           const url = `/kb-images/${versionId}/${documentId}/${filename}`;
           await db.query(
-            'INSERT INTO kb_entry_images (entry_id, version_id, url) VALUES (?,?,?)',
-            [entryId, versionId, url]
+            'INSERT INTO kb_entry_images (entry_id, version_id, url, field_label) VALUES (?,?,?,?)',
+            [entryId, versionId, url, fieldLabel]
           );
         }
       }

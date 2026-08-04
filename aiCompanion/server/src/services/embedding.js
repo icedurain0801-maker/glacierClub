@@ -10,10 +10,17 @@ async function realEmbedBatch(texts) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
+      const requestBody = { model, input: texts };
+      // OpenAI text-embedding-3 系列需要显式传 dimensions 控制输出维度,
+      // 否则默认 3072 维会与已有向量 (1536 维) 不兼容。
+      // 其他模型 (text-embedding-v4 等) 是原生维度, 传了反而可能报 400。
+      if (model && (model.startsWith('text-embedding-3-') || model.startsWith('doubao-embedding'))) {
+        requestBody.dimensions = dim;
+      }
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, input: texts }),
+        body: JSON.stringify(requestBody),
       });
       if (!res.ok) throw new Error(`embedding API ${res.status}: ${await res.text()}`);
       const data = await res.json();

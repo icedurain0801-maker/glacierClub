@@ -6,6 +6,7 @@ const cfg = require('./config/kb');
 const app = express();
 app.use(cors({ exposedHeaders: ['X-Version-Id'] }));
 app.use(express.json({ limit: '10mb' }));
+app.use(express.static(cfg.webDir));
 app.use('/kb-images', express.static(cfg.kbImagesDir));
 app.use('/bot-avatars', express.static(cfg.botAvatarDir));
 app.use('/chat-media', express.static(cfg.chatMediaDir));

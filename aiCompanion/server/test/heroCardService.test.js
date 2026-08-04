@@ -218,13 +218,14 @@ function main() {
     ]
   );
 
+  // 虚构路径(磁盘无文件,无尺寸数据):新逻辑下无合格图标尺寸,返回空 -> 前端走 emoji 兜底
   assert.strictEqual(
     selectCareerIcon([
       '/kb-images/1/69/1344_1.png',
       '/kb-images/1/69/1344_2.png',
       '/kb-images/1/69/1344_3.png',
     ]),
-    '/kb-images/1/69/1344_1.png'
+    ''
   );
 
   assert.strictEqual(
@@ -233,7 +234,7 @@ function main() {
       '/kb-images/1/69/1343_2.png',
       '/kb-images/1/69/1343_3.png',
     ]),
-    '/kb-images/1/69/1343_1.png'
+    ''
   );
 
   assert.strictEqual(
@@ -260,8 +261,10 @@ function main() {
   assert.strictEqual(card.faction, '守护者');
   assert.strictEqual(card.rarity, 'S+');
   assert.strictEqual(card.avatarUrl, '/kb-images/1/69/avatar.png');
-  assert.strictEqual(card.factionIconUrl, '/kb-images/1/69/faction.png');
-  assert.strictEqual(card.careerIconUrl, '/kb-images/1/69/career.png');
+  // faction.png/career.png 为虚构路径(磁盘无文件,无尺寸数据),
+  // 新逻辑下无合格图标尺寸,返回空 -> 前端走 emoji 兜底
+  assert.strictEqual(card.factionIconUrl, '');
+  assert.strictEqual(card.careerIconUrl, '');
   assert.strictEqual(card.skills.length, 4);
   assert.strictEqual(card.skills[0].imageUrl, '/kb-images/1/69/1354_2.png');
   assert.strictEqual(card.skills[0].description, '对敌方单体造成511%攻击的物理伤害');

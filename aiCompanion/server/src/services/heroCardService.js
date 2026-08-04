@@ -340,19 +340,25 @@ function buildAggregateSkillSpriteCrops(url, count) {
   const meta = parseKbImageMeta(url);
   if (!isAggregateSkillTableImage(meta)) return [];
 
-  const centersX = [0.279, 0.460, 0.681, 0.883];
-  const cropWidth = 0.115;
+  const n = Math.max(0, Math.min(count, 4));
+  if (n === 0) return [];
+
+  // 汇总大图横向 n 等分排列技能图标,等距取每格中心,比硬编码 4 个偏移点更鲁棒。
+  // 留出上下边距(cropY),宽度不超过单格的 80%,避免切到相邻图标边框。
+  const cellW = 1 / n;
+  const cropWidth = Math.min(0.115, cellW * 0.8);
   const cropHeight = 0.17;
   const cropY = 0.015;
 
-  return centersX
-    .slice(0, Math.max(0, Math.min(count, centersX.length)))
-    .map(centerX => ({
+  return Array.from({ length: n }, (_, i) => {
+    const centerX = cellW * (i + 0.5);  // 每格中心
+    return {
       x: clampRatio(centerX - (cropWidth / 2), 0, 1 - cropWidth),
       y: cropY,
       width: cropWidth,
       height: cropHeight,
-    }));
+    };
+  });
 }
 
 function isSquareishImage(meta, { minSide = 48, maxSide = 180, maxAspectRatio = 1.2 } = {}) {
@@ -440,55 +446,48 @@ function selectAggregateSkillIcons(urls) {
 function selectCareerIcon(urls) {
   const items = Array.isArray(urls) ? urls.filter(Boolean) : [];
   if (items.length === 0) return '';
-  if (items.length === 1) return items[0];
 
-  const iconMetas = items
-    .map(parseKbImageMeta)
-    .filter(meta => (meta.shorterSide >= 40 && meta.shorterSide <= 96 && meta.aspectRatio > 0 && meta.aspectRatio <= 1.35) || (meta.row && meta.col));
+  // 图标必须是近正方形小图:排除宽条文字标题图(如 174x59 ratio 2.95)。
+  // 不再用 meta.row/col 后门放行,避免把文字条当图标。
+  const isIconSized = meta => meta
+    && meta.shorterSide >= 40
+    && meta.shorterSide <= 96
+    && meta.aspectRatio > 0
+    && meta.aspectRatio <= 1.6;
+
+  const iconMetas = items.map(parseKbImageMeta).filter(isIconSized);
+  if (iconMetas.length === 0) return '';  // 无合格小图标 -> 前端走 emoji 兜底
+
   const preferred = sortImageMetasByPreference(iconMetas, meta => {
     const rowBonus = meta.row === 5 ? 1000 : Math.max(0, 200 - Math.abs(meta.row - 5) * 40);
     const colBonus = meta.col === 6 ? 120 : Math.max(0, 60 - Math.abs(meta.col - 6) * 10);
     const sizeBonus = Math.max(0, 100 - Math.abs(meta.shorterSide - 60));
     return rowBonus + colBonus + sizeBonus;
   })[0];
-  if (preferred) return preferred.url;
-
-  const icon = items.find(url => {
-    const dimensions = getImageDimensions(url);
-    if (!dimensions || !dimensions.width || !dimensions.height) return false;
-    const longerSide = Math.max(dimensions.width, dimensions.height);
-    const shorterSide = Math.min(dimensions.width, dimensions.height);
-    return shorterSide >= 40 && shorterSide <= 96 && (longerSide / shorterSide) <= 1.25;
-  });
-
-  return icon || items[0];
+  return preferred ? preferred.url : '';
 }
 
 function selectFactionIcon(urls) {
   const items = Array.isArray(urls) ? urls.filter(Boolean) : [];
   if (items.length === 0) return '';
-  if (items.length === 1) return items[0];
 
-  const iconMetas = items
-    .map(parseKbImageMeta)
-    .filter(meta => (meta.shorterSide >= 28 && meta.shorterSide <= 96 && meta.aspectRatio > 0 && meta.aspectRatio <= 1.35) || (meta.row && meta.col));
+  // 图标必须是近正方形小图:排除宽条文字标题图(如 174x59 ratio 2.95)。
+  const isIconSized = meta => meta
+    && meta.shorterSide >= 28
+    && meta.shorterSide <= 96
+    && meta.aspectRatio > 0
+    && meta.aspectRatio <= 1.6;
+
+  const iconMetas = items.map(parseKbImageMeta).filter(isIconSized);
+  if (iconMetas.length === 0) return '';  // 无合格小图标 -> 前端走 emoji 兜底
+
   const preferred = sortImageMetasByPreference(iconMetas, meta => {
     const rowBonus = meta.row === 4 ? 1000 : Math.max(0, 220 - Math.abs(meta.row - 4) * 44);
     const colBonus = meta.col === 6 ? 140 : Math.max(0, 80 - Math.abs(meta.col - 6) * 12);
     const sizeBonus = Math.max(0, 100 - Math.abs(meta.shorterSide - 48));
     return rowBonus + colBonus + sizeBonus;
   })[0];
-  if (preferred) return preferred.url;
-
-  const icon = items.find(url => {
-    const dimensions = getImageDimensions(url);
-    if (!dimensions || !dimensions.width || !dimensions.height) return false;
-    const longerSide = Math.max(dimensions.width, dimensions.height);
-    const shorterSide = Math.min(dimensions.width, dimensions.height);
-    return shorterSide >= 28 && shorterSide <= 96 && (longerSide / shorterSide) <= 1.25;
-  });
-
-  return icon || items[0];
+  return preferred ? preferred.url : '';
 }
 
 function normalizeText(value) {
@@ -1289,23 +1288,37 @@ async function loadDetailEntries(versionId, documentId, sheetName, aliases = [])
 
   const entryIds = filteredRows.map(row => row.id);
   const [imageRows] = await db.query(
-    `SELECT entry_id, url
+    `SELECT entry_id, url, field_label
        FROM kb_entry_images
       WHERE entry_id IN (${entryIds.map(() => '?').join(',')})
       ORDER BY id ASC`,
     entryIds
   );
 
+  // images: 兼容旧消费方,仍为 url[]。
+  // imagesByField: 按 field_label(如 角色阵营/角色职业/角色头像/技能icon)分组,
+  //                供 collectDetailFieldValues 精准定位图片,替代靠文件名 row/col 猜图。
   const imagesByEntry = new Map();
+  const imagesByFieldByEntry = new Map();
   imageRows.forEach(row => {
     if (!imagesByEntry.has(row.entry_id)) imagesByEntry.set(row.entry_id, []);
     imagesByEntry.get(row.entry_id).push(row.url);
+
+    if (!imagesByFieldByEntry.has(row.entry_id)) {
+      imagesByFieldByEntry.set(row.entry_id, new Map());
+    }
+    const fieldMap = imagesByFieldByEntry.get(row.entry_id);
+    const label = String(row.field_label || '').trim();
+    const key = label || '';
+    if (!fieldMap.has(key)) fieldMap.set(key, []);
+    fieldMap.get(key).push(row.url);
   });
 
   return filteredRows.map(row => ({
     ...row,
     raw: row.raw || safeParseJson(row.raw_json),
     images: imagesByEntry.get(row.id) || [],
+    imagesByField: imagesByFieldByEntry.get(row.id) || new Map(),
   }));
 }
 
@@ -1361,7 +1374,7 @@ function buildDetailedSkillKnowledge(detailEntries) {
     const skill = ensureSkillRecord(skillMap, positionIndex, positionLabel || `技能${positionIndex}`);
 
     if (!skill.imageUrl && entry.images.length > 0) {
-      skill.imageUrl = entry.images[0];
+      skill.imageUrl = pickImagesForLabel(entry, projectLabel)[0] || '';
     }
 
     if (SKILL_NAME_RE.test(projectLabel)) {
@@ -1459,7 +1472,7 @@ function buildSkillPayload(detailEntries) {
     const projectLabel = getProjectLabel(raw);
 
     if ((SKILL_ICON_RE.test(projectLabel) || hasBlockFieldKey(raw, SKILL_ICON_RE)) && entry.images.length > 0) {
-      selectAggregateSkillIcons(entry.images).forEach(url => aggregateSkillIcons.push(url));
+      selectAggregateSkillIcons(pickImagesForLabel(entry, projectLabel)).forEach(url => aggregateSkillIcons.push(url));
     }
   });
 
@@ -1475,7 +1488,7 @@ function buildSkillPayload(detailEntries) {
     const value = getEntryValue(entry, raw);
 
     if (!skill.imageUrl && entry.images.length > 0) {
-      skill.imageUrl = entry.images[0];
+      skill.imageUrl = pickImagesForLabel(entry, projectLabel)[0] || '';
     }
 
     if (SKILL_NAME_RE.test(projectLabel)) {
@@ -1528,6 +1541,20 @@ function buildSkillPayload(detailEntries) {
   }));
 }
 
+function pickImagesForLabel(entry, label) {
+  // 优先按 field_label(入库时取自 raw.项目)精准定位该字段的图组,
+  // 没有元数据时回退到 entry.images 全组(兼容旧数据)。
+  const byField = entry.imagesByField;
+  if (byField && byField.size > 0) {
+    const direct = byField.get(String(label || '').trim());
+    if (direct && direct.length > 0) return direct;
+    // field_label 可能为空字符串(早期无项目字段的图),兜底取空 key 组
+    const empty = byField.get('');
+    if (empty && empty.length > 0) return empty;
+  }
+  return Array.isArray(entry.images) ? entry.images : [];
+}
+
 function collectDetailFieldValues(detailEntries) {
   const values = [];
   let avatarUrl = '';
@@ -1538,16 +1565,16 @@ function collectDetailFieldValues(detailEntries) {
     const raw = entry.raw || {};
     const topLevelFields = getBlockTopLevelFieldEntries(raw);
     if (topLevelFields.length > 0) {
-      if (!avatarUrl && topLevelFields.some(field => AVATAR_RE.test(field.label)) && entry.images.length > 0) {
-        avatarUrl = selectAvatarImage(entry.images);
+      if (!avatarUrl && topLevelFields.some(field => AVATAR_RE.test(field.label))) {
+        avatarUrl = selectAvatarImage(pickImagesForLabel(entry, topLevelFields.find(f => AVATAR_RE.test(f.label)).label));
       }
 
-      if (!careerIconUrl && topLevelFields.some(field => CAREER_RE.test(field.label)) && entry.images.length > 0) {
-        careerIconUrl = selectCareerIcon(entry.images);
+      if (!careerIconUrl && topLevelFields.some(field => CAREER_RE.test(field.label))) {
+        careerIconUrl = selectCareerIcon(pickImagesForLabel(entry, topLevelFields.find(f => CAREER_RE.test(f.label)).label));
       }
 
-      if (!factionIconUrl && topLevelFields.some(field => FACTION_RE.test(field.label)) && entry.images.length > 0) {
-        factionIconUrl = selectFactionIcon(entry.images);
+      if (!factionIconUrl && topLevelFields.some(field => FACTION_RE.test(field.label))) {
+        factionIconUrl = selectFactionIcon(pickImagesForLabel(entry, topLevelFields.find(f => FACTION_RE.test(f.label)).label));
       }
 
       topLevelFields.forEach(field => {
@@ -1568,16 +1595,16 @@ function collectDetailFieldValues(detailEntries) {
     const projectLabel = getProjectLabel(raw);
     if (!projectLabel) return;
 
-    if (!avatarUrl && AVATAR_RE.test(projectLabel) && entry.images.length > 0) {
-      avatarUrl = selectAvatarImage(entry.images) || entry.images[0];
+    if (!avatarUrl && AVATAR_RE.test(projectLabel)) {
+      avatarUrl = selectAvatarImage(pickImagesForLabel(entry, projectLabel)) || pickImagesForLabel(entry, projectLabel)[0] || '';
     }
 
-    if (!careerIconUrl && CAREER_RE.test(projectLabel) && entry.images.length > 0) {
-      careerIconUrl = selectCareerIcon(entry.images);
+    if (!careerIconUrl && CAREER_RE.test(projectLabel)) {
+      careerIconUrl = selectCareerIcon(pickImagesForLabel(entry, projectLabel));
     }
 
-    if (!factionIconUrl && FACTION_RE.test(projectLabel) && entry.images.length > 0) {
-      factionIconUrl = selectFactionIcon(entry.images);
+    if (!factionIconUrl && FACTION_RE.test(projectLabel)) {
+      factionIconUrl = selectFactionIcon(pickImagesForLabel(entry, projectLabel));
     }
 
     const positionIndex = parseSkillIndex(getSkillPosition(raw));
@@ -1907,9 +1934,16 @@ async function findHeroCardReply(versionId, message, history = []) {
   if (fieldReply) return fieldReply;
 
   const overviewQuery = shouldReturnHeroOverviewReply(message);
-  if (!overviewQuery && !shouldReturnHeroCardRequest(message)) return null;
+  // 独立问题里已精确命中英雄名 + 带评价/介绍意图时，直接走英雄卡，不依赖追问上下文门控。
+  // 否则像"索尼克这个英雄怎么样,值不值得练"这种独立问题会被门控挡住，落到兜底拒绝。
+  const directHeroSummary = (!overviewQuery && !shouldReturnHeroCardRequest(message))
+    ? await findBestHeroSummary(versionId, message)
+    : null;
+  const directHeroEvaluationIntent = !!directHeroSummary
+    && /(?:\u600e\u4e48\u6837|\u600e\u4e48\u770b|\u5982\u4f55|\u5389\u5bb3\u5417|\u5f3a\u5417|\u597d\u7528\u5417|\u503c\u5f97\u7ec3\u5417|\u503c\u5f97\u517b\u5417|\u8bc4\u4ef1|\u5b9a\u4f4d|\u4ecb\u7ecd|\u8bf4\u8bf4|\u8bb2\u8bb2|\u804a\u804a|\u662f\u8c01|\u662f\u4ec0\u4e48)/u.test(String(message || ''));
+  if (!overviewQuery && !directHeroEvaluationIntent && !shouldReturnHeroCardRequest(message)) return null;
 
-  const summaryEntry = await findHeroSummaryFromContext(versionId, message, history);
+  const summaryEntry = directHeroSummary || (await findHeroSummaryFromContext(versionId, message, history));
   if (!summaryEntry) return null;
 
   const detailEntries = await loadDetailEntries(

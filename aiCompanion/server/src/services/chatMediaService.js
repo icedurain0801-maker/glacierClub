@@ -4,6 +4,14 @@ const path = require('path');
 const cfg = require('../config/kb');
 const llm = require('./llm');
 
+let sharp = null;
+try {
+  // sharp 是原生二进制模块,加载失败时降级为"不提供内联图",只走文字 summary 兜底
+  sharp = require('sharp');
+} catch {
+  sharp = null;
+}
+
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
 
@@ -144,6 +152,39 @@ async function readImageAsDataUrl(filePath, mimetype) {
   return `data:${mimetype};base64,${buffer.toString('base64')}`;
 }
 
+// 产出供主对话内联使用的小图 dataUrl(jpeg,缩到 ≤inlineImageMaxEdge,质量 inlineImageQuality)。
+// 用 sharp 缩图,避免 10MB 原图 base64 化后撑爆主对话消息体。
+// sharp 不可用或缩图失败时返回空串,上层自动降级为纯文字 summary 兜底。
+async function readImageAsInlineDataUrl(filePath) {
+  if (!sharp) return '';
+  try {
+    const maxEdge = Math.max(64, Number(cfg.chatMedia.inlineImageMaxEdge) || 512);
+    const quality = Math.min(95, Math.max(40, Number(cfg.chatMedia.inlineImageQuality) || 80));
+    const maxBytes = Math.max(8 * 1024, Number(cfg.chatMedia.inlineImageMaxBytes) || 200 * 1024);
+
+    const pipeline = sharp(filePath, { failOn: 'none' })
+      .rotate()                              // 按_EXIF_自动旋正
+      .resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality, mozjpeg: true });
+
+    let buffer = await pipeline.toBuffer();
+    // 若一次缩出来仍超 maxBytes,逐档降质量再压一次
+    let q = quality;
+    while (buffer.byteLength > maxBytes && q > 40) {
+      q -= 15;
+      buffer = await sharp(filePath, { failOn: 'none' })
+        .rotate()
+        .resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: q, mozjpeg: true })
+        .toBuffer();
+    }
+    if (buffer.byteLength > maxBytes) return ''; // 仍超限就放弃内联,走文字兜底
+    return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
 async function analyzeUploadedMedia({ file, previewImageDataUrl = '' }) {
   const { kind } = validateUploadedFile(file);
   const mediaDataUrl = kind === 'image'
@@ -182,8 +223,28 @@ async function analyzeUploadedMedia({ file, previewImageDataUrl = '' }) {
     },
   ];
 
-  const { content } = await llm.chat(messages, { model: cfg.llm.mediaAnalysisModel || undefined });
-  const analysis = normalizeAnalysisResult(content, kind);
+  let content = '';
+  let analysisError = null;
+  try {
+    const result = await llm.chat(messages, { model: cfg.llm.visionModel || cfg.llm.mediaAnalysisModel || undefined });
+    content = result.content;
+  } catch (err) {
+    // 附件分析失败(网关 400/损坏图等)不应让整个对话崩掉:
+    // 退回通用概括 + 空 inlineDataUrl,让主对话走文字兜底回复。
+    analysisError = err;
+    console.error('[analyzeUploadedMedia] 附件分析失败,走兜底:', err.message);
+  }
+  const analysis = analysisError
+    ? { summary: '附件内容无法解析(图片可能已损坏或不被模型支持)', tags: ['附件解析失败'] }
+    : normalizeAnalysisResult(content, kind);
+
+  // 主对话真多模态用的小图 dataUrl:图片走 sharp 缩图,视频直接用预览帧(已是小图)
+  let inlineDataUrl = '';
+  if (kind === 'image') {
+    inlineDataUrl = await readImageAsInlineDataUrl(file.path);
+  } else if (mediaDataUrl) {
+    inlineDataUrl = mediaDataUrl; // 视频预览帧已是小图,直接复用
+  }
 
   return {
     ...analysis,
@@ -191,6 +252,7 @@ async function analyzeUploadedMedia({ file, previewImageDataUrl = '' }) {
     originalName: String(file.originalname || '').trim(),
     size: file.size || 0,
     storedPath: file.storedPath || '',
+    inlineDataUrl, // 缩图后的小图 dataUrl,供主对话 image_url 多模态使用;空串表示无图,走文字 summary 兜底
   };
 }
 

@@ -540,7 +540,7 @@ async function loadSimulationResult(versionId, sessionKey) {
 
   const transcript = messageRows.map((row, index) => {
     const assistantRefs = parseAssistantRefs(row.assistant_refs_json);
-    const answerSource = assistantRefs.length > 0 ? 'knowledge' : 'free';
+    const answerSource = assistantRefs.length > 0 ? 'knowledge_polished' : 'free';
 
     return {
       turn: index + 1,
@@ -558,7 +558,7 @@ async function loadSimulationResult(versionId, sessionKey) {
       riskLevel: row.risk_level || 'low',
       reviewStatus: row.review_status || 'pending',
       answerSource,
-      answerSourceLabel: answerSource === 'knowledge' ? '\u77e5\u8bc6\u5e93' : '\u81ea\u7531\u56de\u7b54',
+      answerSourceLabel: answerSource === 'knowledge_polished' ? '\u77e5\u8bc6\u5e93\u6da6\u8272\u56de\u7b54' : '\u81ea\u7531\u56de\u7b54',
     };
   });
 

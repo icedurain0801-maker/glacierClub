@@ -6,6 +6,7 @@ module.exports = {
   uploadTmpDir: path.resolve(__dirname, '..', '..', process.env.KB_UPLOAD_TMP_DIR || 'uploads/tmp'),
   kbImagesDir: path.resolve(__dirname, '..', '..', process.env.KB_IMAGES_DIR || 'uploads/kb-images'),
   botAvatarDir: path.resolve(__dirname, '..', '..', process.env.BOT_AVATAR_DIR || 'uploads/bot-avatars'),
+  webDir:         path.resolve(__dirname, '..', '..', '..', 'web'),
   chatMediaDir: path.resolve(__dirname, '..', '..', process.env.CHAT_MEDIA_DIR || 'uploads/chat-media'),
   batchSize: 50,                        // 每批 embedding 请求条数
   workerIntervalMs: parseInt(process.env.KB_WORKER_INTERVAL, 10) || 2000,
@@ -28,6 +29,9 @@ module.exports = {
     apiKey: process.env.LLM_API_KEY || '',
     model:  process.env.LLM_MODEL  || 'qwen-plus',
     mediaAnalysisModel: process.env.MEDIA_ANALYSIS_MODEL || process.env.LLM_MODEL || 'qwen-plus',
+    // 真多模态主对话用的小图模型(必须是网关上能真正解析 image_url 的模型,
+    // 比如 gemini-3.6-flash;claude-sonnet-* 在本网关会被剽除 image_url)
+    visionModel: process.env.LLM_VISION_MODEL || 'gemini-3.6-flash',
     retries: 3,
     retryBaseMs: 500,
     maxMessageBytes: 4 * 1024,
@@ -39,6 +43,10 @@ module.exports = {
     videoMaxBytes: parseInt(process.env.CHAT_MEDIA_VIDEO_MAX_BYTES, 10) || 25 * 1024 * 1024,
     previewMaxBytes: parseInt(process.env.CHAT_MEDIA_PREVIEW_MAX_BYTES, 10) || 2 * 1024 * 1024,
     maxUploadBytes: parseInt(process.env.CHAT_MEDIA_MAX_UPLOAD_BYTES, 10) || 25 * 1024 * 1024,
+    // 主对话内联图片(真多模态)用的小图,sharp 缩图后塞进 user message 的 image_url
+    inlineImageMaxEdge: parseInt(process.env.CHAT_MEDIA_INLINE_IMAGE_MAX_EDGE, 10) || 512,
+    inlineImageQuality: parseInt(process.env.CHAT_MEDIA_INLINE_IMAGE_QUALITY, 10) || 80,
+    inlineImageMaxBytes: parseInt(process.env.CHAT_MEDIA_INLINE_IMAGE_MAX_BYTES, 10) || 200 * 1024,
   },
 
   liveTools: {
