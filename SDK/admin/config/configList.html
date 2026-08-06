@@ -208,7 +208,14 @@ body{
   background:white;border:1px solid var(--border);border-radius:8px;
   overflow:hidden;box-shadow:var(--shadow-sm);
 }
-.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+.tbl th:nth-child(1),.tbl td:nth-child(1){width:12%;}
+.tbl th:nth-child(2),.tbl td:nth-child(2){width:16%;}
+.tbl th:nth-child(3),.tbl td:nth-child(3){width:29%;}
+.tbl th:nth-child(4),.tbl td:nth-child(4){width:8%;}
+.tbl th:nth-child(5),.tbl td:nth-child(5){width:12%;}
+.tbl th:nth-child(6),.tbl td:nth-child(6){width:12%;}
+.tbl th:nth-child(7),.tbl td:nth-child(7){width:11%;}
 .tbl th{
   text-align:left;padding:11px 16px;
   background:#f6f8fb;border-bottom:1px solid var(--border);
@@ -259,17 +266,26 @@ body{
 .cell-time .time{color:var(--ink-2);}
 .cell-time .by{color:var(--ink-4);font-size:12px;}
 
-.ops{display:inline-flex;align-items:center;gap:2px;}
+.ops{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;}
 .ops .op{
-  padding:4px 8px;border-radius:5px;
+  padding:4px 6px;border-radius:5px;
   font-size:12.5px;font-weight:500;color:var(--brand);
-  cursor:pointer;transition:background .12s;
+  cursor:pointer;transition:background .12s;white-space:nowrap;
 }
 .ops .op:hover{background:var(--brand-soft);}
 .ops .op.danger{color:var(--red);}
 .ops .op.danger:hover{background:var(--red-bg);}
 .ops .op.muted{color:var(--ink-4);cursor:default;}
 .ops .op.muted:hover{background:transparent;}
+.ops .op.op-audit{position:relative;overflow:visible;}
+.audit-pending-dot{
+  display:none;position:absolute;top:-4px;right:-6px;
+  min-width:15px;height:15px;padding:0 4px;box-sizing:border-box;
+  border-radius:8px;background:#ef4444;color:#fff;
+  font-size:10px;font-weight:700;line-height:15px;text-align:center;
+  box-shadow:0 0 0 2px #fff;
+}
+.audit-pending-dot.show{display:inline-block;}
 
 /* PAGER */
 .pager{
@@ -287,6 +303,83 @@ body{
 .pg-btn.active{background:var(--brand);color:white;border-color:var(--brand);}
 .pg-btn.disabled{color:var(--ink-4);cursor:default;}
 .pg-sel{margin-left:14px;height:30px;padding:0 10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:12.5px;color:var(--ink-3);cursor:pointer;}
+
+/* 配置审核弹窗 */
+.audit-mask{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:50;display:none;align-items:center;justify-content:center;padding:24px;}
+.audit-mask.show{display:flex;}
+.audit-modal{width:min(1080px,calc(100vw - 48px));max-height:calc(100vh - 48px);background:white;border-radius:10px;box-shadow:0 18px 48px rgba(15,23,42,.22);display:flex;flex-direction:column;overflow:hidden;}
+.audit-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);}
+.audit-head h3{font-size:16px;font-weight:650;margin:0;flex:1;color:var(--ink);}
+.audit-head .close{width:28px;height:28px;border:0;background:transparent;color:var(--ink-4);font-size:22px;cursor:pointer;border-radius:5px;}
+.audit-head .close:hover{background:var(--bg);color:var(--ink-2);}
+.audit-body{padding:16px 20px;overflow:auto;}
+  .audit-notice{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:14px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:6px;font-size:12.5px;line-height:1.5;overflow:auto;}
+  .audit-flow-title{font-weight:700;white-space:nowrap;}.audit-flow{display:flex;align-items:center;gap:8px;min-width:max-content;}.audit-flow-step{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:5px;background:#fff;border:1px solid #bfdbfe;white-space:nowrap;font-weight:600;}.audit-flow-step .flow-dot{width:7px;height:7px;border-radius:50%;background:#f59e0b;}.audit-flow-step.pass{color:#059669;border-color:#a7f3d0;background:#ecfdf5;}.audit-flow-step.pass .flow-dot{background:#10b981;}.audit-flow-step.fail{color:#dc2626;border-color:#fecaca;background:#fef2f2;}.audit-flow-step.fail .flow-dot{background:#ef4444;}.audit-flow-arrow{font-size:18px;color:#94a3b8;font-weight:700;line-height:1;}
+.audit-table{width:100%;border-collapse:collapse;border:1px solid var(--border);font-size:12.5px;}
+.audit-table th{padding:10px 12px;text-align:left;white-space:nowrap;background:#f6f8fb;border-bottom:1px solid var(--border);font-weight:600;color:var(--ink-3);}
+.audit-table td{padding:12px;border-bottom:1px solid var(--border-2);vertical-align:top;color:var(--ink-2);}
+.audit-table tr:last-child td{border-bottom:0;}
+.audit-table tr:hover td{background:#f9fbff;}
+.audit-id{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--ink-2);white-space:nowrap;}
+.audit-data{min-width:260px;line-height:1.7;}
+.audit-data .line{display:block;}
+.audit-data .label{color:var(--ink-3);}
+.audit-state{display:inline-flex;padding:3px 8px;border-radius:4px;font-size:11.5px;font-weight:600;white-space:nowrap;}
+.audit-state.wait{background:var(--amber-bg);color:var(--amber);}.audit-state.pass{background:var(--green-bg);color:var(--green);}.audit-state.fail{background:var(--red-bg);color:var(--red);}.audit-state.none{background:var(--grey-bg);color:var(--grey);}
+.audit-op{display:flex;gap:8px;align-items:center;white-space:nowrap;}
+.audit-link{color:var(--brand);cursor:pointer;font-weight:500;}.audit-link:hover{text-decoration:underline;}.audit-link.danger{color:var(--red);}
+.audit-empty{text-align:center!important;color:var(--ink-4)!important;padding:40px!important;}
+.audit-detail{display:none;}.audit-detail.show{display:block;}.audit-list.hidden{display:none;}
+.audit-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0;}.audit-card{border:1px solid var(--border);border-radius:7px;padding:14px;}.audit-card.changed{border-color:#f5d08a;background:#fffbeb;}.audit-card h4{font-size:13px;margin-bottom:10px;color:var(--ink-3);}.audit-card p{font-size:12.5px;line-height:1.7;margin:4px 0;}
+.audit-warning{padding:10px 12px;border:1px solid #f5d08a;background:#fffbeb;color:#92400e;border-radius:6px;font-size:12.5px;line-height:1.6;}
+.audit-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);}.audit-btn{height:32px;padding:0 16px;border-radius:6px;border:1px solid var(--border);background:white;color:var(--ink-2);cursor:pointer;font-size:13px;}.audit-btn.primary{background:var(--brand);border-color:var(--brand);color:white;}.audit-btn.danger{background:var(--red);border-color:var(--red);color:white;}
+  .audit-toast{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);padding:12px 22px;border-radius:6px;background:rgba(15,23,42,.9);color:white;font-size:14px;box-shadow:0 8px 24px rgba(15,23,42,.2);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:80;}.audit-toast.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  .audit-choice-mask{position:fixed;inset:0;background:rgba(15,23,42,.25);z-index:70;display:none;align-items:center;justify-content:center;}.audit-choice-mask.show{display:flex;}.audit-choice{width:min(420px,calc(100vw - 40px));background:white;border-radius:8px;box-shadow:0 14px 36px rgba(15,23,42,.25);overflow:hidden;}.audit-choice-head{padding:16px 18px;border-bottom:1px solid var(--border);font-size:15px;font-weight:600;color:var(--ink);}.audit-choice-body{padding:18px;color:var(--ink-2);font-size:13px;line-height:1.7;}.audit-choice-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}.audit-choice-btn{height:32px;padding:0 16px;border-radius:6px;border:1px solid var(--border);background:white;color:var(--ink-2);cursor:pointer;font-size:13px;}.audit-choice-btn.primary{background:var(--brand);border-color:var(--brand);color:white;}.audit-choice-btn.danger{background:var(--red);border-color:var(--red);color:white;}
+  @media(max-width:900px){.audit-modal{width:calc(100vw - 24px);max-height:calc(100vh - 24px)}.audit-compare{grid-template-columns:1fr}.audit-table{min-width:900px}.audit-body{overflow:auto;}}
+
+  /* 需求说明 悬浮入口 + 侧边抽屉 */
+  .req-fab{position:fixed;right:24px;bottom:24px;z-index:60;display:flex;align-items:center;gap:8px;height:44px;padding:0 18px 0 15px;border-radius:24px;background:var(--brand);color:#fff;font-size:13.5px;font-weight:600;box-shadow:0 8px 22px rgba(37,99,235,.35);cursor:pointer;transition:background .15s,transform .15s,box-shadow .15s;}
+  .req-fab:hover{background:var(--brand-deep);transform:translateY(-1px);box-shadow:0 10px 26px rgba(37,99,235,.4);}
+  .req-fab svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .req-mask{position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:75;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .req-mask.show{opacity:1;pointer-events:auto;}
+  .req-drawer{position:fixed;top:0;right:0;height:100vh;width:min(840px,calc(100vw - 40px));background:#fff;box-shadow:-10px 0 32px rgba(15,23,42,.18);z-index:76;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);}
+  .req-drawer.show{transform:translateX(0);}
+  .req-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
+  .req-drawer-head h3{font-size:15px;font-weight:600;color:var(--ink);}
+  .req-drawer-head .close{width:28px;height:28px;border:none;background:transparent;font-size:20px;line-height:1;color:var(--ink-4);cursor:pointer;border-radius:6px;}
+  .req-drawer-head .close:hover{background:var(--bg-2);color:var(--ink-2);}
+  .req-drawer-body{flex:1;overflow-y:auto;padding:18px 20px 28px;}
+  .req-sub{font-size:12px;color:var(--ink-4);margin-bottom:16px;}
+  .req-sec{margin-bottom:18px;}
+  .req-sec h4{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:8px;}
+  .req-sec h4::before{content:'';width:4px;height:14px;border-radius:2px;background:var(--brand);}
+  .req-sec ul{list-style:none;padding:0;margin:0;}
+  .req-sec li{position:relative;padding:5px 0 5px 16px;font-size:13px;line-height:1.6;color:var(--ink-2);}
+  .req-sec li::before{content:'';position:absolute;left:2px;top:12px;width:5px;height:5px;border-radius:50%;background:var(--brand-soft);box-shadow:0 0 0 2px rgba(37,99,235,.25);}
+  .req-sec li b{color:var(--ink);font-weight:600;}
+  .req-flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:12px;}
+  .req-flow .step{padding:3px 9px;border-radius:5px;background:#fff;border:1px solid var(--border);}
+  .req-flow .step.pass{color:var(--green);border-color:var(--green-bg);background:var(--green-bg);}
+  .req-flow .step.fail{color:var(--red);border-color:var(--red-bg);background:var(--red-bg);}
+  .req-flow .arrow{color:var(--ink-4);}
+  .req-bg{background:linear-gradient(180deg,#eff5ff,#f7faff);border:1px solid var(--brand-soft);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
+  .req-bg p{font-size:13px;line-height:1.75;color:var(--ink-2);margin:0;}
+  .req-bg p + p{margin-top:8px;}
+  .req-bg b{color:var(--brand-deep);}
+  .req-table-wrap{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px;}
+  .req-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .req-table th{background:#f6f8fb;text-align:left;padding:9px 10px;font-weight:600;color:var(--ink-3);border-bottom:1px solid var(--border);white-space:nowrap;}
+  .req-table td{padding:9px 10px;border-bottom:1px solid var(--border-2);color:var(--ink-2);vertical-align:top;line-height:1.55;}
+  .req-table tr:last-child td{border-bottom:none;}
+  .req-table .grp{font-weight:600;color:var(--ink);}
+  .req-table .grp.old{color:var(--amber);}
+  .req-table .grp.new{color:var(--green);}
+  .req-table .grp.none{color:var(--grey);}
+  .req-table .sub{display:block;color:var(--ink-4);font-size:11.5px;margin-top:2px;}
+  .req-table tr.hl td{background:#eef5ff;}
+  .req-table .read{font-weight:600;}
+
 </style>
 </head>
 <body>
@@ -387,7 +480,7 @@ body{
         <select class="f-sel"><option>请选择渠道名</option><option>冰川网络-商务CPS包</option><option>雷牛-游否-国服IOS包</option></select>
         <select class="f-sel"><option>移动端方案</option><option>模拟器方案</option><option>专属客服方案</option></select>
         <input class="f-input" placeholder="请输入方案名" />
-        <select class="f-sel" style="min-width:120px;"><option>状态</option><option>生效中</option><option>待生效</option><option>已失效</option></select>
+        <select class="f-sel" style="min-width:120px;"><option>状态</option><option>生效中</option><option>待生效</option><option>待审核</option><option>已失效</option></select>
         <input class="f-input" placeholder="请输入最后操作人" />
         <button class="f-btn"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>查询</button>
       </div>
@@ -403,14 +496,13 @@ body{
         <table class="tbl">
           <thead>
             <tr>
-              <th style="width:160px;">ID</th>
-              <th style="width:200px;">游戏 / 渠道组 / 渠道名(id)</th>
-              <th>原数据</th>
-              <th>修改后数据</th>
-              <th style="width:100px;">状态</th>
-              <th style="width:160px;">最后修改</th>
-              <th style="width:160px;">审批人</th>
-              <th style="width:140px;">操作</th>
+              <th>ID</th>
+              <th>游戏 / 渠道组 / 渠道名(id)</th>
+              <th>生效中数据</th>
+              <th>状态</th>
+              <th>最后修改</th>
+              <th>审批人</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -434,11 +526,10 @@ body{
                   </div>
                 </div>
               </td>
-              <td></td>
               <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-04-15 10:00:34</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-04-15 10:00:40</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -459,11 +550,10 @@ body{
                   </div>
                 </div>
               </td>
-              <td></td>
               <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:26</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:33</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -484,11 +574,10 @@ body{
                   </div>
                 </div>
               </td>
-              <td></td>
               <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:00</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:09</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -509,11 +598,10 @@ body{
                   </div>
                 </div>
               </td>
-              <td></td>
               <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-03-25 11:26:34</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-03-25 11:26:47</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -533,19 +621,10 @@ body{
                   </div>
                 </div>
               </td>
-              <td>
-                <div class="scheme-block">
-                  <div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">OPPO快游戏-标准方案v2(OPPO快游戏SDK)</span><span class="compl c-ok">合规</span></div>
-                  <div class="effect">
-                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2026-04-20 00:00:00</span></div>
-                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-31 23:59:59</span></div>
-                  </div>
-                </div>
-              </td>
               <td><span class="status-pill s-pending">待审核</span></td>
               <td><div class="cell-time"><div class="time">2026-04-15 14:22:11</div><div class="by">林薇</div></div></td>
               <td><div class="cell-time"><div class="time">—</div><div class="by">未审批</div></div></td>
-              <td><div class="ops"><span class="op">刷新</span><span class="op">编辑</span><span class="op muted">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op muted">删除</span></div></td>
             </tr>
 
           </tbody>
@@ -564,6 +643,231 @@ body{
   </div>
 </div>
 
+<!-- 配置审核：方案 B，居中申请列表弹窗 -->
+<div class="audit-mask" id="auditMask" onclick="closeAudit(event)">
+  <section class="audit-modal" onclick="event.stopPropagation()">
+    <div class="audit-head"><h3 id="auditTitle">操作审核</h3><button class="close" type="button" onclick="closeAudit()">×</button></div>
+    <div class="audit-body">
+      <div class="audit-list" id="auditListView">
+        <div class="audit-notice"><span class="audit-flow-title">审核流程</span><div class="audit-flow"><span class="audit-flow-step"><span class="flow-dot"></span>编辑新增申请</span><span class="audit-flow-arrow">→</span><span class="audit-flow-step"><span class="flow-dot"></span>内测中</span><span class="audit-flow-arrow">→</span><span class="audit-flow-step"><span class="flow-dot"></span>审核中</span><span class="audit-flow-arrow">→</span><span class="audit-flow-step pass"><span class="flow-dot"></span>审核通过 · 写入主列表</span><span class="audit-flow-arrow">/</span><span class="audit-flow-step fail"><span class="flow-dot"></span>审核不通过 · 主列表不变</span></div></div>
+        <div id="auditTableMount"></div>
+      </div>
+      <div class="audit-detail" id="auditDetailView">
+        <div class="audit-notice"><strong id="auditDetailId"></strong><span>请核对本次申请数据。审核通过后，新申请写入“修改后数据”，当前“修改后数据”整体写入“原数据”。</span></div>
+        <div class="audit-compare"><div class="audit-card"><h4>当前主列表 · 修改后数据</h4><div id="auditOldData"></div></div><div class="audit-card changed"><h4>本次申请数据</h4><div id="auditNewData"></div></div></div>
+        <div class="audit-warning">审核不通过时，只标记该申请为“审核不通过”，主列表原数据、修改后数据、状态和审批人均不改变。</div>
+      </div>
+    </div>
+    <div class="audit-foot"><button class="audit-btn" type="button" onclick="closeAudit()">关闭</button></div>
+  </section>
+</div>
+
+<div class="audit-choice-mask" id="auditChoiceMask" onclick="closeAuditChoice(event)">
+  <section class="audit-choice" onclick="event.stopPropagation()">
+    <div class="audit-choice-head">审核申请</div>
+    <div class="audit-choice-body">请确认本次申请的审核结果。审核通过后，申请数据将覆盖主列表的修改后数据。</div>
+    <div class="audit-choice-foot"><button class="audit-choice-btn danger" type="button" onclick="rejectAudit()">审核不通过</button><button class="audit-choice-btn primary" type="button" onclick="approveAudit()">审核通过</button></div>
+  </section>
+</div>
+
+<!-- 需求说明 悬浮入口 -->
+<div class="req-fab" onclick="openReqDrawer()" title="查看本次需求说明">
+  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="11" x2="12" y2="16"/></svg>
+  <span>需求说明</span>
+</div>
+<div class="req-mask" id="reqMask" onclick="closeReqDrawer()"></div>
+<aside class="req-drawer" id="reqDrawer" role="dialog" aria-label="需求说明">
+  <div class="req-drawer-head">
+    <h3>需求说明 · 配置审核</h3>
+    <button class="close" type="button" onclick="closeReqDrawer()" aria-label="关闭">×</button>
+  </div>
+  <div class="req-drawer-body">
+    <div class="req-sub">本页配置列表本次改动汇总</div>
+
+    <div class="req-sec">
+      <h4>需求背景</h4>
+      <div class="req-bg">
+        <p>配置项<b>编辑提交后、审核通过前</b>，存在一段审批真空期。此前系统会直接读取修改中的方案，导致正式线上环境的 <b>SDK 方案丢失/裸奔</b>，玩家侧读不到有效方案。</p>
+        <p>本次采用<b>修改前原方案兜底</b>策略：审核通过前，正式线上环境一律继续读取<b>修改前的原方案（原数据）</b>；只有<b>审核通过后</b>，新方案才正式顶替原方案、全量生效。即便是删除操作，在审核通过前也不生效，仍由原方案托底。测试 / 白名单环境则可提前读取新方案的草稿数据用于验证。</p>
+      </div>
+    </div>
+
+    <div class="req-sec">
+      <h4>方案读取兜底逻辑</h4>
+      <div class="req-table-wrap">
+        <table class="req-table">
+          <thead>
+            <tr><th>#</th><th>方案归属</th><th>配置当前状态</th><th>实际读取方案</th><th>逻辑说明与异常处理</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td class="grp old">旧方案</td><td>初始线上态<span class="sub">无编辑 / 无审核</span></td><td class="read">旧方案（原数据）</td><td>系统正常运转，直接读取当前已正式生效的线上方案。</td></tr>
+            <tr><td>2</td><td class="grp old">旧方案</td><td>编辑 / 内测中<span class="sub">正式线上环境 · 普通玩家</span></td><td class="read">旧方案（原数据）</td><td><b>【核心兜底】</b>保证正式线上绝对不裸奔，强制降级读旧方案。</td></tr>
+            <tr><td>3</td><td class="grp old">旧方案</td><td>审核中<span class="sub">正式线上环境 · 普通玩家</span></td><td class="read">旧方案（原数据）</td><td>审批流程中的真空期，正式服由旧方案稳稳托底。</td></tr>
+            <tr class="hl"><td>4</td><td class="grp old">旧方案</td><td>审核不通过<span class="sub">正式线上环境 · 普通玩家</span></td><td class="read">旧方案（原数据）</td><td>审核未通过，正式线上无缝保持旧方案持续运行，确保业务不中断。</td></tr>
+            <tr><td>5</td><td class="grp new">新方案</td><td>编辑 / 内测中<span class="sub">测试 / 白名单环境</span></td><td class="read">新方案（草稿数据）</td><td>允许测试服或白名单优先跑测新修改的草稿数据。</td></tr>
+            <tr><td>6</td><td class="grp new">新方案</td><td>审核中<span class="sub">测试 / 白名单环境</span></td><td class="read">新方案（草稿数据）</td><td>审批真空期内，测试环境可继续验证新方案。</td></tr>
+            <tr><td>7</td><td class="grp new">新方案</td><td>审核不通过<span class="sub">测试环境 · 查看态</span></td><td class="read">新方案（被驳回的草稿）</td><td>允许研发或运营在测试环境查看被驳回的草稿，以便基于此重新编辑。</td></tr>
+            <tr><td>8</td><td class="grp new">新方案</td><td>审核通过<span class="sub">所有环境</span></td><td class="read">新方案（正式生效态）</td><td>流程顺利终结，新方案正式顶替旧方案，全量上线生效。</td></tr>
+            <tr><td>9</td><td class="grp old">旧方案</td><td>方案被删除<span class="sub">删除后未审核通过</span></td><td class="read">修改前的原方案（原数据）</td><td>删除操作在审核通过前不生效，正式线上仍降级读取<b>修改前的原方案</b>兜底，绝不裸奔。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="req-sec">
+      <h4>操作列 · 审核入口</h4>
+      <ul>
+        <li>操作列去掉「刷新」，保留 <b>编辑 / 审核 / 删除</b>。</li>
+        <li>每行新增 <b>审核</b> 入口，点击打开居中审核弹窗。</li>
+        <li>「审核」文字右上角显示 <b>待处理数量角标</b>：数量为 0 隐藏，超过 99 显示 99+。</li>
+        <li>左侧「配置中心」同步显示 <b>全部待处理总数</b>角标。</li>
+      </ul>
+    </div>
+
+    <div class="req-sec">
+      <h4>审核弹窗 · 申请列表</h4>
+      <ul>
+        <li>第一屏即为申请表：<b>申请ID、修改前数据、申请数据、申请时间、申请人、状态、操作</b>。</li>
+        <li>申请列表按<b>申请时间倒序</b>展示，最新申请置顶。</li>
+        <li>每次编辑配置新增一条独立申请记录，不直接改主列表。</li>
+        <li>只有「审核通过」的记录才展示<b>修改前数据</b>，其余状态为空。</li>
+      </ul>
+    </div>
+
+    <div class="req-sec">
+      <h4>两步审核流程</h4>
+      <div class="req-flow">
+        <span class="step">编辑新增申请</span><span class="arrow">→</span>
+        <span class="step">内测中</span><span class="arrow">→</span>
+        <span class="step">审核中</span><span class="arrow">→</span>
+        <span class="step pass">审核通过 · 写入主列表</span><span class="arrow">/</span>
+        <span class="step fail">审核不通过 · 主列表不变</span>
+      </div>
+      <ul>
+        <li>状态统一为：<b>内测中 / 审核中 / 审核通过 / 审核不通过</b>。</li>
+        <li>「内测通过」点击时二次确认「是否确认内测通过？」，通过后才出现「审核」。</li>
+        <li>点「审核」弹窗直接选择<b>审核通过 / 审核不通过</b>，不再跳详情页。</li>
+        <li>审核通过 toast「审核已通过」，审核不通过 toast「审核不通过」，弹窗关闭。</li>
+      </ul>
+    </div>
+
+    <div class="req-sec">
+      <h4>主列表数据</h4>
+      <ul>
+        <li>删除「原数据」列，「修改后数据」改名为 <b>生效中数据</b>。</li>
+        <li>审核通过后，申请数据直接覆盖主列表「生效中数据」并置为生效中。</li>
+        <li>审核不通过只标记该申请，主列表数据完全不变。</li>
+      </ul>
+    </div>
+
+    <div class="req-sec">
+      <h4>布局</h4>
+      <ul>
+        <li>表格改为百分比列宽撑满内容区，<b>消除右侧大片空白</b>。</li>
+        <li>操作按钮不换行、不贴边。</li>
+      </ul>
+    </div>
+  </div>
+</aside>
+
 <script src="../sidebar.js"></script>
+<script>
+(function(){
+  const auditApplications={
+    '6086b520bc4c3f004661fe8a':[
+      {id:'APPLY-20260415-003',before:'买量包-实名开启(移动端SDK)',data:'买量包-实名开启(移动端SDK) · 优化版',start:'2026-04-21 00:00:00',end:'2099-12-27 20:42:00',time:'2026-04-15 10:18:26',applicant:'王敏',inner:'待内测',audit:'—'},
+      {id:'APPLY-20260411-004',before:'买量包-实名开启(移动端SDK)',data:'买量包-实名开启(移动端SDK) · 客服升级版',start:'2026-04-16 00:00:00',end:'2099-12-27 20:42:00',time:'2026-04-11 15:42:08',applicant:'陈曦',inner:'已通过',audit:'待审核'}
+    ],
+    '69cde0389076dc005538ec90':[
+      {id:'APPLY-20260414-005',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 合规修订版',start:'2026-04-19 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-14 11:06:42',applicant:'赵宁',inner:'待内测',audit:'—'},
+      {id:'APPLY-20260409-006',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 风险整改版',start:'2026-04-12 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-09 17:20:19',applicant:'周凯',inner:'已通过',audit:'审核不通过'}
+    ],
+    '69cde0389076dc005538ec8f':[
+      {id:'APPLY-20260413-007',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 安卓适配版',start:'2026-04-18 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-13 09:26:34',applicant:'林薇',inner:'待内测',audit:'—'},
+      {id:'APPLY-20260408-008',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 参数调整版',start:'2026-04-11 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-08 14:12:50',applicant:'王敏',inner:'已通过',audit:'待审核'}
+    ],
+    '69c355eaf9cc1a0058888e7d':[
+      {id:'APPLY-20260415-009',before:'官网防诈骗和隐私配置(移动端SDK)',data:'官网防诈骗和隐私配置(移动端SDK) · 春季版',start:'2026-04-22 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-15 13:48:17',applicant:'陈曦',inner:'待内测',audit:'—'},
+      {id:'APPLY-20260410-010',before:'官网防诈骗和隐私配置(移动端SDK)',data:'官网防诈骗和隐私配置(移动端SDK) · 文案更新版',start:'2026-04-15 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-10 10:31:05',applicant:'赵宁',inner:'已通过',audit:'审核不通过'}
+    ],
+    '68fda4b1c9e2a30074bb4221':[
+      {id:'APPLY-20260415-001',before:'OPPO快游戏-标准方案(OPPO快游戏SDK)',data:'OPPO快游戏-标准方案v2(OPPO快游戏SDK)',start:'2026-04-20 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-15 14:22:11',applicant:'林薇',inner:'待内测',audit:'—'},
+      {id:'APPLY-20260414-002',before:'OPPO快游戏-标准方案(OPPO快游戏SDK)',data:'OPPO快游戏-标准方案v1.1(OPPO快游戏SDK)',start:'2026-04-18 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-14 16:08:32',applicant:'赵宁',inner:'已通过',audit:'待审核'},
+      {id:'APPLY-20260412-001',before:'OPPO快游戏-标准方案(OPPO快游戏SDK)',data:'OPPO快游戏-标准方案灰度版(OPPO快游戏SDK)',start:'2026-04-16 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-12 09:35:06',applicant:'周凯',inner:'已通过',audit:'审核不通过'}
+    ]
+  };
+  let currentRow=null,currentConfigId='',currentApplication=null;
+    const pendingAuditCount=configId=>(auditApplications[configId]||[]).filter(item=>item.audit!=='审核通过/已生效'&&item.audit!=='审核不通过').length;
+    const hasPendingAudit=configId=>pendingAuditCount(configId)>0;
+    const stateValue=item=>item.audit==='审核不通过'?'审核不通过':item.audit==='审核通过/已生效'?'审核通过':item.inner==='待内测'?'内测中':'审核中';
+    const stateClass=value=>value==='审核通过'?'pass':value==='审核不通过'?'fail':'wait';
+    function refreshAuditDots(){
+      let hasPending=false;
+      document.querySelectorAll('tbody tr').forEach(row=>{
+        const id=row.querySelector('.cell-id');
+        const dot=row.querySelector('.audit-pending-dot');
+        if(id&&dot){
+          const count=pendingAuditCount(id.textContent.trim());
+          dot.textContent=count>99?'99+':count;
+          dot.classList.toggle('show',count>0);
+          hasPending=hasPending||count>0;
+        }
+      });
+      const total=Object.keys(auditApplications).reduce((s,id)=>s+pendingAuditCount(id),0);
+      const sidebarDot=document.querySelector('.nav-audit-pending-dot');
+      if(sidebarDot){sidebarDot.textContent=total>99?'99+':total;sidebarDot.style.display=total>0?'inline-flex':'none';}
+    }
+    const stateTag=value=>'<span class="audit-state '+stateClass(value)+'">'+value+'</span>';
+  const dataHtml=(item,label='小游戏方案：')=>'<span class="line"><span class="label">'+label+'</span>'+item.data+'</span><span class="line"><span class="label">生效时间(起)：</span>'+item.start+'</span><span class="line"><span class="label">生效时间(止)：</span>'+item.end+'</span>';
+  const beforeHtml=item=>item.audit==='审核通过/已生效'?'<span class="line"><span class="label">小游戏方案：</span>'+item.before+'</span><span class="line"><span class="label">生效时间：</span>当前生效方案</span>':'';
+  function renderAuditTable(){
+    const list=auditApplications[currentConfigId]||[];
+    const mount=document.getElementById('auditTableMount');
+    if(!list.length){mount.innerHTML='<table class="audit-table"><tbody><tr><td class="audit-empty">暂无编辑申请</td></tr></tbody></table>';return;}
+    const ordered=list.map((item,index)=>({item,index})).sort((a,b)=>a.item.time<b.item.time?1:a.item.time>b.item.time?-1:0);
+    mount.innerHTML='<table class="audit-table"><thead><tr><th>申请ID</th><th>修改前数据</th><th>申请数据（修改后）</th><th>申请时间</th><th>申请人</th><th>状态</th><th>操作</th></tr></thead><tbody>'+ordered.map(({item,index})=>{
+      let action=item.inner==='待内测'?'<span class="audit-link" onclick="window.passInner('+index+')">内测通过</span>':item.audit==='待审核'?'<span class="audit-link" onclick="window.openAuditDetail('+index+')">审核</span>':'<span class="muted">已完成</span>';
+      return '<tr><td><span class="audit-id">'+item.id+'</span></td><td><div class="audit-data">'+beforeHtml(item)+'</div></td><td><div class="audit-data">'+dataHtml(item)+'</div></td><td>'+item.time+'</td><td>'+item.applicant+'</td><td>'+stateTag(stateValue(item))+'</td><td><div class="audit-op">'+action+'</div></td></tr>';
+    }).join('')+'</tbody></table>';
+  }
+  window.openAudit=function(row){
+    currentRow=row;currentConfigId=row.querySelector('.cell-id').textContent.trim();
+    if(!auditApplications[currentConfigId])auditApplications[currentConfigId]=[];
+    document.getElementById('auditTitle').textContent='操作审核 · '+row.querySelector('.cell-channel .ch-name').textContent.trim();
+    currentApplication=null;backToAuditList();refreshAuditDots();document.getElementById('auditMask').classList.add('show');
+  };
+  window.backToAuditList=function(){
+    currentApplication=null;document.getElementById('auditListView').classList.remove('hidden');document.getElementById('auditDetailView').classList.remove('show');renderAuditTable();
+  };
+  window.closeAudit=function(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('auditMask').classList.remove('show');document.getElementById('auditChoiceMask').classList.remove('show');currentApplication=null;};
+  window.passInner=function(index){
+    const item=(auditApplications[currentConfigId]||[])[index];if(!item||item.inner!=='待内测')return;
+    if(!confirm('是否确认内测通过？'))return;
+    item.inner='已通过';item.audit='待审核';renderAuditTable();refreshAuditDots();
+  };
+  window.openAuditDetail=function(index){
+    const item=(auditApplications[currentConfigId]||[])[index];if(!item||item.inner!=='已通过'||item.audit!=='待审核')return;
+    currentApplication=item;document.getElementById('auditChoiceMask').classList.add('show');
+  };
+  window.closeAuditChoice=function(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('auditChoiceMask').classList.remove('show');currentApplication=null;};
+  window.openReqDrawer=function(){document.getElementById('reqMask').classList.add('show');document.getElementById('reqDrawer').classList.add('show');};
+  window.closeReqDrawer=function(){document.getElementById('reqMask').classList.remove('show');document.getElementById('reqDrawer').classList.remove('show');};
+  window.approveAudit=function(){
+    if(!currentApplication||!currentRow)return;
+    const cells=currentRow.querySelectorAll('td');const activeData=cells[2];activeData.innerHTML='<div class="scheme-block"><div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">'+currentApplication.data+'</span><span class="compl c-ok">合规</span></div><div class="effect"><div class="effect-row"><span class="lbl">生效时间(起)：</span><span>'+currentApplication.start+'</span></div><div class="effect-row"><span class="lbl">生效时间(止)：</span><span>'+currentApplication.end+'</span></div></div></div>';currentRow.querySelector('.status-pill').className='status-pill s-active';currentRow.querySelector('.status-pill').textContent='生效中';currentApplication.audit='审核通过/已生效';refreshAuditDots();document.getElementById('auditChoiceMask').classList.remove('show');document.getElementById('auditMask').classList.remove('show');showAuditToast('审核已通过');currentApplication=null;
+  };
+  window.rejectAudit=function(){
+    if(!currentApplication||!currentRow)return;
+    currentApplication.audit='审核不通过';refreshAuditDots();document.getElementById('auditChoiceMask').classList.remove('show');document.getElementById('auditMask').classList.remove('show');showAuditToast('审核不通过');currentApplication=null;
+  };
+  refreshAuditDots();
+  setTimeout(refreshAuditDots,0);
+  function showAuditToast(message){
+    let toast=document.getElementById('auditToast');
+    if(!toast){toast=document.createElement('div');toast.id='auditToast';toast.className='audit-toast';document.body.appendChild(toast);}
+    toast.textContent=message;toast.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>toast.classList.remove('show'),2200);
+  }
+})();
+</script>
 </body>
 </html>

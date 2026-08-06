@@ -52,6 +52,7 @@ const AdminSidebar = {
         html += `<div class="nav-item${active}"${click}>`;
         html += `<span class="icon"><svg viewBox="0 0 24 24">${item.icon}</svg></span>`;
         html += `<span>${item.label}</span>`;
+        if (item.file === 'configList.html') html += '<span class="nav-audit-pending-dot" aria-label="待处理审核数量" style="display:none;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;margin-left:6px;border-radius:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;line-height:1;box-shadow:0 0 0 2px rgba(0,0,0,.15);vertical-align:middle;"></span>';
         html += '</div>';
       });
       html += '</div>';
