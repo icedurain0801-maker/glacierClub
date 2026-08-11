@@ -942,7 +942,7 @@ body{
   }
   function renderFocus(item){
     const sv=stateValue(item);
-    const focusMap={'内测中':{title:'当前步骤：内测确认',desc:'请确认内测是否通过。内测通过后进入审核环节。'},'审核中':{title:'当前步骤：审核确认',desc:'请核对该申请数据。审核通过后，申请数据将覆盖主列表生效中数据。'},'审核通过':{title:'已完成：审核通过',desc:'该申请已审核通过，新方案已生效。'},'审核不通过':{title:'已完成：审核不通过',desc:'该申请审核不通过，主列表数据未变更。'}};
+    const focusMap={'内测中':{title:'当前步骤：内测确认',desc:'请确认内测是否通过。内测通过后进入审核环节。'},'审核中':{title:'当前步骤：审核确认',desc:'请核对该申请数据。审核通过后，申请数据将覆盖主列表生效中数据。'},'审核通过':{title:'已完成：审核通过',desc:'该申请已审核通过，新方案已生效。'},'审核不通过':{title:'已完成：审核不通过',desc:'审核不通过，申请的方案未通过审核未生效。主列表数据未变更。'}};
     const f=focusMap[sv]||{title:'',desc:''};
     const isEdit=item.type==='edit';
     const typeTag=isEdit?'<span style="font-size:12px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);padding:0 7px;border-radius:4px;font-weight:400;line-height:20px;margin-left:8px;display:inline-flex;align-items:center">修改</span>':'<span style="font-size:12px;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-soft);padding:0 7px;border-radius:4px;font-weight:400;line-height:20px;margin-left:8px;display:inline-flex;align-items:center">新建</span>';
@@ -973,12 +973,24 @@ body{
     document.querySelectorAll('.tbl tbody tr').forEach(row=>{
       const idCell=row.querySelector('.cell-id');
       if(!idCell)return;
-      const list=auditApplications[idCell.textContent.trim()]||[];
+      const id=idCell.textContent.trim();
+      const list=auditApplications[id]||[];
       if(!list.length)return;
       const latest=list.slice().sort((a,b)=>a.time<b.time?1:a.time>b.time?-1:0)[0];
-      if(latest.audit!=='待审核'){
-        const auditBtn=row.querySelector('.ops .op-audit');
-        if(auditBtn)auditBtn.remove();
+      const pending=latest.inner==='待内测'||latest.audit==='待审核';
+      const ops=row.querySelector('.ops');
+      const auditBtn=row.querySelector('.ops .op-audit');
+      if(pending){
+        if(!auditBtn&&ops){
+          const deleteBtn=ops.querySelector('.op.danger,.op.muted');
+          const btn=document.createElement('span');
+          btn.className='op op-audit';
+          btn.textContent='审核';
+          btn.onclick=function(){openAudit(row);};
+          if(deleteBtn)ops.insertBefore(btn,deleteBtn);else ops.appendChild(btn);
+        }
+      }else if(auditBtn){
+        auditBtn.remove();
       }
     });
   }
@@ -1035,7 +1047,7 @@ body{
     const pendingAfterReject=Object.values(auditApplications).some(list=>list.some(app=>app.audit==='待审核'));
     window.__configAuditPending=pendingAfterReject;
     try { localStorage.setItem('sdkConfigAuditPending',String(pendingAfterReject)); } catch (e) {}
-    document.getElementById('auditMask').classList.remove('show');showAuditToast('审核不通过');currentApplication=null;
+    document.getElementById('auditMask').classList.remove('show');showAuditToast('审核不通过，申请的方案未通过审核未生效');currentApplication=null;
   };
   window.openReqDrawer=function(){document.getElementById('reqMask').classList.add('show');document.getElementById('reqDrawer').classList.add('show');};
   window.closeReqDrawer=function(){document.getElementById('reqMask').classList.remove('show');document.getElementById('reqDrawer').classList.remove('show');};
