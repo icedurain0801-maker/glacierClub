@@ -3,24 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <title>SDK 管理后台 · 配置列表</title>
-<style>
+  <style>
+.nav-audit-dot{display:inline-block;width:7px;height:7px;margin-left:6px;vertical-align:top;border-radius:50%;background:#ff4d4f;box-shadow:0 0 0 1px rgba(255,255,255,.35);}
+
 :root{
-  --ink:#0b1220;--ink-2:#1f2937;--ink-3:#475569;--ink-4:#94a3b8;
-  --border:#e5e9f0;--border-2:#eef1f6;--bg:#f5f7fa;--bg-2:#fafbfc;--white:#fff;
-  --brand:#2563eb;--brand-deep:#1e3a8a;--brand-soft:#dbeafe;
-  --green:#059669;--green-bg:#ecfdf5;
-  --amber:#d97706;--amber-bg:#fffbeb;
-  --red:#dc2626;--red-bg:#fef2f2;
-  --grey:#64748b;--grey-bg:#f1f5f9;
+  /* Ant Design X 色板体系 */
+  --brand:#1677ff;--brand-deep:#0958d9;--brand-soft:#e6f4ff;--brand-bg:#f0f7ff;
+  --green:#52c41a;--green-bg:#f6ffed;--green-border:#b7eb8f;
+  --amber:#faad14;--amber-bg:#fffbe6;--amber-border:#ffe58f;
+  --red:#ff4d4f;--red-bg:#fff2f0;--red-border:#ffccc7;
+  --grey:#8c8c8c;--grey-bg:#f5f5f5;
+  /* 中性色 - Antd rgba 透明度体系 */
+  --ink:rgba(0,0,0,.88);--ink-2:rgba(0,0,0,.65);--ink-3:rgba(0,0,0,.45);--ink-4:rgba(0,0,0,.25);
+  /* 边框与背景 */
+  --border:#d9d9d9;--border-2:#f0f0f0;--bg:#f5f5f5;--bg-2:#fafafa;--white:#fff;
+  --split:rgba(5,5,5,.06);
+  /* 布局 */
   --sidebar:232px;--topnav-h:48px;--topbar-h:48px;--tabbar-h:38px;
-  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+  /* 阴影 - Antd 柔和风格 */
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04),0 0 1px rgba(0,0,0,.06);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08);
+  --shadow-lg:0 8px 24px rgba(0,0,0,.12);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;}
 body{
-  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei','Helvetica Neue',Arial,sans-serif;
   background:var(--bg);color:var(--ink);
-  line-height:1.55;font-size:14px;
+  line-height:1.5715;font-size:14px;
   display:flex;flex-direction:column;min-height:100vh;
   -webkit-font-smoothing:antialiased;
 }
@@ -28,34 +38,34 @@ body{
 .icon svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
 
 /* ════ TOP NAV ════ */
-.plat-nav{background:#0a1828;color:#cbd5e1;height:var(--topnav-h);flex-shrink:0;display:flex;align-items:center;font-size:13px;}
-.plat-brand{display:flex;align-items:center;gap:10px;padding:0 24px;height:100%;font-weight:700;color:white;}
-.plat-brand-ico{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#3b82f6,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:white;}
+.plat-nav{background:#001529;color:rgba(255,255,255,.65);height:var(--topnav-h);flex-shrink:0;display:flex;align-items:center;font-size:14px;}
+.plat-brand{display:flex;align-items:center;gap:10px;padding:0 24px;height:100%;font-weight:600;color:rgba(255,255,255,.95);}
+.plat-brand-ico{width:28px;height:28px;border-radius:6px;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;}
 .plat-nav-list{display:flex;align-items:center;height:100%;}
-.plat-nav-item{padding:0 18px;height:100%;display:flex;align-items:center;color:#94a3b8;cursor:pointer;position:relative;transition:color .15s;}
-.plat-nav-item:hover{color:#e2e8f0;}
-.plat-nav-item.active{color:white;font-weight:600;}
-.plat-nav-item.active::after{content:'';position:absolute;left:18px;right:18px;bottom:0;height:2px;background:#3b82f6;}
+.plat-nav-item{padding:0 20px;height:100%;display:flex;align-items:center;color:rgba(255,255,255,.65);cursor:pointer;position:relative;transition:color .2s;}
+.plat-nav-item:hover{color:rgba(255,255,255,.85);}
+.plat-nav-item.active{color:#fff;font-weight:500;}
+.plat-nav-item.active::after{content:'';position:absolute;left:20px;right:20px;bottom:0;height:2px;background:var(--brand);}
 
 .app-shell{flex:1;display:flex;min-height:0;}
 
 /* ══ SIDEBAR ══ */
 .sidebar{
   width:var(--sidebar);flex-shrink:0;
-  background:#2c3e50;border-right:1px solid #1a2734;
+  background:#001529;border-right:0;
   height:calc(100vh - var(--topnav-h));position:sticky;top:var(--topnav-h);
   display:flex;flex-direction:column;overflow-y:auto;
 }
 .sidebar::-webkit-scrollbar{width:6px;}
-.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px;}
 .sb-section{padding:0;}
-.sb-section + .sb-section{border-top:1px solid rgba(255,255,255,.06);}
+.sb-section + .sb-section{border-top:1px solid rgba(255,255,255,.08);}
 .sb-section-label{
   display:flex;align-items:center;gap:10px;
-  font-size:13px;font-weight:600;letter-spacing:.02em;
-  color:#cbd5e1;text-transform:none;
+  font-size:13px;font-weight:500;letter-spacing:.02em;
+  color:rgba(255,255,255,.45);text-transform:none;
   padding:14px 18px 12px;margin:0;
-  background:rgba(0,0,0,.15);
+  background:transparent;
 }
 .sb-section-label::before{
   content:'';width:14px;height:14px;flex-shrink:0;
@@ -72,15 +82,15 @@ body{
 .nav-item{
   display:flex;align-items:center;gap:10px;
   padding:11px 18px 11px 38px;border-radius:0;
-  font-size:13.5px;color:#cbd5e1;cursor:pointer;
-  margin-bottom:0;transition:background .15s,color .15s;font-weight:400;
+  font-size:14px;color:rgba(255,255,255,.65);cursor:pointer;
+  margin-bottom:0;transition:background .2s,color .2s;font-weight:400;
 }
-.nav-item:hover{background:rgba(255,255,255,.05);color:#fff;}
-.nav-item.active{background:#2563eb;color:#fff;font-weight:500;}
+.nav-item:hover{background:rgba(255,255,255,.08);color:rgba(255,255,255,.85);}
+.nav-item.active{background:var(--brand);color:#fff;font-weight:400;}
 .nav-item .icon{width:16px;height:16px;color:inherit;opacity:.85;}
 .nav-item.active .icon{color:#fff;opacity:1;}
 .nav-badge{
-  margin-left:auto;font-size:10px;font-weight:700;
+  margin-left:auto;font-size:10px;font-weight:600;
   padding:2px 7px;border-radius:10px;
   background:var(--red);color:white;line-height:1;
 }
@@ -91,7 +101,7 @@ body{
 .app-shell.sidebar-collapsed .sidebar{width:4px;}
 .app-shell.sidebar-collapsed .sidebar::after{
   content:'';display:block;width:4px;height:100%;
-  background:linear-gradient(180deg,rgba(59,130,246,.5),rgba(59,130,246,.1));
+  background:linear-gradient(180deg,rgba(22,119,255,.5),rgba(22,119,255,.1));
 }
 .tb-toggle:hover{color:var(--ink-2);}
 .app-shell:not(.sidebar-collapsed) .tb-toggle-icon-open{display:none;}
@@ -109,55 +119,55 @@ body{
 .tb-spacer{flex:1;}
 .tb-tools{display:flex;align-items:center;gap:8px;}
 .tb-search{
-  display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+  display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;
   border:1px solid var(--border);border-radius:6px;
-  font-size:12.5px;color:var(--ink-4);background:white;cursor:pointer;min-width:240px;
+  font-size:14px;color:var(--ink-3);background:white;cursor:pointer;min-width:240px;transition:border-color .2s;
 }
+.tb-search:hover{border-color:var(--brand);}
 .tb-search .placeholder{flex:1;}
-.tb-search .kbd{font-size:11px;color:var(--ink-4);background:var(--bg-2);padding:1px 6px;border-radius:4px;border:1px solid var(--border);}
-.tb-icon-btn{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;position:relative;}
+.tb-search .kbd{font-size:11px;color:var(--ink-3);background:var(--bg-2);padding:1px 6px;border-radius:4px;border:1px solid var(--border-2);}
+.tb-icon-btn{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink-2);cursor:pointer;position:relative;transition:background .2s;}
 .tb-icon-btn:hover{background:var(--bg-2);}
 .tb-icon-btn .icon{width:16px;height:16px;}
-.tb-icon-btn .alert-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--red);}
+.tb-icon-btn .alert-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--red);}
 .tb-pill{
-  display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;
-  border:1px solid var(--amber);border-radius:6px;
+  display:flex;align-items:center;gap:5px;height:32px;padding:0 12px;
+  border:1px solid var(--amber-border);border-radius:6px;
   background:var(--amber-bg);color:var(--amber);
-  font-size:12px;font-weight:600;cursor:pointer;
+  font-size:14px;font-weight:400;cursor:pointer;
 }
 .tb-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);}
 .tb-select{
-  display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;
+  display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;
   border:1px solid var(--border);border-radius:6px;
-  background:white;font-size:12.5px;color:var(--ink-2);cursor:pointer;
+  background:white;font-size:14px;color:var(--ink-2);cursor:pointer;transition:border-color .2s;
 }
-.tb-select .caret{color:var(--ink-4);font-size:9px;margin-left:2px;}
-.tb-select.user .avatar{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:white;}
+.tb-select:hover{border-color:var(--brand);}
+.tb-select .caret{color:var(--ink-3);font-size:10px;margin-left:2px;}
+.tb-select.user .avatar{width:24px;height:24px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:white;}
 
 /* TAB BAR */
 .tabbar{
-  background:#fafbfc;border-bottom:1px solid var(--border);
-  height:44px;flex-shrink:0;
-  display:flex;align-items:center;padding:0 12px;gap:6px;
+  background:#fafafa;border-bottom:1px solid var(--border);
+  height:46px;flex-shrink:0;
+  display:flex;align-items:center;padding:0 12px;gap:8px;
 }
 .tab{
   display:flex;align-items:center;gap:6px;
-  height:32px;padding:0 14px;
-  color:var(--ink-3);background:#eef1f6;
-  font-size:12.5px;cursor:pointer;
-  border:1px solid var(--border-2);border-radius:6px;
+  height:32px;padding:0 16px;
+  color:var(--ink-2);background:white;
+  font-size:14px;cursor:pointer;
+  border:1px solid var(--border);border-radius:6px;
   transition:all .2s;font-weight:400;
 }
 .tab:hover{
-  color:var(--ink-2);
-  background:#e9edf3;
-  border-color:var(--border);
+  color:var(--brand);
+  border-color:var(--brand);
 }
 .tab.active{
-  color:var(--brand);font-weight:600;
-  background:rgba(37,99,235,.08);
-  border-color:rgba(37,99,235,.2);
-  box-shadow:0 1px 3px rgba(37,99,235,.1);
+  color:var(--brand);font-weight:500;
+  background:var(--brand-soft);
+  border-color:var(--brand);
 }
 .tab .x{width:14px;height:14px;color:inherit;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;opacity:.6;transition:opacity .2s;}
 .tab .x:hover{opacity:1;background:rgba(0,0,0,.08);}
@@ -173,34 +183,34 @@ body{
 }
 .f-input,.f-sel{
   height:32px;padding:0 12px;
-  border:1px solid var(--border);border-radius:4px;
-  background:white;font-size:13px;color:var(--ink-2);
-  min-width:auto;outline:none;transition:all .12s;
+  border:1px solid var(--border);border-radius:6px;
+  background:white;font-size:14px;color:var(--ink-2);
+  min-width:auto;outline:none;transition:border-color .2s,box-shadow .2s;
 }
-.f-input::placeholder{color:var(--ink-4);}
-.f-input:focus,.f-sel:focus{border-color:var(--brand);background:white;}
+.f-input::placeholder{color:var(--ink-3);}
+.f-input:focus,.f-sel:focus{border-color:var(--brand);box-shadow:0 0 0 2px rgba(22,119,255,.12);}
 .f-sel{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 8px center;background-size:14px;padding-right:28px;cursor:pointer;}
 .f-btn{
-  height:32px;padding:0 18px;
-  background:var(--brand);color:white;border:none;border-radius:6px;
-  font-size:13px;font-weight:600;cursor:pointer;
-  display:flex;align-items:center;gap:6px;
+  height:32px;padding:0 16px;
+  background:var(--brand);color:white;border:1px solid var(--brand);border-radius:6px;
+  font-size:14px;font-weight:400;cursor:pointer;
+  display:flex;align-items:center;gap:6px;transition:background .2s,border-color .2s;
 }
-.f-btn:hover{background:var(--brand-deep);}
+.f-btn:hover{background:var(--brand-deep);border-color:var(--brand-deep);}
 .f-btn .icon{width:14px;height:14px;}
 
 /* ACTIONS BAR */
 .actions-bar{display:flex;gap:8px;}
 .btn{
-  height:32px;padding:0 14px;
-  border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;
-  display:inline-flex;align-items:center;gap:5px;border:1px solid transparent;
-  transition:all .12s;
+  height:32px;padding:0 15px;
+  border-radius:6px;font-size:14px;font-weight:400;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);
+  transition:all .2s;
 }
-.btn.primary{background:var(--brand);color:white;}
-.btn.primary:hover{background:var(--brand-deep);}
+.btn.primary{background:var(--brand);color:white;border-color:var(--brand);}
+.btn.primary:hover{background:var(--brand-deep);border-color:var(--brand-deep);}
 .btn.ghost{background:white;color:var(--ink-2);border-color:var(--border);}
-.btn.ghost:hover{background:var(--bg-2);border-color:var(--ink-4);}
+.btn.ghost:hover{color:var(--brand);border-color:var(--brand);}
 .btn .icon{width:14px;height:14px;}
 
 /* TABLE */
@@ -208,7 +218,7 @@ body{
   background:white;border:1px solid var(--border);border-radius:8px;
   overflow:hidden;box-shadow:var(--shadow-sm);
 }
-.tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;}
 .tbl th:nth-child(1),.tbl td:nth-child(1){width:12%;}
 .tbl th:nth-child(2),.tbl td:nth-child(2){width:16%;}
 .tbl th:nth-child(3),.tbl td:nth-child(3){width:29%;}
@@ -217,168 +227,218 @@ body{
 .tbl th:nth-child(6),.tbl td:nth-child(6){width:12%;}
 .tbl th:nth-child(7),.tbl td:nth-child(7){width:11%;}
 .tbl th{
-  text-align:left;padding:11px 16px;
-  background:#f6f8fb;border-bottom:1px solid var(--border);
-  font-size:12px;font-weight:600;color:var(--ink-3);
+  text-align:left;padding:12px 16px;
+  background:#fafafa;border-bottom:1px solid var(--border);
+  font-size:14px;font-weight:500;color:var(--ink-2);
   white-space:nowrap;
 }
 .tbl td{
-  padding:14px 16px;border-bottom:1px solid var(--border-2);
+  padding:16px;border-bottom:1px solid var(--split);
   vertical-align:top;color:var(--ink-2);
 }
 .tbl tr:last-child td{border-bottom:none;}
-.tbl tr:hover td{background:#f9fbff;}
+.tbl tr:hover td{background:#fafafa;}
 
 .cell-id{
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  font-size:12px;color:var(--ink-2);
+  font-size:13px;color:var(--ink-2);
   word-break:break-all;
 }
-.cell-channel{font-size:13px;color:var(--ink-2);line-height:1.55;min-width:170px;}
+.cell-channel{font-size:14px;color:var(--ink-2);line-height:1.5715;min-width:170px;}
 .cell-channel .ch-name{font-weight:500;color:var(--ink);}
-.cell-channel .ch-id{font-size:12px;color:var(--ink-4);}
+.cell-channel .ch-id{font-size:13px;color:var(--ink-3);}
 
-.scheme-block{font-size:12.5px;line-height:1.7;}
+.scheme-block{font-size:14px;line-height:1.5715;}
 .scheme-block .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-.scheme-block .row + .row{margin-top:2px;}
+.scheme-block .row + .row{margin-top:4px;}
 .scheme-block .lbl{color:var(--ink-3);white-space:nowrap;}
-.scheme-block .lnk{color:var(--brand);cursor:pointer;font-weight:500;}
-.scheme-block .lnk:hover{text-decoration:underline;}
-.scheme-block .effect{color:var(--ink-4);font-size:12px;margin-top:6px;}
+.scheme-block .lnk{color:var(--brand);cursor:pointer;font-weight:400;}
+.scheme-block .lnk:hover{color:var(--brand-deep);}
+.scheme-block .effect{color:var(--ink-3);font-size:13px;margin-top:8px;}
 .scheme-block .effect-row{display:flex;gap:8px;font-variant-numeric:tabular-nums;}
 
-.compl{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;line-height:1.4;}
-.c-ok{background:var(--green-bg);color:var(--green);}
-.c-risk{background:var(--red-bg);color:var(--red);}
-.c-ok::before,.c-risk::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+.compl{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:400;padding:0 7px;border-radius:4px;line-height:20px;border:1px solid;}
+.c-ok{background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+.c-risk{background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
+.c-ok::before,.c-risk::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
 
 .status-pill{
   display:inline-flex;align-items:center;gap:5px;
-  padding:3px 10px;border-radius:999px;
-  font-size:12px;font-weight:600;white-space:nowrap;
+  padding:0 8px;border-radius:4px;border:1px solid;
+  font-size:12px;font-weight:400;white-space:nowrap;line-height:22px;
 }
 .status-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
-.s-active{background:var(--green-bg);color:var(--green);}
-.s-pending{background:var(--amber-bg);color:var(--amber);}
-.s-disabled{background:var(--grey-bg);color:var(--grey);}
+.s-active{background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+.s-pending{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);}
+.s-expired{background:var(--grey-bg);color:var(--grey);border-color:var(--border);}
+.s-rejected{background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
+.s-disabled{background:var(--grey-bg);color:var(--grey);border-color:var(--border);}
 
-.cell-time{font-size:12.5px;color:var(--ink-2);line-height:1.55;font-variant-numeric:tabular-nums;min-width:130px;}
+.cell-time{font-size:13px;color:var(--ink-2);line-height:1.5715;font-variant-numeric:tabular-nums;min-width:130px;}
 .cell-time .time{color:var(--ink-2);}
-.cell-time .by{color:var(--ink-4);font-size:12px;}
+.cell-time .by{color:var(--ink-4);font-size:13px;}
 
-.ops{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;}
+.ops{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;}
 .ops .op{
-  padding:4px 6px;border-radius:5px;
-  font-size:12.5px;font-weight:500;color:var(--brand);
-  cursor:pointer;transition:background .12s;white-space:nowrap;
+  padding:0;border-radius:6px;
+  font-size:14px;font-weight:400;color:var(--brand);
+  cursor:pointer;transition:color .2s;white-space:nowrap;
 }
-.ops .op:hover{background:var(--brand-soft);}
+.ops .op:hover{color:var(--brand-deep);}
 .ops .op.danger{color:var(--red);}
-.ops .op.danger:hover{background:var(--red-bg);}
-.ops .op.muted{color:var(--ink-4);cursor:default;}
+.ops .op.danger:hover{color:#ff7875;}
+.ops .op.muted{color:var(--ink-3);cursor:not-allowed;}
 .ops .op.muted:hover{background:transparent;}
-.ops .op.op-audit{position:relative;overflow:visible;}
-.audit-pending-dot{
-  display:none;position:absolute;top:-4px;right:-6px;
-  min-width:15px;height:15px;padding:0 4px;box-sizing:border-box;
-  border-radius:8px;background:#ef4444;color:#fff;
-  font-size:10px;font-weight:700;line-height:15px;text-align:center;
-  box-shadow:0 0 0 2px #fff;
-}
-.audit-pending-dot.show{display:inline-block;}
+.ops .op-audit{position:relative;}
+.ops .op-audit::after{content:'';position:absolute;top:-3px;right:-6px;width:6px;height:6px;border-radius:50%;background:var(--red);box-shadow:0 0 0 1px #fff;}
 
 /* PAGER */
 .pager{
-  padding:12px 16px;display:flex;align-items:center;
-  border-top:1px solid var(--border-2);font-size:12.5px;color:var(--ink-3);
-  background:#fafbfc;
+  padding:16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  border-top:1px solid var(--split);font-size:14px;color:var(--ink-2);
+  background:var(--white);
 }
 .pager .total{margin-right:auto;}
 .pg-btn{
-  width:30px;height:30px;border:1px solid var(--border);background:white;
+  min-width:32px;height:32px;padding:0 8px;border:1px solid var(--border);background:var(--white);
   border-radius:6px;display:inline-flex;align-items:center;justify-content:center;
-  color:var(--ink-3);cursor:pointer;font-weight:500;margin:0 2px;
+  color:var(--ink);cursor:pointer;font-weight:400;margin:0;font-size:14px;transition:all .2s;
 }
-.pg-btn:hover{border-color:var(--brand);color:var(--brand);}
-.pg-btn.active{background:var(--brand);color:white;border-color:var(--brand);}
-.pg-btn.disabled{color:var(--ink-4);cursor:default;}
-.pg-sel{margin-left:14px;height:30px;padding:0 10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:12.5px;color:var(--ink-3);cursor:pointer;}
+.pg-btn:hover:not(.active):not(.disabled){border-color:var(--brand);color:var(--brand);}
+.pg-btn.active{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:500;}
+.pg-btn.disabled{color:var(--ink-4);cursor:not-allowed;background:var(--bg);}
+.pg-sel{margin-left:8px;height:32px;padding:0 28px 0 12px;border:1px solid var(--border);background:var(--white);border-radius:6px;font-size:14px;color:var(--ink);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 8px center;background-size:14px;}
 
-/* 配置审核弹窗 */
-.audit-mask{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:50;display:none;align-items:center;justify-content:center;padding:24px;}
+/* 配置审核弹窗 · plan-3 步骤条+单步聚焦（Antd X 风格） */
+.audit-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:24px;}
 .audit-mask.show{display:flex;}
-.audit-modal{width:min(1080px,calc(100vw - 48px));max-height:calc(100vh - 48px);background:white;border-radius:10px;box-shadow:0 18px 48px rgba(15,23,42,.22);display:flex;flex-direction:column;overflow:hidden;}
-.audit-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);}
-.audit-head h3{font-size:16px;font-weight:650;margin:0;flex:1;color:var(--ink);}
-.audit-head .close{width:28px;height:28px;border:0;background:transparent;color:var(--ink-4);font-size:22px;cursor:pointer;border-radius:5px;}
-.audit-head .close:hover{background:var(--bg);color:var(--ink-2);}
-.audit-body{padding:16px 20px;overflow:auto;}
-  .audit-notice{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:14px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:6px;font-size:12.5px;line-height:1.5;overflow:auto;}
-  .audit-flow-title{font-weight:700;white-space:nowrap;}.audit-flow{display:flex;align-items:center;gap:8px;min-width:max-content;}.audit-flow-step{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:5px;background:#fff;border:1px solid #bfdbfe;white-space:nowrap;font-weight:600;}.audit-flow-step .flow-dot{width:7px;height:7px;border-radius:50%;background:#f59e0b;}.audit-flow-step.pass{color:#059669;border-color:#a7f3d0;background:#ecfdf5;}.audit-flow-step.pass .flow-dot{background:#10b981;}.audit-flow-step.fail{color:#dc2626;border-color:#fecaca;background:#fef2f2;}.audit-flow-step.fail .flow-dot{background:#ef4444;}.audit-flow-arrow{font-size:18px;color:#94a3b8;font-weight:700;line-height:1;}
-.audit-table{width:100%;border-collapse:collapse;border:1px solid var(--border);font-size:12.5px;}
-.audit-table th{padding:10px 12px;text-align:left;white-space:nowrap;background:#f6f8fb;border-bottom:1px solid var(--border);font-weight:600;color:var(--ink-3);}
-.audit-table td{padding:12px;border-bottom:1px solid var(--border-2);vertical-align:top;color:var(--ink-2);}
-.audit-table tr:last-child td{border-bottom:0;}
-.audit-table tr:hover td{background:#f9fbff;}
-.audit-id{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--ink-2);white-space:nowrap;}
-.audit-data{min-width:260px;line-height:1.7;}
+.audit-modal{width:min(560px,calc(100vw - 48px));max-height:calc(100vh - 48px);background:var(--white);border-radius:8px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;overflow:hidden;}
+.audit-head{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--split);min-height:56px;}
+.audit-head h3{font-size:16px;font-weight:600;margin:0;flex:1;color:var(--ink);}
+.audit-head .close{width:22px;height:22px;border:0;background:transparent;color:var(--ink-3);font-size:16px;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;line-height:1;}
+.audit-head .close:hover{color:var(--ink);background:var(--bg);}
+
+/* 步骤条 */
+.audit-stepper{display:flex;align-items:center;padding:20px 24px 12px;background:var(--white);gap:0;flex-wrap:nowrap;overflow-x:auto;}
+.audit-step{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-3);white-space:nowrap;}
+.audit-step .s-dot{width:28px;height:28px;border-radius:50%;background:var(--bg);flex-shrink:0;transition:all .2s;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:400;color:var(--ink-3);border:1px solid var(--border);}
+.audit-step.active{color:var(--brand);font-weight:500;}
+.audit-step.active .s-dot{background:var(--brand);color:#fff;border-color:var(--brand);}
+.audit-step.done{color:var(--ink-2);}
+.audit-step.done .s-dot{background:var(--brand);color:#fff;border-color:var(--brand);}
+.audit-step.fail{color:var(--red);}
+.audit-step.fail .s-dot{background:var(--red);color:#fff;border-color:var(--red);}
+.audit-step-arrow{font-size:12px;color:var(--ink-4);margin:0 8px;flex-shrink:0;}
+
+/* 聚焦区 */
+.audit-body{flex:1;overflow-y:auto;padding:0 24px 16px;}
+.audit-focus-title{font-size:14px;color:var(--ink);margin-bottom:8px;font-weight:500;display:flex;align-items:center;}
+.audit-focus-desc{font-size:14px;color:var(--ink-2);line-height:1.5715;margin-bottom:16px;}
+.audit-data-block{border:1px solid var(--split);border-radius:6px;overflow:hidden;}
+.audit-info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--split);gap:16px;}
+.audit-info-cell .i-lbl{font-size:14px;color:var(--ink-3);margin-bottom:4px;}
+.audit-info-cell .i-val{font-size:14px;color:var(--ink);line-height:1.5715;}
+.audit-info-cell .i-val.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;color:var(--ink);}
+.audit-id{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--brand);background:var(--brand-soft);padding:2px 8px;border-radius:4px;font-weight:400;white-space:nowrap;}
+.audit-data-block .audit-data{padding:16px;}
+.audit-data{min-width:0;line-height:1.5715;}
+.audit-compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.audit-compare-grid .cmp-col{padding:16px;}
+.audit-compare-grid .cmp-col.orig{background:var(--amber-bg);border-right:1px solid var(--split);}
+.audit-compare-grid .cmp-col.new{background:var(--green-bg);}
+.audit-compare-grid .cmp-col h5{font-size:14px;color:var(--ink-2);margin:0 0 12px;font-weight:500;display:flex;align-items:center;gap:6px;}
+.audit-compare-grid .cmp-col.orig h5 .tag{font-size:12px;color:var(--amber);background:var(--white);border:1px solid var(--amber-border);padding:0 7px;border-radius:4px;line-height:20px;font-weight:400;}
+.audit-compare-grid .cmp-col.new h5 .tag{font-size:12px;color:var(--green);background:var(--white);border:1px solid var(--green-border);padding:0 7px;border-radius:4px;line-height:20px;font-weight:400;}
+.audit-compare-grid .cmp-col .line{display:block;font-size:14px;color:var(--ink-2);margin:2px 0;}
+.audit-compare-grid .cmp-col .label{color:var(--ink-3);font-size:14px;}
+@media(max-width:520px){.audit-compare-grid{grid-template-columns:1fr;}.audit-compare-grid .cmp-col.orig{border-right:0;border-bottom:1px solid var(--split);}}
 .audit-data .line{display:block;}
 .audit-data .label{color:var(--ink-3);}
-.audit-state{display:inline-flex;padding:3px 8px;border-radius:4px;font-size:11.5px;font-weight:600;white-space:nowrap;}
-.audit-state.wait{background:var(--amber-bg);color:var(--amber);}.audit-state.pass{background:var(--green-bg);color:var(--green);}.audit-state.fail{background:var(--red-bg);color:var(--red);}.audit-state.none{background:var(--grey-bg);color:var(--grey);}
-.audit-op{display:flex;gap:8px;align-items:center;white-space:nowrap;}
-.audit-link{color:var(--brand);cursor:pointer;font-weight:500;}.audit-link:hover{text-decoration:underline;}.audit-link.danger{color:var(--red);}
-.audit-empty{text-align:center!important;color:var(--ink-4)!important;padding:40px!important;}
-.audit-detail{display:none;}.audit-detail.show{display:block;}.audit-list.hidden{display:none;}
-.audit-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0;}.audit-card{border:1px solid var(--border);border-radius:7px;padding:14px;}.audit-card.changed{border-color:#f5d08a;background:#fffbeb;}.audit-card h4{font-size:13px;margin-bottom:10px;color:var(--ink-3);}.audit-card p{font-size:12.5px;line-height:1.7;margin:4px 0;}
-.audit-warning{padding:10px 12px;border:1px solid #f5d08a;background:#fffbeb;color:#92400e;border-radius:6px;font-size:12.5px;line-height:1.6;}
-.audit-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);}.audit-btn{height:32px;padding:0 16px;border-radius:6px;border:1px solid var(--border);background:white;color:var(--ink-2);cursor:pointer;font-size:13px;}.audit-btn.primary{background:var(--brand);border-color:var(--brand);color:white;}.audit-btn.danger{background:var(--red);border-color:var(--red);color:white;}
-  .audit-toast{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);padding:12px 22px;border-radius:6px;background:rgba(15,23,42,.9);color:white;font-size:14px;box-shadow:0 8px 24px rgba(15,23,42,.2);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:80;}.audit-toast.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
-  .audit-choice-mask{position:fixed;inset:0;background:rgba(15,23,42,.25);z-index:70;display:none;align-items:center;justify-content:center;}.audit-choice-mask.show{display:flex;}.audit-choice{width:min(420px,calc(100vw - 40px));background:white;border-radius:8px;box-shadow:0 14px 36px rgba(15,23,42,.25);overflow:hidden;}.audit-choice-head{padding:16px 18px;border-bottom:1px solid var(--border);font-size:15px;font-weight:600;color:var(--ink);}.audit-choice-body{padding:18px;color:var(--ink-2);font-size:13px;line-height:1.7;}.audit-choice-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}.audit-choice-btn{height:32px;padding:0 16px;border-radius:6px;border:1px solid var(--border);background:white;color:var(--ink-2);cursor:pointer;font-size:13px;}.audit-choice-btn.primary{background:var(--brand);border-color:var(--brand);color:white;}.audit-choice-btn.danger{background:var(--red);border-color:var(--red);color:white;}
-  @media(max-width:900px){.audit-modal{width:calc(100vw - 24px);max-height:calc(100vh - 24px)}.audit-compare{grid-template-columns:1fr}.audit-table{min-width:900px}.audit-body{overflow:auto;}}
+.audit-empty{text-align:center;color:var(--ink-4);padding:48px 24px;font-size:14px;}
+.audit-state{display:inline-flex;padding:0 7px;border-radius:4px;font-size:12px;font-weight:400;line-height:20px;white-space:nowrap;border:1px solid;}
+.audit-state.wait{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);}
+.audit-state.pass{background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+.audit-state.fail{background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
+.audit-state.none{background:var(--grey-bg);color:var(--grey);border-color:var(--border);}
 
-  /* 需求说明 悬浮入口 + 侧边抽屉 */
-  .req-fab{position:fixed;right:24px;bottom:24px;z-index:60;display:flex;align-items:center;gap:8px;height:44px;padding:0 18px 0 15px;border-radius:24px;background:var(--brand);color:#fff;font-size:13.5px;font-weight:600;box-shadow:0 8px 22px rgba(37,99,235,.35);cursor:pointer;transition:background .15s,transform .15s,box-shadow .15s;}
-  .req-fab:hover{background:var(--brand-deep);transform:translateY(-1px);box-shadow:0 10px 26px rgba(37,99,235,.4);}
-  .req-fab svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-  .req-mask{position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:75;opacity:0;pointer-events:none;transition:opacity .2s;}
+/* 底部操作栏 */
+.audit-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 24px;border-top:1px solid var(--split);min-height:53px;}
+.audit-btn{height:32px;padding:0 15px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--ink);cursor:pointer;font-size:14px;font-weight:400;transition:all .2s;line-height:1;}
+.audit-btn:hover{border-color:var(--brand);color:var(--brand);}
+.audit-btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+.audit-btn.primary:hover{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff;}
+.audit-btn.inner{background:var(--white);color:var(--amber);border-color:var(--amber);}
+.audit-btn.inner:hover{background:var(--amber-bg);color:var(--amber);}
+.audit-btn.danger{background:var(--white);border-color:var(--red);color:var(--red);}
+.audit-btn.danger:hover{background:var(--red);color:#fff;border-color:var(--red);}
+.audit-btn.skip{background:transparent;color:var(--ink-2);border-color:var(--border);}
+.audit-btn.skip:hover{background:var(--white);color:var(--ink);}
+
+.audit-toast{position:fixed;left:50%;top:64px;transform:translate(-50%,-10px);padding:9px 16px;border-radius:6px;background:rgba(0,0,0,.85);color:#fff;font-size:14px;box-shadow:var(--shadow-md);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:1050;}
+.audit-toast.show{opacity:1;transform:translate(-50%,0);}
+@media(max-width:900px){.audit-modal{width:calc(100vw - 24px);max-height:calc(100vh - 24px)}.audit-body{overflow:auto;}}
+
+/* 通用居中确认弹框（Antd X 风格） */
+.confirm-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:24px;}
+.confirm-mask.show{display:flex;}
+.confirm-modal{width:min(416px,calc(100vw - 48px));background:var(--white);border-radius:8px;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;}
+.confirm-head{padding:16px 24px;border-bottom:1px solid var(--split);min-height:53px;display:flex;align-items:center;}
+.confirm-head h3{margin:0;font-size:16px;font-weight:600;color:var(--ink);}
+.confirm-body{padding:20px 24px;font-size:14px;color:var(--ink-2);line-height:1.5715;flex:1;}
+.confirm-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 24px;border-top:1px solid var(--split);min-height:53px;}
+.confirm-btn{height:32px;padding:0 15px;border-radius:6px;border:1px solid var(--border);font-size:14px;font-weight:400;cursor:pointer;transition:all .2s;line-height:1;}
+.confirm-btn.cancel{background:var(--white);color:var(--ink-2);}
+.confirm-btn.cancel:hover{border-color:var(--brand);color:var(--brand);}
+.confirm-btn.ok{background:var(--brand);border-color:var(--brand);color:#fff;}
+.confirm-btn.ok:hover{background:var(--brand-deep);border-color:var(--brand-deep);}
+
+  /* 需求说明 悬浮入口 + 侧边抽屉（Antd X 风格） */
+  .req-fab{position:fixed;right:24px;bottom:24px;z-index:60;display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:6px;background:var(--brand);color:#fff;font-size:14px;font-weight:400;box-shadow:var(--shadow-md);cursor:pointer;transition:all .2s;}
+  .req-fab:hover{background:var(--brand-deep);}
+  .req-fab svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .req-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;}
   .req-mask.show{opacity:1;pointer-events:auto;}
-  .req-drawer{position:fixed;top:0;right:0;height:100vh;width:min(840px,calc(100vw - 40px));background:#fff;box-shadow:-10px 0 32px rgba(15,23,42,.18);z-index:76;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);}
+  .req-drawer{position:fixed;top:0;right:0;height:100vh;width:min(840px,calc(100vw - 40px));background:var(--white);box-shadow:var(--shadow-lg);z-index:1000;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);}
   .req-drawer.show{transform:translateX(0);}
-  .req-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
-  .req-drawer-head h3{font-size:15px;font-weight:600;color:var(--ink);}
-  .req-drawer-head .close{width:28px;height:28px;border:none;background:transparent;font-size:20px;line-height:1;color:var(--ink-4);cursor:pointer;border-radius:6px;}
-  .req-drawer-head .close:hover{background:var(--bg-2);color:var(--ink-2);}
-  .req-drawer-body{flex:1;overflow-y:auto;padding:18px 20px 28px;}
-  .req-sub{font-size:12px;color:var(--ink-4);margin-bottom:16px;}
-  .req-sec{margin-bottom:18px;}
-  .req-sec h4{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:8px;}
-  .req-sec h4::before{content:'';width:4px;height:14px;border-radius:2px;background:var(--brand);}
+  .req-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--split);min-height:56px;}
+  .req-drawer-head h3{font-size:16px;font-weight:600;color:var(--ink);}
+  .req-drawer-head .close{width:22px;height:22px;border:none;background:transparent;font-size:16px;line-height:1;color:var(--ink-3);cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;}
+  .req-drawer-head .close:hover{background:var(--bg);color:var(--ink);}
+  .req-drawer-body{flex:1;overflow-y:auto;padding:20px 24px 28px;}
+  .req-sub{font-size:14px;color:var(--ink-3);margin-bottom:20px;}
+  .req-sec{margin-bottom:24px;}
+  .req-sec h4{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;color:var(--ink);margin-bottom:12px;}
+  .req-sec h4::before{content:'';width:4px;height:16px;border-radius:2px;background:var(--brand);}
   .req-sec ul{list-style:none;padding:0;margin:0;}
-  .req-sec li{position:relative;padding:5px 0 5px 16px;font-size:13px;line-height:1.6;color:var(--ink-2);}
-  .req-sec li::before{content:'';position:absolute;left:2px;top:12px;width:5px;height:5px;border-radius:50%;background:var(--brand-soft);box-shadow:0 0 0 2px rgba(37,99,235,.25);}
+  .req-sec li{position:relative;padding:8px 0 8px 20px;font-size:14px;line-height:1.5715;color:var(--ink-2);}
+  .req-sec li::before{content:'';position:absolute;left:2px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--ink-4);}
   .req-sec li b{color:var(--ink);font-weight:600;}
-  .req-flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:12px;}
-  .req-flow .step{padding:3px 9px;border-radius:5px;background:#fff;border:1px solid var(--border);}
-  .req-flow .step.pass{color:var(--green);border-color:var(--green-bg);background:var(--green-bg);}
-  .req-flow .step.fail{color:var(--red);border-color:var(--red-bg);background:var(--red-bg);}
+  .req-flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);background:var(--bg);border:1px solid var(--split);border-radius:6px;padding:12px 16px;}
+  .req-flow .step{padding:2px 12px;border-radius:6px;background:var(--white);border:1px solid var(--border);font-size:13px;color:var(--ink-2);}
+  .req-flow .step.pass{color:var(--green);border-color:var(--green-border);background:var(--green-bg);}
+  .req-flow .step.fail{color:var(--red);border-color:var(--red-border);background:var(--red-bg);}
   .req-flow .arrow{color:var(--ink-4);}
-  .req-bg{background:linear-gradient(180deg,#eff5ff,#f7faff);border:1px solid var(--brand-soft);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
-  .req-bg p{font-size:13px;line-height:1.75;color:var(--ink-2);margin:0;}
-  .req-bg p + p{margin-top:8px;}
-  .req-bg b{color:var(--brand-deep);}
-  .req-table-wrap{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px;}
-  .req-table{width:100%;border-collapse:collapse;font-size:12.5px;}
-  .req-table th{background:#f6f8fb;text-align:left;padding:9px 10px;font-weight:600;color:var(--ink-3);border-bottom:1px solid var(--border);white-space:nowrap;}
-  .req-table td{padding:9px 10px;border-bottom:1px solid var(--border-2);color:var(--ink-2);vertical-align:top;line-height:1.55;}
+  .req-bg{background:var(--brand-bg);border:1px solid var(--brand-soft);border-radius:6px;padding:16px;margin-bottom:20px;}
+  .req-bg p{font-size:14px;line-height:1.5715;color:var(--ink-2);margin:0;}
+  .req-bg p + p{margin-top:12px;}
+  .req-bg b{color:var(--ink);}
+  .req-table-wrap{border:1px solid var(--split);border-radius:6px;overflow:hidden;margin-top:8px;}
+  .req-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .req-table th{background:var(--bg);text-align:left;padding:12px 12px;font-weight:600;color:var(--ink-3);border-bottom:1px solid var(--split);white-space:nowrap;font-size:13px;}
+  .req-table td{padding:12px 12px;border-bottom:1px solid var(--split);color:var(--ink-2);vertical-align:top;line-height:1.5715;font-size:13px;}
   .req-table tr:last-child td{border-bottom:none;}
   .req-table .grp{font-weight:600;color:var(--ink);}
   .req-table .grp.old{color:var(--amber);}
   .req-table .grp.new{color:var(--green);}
   .req-table .grp.none{color:var(--grey);}
-  .req-table .sub{display:block;color:var(--ink-4);font-size:11.5px;margin-top:2px;}
-  .req-table tr.hl td{background:#eef5ff;}
-  .req-table .read{font-weight:600;}
+  .req-table .sub{display:block;color:var(--ink-4);font-size:13px;margin-top:4px;}
+  .req-table tr.hl td{background:var(--brand-bg);}
+  .req-table .read{font-weight:600;color:var(--ink);}
+  .ops-matrix td{font-size:12px;}
+  .ops-matrix td:first-child{white-space:nowrap;}
+  .ok-text{color:var(--green);font-weight:500;}
+  .muted-text{color:var(--ink-3);}
+  .dot-demo{display:inline-block;width:6px;height:6px;margin:0 3px 1px 0;border-radius:50%;background:var(--red);vertical-align:middle;}
 
 </style>
 </head>
@@ -480,7 +540,7 @@ body{
         <select class="f-sel"><option>请选择渠道名</option><option>冰川网络-商务CPS包</option><option>雷牛-游否-国服IOS包</option></select>
         <select class="f-sel"><option>移动端方案</option><option>模拟器方案</option><option>专属客服方案</option></select>
         <input class="f-input" placeholder="请输入方案名" />
-        <select class="f-sel" style="min-width:120px;"><option>状态</option><option>生效中</option><option>待生效</option><option>待审核</option><option>已失效</option></select>
+        <select class="f-sel" style="min-width:120px;"><option>状态</option><option>生效中</option><option>待生效</option><option>待审核</option><option>审核不通过</option><option>已过期</option></select>
         <input class="f-input" placeholder="请输入最后操作人" />
         <button class="f-btn"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>查询</button>
       </div>
@@ -526,10 +586,10 @@ body{
                   </div>
                 </div>
               </td>
-              <td><span class="status-pill s-active">生效中</span></td>
+              <td><span class="status-pill s-expired">已过期</span></td>
               <td><div class="cell-time"><div class="time">2026-04-15 10:00:34</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-04-15 10:00:40</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -553,7 +613,7 @@ body{
               <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:26</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:33</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核</span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -577,7 +637,7 @@ body{
               <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:00</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-04-02 11:35:09</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核</span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -601,7 +661,7 @@ body{
               <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-03-25 11:26:34</div><div class="by">龙振华</div></div></td>
               <td><div class="cell-time"><div class="time">2026-03-25 11:26:47</div><div class="by">龙振华</div></div></td>
-              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op danger">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核</span><span class="op danger">删除</span></div></td>
             </tr>
 
             <tr>
@@ -624,14 +684,37 @@ body{
               <td><span class="status-pill s-pending">待审核</span></td>
               <td><div class="cell-time"><div class="time">2026-04-15 14:22:11</div><div class="by">林薇</div></div></td>
               <td><div class="cell-time"><div class="time">—</div><div class="by">未审批</div></div></td>
-              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核<span class="audit-pending-dot" aria-label="待处理申请数量"></span></span><span class="op muted">删除</span></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核</span><span class="op muted">删除</span></div></td>
+            </tr>
+
+            <tr>
+              <td><span class="cell-id">68fda4b1c9e2a30074bb4222</span></td>
+              <td>
+                <div class="cell-channel">
+                  <div class="ch-name">网易-OPPO快游戏-拒绝示例-远征手游</div>
+                  <div class="ch-id">(2107626)</div>
+                </div>
+              </td>
+              <td>
+                <div class="scheme-block">
+                  <div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">OPPO快游戏-标准方案v1(OPPO快游戏SDK)</span><span class="compl c-risk">风险</span></div>
+                  <div class="effect">
+                    <div class="effect-row"><span class="lbl">生效时间(起)：</span><span>2026-03-20 09:00:00</span></div>
+                    <div class="effect-row"><span class="lbl">生效时间(止)：</span><span>2099-12-31 23:59:59</span></div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="status-pill s-rejected">审核不通过</span></td>
+              <td><div class="cell-time"><div class="time">2026-04-15 15:06:22</div><div class="by">林薇</div></div></td>
+              <td><div class="cell-time"><div class="time">2026-04-15 15:08:04</div><div class="by">周明</div></div></td>
+              <td><div class="ops"><span class="op">编辑</span><span class="op danger">删除</span></div></td>
             </tr>
 
           </tbody>
         </table>
 
         <div class="pager">
-          <span class="total">共 5 条</span>
+          <span class="total">共 6 条</span>
           <span class="pg-btn disabled">‹</span>
           <span class="pg-btn active">1</span>
           <span class="pg-btn disabled">›</span>
@@ -643,30 +726,25 @@ body{
   </div>
 </div>
 
-<!-- 配置审核：方案 B，居中申请列表弹窗 -->
+<!-- 配置审核：plan-3 步骤条+单步聚焦 -->
 <div class="audit-mask" id="auditMask" onclick="closeAudit(event)">
   <section class="audit-modal" onclick="event.stopPropagation()">
     <div class="audit-head"><h3 id="auditTitle">操作审核</h3><button class="close" type="button" onclick="closeAudit()">×</button></div>
-    <div class="audit-body">
-      <div class="audit-list" id="auditListView">
-        <div class="audit-notice"><span class="audit-flow-title">审核流程</span><div class="audit-flow"><span class="audit-flow-step"><span class="flow-dot"></span>编辑新增申请</span><span class="audit-flow-arrow">→</span><span class="audit-flow-step"><span class="flow-dot"></span>内测中</span><span class="audit-flow-arrow">→</span><span class="audit-flow-step"><span class="flow-dot"></span>审核中</span><span class="audit-flow-arrow">→</span><span class="audit-flow-step pass"><span class="flow-dot"></span>审核通过 · 写入主列表</span><span class="audit-flow-arrow">/</span><span class="audit-flow-step fail"><span class="flow-dot"></span>审核不通过 · 主列表不变</span></div></div>
-        <div id="auditTableMount"></div>
-      </div>
-      <div class="audit-detail" id="auditDetailView">
-        <div class="audit-notice"><strong id="auditDetailId"></strong><span>请核对本次申请数据。审核通过后，新申请写入“修改后数据”，当前“修改后数据”整体写入“原数据”。</span></div>
-        <div class="audit-compare"><div class="audit-card"><h4>当前主列表 · 修改后数据</h4><div id="auditOldData"></div></div><div class="audit-card changed"><h4>本次申请数据</h4><div id="auditNewData"></div></div></div>
-        <div class="audit-warning">审核不通过时，只标记该申请为“审核不通过”，主列表原数据、修改后数据、状态和审批人均不改变。</div>
-      </div>
-    </div>
-    <div class="audit-foot"><button class="audit-btn" type="button" onclick="closeAudit()">关闭</button></div>
+    <div class="audit-stepper" id="auditStepper"></div>
+    <div class="audit-body" id="auditBody"></div>
+    <div class="audit-foot" id="auditFoot"></div>
   </section>
 </div>
 
-<div class="audit-choice-mask" id="auditChoiceMask" onclick="closeAuditChoice(event)">
-  <section class="audit-choice" onclick="event.stopPropagation()">
-    <div class="audit-choice-head">审核申请</div>
-    <div class="audit-choice-body">请确认本次申请的审核结果。审核通过后，申请数据将覆盖主列表的修改后数据。</div>
-    <div class="audit-choice-foot"><button class="audit-choice-btn danger" type="button" onclick="rejectAudit()">审核不通过</button><button class="audit-choice-btn primary" type="button" onclick="approveAudit()">审核通过</button></div>
+<!-- 通用居中确认弹框 -->
+<div class="confirm-mask" id="confirmMask" onclick="closeConfirm(event)">
+  <section class="confirm-modal" onclick="event.stopPropagation()">
+    <div class="confirm-head"><h3 id="confirmTitle">确认</h3></div>
+    <div class="confirm-body" id="confirmBody"></div>
+    <div class="confirm-foot">
+      <button class="confirm-btn cancel" type="button" onclick="closeConfirm()">取消</button>
+      <button class="confirm-btn ok" type="button" id="confirmOkBtn" onclick="runConfirm()">确定</button>
+    </div>
   </section>
 </div>
 
@@ -688,7 +766,7 @@ body{
       <h4>需求背景</h4>
       <div class="req-bg">
         <p>配置项<b>编辑提交后、审核通过前</b>，存在一段审批真空期。此前系统会直接读取修改中的方案，导致正式线上环境的 <b>SDK 方案丢失/裸奔</b>，玩家侧读不到有效方案。</p>
-        <p>本次采用<b>修改前原方案兜底</b>策略：审核通过前，正式线上环境一律继续读取<b>修改前的原方案（原数据）</b>；只有<b>审核通过后</b>，新方案才正式顶替原方案、全量生效。即便是删除操作，在审核通过前也不生效，仍由原方案托底。测试 / 白名单环境则可提前读取新方案的草稿数据用于验证。</p>
+        <p>本次采用<b>按方案类型区分的兜底策略</b>：只有审核通过并处于<b>生效中</b>的方案才进入读取链路；移动端 SDK 在渠道没有配置、方案未生效或方案不可用时，读取<b>系统默认方案</b>；模拟器、专属客服、小游戏等其他类型方案在上述情况下传空，并提示<b>方案未配置</b>。</p>
       </div>
     </div>
 
@@ -700,54 +778,117 @@ body{
             <tr><th>#</th><th>方案归属</th><th>配置当前状态</th><th>实际读取方案</th><th>逻辑说明与异常处理</th></tr>
           </thead>
           <tbody>
-            <tr><td>1</td><td class="grp old">旧方案</td><td>初始线上态<span class="sub">无编辑 / 无审核</span></td><td class="read">旧方案（原数据）</td><td>系统正常运转，直接读取当前已正式生效的线上方案。</td></tr>
-            <tr><td>2</td><td class="grp old">旧方案</td><td>编辑 / 内测中<span class="sub">正式线上环境 · 普通玩家</span></td><td class="read">旧方案（原数据）</td><td><b>【核心兜底】</b>保证正式线上绝对不裸奔，强制降级读旧方案。</td></tr>
-            <tr><td>3</td><td class="grp old">旧方案</td><td>审核中<span class="sub">正式线上环境 · 普通玩家</span></td><td class="read">旧方案（原数据）</td><td>审批流程中的真空期，正式服由旧方案稳稳托底。</td></tr>
-            <tr class="hl"><td>4</td><td class="grp old">旧方案</td><td>审核不通过<span class="sub">正式线上环境 · 普通玩家</span></td><td class="read">旧方案（原数据）</td><td>审核未通过，正式线上无缝保持旧方案持续运行，确保业务不中断。</td></tr>
-            <tr><td>5</td><td class="grp new">新方案</td><td>编辑 / 内测中<span class="sub">测试 / 白名单环境</span></td><td class="read">新方案（草稿数据）</td><td>允许测试服或白名单优先跑测新修改的草稿数据。</td></tr>
-            <tr><td>6</td><td class="grp new">新方案</td><td>审核中<span class="sub">测试 / 白名单环境</span></td><td class="read">新方案（草稿数据）</td><td>审批真空期内，测试环境可继续验证新方案。</td></tr>
-            <tr><td>7</td><td class="grp new">新方案</td><td>审核不通过<span class="sub">测试环境 · 查看态</span></td><td class="read">新方案（被驳回的草稿）</td><td>允许研发或运营在测试环境查看被驳回的草稿，以便基于此重新编辑。</td></tr>
-            <tr><td>8</td><td class="grp new">新方案</td><td>审核通过<span class="sub">所有环境</span></td><td class="read">新方案（正式生效态）</td><td>流程顺利终结，新方案正式顶替旧方案，全量上线生效。</td></tr>
-            <tr><td>9</td><td class="grp old">旧方案</td><td>方案被删除<span class="sub">删除后未审核通过</span></td><td class="read">修改前的原方案（原数据）</td><td>删除操作在审核通过前不生效，正式线上仍降级读取<b>修改前的原方案</b>兜底，绝不裸奔。</td></tr>
+            <tr><td>1</td><td class="grp old">渠道 / 移动端 SDK</td><td>无配置记录<span class="sub">首次接入 / 未创建方案</span></td><td class="read">系统默认方案</td><td>移动端 SDK 没有配置时读取系统默认方案，保证基础 SDK 能力可用。</td></tr>
+            <tr><td>2</td><td class="grp old">渠道 / 其他方案</td><td>无配置记录<span class="sub">模拟器 / 客服 / 小游戏等</span></td><td class="read">空 + 方案未配置</td><td>其他类型方案没有配置时传空，并提示「方案未配置」。</td></tr>
+            <tr><td>3</td><td class="grp old">配置方案</td><td>生效中<span class="sub">审核通过 / 正式线上</span></td><td class="read">生效方案（正式数据）</td><td>只有审核通过且处于生效中的方案，才允许进入正式读取链路。</td></tr>
+            <tr><td>4</td><td class="grp old">配置方案</td><td>未生效 / 不可用<span class="sub">移动端 SDK</span></td><td class="read">系统默认方案</td><td>移动端 SDK 方案处于编辑、审核中、待审核、审核不通过、已过期或已删除等状态时，读取系统默认方案。</td></tr>
+            <tr><td>5</td><td class="grp new">配置方案</td><td>未生效 / 不可用<span class="sub">其他方案类型</span></td><td class="read">空 + 方案未配置</td><td>其他类型方案未生效或不可用时传空，并提示「方案未配置」。</td></tr>
+            <tr><td>6</td><td class="grp new">新方案</td><td>新建 / 待审核<span class="sub">方案未生效</span></td><td class="read">按类型兜底</td><td>移动端 SDK 读取系统默认方案；其他类型传空并提示「方案未配置」。</td></tr>
+            <tr><td>7</td><td class="grp new">新方案</td><td>审核中<span class="sub">方案未生效</span></td><td class="read">按类型兜底</td><td>审核中的新方案不进入读取链路，按移动端 SDK / 其他方案类型分别执行兜底。</td></tr>
+            <tr><td>8</td><td class="grp new">新方案</td><td>审核通过<span class="sub">正式生效</span></td><td class="read">新方案（正式生效数据）</td><td>审核通过后新方案正式生效，进入对应方案类型的读取链路。</td></tr>
+            <tr><td>9</td><td class="grp old">配置方案</td><td>方案被删除<span class="sub">方案已移除</span></td><td class="read">按类型兜底</td><td>移动端 SDK 读取系统默认方案；其他类型传空并提示「方案未配置」。</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
     <div class="req-sec">
-      <h4>操作列 · 审核入口</h4>
+      <h4>主列表状态</h4>
       <ul>
-        <li>操作列去掉「刷新」，保留 <b>编辑 / 审核 / 删除</b>。</li>
-        <li>每行新增 <b>审核</b> 入口，点击打开居中审核弹窗。</li>
-        <li>「审核」文字右上角显示 <b>待处理数量角标</b>：数量为 0 隐藏，超过 99 显示 99+。</li>
-        <li>左侧「配置中心」同步显示 <b>全部待处理总数</b>角标。</li>
+        <li>主列表状态统一为四种：<b>生效中</b>（绿色）、<b>已过期</b>（灰色）、<b>待审核</b>（琥珀色）、<b>审核不通过</b>（红色）。</li>
+        <li><b>生效中</b>：配置方案已审核通过并正式生效，生效时间(止)未过期，正式读取该生效方案。</li>
+        <li><b>已过期</b>：配置方案的生效时间(止)已超过当前时间，或被新方案替代后自动过期；已过期方案不再读取：移动端 SDK 读取系统默认方案，其他类型方案传空并提示「方案未配置」。已过期配置无待处理申请时，操作列不显示审核入口。</li>
+        <li><b>待审核</b>：<b>仅新建配置方案提交后</b>出现此状态，表示该配置首次创建、等待审核通过后生效；审核通过前按方案类型兜底。</li>
+        <li><b>审核不通过</b>：<b>仅新建配置方案被审核拒绝后</b>出现此状态。该行保留「编辑 / 删除」，隐藏「审核」入口；正式读取时不使用被拒绝方案，移动端 SDK 读取系统默认方案，其他类型方案传空并提示「方案未配置」。</li>
+        <li>编辑已有配置<b>不会改变行状态</b>（生效中/已过期不变），编辑申请在审核弹窗内独立流转。</li>
       </ul>
     </div>
 
     <div class="req-sec">
-      <h4>审核弹窗 · 申请列表</h4>
+      <h4>新建配置方案</h4>
       <ul>
-        <li>第一屏即为申请表：<b>申请ID、修改前数据、申请数据、申请时间、申请人、状态、操作</b>。</li>
-        <li>申请列表按<b>申请时间倒序</b>展示，最新申请置顶。</li>
-        <li>每次编辑配置新增一条独立申请记录，不直接改主列表。</li>
-        <li>只有「审核通过」的记录才展示<b>修改前数据</b>，其余状态为空。</li>
+        <li>点击列表顶部「新增」按钮，填写配置方案后提交，<b>列表新增一行</b>，状态为「待审核」。</li>
+        <li>新建配置的审批人列显示为「— / 未审批」；审核通过前方案未生效：移动端 SDK 读取系统默认方案，其他类型方案传空并提示「方案未配置」。</li>
+        <li>待审核状态的行：状态标签为琥珀色，<b>删除按钮置灰（muted）</b>——删除操作在审核通过前不生效。</li>
+        <li>审核通过后该行状态变为「生效中」，审批人更新为审核操作人，删除按钮恢复为可操作（danger）。审核不通过后状态变为「审核不通过」，隐藏审核入口，删除按钮恢复为可操作。</li>
+        <li>已有生效中方案的编辑申请，审核通过或审核不通过后均隐藏审核入口；审核不通过时主列表状态和数据保持不变。</li>
+      </ul>
+    </div>
+
+    <div class="req-sec">
+      <h4>操作列 · 审核入口</h4>
+      <div class="req-table-wrap">
+        <table class="req-table ops-matrix">
+          <thead>
+            <tr><th>主列表状态</th><th>编辑</th><th>审核</th><th>删除</th><th>审核红点</th><th>正式读取方案</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>生效中</b><span class="sub">审核通过 / 正式生效</span></td>
+              <td class="read">显示<br><span class="ok-text">可点击</span></td>
+              <td>有未完成申请时显示<br><span class="ok-text">可点击</span></td>
+              <td class="read">显示<br><span class="ok-text">可点击</span></td>
+              <td>有待审核申请时显示<br><span class="dot-demo"></span>无数字</td>
+              <td class="read">生效方案</td>
+            </tr>
+            <tr>
+              <td><b>已过期</b><span class="sub">方案已过期 / 被替代</span></td>
+              <td class="read">显示<br><span class="ok-text">可点击</span></td>
+              <td>有未完成申请时显示<br><span class="ok-text">可点击</span></td>
+              <td class="read">显示<br><span class="ok-text">可点击</span></td>
+              <td>有待审核申请时显示<br><span class="dot-demo"></span>无数字</td>
+              <td class="read">移动端 SDK：系统默认方案<br>其他类型：空 + 方案未配置</td>
+            </tr>
+            <tr>
+              <td><b>待审核</b><span class="sub">仅新建方案</span></td>
+              <td class="read">显示<br><span class="ok-text">可点击</span></td>
+              <td>显示<br><span class="ok-text">可点击</span></td>
+              <td><span class="muted-text">显示</span><br><span class="muted-text">置灰，不可点击</span></td>
+              <td><span class="dot-demo"></span>无数字</td>
+              <td class="read">移动端 SDK：系统默认方案<br>其他类型：空 + 方案未配置</td>
+            </tr>
+            <tr>
+              <td><b>审核不通过</b><span class="sub">仅新建方案</span></td>
+              <td class="read">显示<br><span class="ok-text">可点击</span></td>
+              <td><span class="muted-text">隐藏</span><br><span class="muted-text">不可点击</span></td>
+              <td class="read">显示<br><span class="ok-text">可点击</span></td>
+              <td><span class="muted-text">隐藏</span></td>
+              <td class="read">移动端 SDK：系统默认方案<br>其他类型：空 + 方案未配置</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li><b>审核申请完成态</b>：已有方案的编辑申请审核通过或不通过后，主列表状态和对应数据按规则处理，但该行「审核」按钮及红点均隐藏；新建方案审核通过或不通过后同样隐藏审核入口。</li>
+        <li><b>侧边栏红点</b>：任意配置存在未完成的编辑/新建申请时，「配置中心」菜单显示无数字红点；全部申请完成审核后隐藏。红点只作提示，不显示数量。</li>
+        <li>审核入口点击打开<b>步骤条+单步聚焦弹窗</b>，弹窗内完成内测确认和审核操作；已隐藏审核入口的行不能打开审核弹窗。</li>
+      </ul>
+    </div>
+
+    <div class="req-sec">
+      <h4>审核弹窗 · 步骤条+单步聚焦</h4>
+      <ul>
+        <li>审核弹窗采用<b>步骤条 + 单步聚焦</b>布局：顶部4步步骤条（编辑申请 → 内测中 → 审核中 → 已生效/不通过），中间聚焦当前步骤，底部为当前步骤的操作按钮。</li>
+        <li>每个配置同一时间只有<b>1条最新申请</b>在审核流程中，取最新申请渲染。</li>
+        <li>申请类型分为<b>修改</b>（编辑已有配置，显示修改前/修改后对比）和<b>新建</b>（新建配置方案，显示单列数据）。</li>
       </ul>
     </div>
 
     <div class="req-sec">
       <h4>两步审核流程</h4>
       <div class="req-flow">
-        <span class="step">编辑新增申请</span><span class="arrow">→</span>
+        <span class="step">编辑/新建申请</span><span class="arrow">→</span>
         <span class="step">内测中</span><span class="arrow">→</span>
         <span class="step">审核中</span><span class="arrow">→</span>
         <span class="step pass">审核通过 · 写入主列表</span><span class="arrow">/</span>
         <span class="step fail">审核不通过 · 主列表不变</span>
       </div>
       <ul>
-        <li>状态统一为：<b>内测中 / 审核中 / 审核通过 / 审核不通过</b>。</li>
-        <li>「内测通过」点击时二次确认「是否确认内测通过？」，通过后才出现「审核」。</li>
-        <li>点「审核」弹窗直接选择<b>审核通过 / 审核不通过</b>，不再跳详情页。</li>
-        <li>审核通过 toast「审核已通过」，审核不通过 toast「审核不通过」，弹窗关闭。</li>
+        <li>状态统一为：<b>内测中 / 审核中 / 审核通过 / 审核不通过</b>；只有「审核中」可以点击「审核通过 / 审核不通过」，「内测中」只能点击「内测通过」，已完成状态仅可点击「关闭」。</li>
+        <li>内测通过、审核通过/不通过均通过<b>居中确认弹框</b>二次确认（替代浏览器原生 confirm）。</li>
+        <li>审核通过后：<b>新建配置</b>行状态从「待审核」变为「生效中」，新方案进入读取链路；<b>编辑配置</b>审核通过后申请数据生效并进入读取链路。</li>
+        <li>审核不通过后：<b>新建配置</b>行状态改为「审核不通过」，隐藏审核入口并允许删除；<b>编辑配置</b>的主列表状态和数据均不变。</li>
+        <li>操作完成后弹出顶部 toast 提示（"审核已通过" / "审核不通过"），弹窗关闭。</li>
       </ul>
     </div>
 
@@ -755,9 +896,10 @@ body{
       <h4>主列表数据</h4>
       <ul>
         <li>删除「原数据」列，「修改后数据」改名为 <b>生效中数据</b>。</li>
-        <li>审核通过后，申请数据直接覆盖主列表「生效中数据」并置为生效中。</li>
-        <li>审核不通过只标记该申请，主列表数据完全不变。</li>
-      </ul>
+        <li>审核通过后：<b>编辑配置</b> → 申请数据覆盖主列表「生效中数据」，状态保持生效中；<b>新建配置</b> → 行状态从「待审核」变为「生效中」，申请数据即为生效中数据。</li>
+        <li>审核不通过：编辑配置只标记申请、主列表数据完全不变；新建配置行状态改为「审核不通过」，隐藏审核入口并允许删除；任何审核不通过方案均不进入读取链路，移动端 SDK 读取系统默认方案，其他类型方案传空并提示「方案未配置」。</li>
+        <li>方案被删除后不再读取已删除方案，移动端 SDK 读取系统默认方案，其他类型方案传空并提示「方案未配置」。</li>
+        <li><b>待审核状态的行</b>：删除按钮置灰（muted），不可直接删除——删除操作在审核通过前不生效。</li>      </ul>
     </div>
 
     <div class="req-sec">
@@ -774,94 +916,138 @@ body{
 <script>
 (function(){
   const auditApplications={
-    '6086b520bc4c3f004661fe8a':[
-      {id:'APPLY-20260415-003',before:'买量包-实名开启(移动端SDK)',data:'买量包-实名开启(移动端SDK) · 优化版',start:'2026-04-21 00:00:00',end:'2099-12-27 20:42:00',time:'2026-04-15 10:18:26',applicant:'王敏',inner:'待内测',audit:'—'},
-      {id:'APPLY-20260411-004',before:'买量包-实名开启(移动端SDK)',data:'买量包-实名开启(移动端SDK) · 客服升级版',start:'2026-04-16 00:00:00',end:'2099-12-27 20:42:00',time:'2026-04-11 15:42:08',applicant:'陈曦',inner:'已通过',audit:'待审核'}
-    ],
     '69cde0389076dc005538ec90':[
-      {id:'APPLY-20260414-005',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 合规修订版',start:'2026-04-19 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-14 11:06:42',applicant:'赵宁',inner:'待内测',audit:'—'},
-      {id:'APPLY-20260409-006',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 风险整改版',start:'2026-04-12 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-09 17:20:19',applicant:'周凯',inner:'已通过',audit:'审核不通过'}
+      {id:'APPLY-20260414-005',type:'edit',before:'渠道关闭隐私配置(移动端SDK)',beforeStart:'2026-04-01 00:00:00',beforeEnd:'2099-12-31 23:59:59',data:'渠道关闭隐私配置(移动端SDK) · 合规修订版',start:'2026-04-19 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-14 11:06:42',applicant:'赵宁',inner:'待内测',audit:'—'}
     ],
     '69cde0389076dc005538ec8f':[
-      {id:'APPLY-20260413-007',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 安卓适配版',start:'2026-04-18 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-13 09:26:34',applicant:'林薇',inner:'待内测',audit:'—'},
-      {id:'APPLY-20260408-008',before:'渠道关闭隐私配置(移动端SDK)',data:'渠道关闭隐私配置(移动端SDK) · 参数调整版',start:'2026-04-11 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-08 14:12:50',applicant:'王敏',inner:'已通过',audit:'待审核'}
+      {id:'APPLY-20260413-007',type:'edit',before:'渠道关闭隐私配置(移动端SDK)',beforeStart:'2026-04-01 00:00:00',beforeEnd:'2099-12-31 23:59:59',data:'渠道关闭隐私配置(移动端SDK) · 安卓适配版',start:'2026-04-18 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-13 09:26:34',applicant:'林薇',inner:'待内测',audit:'—'}
     ],
     '69c355eaf9cc1a0058888e7d':[
-      {id:'APPLY-20260415-009',before:'官网防诈骗和隐私配置(移动端SDK)',data:'官网防诈骗和隐私配置(移动端SDK) · 春季版',start:'2026-04-22 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-15 13:48:17',applicant:'陈曦',inner:'待内测',audit:'—'},
-      {id:'APPLY-20260410-010',before:'官网防诈骗和隐私配置(移动端SDK)',data:'官网防诈骗和隐私配置(移动端SDK) · 文案更新版',start:'2026-04-15 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-10 10:31:05',applicant:'赵宁',inner:'已通过',audit:'审核不通过'}
+      {id:'APPLY-20260415-009',type:'new',data:'官网防诈骗和隐私配置(移动端SDK) · 春季版',start:'2026-04-22 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-15 13:48:17',applicant:'陈曦',inner:'待内测',audit:'—'}
     ],
     '68fda4b1c9e2a30074bb4221':[
-      {id:'APPLY-20260415-001',before:'OPPO快游戏-标准方案(OPPO快游戏SDK)',data:'OPPO快游戏-标准方案v2(OPPO快游戏SDK)',start:'2026-04-20 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-15 14:22:11',applicant:'林薇',inner:'待内测',audit:'—'},
-      {id:'APPLY-20260414-002',before:'OPPO快游戏-标准方案(OPPO快游戏SDK)',data:'OPPO快游戏-标准方案v1.1(OPPO快游戏SDK)',start:'2026-04-18 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-14 16:08:32',applicant:'赵宁',inner:'已通过',audit:'待审核'},
-      {id:'APPLY-20260412-001',before:'OPPO快游戏-标准方案(OPPO快游戏SDK)',data:'OPPO快游戏-标准方案灰度版(OPPO快游戏SDK)',start:'2026-04-16 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-12 09:35:06',applicant:'周凯',inner:'已通过',audit:'审核不通过'}
+      {id:'APPLY-20260415-001',type:'new',data:'OPPO快游戏-标准方案v2(OPPO快游戏SDK)',start:'2026-04-20 00:00:00',end:'2099-12-31 23:59:59',time:'2026-04-15 14:22:11',applicant:'林薇',inner:'待内测',audit:'—'}
     ]
   };
   let currentRow=null,currentConfigId='',currentApplication=null;
-    const pendingAuditCount=configId=>(auditApplications[configId]||[]).filter(item=>item.audit!=='审核通过/已生效'&&item.audit!=='审核不通过').length;
-    const hasPendingAudit=configId=>pendingAuditCount(configId)>0;
-    const stateValue=item=>item.audit==='审核不通过'?'审核不通过':item.audit==='审核通过/已生效'?'审核通过':item.inner==='待内测'?'内测中':'审核中';
-    const stateClass=value=>value==='审核通过'?'pass':value==='审核不通过'?'fail':'wait';
-    function refreshAuditDots(){
-      let hasPending=false;
-      document.querySelectorAll('tbody tr').forEach(row=>{
-        const id=row.querySelector('.cell-id');
-        const dot=row.querySelector('.audit-pending-dot');
-        if(id&&dot){
-          const count=pendingAuditCount(id.textContent.trim());
-          dot.textContent=count>99?'99+':count;
-          dot.classList.toggle('show',count>0);
-          hasPending=hasPending||count>0;
-        }
-      });
-      const total=Object.keys(auditApplications).reduce((s,id)=>s+pendingAuditCount(id),0);
-      const sidebarDot=document.querySelector('.nav-audit-pending-dot');
-      if(sidebarDot){sidebarDot.textContent=total>99?'99+':total;sidebarDot.style.display=total>0?'inline-flex':'none';}
-    }
-    const stateTag=value=>'<span class="audit-state '+stateClass(value)+'">'+value+'</span>';
+  const stateValue=item=>item.audit==='审核不通过'?'审核不通过':item.audit==='审核通过/已生效'?'审核通过':item.inner==='待内测'?'内测中':'审核中';
+  const stateClass=value=>value==='审核通过'?'pass':value==='审核不通过'?'fail':'wait';
+  const stateTag=value=>'<span class="audit-state '+stateClass(value)+'">'+value+'</span>';
   const dataHtml=(item,label='小游戏方案：')=>'<span class="line"><span class="label">'+label+'</span>'+item.data+'</span><span class="line"><span class="label">生效时间(起)：</span>'+item.start+'</span><span class="line"><span class="label">生效时间(止)：</span>'+item.end+'</span>';
-  const beforeHtml=item=>item.audit==='审核通过/已生效'?'<span class="line"><span class="label">小游戏方案：</span>'+item.before+'</span><span class="line"><span class="label">生效时间：</span>当前生效方案</span>':'';
-  function renderAuditTable(){
-    const list=auditApplications[currentConfigId]||[];
-    const mount=document.getElementById('auditTableMount');
-    if(!list.length){mount.innerHTML='<table class="audit-table"><tbody><tr><td class="audit-empty">暂无编辑申请</td></tr></tbody></table>';return;}
-    const ordered=list.map((item,index)=>({item,index})).sort((a,b)=>a.item.time<b.item.time?1:a.item.time>b.item.time?-1:0);
-    mount.innerHTML='<table class="audit-table"><thead><tr><th>申请ID</th><th>修改前数据</th><th>申请数据（修改后）</th><th>申请时间</th><th>申请人</th><th>状态</th><th>操作</th></tr></thead><tbody>'+ordered.map(({item,index})=>{
-      let action=item.inner==='待内测'?'<span class="audit-link" onclick="window.passInner('+index+')">内测通过</span>':item.audit==='待审核'?'<span class="audit-link" onclick="window.openAuditDetail('+index+')">审核</span>':'<span class="muted">已完成</span>';
-      return '<tr><td><span class="audit-id">'+item.id+'</span></td><td><div class="audit-data">'+beforeHtml(item)+'</div></td><td><div class="audit-data">'+dataHtml(item)+'</div></td><td>'+item.time+'</td><td>'+item.applicant+'</td><td>'+stateTag(stateValue(item))+'</td><td><div class="audit-op">'+action+'</div></td></tr>';
-    }).join('')+'</tbody></table>';
+  const beforeDataHtml=item=>'<span class="line"><span class="label">小游戏方案：</span>'+item.before+'</span><span class="line"><span class="label">生效时间(起)：</span>'+item.beforeStart+'</span><span class="line"><span class="label">生效时间(止)：</span>'+item.beforeEnd+'</span>';
+  function renderStepper(item){
+    const sv=stateValue(item);
+    const steps=[{label:'编辑申请',state:'done'},{label:'内测中',state:sv==='内测中'?'active':sv==='审核中'||sv==='审核通过'||sv==='审核不通过'?'done':''},{label:'审核中',state:sv==='审核中'?'active':sv==='审核通过'||sv==='审核不通过'?(sv==='审核不通过'?'fail':'done'):''},{label:sv==='审核不通过'?'不通过':'已生效',state:sv==='审核通过'?'done':sv==='审核不通过'?'fail':''}];
+    document.getElementById('auditStepper').innerHTML=steps.map((s,i)=>(i>0?'<span class="audit-step-arrow">→</span>':'')+'<span class="audit-step '+s.state+'"><span class="s-dot">'+(i+1)+'</span>'+s.label+'</span>').join('');
   }
+  function renderFocus(item){
+    const sv=stateValue(item);
+    const focusMap={'内测中':{title:'当前步骤：内测确认',desc:'请确认内测是否通过。内测通过后进入审核环节。'},'审核中':{title:'当前步骤：审核确认',desc:'请核对该申请数据。审核通过后，申请数据将覆盖主列表生效中数据。'},'审核通过':{title:'已完成：审核通过',desc:'该申请已审核通过，新方案已生效。'},'审核不通过':{title:'已完成：审核不通过',desc:'该申请审核不通过，主列表数据未变更。'}};
+    const f=focusMap[sv]||{title:'',desc:''};
+    const isEdit=item.type==='edit';
+    const typeTag=isEdit?'<span style="font-size:12px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);padding:0 7px;border-radius:4px;font-weight:400;line-height:20px;margin-left:8px;display:inline-flex;align-items:center">修改</span>':'<span style="font-size:12px;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-soft);padding:0 7px;border-radius:4px;font-weight:400;line-height:20px;margin-left:8px;display:inline-flex;align-items:center">新建</span>';
+    let dataSection='';
+    if(isEdit){
+      dataSection='<div class="audit-compare-grid"><div class="cmp-col orig"><h5>原方案<span class="tag">修改前</span></h5>'+beforeDataHtml(item)+'</div><div class="cmp-col new"><h5>修改后方案<span class="tag">修改后</span></h5>'+dataHtml(item)+'</div></div>';
+    }else{
+      dataSection='<div class="audit-data">'+dataHtml(item)+'</div>';
+    }
+    document.getElementById('auditBody').innerHTML='<div class="audit-focus-title">'+f.title+typeTag+'</div><div class="audit-focus-desc">'+f.desc+'</div><div class="audit-data-block"><div class="audit-info-grid"><div class="audit-info-cell"><div class="i-lbl">申请ID</div><div class="i-val mono">'+item.id+'</div></div><div class="audit-info-cell"><div class="i-lbl">申请人</div><div class="i-val">'+item.applicant+'</div></div><div class="audit-info-cell"><div class="i-lbl">申请时间</div><div class="i-val">'+item.time+'</div></div></div>'+dataSection+'</div>';
+  }
+  function renderFoot(item){
+    const sv=stateValue(item);
+    let btns='';
+    if(sv==='内测中')btns='<button class="audit-btn skip" type="button" onclick="closeAudit()">暂不处理</button><button class="audit-btn inner" type="button" onclick="doPassInner()">内测通过</button>';
+    else if(sv==='审核中')btns='<button class="audit-btn skip" type="button" onclick="closeAudit()">暂不处理</button><button class="audit-btn danger" type="button" onclick="doReject()">审核不通过</button><button class="audit-btn primary" type="button" onclick="doApprove()">审核通过</button>';
+    else btns='<button class="audit-btn primary" type="button" onclick="closeAudit()">关闭</button>';
+    document.getElementById('auditFoot').innerHTML=btns;
+  }
+  function renderAuditModal(){
+    const list=auditApplications[currentConfigId]||[];
+    if(!list.length){document.getElementById('auditStepper').innerHTML='';document.getElementById('auditBody').innerHTML='<div class="audit-empty">暂无编辑申请</div>';document.getElementById('auditFoot').innerHTML='<button class="audit-btn primary" type="button" onclick="closeAudit()">关闭</button>';return;}
+    const ordered=list.map((item,index)=>({item,index})).sort((a,b)=>a.item.time<b.item.time?1:a.item.time>b.item.time?-1:0);
+    const {item}=ordered[0];
+    renderStepper(item);renderFocus(item);renderFoot(item);
+  }
+  function syncAuditButtons(){
+    document.querySelectorAll('.tbl tbody tr').forEach(row=>{
+      const idCell=row.querySelector('.cell-id');
+      if(!idCell)return;
+      const list=auditApplications[idCell.textContent.trim()]||[];
+      if(!list.length)return;
+      const latest=list.slice().sort((a,b)=>a.time<b.time?1:a.time>b.time?-1:0)[0];
+      if(latest.audit!=='待审核'){
+        const auditBtn=row.querySelector('.ops .op-audit');
+        if(auditBtn)auditBtn.remove();
+      }
+    });
+  }
+  const hasPendingAudit=Object.values(auditApplications).some(list=>list.some(item=>item.audit==='待审核'));
+  window.__configAuditPending=hasPendingAudit;
+  try { localStorage.setItem('sdkConfigAuditPending',String(hasPendingAudit)); } catch (e) {}
+  syncAuditButtons();
   window.openAudit=function(row){
     currentRow=row;currentConfigId=row.querySelector('.cell-id').textContent.trim();
     if(!auditApplications[currentConfigId])auditApplications[currentConfigId]=[];
     document.getElementById('auditTitle').textContent='操作审核 · '+row.querySelector('.cell-channel .ch-name').textContent.trim();
-    currentApplication=null;backToAuditList();refreshAuditDots();document.getElementById('auditMask').classList.add('show');
+    currentApplication=null;renderAuditModal();document.getElementById('auditMask').classList.add('show');
   };
-  window.backToAuditList=function(){
-    currentApplication=null;document.getElementById('auditListView').classList.remove('hidden');document.getElementById('auditDetailView').classList.remove('show');renderAuditTable();
+  window.closeAudit=function(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('auditMask').classList.remove('show');currentApplication=null;};
+  window.doPassInner=function(){
+    const list=auditApplications[currentConfigId]||[];if(!list.length)return;
+    const ordered=list.map((item,index)=>({item,index})).sort((a,b)=>a.item.time<b.item.time?1:a.item.time>b.item.time?-1:0);
+    const item=ordered[0].item;if(item.inner!=='待内测')return;
+    showConfirm('内测确认','是否确认内测通过？内测通过后进入审核环节。',function(){
+      item.inner='已通过';item.audit='待审核';renderAuditModal();
+    });
   };
-  window.closeAudit=function(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('auditMask').classList.remove('show');document.getElementById('auditChoiceMask').classList.remove('show');currentApplication=null;};
-  window.passInner=function(index){
-    const item=(auditApplications[currentConfigId]||[])[index];if(!item||item.inner!=='待内测')return;
-    if(!confirm('是否确认内测通过？'))return;
-    item.inner='已通过';item.audit='待审核';renderAuditTable();refreshAuditDots();
+  window.doApprove=function(){
+    const list=auditApplications[currentConfigId]||[];if(!list.length||!currentRow)return;
+    const ordered=list.map((item,index)=>({item,index})).sort((a,b)=>a.item.time<b.item.time?1:a.item.time>b.item.time?-1:0);
+    const item=ordered[0].item;if(item.inner!=='已通过'||item.audit!=='待审核')return;
+    currentApplication=item;
+    const cells=currentRow.querySelectorAll('td');
+    const activeData=cells[2];
+    activeData.innerHTML='<div class="scheme-block"><div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">'+item.data+'</span><span class="compl c-ok">合规</span></div><div class="effect"><div class="effect-row"><span class="lbl">生效时间(起)：</span><span>'+item.start+'</span></div><div class="effect-row"><span class="lbl">生效时间(止)：</span><span>'+item.end+'</span></div></div></div>';
+    const pill=currentRow.querySelector('.status-pill');pill.className='status-pill s-active';pill.textContent='生效中';
+    const now=new Date();const ts=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+    const approverCell=cells[5];approverCell.innerHTML='<div class="cell-time"><div class="time">'+ts+'</div><div class="by">'+item.applicant+'</div></div>';
+    if(item.type==='new'){const delBtn=currentRow.querySelector('.ops .op.muted');if(delBtn){delBtn.className='op danger';}}
+    const approveAuditBtn=currentRow.querySelector('.ops .op-audit');if(approveAuditBtn)approveAuditBtn.remove();
+    item.audit='审核通过/已生效';
+    const pendingAfterApprove=Object.values(auditApplications).some(list=>list.some(app=>app.audit==='待审核'));
+    window.__configAuditPending=pendingAfterApprove;
+    try { localStorage.setItem('sdkConfigAuditPending',String(pendingAfterApprove)); } catch (e) {}
+    document.getElementById('auditMask').classList.remove('show');showAuditToast('审核已通过');currentApplication=null;
   };
-  window.openAuditDetail=function(index){
-    const item=(auditApplications[currentConfigId]||[])[index];if(!item||item.inner!=='已通过'||item.audit!=='待审核')return;
-    currentApplication=item;document.getElementById('auditChoiceMask').classList.add('show');
+  window.doReject=function(){
+    const list=auditApplications[currentConfigId]||[];if(!list.length)return;
+    const ordered=list.map((item,index)=>({item,index})).sort((a,b)=>a.item.time<b.item.time?1:a.item.time>b.item.time?-1:0);
+    const item=ordered[0].item;if(item.inner!=='已通过'||item.audit!=='待审核')return;
+    item.audit='审核不通过';
+    if(item.type==='new'&&currentRow){
+      const pill=currentRow.querySelector('.status-pill');pill.className='status-pill s-rejected';pill.textContent='审核不通过';
+      const auditBtn=currentRow.querySelector('.ops .op-audit');if(auditBtn)auditBtn.remove();
+      const delBtn=currentRow.querySelector('.ops .op.muted');if(delBtn)delBtn.className='op danger';
+    }else if(currentRow){
+      const auditBtn=currentRow.querySelector('.ops .op-audit');if(auditBtn)auditBtn.remove();
+    }
+    const pendingAfterReject=Object.values(auditApplications).some(list=>list.some(app=>app.audit==='待审核'));
+    window.__configAuditPending=pendingAfterReject;
+    try { localStorage.setItem('sdkConfigAuditPending',String(pendingAfterReject)); } catch (e) {}
+    document.getElementById('auditMask').classList.remove('show');showAuditToast('审核不通过');currentApplication=null;
   };
-  window.closeAuditChoice=function(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('auditChoiceMask').classList.remove('show');currentApplication=null;};
   window.openReqDrawer=function(){document.getElementById('reqMask').classList.add('show');document.getElementById('reqDrawer').classList.add('show');};
   window.closeReqDrawer=function(){document.getElementById('reqMask').classList.remove('show');document.getElementById('reqDrawer').classList.remove('show');};
-  window.approveAudit=function(){
-    if(!currentApplication||!currentRow)return;
-    const cells=currentRow.querySelectorAll('td');const activeData=cells[2];activeData.innerHTML='<div class="scheme-block"><div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">'+currentApplication.data+'</span><span class="compl c-ok">合规</span></div><div class="effect"><div class="effect-row"><span class="lbl">生效时间(起)：</span><span>'+currentApplication.start+'</span></div><div class="effect-row"><span class="lbl">生效时间(止)：</span><span>'+currentApplication.end+'</span></div></div></div>';currentRow.querySelector('.status-pill').className='status-pill s-active';currentRow.querySelector('.status-pill').textContent='生效中';currentApplication.audit='审核通过/已生效';refreshAuditDots();document.getElementById('auditChoiceMask').classList.remove('show');document.getElementById('auditMask').classList.remove('show');showAuditToast('审核已通过');currentApplication=null;
-  };
-  window.rejectAudit=function(){
-    if(!currentApplication||!currentRow)return;
-    currentApplication.audit='审核不通过';refreshAuditDots();document.getElementById('auditChoiceMask').classList.remove('show');document.getElementById('auditMask').classList.remove('show');showAuditToast('审核不通过');currentApplication=null;
-  };
-  refreshAuditDots();
-  setTimeout(refreshAuditDots,0);
+  let confirmCallback=null;
+  function showConfirm(title,body,callback){
+    confirmCallback=callback;
+    document.getElementById('confirmTitle').textContent=title;
+    document.getElementById('confirmBody').textContent=body;
+    document.getElementById('confirmMask').classList.add('show');
+  }
+  window.closeConfirm=function(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('confirmMask').classList.remove('show');confirmCallback=null;};
+  window.runConfirm=function(){const cb=confirmCallback;document.getElementById('confirmMask').classList.remove('show');confirmCallback=null;if(typeof cb==='function')cb();};
   function showAuditToast(message){
     let toast=document.getElementById('auditToast');
     if(!toast){toast=document.createElement('div');toast.id='auditToast';toast.className='audit-toast';document.body.appendChild(toast);}
