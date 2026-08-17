@@ -595,6 +595,8 @@ body{
       <!-- TOOLBAR -->
       <div class="toolbar">
         <input class="f-input" id="searchInput" style="width:180px;" placeholder="输入渠道组名称">
+        <input class="f-input" id="filterChannelId" style="width:150px;" placeholder="输入渠道 ID" list="channelIdOptions" onchange="selectChannelId(this.value)">
+        <datalist id="channelIdOptions"></datalist>
         <select class="f-sel" id="filterBound" style="min-width:100px;">
           <option value="">绑定状态</option>
           <option value="yes">已绑定</option>
@@ -645,9 +647,9 @@ body{
         <span class="pg-btn" id="pg3" onclick="jumpPage(3)">3</span>
         <span class="pg-btn" onclick="changePage(1)">›</span>
         <select class="pg-sel" onchange="changePageSize(this.value)">
-          <option value="9">9 条/页</option>
-          <option value="18">18 条/页</option>
-          <option value="27">27 条/页</option>
+          <option value="10">10 条/页</option>
+          <option value="50">50 条/页</option>
+          <option value="100">100 条/页</option>
         </select>
         <div class="pg-jump">跳至 <input type="number" min="1" id="jumpInput" onkeydown="if(event.key==='Enter')jumpPage(parseInt(this.value))"> 页</div>
       </div>
@@ -738,9 +740,22 @@ const RAW_DATA = [
 let data = [...RAW_DATA];
 let filtered = [...data];
 let currentPage = 1;
-let pageSize = 9;
+let pageSize = 10;
 let editingId = null;
 let selectedChannels = [];
+
+function renderChannelIdFilter(){
+  const list = document.getElementById('channelIdOptions');
+  if(!list) return;
+  list.innerHTML = ALL_CHANNELS.map(c =>
+    `<option value="${c.id}">${c.name}</option>`
+  ).join('');
+}
+
+function selectChannelId(value){
+  const channel = ALL_CHANNELS.find(c=>c.id===value);
+  if(channel) document.getElementById('filterChannelId').value = channel.id;
+}
 
 function getChannelName(id){
   const c = ALL_CHANNELS.find(c=>c.id===id);
@@ -826,11 +841,13 @@ function renderPager(){
 
 function applyFilter(){
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const channelId = document.getElementById('filterChannelId').value;
   const bound = document.getElementById('filterBound').value;
   const sdk = document.getElementById('filterSdk').value;
   const entity = document.getElementById('filterEntity').value;
   filtered = data.filter(g =>
     (!q || g.name.toLowerCase().includes(q)) &&
+    (!channelId || g.channels.includes(channelId)) &&
     (!bound || g.bound===bound) &&
     (!sdk || g.sdk===sdk) &&
     (!entity || g.entity.includes(entity.slice(0,4))) &&
@@ -842,6 +859,7 @@ function applyFilter(){
 
 function resetFilter(){
   document.getElementById('searchInput').value='';
+  document.getElementById('filterChannelId').value='';
   document.getElementById('filterBound').value='';
   document.getElementById('filterSdk').value='';
   document.getElementById('filterEntity').value='';
@@ -1031,6 +1049,7 @@ document.addEventListener('click', e=>{
 });
 
 // init
+renderChannelIdFilter();
 updateStats();renderCards();
 </script>
 <!-- 需求说明 FAB -->
