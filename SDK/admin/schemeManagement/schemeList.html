@@ -644,6 +644,75 @@ body{
   .minor-required-row{margin-top:8px;}
   @media(max-width:900px){.minor-form-row{grid-template-columns:1fr;row-gap:6px;padding:8px 0;}.minor-form-label{text-align:left;}.minor-options{gap:10px 20px;}.minor-control{width:100%;}}
   @media(min-width:901px){.minor-compliance-card{margin-left:-1px;margin-right:-1px;}.minor-compliance-body{min-width:1040px;}}
+
+/* ════════════════ SKIN: 云感清雅（蓝白）皮肤覆盖层 ════════════════ */
+:root{
+  --brand:#4a90e2;--brand-deep:#3572b0;--brand-soft:#eaf2fd;--brand-bg:#f4f8ff;
+  --green:#2db86a;--green-bg:#e9faf1;--green-border:#b6ead0;
+  --amber:#e6a817;--amber-bg:#fff8e6;--amber-border:#ffe5a0;
+  --red:#e25555;--red-bg:#fdefec;--red-border:#f5c9c4;
+  --ink:#1a2640;--ink-2:#4e5b73;--ink-3:#8895a9;--ink-4:#b4bdc9;
+  --border:#dfe4ed;--border-2:#edf0f6;--bg:#f2f5fa;--bg-2:#f9fafd;
+  --split:rgba(26,38,64,.06);
+  --shadow-sm:0 1px 4px rgba(26,38,64,.06),0 0 1px rgba(26,38,64,.04);
+  --shadow:0 4px 16px rgba(26,58,110,.09);
+  --shadow-md:0 8px 24px rgba(26,58,110,.10),0 2px 8px rgba(26,38,64,.05);
+  --shadow-lg:0 20px 48px rgba(26,58,110,.14),0 6px 16px rgba(26,38,64,.08);
+}
+body{
+  background:radial-gradient(900px 400px at 92% -4%,rgba(74,144,226,.06),transparent 55%),var(--bg);
+  font-feature-settings:'cv11','cv01';
+}
+.plat-nav{background:linear-gradient(90deg,#0e1d38,#142d52);font-size:14px;}
+.sidebar{background:linear-gradient(180deg,#0e1d38 0%,#152a4a 100%);}
+.nav-item.active{background:var(--brand);border-radius:0 4px 4px 0;}
+.stats-bar{border-radius:12px;border:1px solid #e4eaf4;background:linear-gradient(180deg,#ffffff 0%,#fafcff 100%);box-shadow:0 2px 10px rgba(26,38,64,.05);}
+.stat-num{color:var(--brand);letter-spacing:-.02em;}
+.stat-lbl{color:var(--ink-3);font-weight:400;}
+.cat-tabs{border-radius:12px;background:#fff;border:1px solid #e4eaf4;box-shadow:0 2px 10px rgba(26,38,64,.04);padding:5px;}
+.cat-tab{border-radius:8px;font-weight:400;}
+.cat-tab.active{background:var(--brand-soft);color:var(--brand);font-weight:500;}
+.cat-tab.active .n{background:var(--brand);color:#fff;border-radius:10px;}
+.filters{border-radius:12px;background:#fff;border:1px solid #e4eaf4;box-shadow:0 2px 10px rgba(26,38,64,.04);}
+.section{border-radius:12px;border:1px solid #e4eaf4;overflow:hidden;box-shadow:0 2px 10px rgba(26,38,64,.04);}
+.sec-head{border-bottom:1px solid #eef1f8;}
+.sec-action-btn{border-radius:8px;font-weight:500;}
+.collapse-bar{border-radius:12px;background:linear-gradient(180deg,#fafcff,#f6f9fe);border:1px solid #e4eaf4;box-shadow:0 2px 10px rgba(26,38,64,.04);}
+.collapse-bar:hover{border-color:var(--brand);background:linear-gradient(180deg,#f0f5ff,#eaf2fd);}
+.collapse-bar.open{border-radius:12px 12px 0 0;}
+.collapse-body{border-radius:0 0 12px 12px;border:1px solid #e4eaf4;border-top:none;}
+.collapse-icon{border-radius:8px;}
+.tbl th{background:#f5f8fc;font-weight:500;letter-spacing:.01em;border-bottom:1px solid #e4eaf4;}
+.tbl td{border-bottom-color:#eef1f8;}
+.tbl tr:hover td{background:rgba(74,144,226,.03);}
+.s-name{font-weight:500;}
+.tbl-op{font-weight:500;}
+.pg-btn{border-radius:8px;}
+.pg-btn.cur{border-radius:8px;font-weight:500;}
+.modal{border-radius:12px;box-shadow:var(--shadow-lg);}
+.modal-head{border-bottom:1px solid #eef1f8;}
+.modal-foot{border-top:1px solid #eef1f8;}
+.cm-tab.active{color:var(--brand);border-bottom-color:var(--brand);font-weight:500;}
+.cm-row.sel{background:#f0f6ff;}
+.s-type{border-radius:6px;font-weight:500;}
+.compl{border-radius:6px;}
+.detail-head-bar{border-radius:12px;background:linear-gradient(180deg,#ffffff,#fcfeff);}
+.detail-tabs{border-radius:12px;padding:5px;}
+.detail-foot{border-radius:0 0 12px 12px;}
+.cfg-card{border-radius:12px;}
+.dropdown-menu{border-radius:10px;box-shadow:var(--shadow-md);}
+.req-fab{border-radius:10px;}
+.req-drawer{border-left:1px solid #e4eaf4;box-shadow:var(--shadow-lg);}
+/* 主操作按钮增强：保留柔和蓝白界面，提高按钮识别度 */
+.f-btn:not(.ghost),.sec-action-btn,.btn.primary,.req-fab{
+  background:#2f6fce;border-color:#2f6fce;
+  box-shadow:0 2px 6px rgba(47,111,206,.18);
+}
+.f-btn:not(.ghost):hover,.sec-action-btn:hover,.btn.primary:hover,.req-fab:hover{
+  background:#245daf;border-color:#245daf;
+  box-shadow:0 4px 10px rgba(36,93,175,.24);
+}
+.pg-btn.cur{background:#2f6fce;border-color:#2f6fce;}
 </style>
 </head>
 <body>
@@ -1053,96 +1122,6 @@ body{
             <div class="form-row"><label class="form-lbl">备注</label><textarea class="form-textarea mobile-field" data-field="schemeRemark">2026 春节活动主推方案，含全量包体的登录/支付配置。</textarea></div>
           </div>
         </div>
-        <!-- 基础信息卡 -->
-        <div class="cfg-card generic-edit-card">
-          <div class="cfg-card-head">
-            <div>
-              <div class="cfg-card-title">基础信息</div>
-              <div class="cfg-card-sub">方案的基础属性、所属 SDK 类型与适用范围</div>
-            </div>
-          </div>
-          <div class="cfg-card-body">
-            <div class="cfg-grid">
-              <div class="form-row">
-                <label class="form-lbl">方案名称<span class="req">*</span></label>
-                <input class="form-input" value="移动端主方案-2026春节" />
-              </div>
-              <div class="form-row">
-                <label class="form-lbl">SDK 类型</label>
-                <input class="form-input" value="移动端 SDK" disabled style="background:var(--bg-2);color:var(--ink-3);" />
-                <div class="form-help">SDK 类型创建后不可修改，如需更换请新建方案</div>
-              </div>
-              <div class="form-row">
-                <label class="form-lbl">适用区域</label>
-                <select class="form-select"><option>境内</option><option>海外</option><option>境内 + 海外</option></select>
-              </div>
-              <div class="form-row">
-                <label class="form-lbl">合规版本</label>
-                <select class="form-select"><option>v3.2 (2026春节版)</option><option>v3.1</option><option>v3.0</option></select>
-              </div>
-              <div class="form-row full">
-                <label class="form-lbl">备注</label>
-                <textarea class="form-textarea" placeholder="可填写方案用途、变更说明等">2026 春节活动主推方案，含全量包体的登录/支付配置。</textarea>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 功能开关卡 -->
-        <div class="cfg-card generic-edit-card">
-          <div class="cfg-card-head">
-            <div>
-              <div class="cfg-card-title">功能开关</div>
-              <div class="cfg-card-sub">控制方案中各模块的启用状态</div>
-            </div>
-          </div>
-          <div class="cfg-card-body">
-            <div class="switch-row">
-              <div class="sw-info"><div class="sw-name">登录模块</div><div class="sw-desc">启用后会加载登录相关配置（账号、第三方登录、一键登录等）</div></div>
-              <div class="switch on" onclick="this.classList.toggle('on')"></div>
-            </div>
-            <div class="switch-row">
-              <div class="sw-info"><div class="sw-name">支付模块</div><div class="sw-desc">启用后加载支付通道、商品配置、回调地址等</div></div>
-              <div class="switch on" onclick="this.classList.toggle('on')"></div>
-            </div>
-            <div class="switch-row">
-              <div class="sw-info"><div class="sw-name">实名认证 / 防沉迷</div><div class="sw-desc">未成年保护合规模块，建议保持开启</div></div>
-              <div class="switch on" onclick="this.classList.toggle('on')"></div>
-            </div>
-            <div class="switch-row">
-              <div class="sw-info"><div class="sw-name">客服入口</div><div class="sw-desc">嵌入聊天系统的客服会话入口</div></div>
-              <div class="switch" onclick="this.classList.toggle('on')"></div>
-            </div>
-            <div class="switch-row">
-              <div class="sw-info"><div class="sw-name">数据上报</div><div class="sw-desc">把行为日志推送到数数分析后台</div></div>
-              <div class="switch on" onclick="this.classList.toggle('on')"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 关键参数卡 -->
-        <div class="cfg-card generic-edit-card">
-          <div class="cfg-card-head">
-            <div>
-              <div class="cfg-card-title">关键参数</div>
-              <div class="cfg-card-sub">SDK 接入用到的核心 ID 与回调地址</div>
-            </div>
-            <div class="cfg-card-actions">
-              <button class="btn ghost" style="height:32px;padding:0 14px;font-size:12.5px;">从其他方案复制</button>
-            </div>
-          </div>
-          <div class="cfg-card-body">
-            <div class="cfg-grid">
-              <div class="form-row"><label class="form-lbl">App ID</label><input class="form-input" value="wx8a1b2c3d4e5f6789" /></div>
-              <div class="form-row"><label class="form-lbl">App Secret</label><input class="form-input" type="password" value="••••••••••••••••" /></div>
-              <div class="form-row full"><label class="form-lbl">登录回调地址</label><input class="form-input" value="https://sdk.q1.com/callback/login" /></div>
-              <div class="form-row full"><label class="form-lbl">支付回调地址</label><input class="form-input" value="https://sdk.q1.com/callback/pay" /></div>
-              <div class="form-row"><label class="form-lbl">登录超时 (秒)</label><input class="form-input" value="30" /></div>
-              <div class="form-row"><label class="form-lbl">支付超时 (秒)</label><input class="form-input" value="120" /></div>
-            </div>
-          </div>
-        </div>
-
         <!-- 移动端 SDK 完整配置字段 -->
         <div class="cfg-card">
           <div class="cfg-card-head"><div><div class="cfg-card-title">合规信息</div><div class="cfg-card-sub">隐私、实名与合规提示配置</div></div></div>
@@ -1284,6 +1263,98 @@ body{
           </div>
         </div>
         </div>
+
+        <!-- 基础信息卡 -->
+        <div class="cfg-card generic-edit-card">
+          <div class="cfg-card-head">
+            <div>
+              <div class="cfg-card-title">基础信息</div>
+              <div class="cfg-card-sub">方案的基础属性、所属 SDK 类型与适用范围</div>
+            </div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="cfg-grid">
+              <div class="form-row">
+                <label class="form-lbl">方案名称<span class="req">*</span></label>
+                <input class="form-input" value="移动端主方案-2026春节" />
+              </div>
+              <div class="form-row">
+                <label class="form-lbl">SDK 类型</label>
+                <input class="form-input" value="移动端 SDK" disabled style="background:var(--bg-2);color:var(--ink-3);" />
+                <div class="form-help">SDK 类型创建后不可修改，如需更换请新建方案</div>
+              </div>
+              <div class="form-row">
+                <label class="form-lbl">适用区域</label>
+                <select class="form-select"><option>境内</option><option>海外</option><option>境内 + 海外</option></select>
+              </div>
+              <div class="form-row">
+                <label class="form-lbl">合规版本</label>
+                <select class="form-select"><option>v3.2 (2026春节版)</option><option>v3.1</option><option>v3.0</option></select>
+              </div>
+              <div class="form-row full">
+                <label class="form-lbl">备注</label>
+                <textarea class="form-textarea" placeholder="可填写方案用途、变更说明等">2026 春节活动主推方案，含全量包体的登录/支付配置。</textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 功能开关卡 -->
+        <div class="cfg-card generic-edit-card">
+          <div class="cfg-card-head">
+            <div>
+              <div class="cfg-card-title">功能开关</div>
+              <div class="cfg-card-sub">控制方案中各模块的启用状态</div>
+            </div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">登录模块</div><div class="sw-desc">启用后会加载登录相关配置（账号、第三方登录、一键登录等）</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">支付模块</div><div class="sw-desc">启用后加载支付通道、商品配置、回调地址等</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">实名认证 / 防沉迷</div><div class="sw-desc">未成年保护合规模块，建议保持开启</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">客服入口</div><div class="sw-desc">嵌入聊天系统的客服会话入口</div></div>
+              <div class="switch" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="switch-row">
+              <div class="sw-info"><div class="sw-name">数据上报</div><div class="sw-desc">把行为日志推送到数数分析后台</div></div>
+              <div class="switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 关键参数卡 -->
+        <div class="cfg-card generic-edit-card">
+          <div class="cfg-card-head">
+            <div>
+              <div class="cfg-card-title">关键参数</div>
+              <div class="cfg-card-sub">SDK 接入用到的核心 ID 与回调地址</div>
+            </div>
+            <div class="cfg-card-actions">
+              <button class="btn ghost" style="height:32px;padding:0 14px;font-size:12.5px;">从其他方案复制</button>
+            </div>
+          </div>
+          <div class="cfg-card-body">
+            <div class="cfg-grid">
+              <div class="form-row"><label class="form-lbl">App ID</label><input class="form-input" value="wx8a1b2c3d4e5f6789" /></div>
+              <div class="form-row"><label class="form-lbl">App Secret</label><input class="form-input" type="password" value="••••••••••••••••" /></div>
+              <div class="form-row full"><label class="form-lbl">登录回调地址</label><input class="form-input" value="https://sdk.q1.com/callback/login" /></div>
+              <div class="form-row full"><label class="form-lbl">支付回调地址</label><input class="form-input" value="https://sdk.q1.com/callback/pay" /></div>
+              <div class="form-row"><label class="form-lbl">登录超时 (秒)</label><input class="form-input" value="30" /></div>
+              <div class="form-row"><label class="form-lbl">支付超时 (秒)</label><input class="form-input" value="120" /></div>
+            </div>
+          </div>
+        </div>
+
+
 
         <div class="detail-foot">
           <span class="save-hint">最后保存于 5 分钟前 · 已自动备份</span>
