@@ -561,7 +561,7 @@ body{
 .req-fab{position:fixed;right:24px;bottom:28px;z-index:200;display:flex;align-items:center;gap:7px;height:40px;padding:0 16px;background:var(--brand);color:white;border-radius:6px;font-size:14px;font-weight:400;cursor:pointer;box-shadow:var(--shadow-md);transition:background .2s,box-shadow .2s;user-select:none;}
 .req-fab:hover{background:var(--brand-deep);box-shadow:0 4px 12px rgba(0,0,0,.15);}
 .req-fab svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
-.req-drawer{position:fixed;top:0;right:-440px;width:440px;height:100vh;z-index:300;background:white;border-left:1px solid var(--border);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;transform:translateX(0);transition:right .25s cubic-bezier(.4,0,.2,1);}
+.req-drawer{position:fixed;top:0;right:-660px;width:660px;height:100vh;z-index:300;background:white;border-left:1px solid var(--border);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;transform:translateX(0);transition:right .25s cubic-bezier(.4,0,.2,1);}
 .req-drawer.open{right:0;}
 .req-drawer-header{padding:16px 20px;border-bottom:1px solid var(--split);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .req-drawer-title{font-size:16px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;}
@@ -569,9 +569,23 @@ body{
 .req-drawer-close{width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;transition:background .2s;}
 .req-drawer-close:hover{background:var(--bg);color:var(--ink);}
 .req-drawer-close svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;}
-.req-drawer-body{flex:1;overflow-y:auto;padding:20px;}
+.req-drawer-body{flex:1;min-height:0;overflow-y:auto;padding:20px;scroll-behavior:auto;overflow-anchor:none;}
 .req-drawer-body::-webkit-scrollbar{width:6px;}
 .req-drawer-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.req-version-group{margin:0 0 28px;padding:14px 14px 2px;background:#fff;border:1px solid #e6eaf0;border-radius:10px;box-shadow:0 2px 8px rgba(15,23,42,.05);}
+.req-version-group:first-child{margin-top:0;scroll-margin-top:0;}
+.req-version-group:last-child{margin-bottom:0;}
+.req-version-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#172033;padding:0 0 12px;margin:0 0 14px;border-bottom:1px solid #edf0f5;}
+.req-version-title::before{content:'';width:3px;height:16px;border-radius:3px;background:var(--brand);flex-shrink:0;}
+.req-version-title span{font-size:12px;font-weight:400;color:#667085;margin-left:0;}
+.req-version-group .req-section{margin:0 0 20px;padding:0;}
+.req-version-group .req-section:last-child{margin-bottom:12px;}
+.req-version-group .req-section-title{font-size:13px;font-weight:600;color:#27364d;margin-bottom:9px;padding:0 0 7px;border-bottom:1px solid #f0f2f5;}
+.req-version-group .req-section > div:not(.req-section-title){font-size:12px !important;color:#667085 !important;line-height:1.65 !important;}
+.req-version-group .req-table{font-size:12px;margin-top:8px;border-color:#e8ebf0;border-radius:7px;}
+.req-version-group .req-table th{padding:8px 10px;background:#f8fafc;color:#667085;font-size:12px;}
+.req-version-group .req-table td{padding:8px 10px;color:#475467;line-height:1.55;}
+.req-version-group .req-table td:first-child{color:#27364d;background:#fbfcfe;font-weight:500;}
 .req-section{margin-bottom:22px;}
 .req-section:last-child{margin-bottom:0;}
 .req-section-title{font-size:14px;font-weight:500;color:var(--ink);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--split);display:flex;align-items:center;gap:6px;}
@@ -589,6 +603,47 @@ body{
 .req-table tr:last-child td{border-bottom:none;}
 .req-table td:first-child{font-weight:500;color:var(--ink);white-space:nowrap;background:var(--bg);}
 .req-table code{background:var(--bg-2);color:var(--brand);padding:1px 5px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  .mobile-edit-form{display:none;padding-bottom:24px;}
+  #view-edit.mobile-edit-mode .mobile-edit-form{display:block;}
+  #view-edit.mobile-edit-mode .generic-edit-card{display:none;}
+  .mobile-edit-form .cfg-card{margin-bottom:16px;}
+  .mobile-edit-form .cfg-card-title{font-size:15px;}
+  .mobile-edit-form .cfg-card-sub{font-size:12px;}
+  .mobile-edit-form .cfg-grid{grid-template-columns:minmax(0,1fr);}
+  .mobile-edit-form .cfg-card-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 24px;}
+  .mobile-edit-form .form-row{margin-bottom:0;display:block;min-width:0;}
+  .mobile-edit-form .form-row.full,.mobile-edit-form .mobile-section-title{grid-column:1 / -1;}
+  .mobile-edit-form .form-row.full .form-lbl{display:block;align-self:start;padding-top:0;margin-bottom:6px;}
+  .mobile-edit-form .field-help{font-size:12px;color:var(--ink-3);margin-top:4px;}
+  .mobile-edit-form .inline-options{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;min-height:32px;}
+  .mobile-edit-form .choice{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);cursor:pointer;white-space:nowrap;}
+  .mobile-edit-form .choice input{accent-color:var(--brand);}
+  .mobile-edit-form .mobile-section-title{font-size:14px;font-weight:600;color:var(--ink);margin:0;padding:0 0 8px;border-bottom:1px solid var(--split);}
+  .mobile-edit-form textarea.form-textarea{min-height:96px;resize:vertical;}
+  .mobile-edit-form .switch-row{border-bottom:1px solid var(--split);}
+  .mobile-edit-form .switch-row:last-child{border-bottom:none;}
+  .mobile-edit-form .mobile-field:disabled{background:var(--bg-2);color:var(--ink-3);}
+  .age-prompt-dependent.is-hidden{display:none;}
+  .minor-compliance-card{border-radius:2px;box-shadow:none;}
+  .minor-compliance-card .cfg-card-head{padding:16px 20px;border-bottom:1px solid var(--border-2);}
+  .minor-compliance-card .cfg-card-title{font-size:16px;font-weight:400;color:#1f2937;}
+  .minor-card-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-right:4px;color:#1677ff;font-size:13px;vertical-align:1px;}
+  .minor-card-note{margin-top:4px;color:var(--ink-3);font-size:12px;line-height:1.5;}
+  .minor-compliance-body{padding:20px;}
+  .minor-form-row{display:grid;grid-template-columns:220px minmax(0,1fr);align-items:center;min-height:48px;column-gap:16px;}
+  .minor-form-label{text-align:right;color:#111827;font-size:13px;white-space:nowrap;}
+  .age-timing-row .minor-options{flex-wrap:nowrap;gap:12px 28px;}
+  .minor-form-label .req{color:#ff4d4f;font-weight:600;}
+  .minor-options{display:flex;align-items:center;flex-wrap:wrap;gap:12px 72px;min-height:32px;color:#111827;font-size:13px;}
+  .minor-options .choice{gap:7px;white-space:nowrap;}
+  .minor-options .choice input{width:16px;height:16px;margin:0;accent-color:#1677ff;}
+  .minor-info{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-left:-2px;border:1px solid #777;border-radius:50%;font-size:10px;color:#555;}
+  .minor-danger{color:#ff1f1f;white-space:nowrap;font-size:13px;}
+  .minor-control{width:560px;height:32px;max-width:100%;}
+  .minor-url{padding-left:12px;}
+  .minor-required-row{margin-top:8px;}
+  @media(max-width:900px){.minor-form-row{grid-template-columns:1fr;row-gap:6px;padding:8px 0;}.minor-form-label{text-align:left;}.minor-options{gap:10px 20px;}.minor-control{width:100%;}}
+  @media(min-width:901px){.minor-compliance-card{margin-left:-1px;margin-right:-1px;}.minor-compliance-body{min-width:1040px;}}
 </style>
 </head>
 <body>
@@ -966,7 +1021,7 @@ body{
           </div>
           <div class="dh-actions">
             <button class="btn ghost" onclick="goList()">取消</button>
-            <button class="btn primary"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>保存</button>
+            <button class="btn primary" onclick="saveMobileForm()"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>保存</button>
             <div class="dropdown" id="dd-edit">
               <button class="btn ghost" onclick="toggleDD('dd-edit')" style="padding:0 10px;">⋯</button>
               <div class="dropdown-menu">
@@ -988,8 +1043,18 @@ body{
           <div class="dt-tab"><span class="icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>关联渠道 (3)</div>
         </div>
 
-        <!-- 基础信息卡 -->
+        <div id="mobile-edit-form" class="mobile-edit-form">
         <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">基本信息</div><div class="cfg-card-sub">方案基础属性与移动端 SDK 归属信息</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">方案名称<span class="req">*</span></label><input class="form-input mobile-field" data-field="schemeName" id="mobile-scheme-name" value="移动端主方案-2026春节"></div>
+            <div class="form-row"><label class="form-lbl">方案类型</label><input class="form-input" value="移动端 SDK" disabled style="background:var(--bg-2);color:var(--ink-3);"></div>
+            <div class="form-row"><label class="form-lbl">适用区域</label><div class="inline-options"><label class="choice"><input type="radio" name="mobileRegion" value="domestic" checked>境内</label><label class="choice"><input type="radio" name="mobileRegion" value="overseas">海外</label><label class="choice"><input type="radio" name="mobileRegion" value="all">境内 + 海外</label></div></div>
+            <div class="form-row"><label class="form-lbl">备注</label><textarea class="form-textarea mobile-field" data-field="schemeRemark">2026 春节活动主推方案，含全量包体的登录/支付配置。</textarea></div>
+          </div>
+        </div>
+        <!-- 基础信息卡 -->
+        <div class="cfg-card generic-edit-card">
           <div class="cfg-card-head">
             <div>
               <div class="cfg-card-title">基础信息</div>
@@ -1024,7 +1089,7 @@ body{
         </div>
 
         <!-- 功能开关卡 -->
-        <div class="cfg-card">
+        <div class="cfg-card generic-edit-card">
           <div class="cfg-card-head">
             <div>
               <div class="cfg-card-title">功能开关</div>
@@ -1056,7 +1121,7 @@ body{
         </div>
 
         <!-- 关键参数卡 -->
-        <div class="cfg-card">
+        <div class="cfg-card generic-edit-card">
           <div class="cfg-card-head">
             <div>
               <div class="cfg-card-title">关键参数</div>
@@ -1078,10 +1143,152 @@ body{
           </div>
         </div>
 
+        <!-- 移动端 SDK 完整配置字段 -->
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">合规信息</div><div class="cfg-card-sub">隐私、实名与合规提示配置</div></div></div>
+          <div class="cfg-card-body">
+            <div class="mobile-section-title">隐私合规</div>
+            <div class="form-row"><label class="form-lbl">隐私政策地址<span class="req">*</span></label><input class="form-input mobile-field" data-field="privacyUrl" value="https://www.q1.com/privacyPolicy.html"></div>
+            <div class="form-row"><label class="form-lbl">用户协议地址<span class="req">*</span></label><input class="form-input mobile-field" data-field="agreementUrl" value="https://www.q1.com/userAgreement.html"></div>
+            <div class="form-row"><label class="form-lbl">隐私弹窗</label><div class="inline-options"><label class="choice"><input type="radio" name="privacyPopup" value="on" checked>开启</label><label class="choice"><input type="radio" name="privacyPopup" value="off">关闭</label></div></div>
+            <div class="form-row"><label class="form-lbl">隐私弹窗文案</label><textarea class="form-textarea mobile-field" data-field="privacyCopy">我们将严格遵守相关法律法规，保护您的个人信息安全。</textarea></div>
+            <div class="mobile-section-title">实名 / 防沉迷</div>
+            <div class="form-row"><label class="form-lbl">实名认证</label><div class="inline-options"><label class="choice"><input type="radio" name="realName" value="on" data-field="realName" checked>开启</label><label class="choice"><input type="radio" name="realName" value="off" data-field="realName">关闭</label></div></div>
+            <div class="form-row"><label class="form-lbl">防沉迷模式</label><select class="form-select mobile-field" data-field="antiAddiction"><option>标准模式</option><option>严格模式</option><option>关闭</option></select></div>
+          </div>
+        </div>
+        <div class="cfg-card minor-compliance-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title"><span class="minor-card-icon">▣</span>未成年人合规设置</div><div class="minor-card-note">据公司最新要求，已禁止18岁以下玩家注册登录，故选择适龄提示仅有显示作用。新建方案默认选择18+，历史方案保持原有值不变；未成年及游客时长限制已隐藏。</div></div></div>
+          <div class="minor-compliance-body">
+            <div class="minor-form-row">
+              <label class="minor-form-label">适龄提示：</label>
+              <div class="minor-options">
+                <label class="choice"><input type="radio" name="agePrompt" value="关闭" data-field="agePrompt" onchange="syncAgePromptFields()">关闭</label>
+                <label class="choice"><input type="radio" name="agePrompt" value="8+" data-field="agePrompt" checked onchange="syncAgePromptFields()">8+</label>
+                <label class="choice"><input type="radio" name="agePrompt" value="12+" data-field="agePrompt" onchange="syncAgePromptFields()">12+</label>
+                <label class="choice"><input type="radio" name="agePrompt" value="16+" data-field="agePrompt" onchange="syncAgePromptFields()">16+</label>
+                <label class="choice"><input type="radio" name="agePrompt" value="18+" data-field="agePrompt" onchange="syncAgePromptFields()">18+</label>
+              </div>
+            </div>
+            <div class="minor-form-row age-timing-row">
+              <label class="minor-form-label">适龄按钮展示时机（仅Android）：</label>
+              <div class="minor-options">
+                <label class="choice"><input type="radio" name="ageButtonTiming" value="auto" data-field="ageButtonTiming" checked>自动展示<span class="minor-info">i</span></label>
+                <label class="choice"><input type="radio" name="ageButtonTiming" value="game" data-field="ageButtonTiming">游戏调用展示</label>
+                <span class="minor-danger">IOS、鸿蒙由游戏调用展示</span>
+              </div>
+            </div>
+            <div class="minor-form-row">
+              <label class="minor-form-label">适龄提示详情链接：</label>
+              <input class="form-input minor-control minor-url mobile-field" data-field="ageDetailUrl" value="https://www.baidu.com">
+            </div>
+            <div class="minor-form-row">
+              <label class="minor-form-label">适龄按钮百分比：</label>
+              <select class="form-select minor-control mobile-field" data-field="ageButtonRatio"><option>25%</option><option>50%</option><option selected>75%</option><option>100%</option></select>
+            </div>
+            <div class="minor-form-row">
+              <label class="minor-form-label">协议按钮：</label>
+              <div class="minor-options">
+                <label class="choice"><input type="radio" name="agreementButton" value="none" data-field="agreementButton" checked>不需要</label>
+                <label class="choice"><input type="radio" name="agreementButton" value="sdk" data-field="agreementButton">需要(合规推荐，sdk按钮)</label>
+                <label class="choice"><input type="radio" name="agreementButton" value="game" data-field="agreementButton">需要(合规推荐，游戏按钮)</label>
+              </div>
+            </div>
+            <div class="minor-form-row">
+              <label class="minor-form-label">注销按钮：</label>
+              <div class="minor-options">
+                <label class="choice"><input type="radio" name="logoutButton" value="none" data-field="logoutButton" checked>不需要</label>
+                <label class="choice"><input type="radio" name="logoutButton" value="sdk" data-field="logoutButton">需要(合规推荐，sdk按钮)</label>
+                <label class="choice"><input type="radio" name="logoutButton" value="game" data-field="logoutButton">需要(合规推荐，游戏按钮)</label>
+              </div>
+            </div>
+            <div class="minor-form-row">
+              <label class="minor-form-label">注销&协议&适龄按钮位置：</label>
+              <div class="minor-options">
+                <label class="choice"><input type="radio" name="minorButtonPosition" value="top-left" data-field="minorButtonPosition" checked>左上角</label>
+                <label class="choice"><input type="radio" name="minorButtonPosition" value="top-right" data-field="minorButtonPosition">右上角</label>
+                <label class="choice"><input type="radio" name="minorButtonPosition" value="bottom-right" data-field="minorButtonPosition">右下角</label>
+                <label class="choice"><input type="radio" name="minorButtonPosition" value="bottom-left" data-field="minorButtonPosition">左下角</label>
+                <span class="minor-danger">协议按钮&注销按钮由游戏调用展示</span>
+              </div>
+            </div>
+            <div class="minor-form-row minor-required-row">
+              <label class="minor-form-label"><span class="req">*</span> 未成年及游客时长限制：</label>
+              <div class="minor-options">
+                <label class="choice"><input type="radio" name="visitorTimeLimit" value="on" data-field="visitorTimeLimit" checked>开启(合规推荐)</label>
+                <label class="choice"><input type="radio" name="visitorTimeLimit" value="off" data-field="visitorTimeLimit">关闭</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">自定义设置</div><div class="cfg-card-sub">登录、启动和界面展示参数</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">启动页展示</label><div class="inline-options"><label class="choice"><input type="radio" name="launchPage" value="on" data-field="launchPage" checked>开启</label><label class="choice"><input type="radio" name="launchPage" value="off" data-field="launchPage">关闭</label></div></div>
+            <div class="form-row"><label class="form-lbl">启动页地址</label><input class="form-input mobile-field" data-field="launchUrl" value="https://www.q1.com/launch"></div>
+            <div class="form-row"><label class="form-lbl">登录方式</label><div class="inline-options"><label class="choice"><input type="checkbox" data-field="loginMethods" value="password" checked>账号密码</label><label class="choice"><input type="checkbox" data-field="loginMethods" value="code" checked>验证码</label><label class="choice"><input type="checkbox" data-field="loginMethods" value="guest">游客登录</label></div></div>
+            <div class="form-row"><label class="form-lbl">登录按钮文案</label><input class="form-input mobile-field" data-field="loginText" value="立即登录"></div>
+            <div class="form-row"><label class="form-lbl">默认语言</label><select class="form-select mobile-field" data-field="language"><option>简体中文</option><option>繁体中文</option><option>English</option></select></div>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">推荐设置</div><div class="cfg-card-sub">推荐、公告与活动展示配置</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">推荐位开关</label><div class="switch on mobile-switch" data-field="recommendEnabled" role="switch" tabindex="0" onclick="this.classList.toggle('on')"></div></div>
+            <div class="form-row"><label class="form-lbl">推荐位地址</label><input class="form-input mobile-field" data-field="recommendUrl" value="https://www.q1.com/recommend"></div>
+            <div class="form-row"><label class="form-lbl">推荐位比例</label><input class="form-input mobile-field" data-field="recommendRatio" value="75%"></div>
+            <div class="form-row"><label class="form-lbl">公告内容</label><textarea class="form-textarea mobile-field" data-field="notice">欢迎使用本次春节活动版本，请及时更新客户端。</textarea></div>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">日活、登录与账号配置</div><div class="cfg-card-sub">账号体系、数据上报和登录体验配置</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">日活数据上报</label><div class="switch on mobile-switch" data-field="dailyReportEnabled" role="switch" tabindex="0" onclick="this.classList.toggle('on')"></div></div>
+            <div class="form-row"><label class="form-lbl">上报地址</label><input class="form-input mobile-field" data-field="reportUrl" value="https://data.q1.com/report"></div>
+            <div class="form-row"><label class="form-lbl">账号注销</label><div class="inline-options"><label class="choice"><input type="radio" name="accountClose" value="on" data-field="accountClose" checked>开启</label><label class="choice"><input type="radio" name="accountClose" value="off" data-field="accountClose">关闭</label></div></div>
+            <div class="form-row"><label class="form-lbl">注销说明</label><textarea class="form-textarea mobile-field" data-field="accountCloseCopy">提交注销申请后，账号将在审核完成后永久删除。</textarea></div>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">支付</div><div class="cfg-card-sub">支付渠道、订单和回调参数</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">支付功能</label><div class="switch on mobile-switch" data-field="paymentEnabled" role="switch" tabindex="0" onclick="this.classList.toggle('on')"></div></div>
+            <div class="form-row"><label class="form-lbl">支付渠道</label><div class="inline-options"><label class="choice"><input type="checkbox" data-field="paymentChannels" value="wechat" checked>微信支付</label><label class="choice"><input type="checkbox" data-field="paymentChannels" value="alipay" checked>支付宝</label><label class="choice"><input type="checkbox" data-field="paymentChannels" value="unionpay">银联</label></div></div>
+            <div class="form-row"><label class="form-lbl">支付回调地址</label><input class="form-input mobile-field" data-field="payCallback" value="https://sdk.q1.com/callback/pay"></div>
+            <div class="form-row"><label class="form-lbl">订单超时（秒）</label><input class="form-input mobile-field" data-field="payTimeout" type="number" value="120"></div>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">悬浮球</div><div class="cfg-card-sub">客户端悬浮入口与快捷操作</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">悬浮球开关</label><div class="switch on mobile-switch" data-field="floatBallEnabled" role="switch" tabindex="0" onclick="this.classList.toggle('on')"></div></div>
+            <div class="form-row"><label class="form-lbl">悬浮球位置</label><select class="form-select mobile-field" data-field="floatBallPosition"><option>右侧</option><option>左侧</option></select></div>
+            <div class="form-row"><label class="form-lbl">快捷入口</label><div class="inline-options"><label class="choice"><input type="checkbox" data-field="floatShortcuts" value="service" checked>客服</label><label class="choice"><input type="checkbox" data-field="floatShortcuts" value="notice" checked>公告</label><label class="choice"><input type="checkbox" data-field="floatShortcuts" value="event">活动</label></div></div>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">广告回传</div><div class="cfg-card-sub">广告归因和转化数据回传设置</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">广告回传开关</label><div class="switch on mobile-switch" data-field="adReportEnabled" role="switch" tabindex="0" onclick="this.classList.toggle('on')"></div></div>
+            <div class="form-row"><label class="form-lbl">回传地址</label><input class="form-input mobile-field" data-field="adReportUrl" value="https://ad.q1.com/conversion"></div>
+            <div class="form-row"><label class="form-lbl">回传事件</label><div class="inline-options"><label class="choice"><input type="checkbox" data-field="adEvents" value="activate" checked>激活</label><label class="choice"><input type="checkbox" data-field="adEvents" value="register" checked>注册</label><label class="choice"><input type="checkbox" data-field="adEvents" value="pay" checked>付费</label></div></div>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-card-head"><div><div class="cfg-card-title">智能客服</div><div class="cfg-card-sub">客服机器人与人工客服配置</div></div></div>
+          <div class="cfg-card-body">
+            <div class="form-row"><label class="form-lbl">智能客服</label><div class="switch on mobile-switch" data-field="serviceEnabled" role="switch" tabindex="0" onclick="this.classList.toggle('on')"></div></div>
+            <div class="form-row"><label class="form-lbl">智能客服配置</label><textarea class="form-textarea mobile-field" data-field="serviceConfig">欢迎咨询，机器人将优先为您解答常见问题。</textarea></div>
+            <div class="form-row"><label class="form-lbl">VIP 客服地址</label><input class="form-input mobile-field" data-field="vipServiceUrl" value="https://service.q1.com/vip"></div>
+            <div class="form-row"><label class="form-lbl">人工客服地址</label><input class="form-input mobile-field" data-field="humanServiceUrl" value="https://service.q1.com/human"></div>
+          </div>
+        </div>
+        </div>
+
         <div class="detail-foot">
           <span class="save-hint">最后保存于 5 分钟前 · 已自动备份</span>
           <button class="btn ghost" onclick="goList()">取消</button>
-          <button class="btn primary"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>保存方案</button>
+          <button class="btn primary" onclick="saveMobileForm()"><span class="icon" style="width:14px;height:14px;"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>保存方案</button>
         </div>
 
       </div><!-- /view-edit -->
@@ -1280,8 +1487,77 @@ function goList(){
   setView('view-list');
   document.querySelector('.tb-page-title').textContent='方案管理';
 }
-function openEdit(name,sdkType,tagCls,jumpToCompliance){
+function mobileDraftKey(name){
+  return String(name||'').trim()||'__default__';
+}
+function syncAgePromptFields(){
+  document.querySelectorAll('#mobile-edit-form .age-prompt-dependent').forEach(function(row){
+    row.classList.remove('is-hidden');
+  });
+}
+function collectMobileForm(){
+  var data={};
+  document.querySelectorAll('#mobile-edit-form .mobile-field').forEach(function(el){
+    if(el.dataset.field) data[el.dataset.field]=el.value;
+  });
+  document.querySelectorAll('#mobile-edit-form [data-field][type="radio"]').forEach(function(el){
+    if(el.checked) data[el.dataset.field]=el.value;
+  });
+  document.querySelectorAll('#mobile-edit-form [data-field][type="checkbox"]').forEach(function(el){
+    var key=el.dataset.field;
+    if(!data[key]) data[key]=[];
+    if(el.checked) data[key].push(el.value||true);
+  });
+  document.querySelectorAll('#mobile-edit-form .mobile-switch').forEach(function(el){
+    data[el.dataset.field]=el.classList.contains('on');
+  });
+  return data;
+}
+function applyMobileDraft(data){
+  if(!data) return;
+  document.querySelectorAll('#mobile-edit-form .mobile-field').forEach(function(el){
+    if(el.dataset.field && data[el.dataset.field]!==undefined) el.value=data[el.dataset.field];
+  });
+  document.querySelectorAll('#mobile-edit-form [data-field][type="radio"]').forEach(function(el){
+    el.checked=data[el.dataset.field]===el.value;
+  });
+  document.querySelectorAll('#mobile-edit-form [data-field][type="checkbox"]').forEach(function(el){
+    var values=Array.isArray(data[el.dataset.field])?data[el.dataset.field]:[];
+    el.checked=values.indexOf(el.value||true)!==-1;
+  });
+  document.querySelectorAll('#mobile-edit-form .mobile-switch').forEach(function(el){
+    el.classList.toggle('on',Boolean(data[el.dataset.field]));
+  });
+}
+function saveMobileForm(){
+  var data=collectMobileForm();
+  var name=data.schemeName||document.getElementById('ed-name').textContent;
   document.getElementById('ed-name').textContent=name;
+  window.__mobileSchemeDrafts=window.__mobileSchemeDrafts||{};
+  window.__mobileSchemeDrafts[mobileDraftKey(name)]=data;
+  window.__mobileSchemeDraft=data;
+  var hint=document.querySelector('#view-edit .save-hint');
+  if(hint)hint.textContent='已保存刚刚 · 表单数据已更新';
+  alert('方案已保存');
+}
+function openEdit(name,sdkType,tagCls,jumpToCompliance,isNewScheme){
+  var editView=document.getElementById('view-edit');
+  editView.classList.toggle('mobile-edit-mode',sdkType==='移动端 SDK');
+  document.getElementById('ed-name').textContent=name;
+  syncAgePromptFields();
+  var mobileName=document.getElementById('mobile-scheme-name');
+  if(mobileName)mobileName.value=name;
+  if(sdkType==='移动端 SDK') {
+    var draft=(window.__mobileSchemeDrafts||{})[mobileDraftKey(name)];
+    applyMobileDraft(draft);
+    if(isNewScheme && !draft){
+      document.querySelectorAll('#mobile-edit-form input[name="agePrompt"]').forEach(function(input){
+        input.checked=input.value==='18+';
+      });
+    }
+    if(mobileName && !mobileName.value) mobileName.value=name;
+    syncAgePromptFields();
+  }
   var t=document.getElementById('ed-type-tag');
   t.textContent=sdkType;t.className='s-type '+tagCls;
   document.querySelector('.tb-page-title').textContent='编辑方案 · '+name;
@@ -1386,7 +1662,7 @@ function cwPick(sdkId){
 function cwCreate(){
   if(!CW.picked)return;
   closeModal('m-create');
-  openEdit(CW.picked.name+' 新方案',CW.picked.name,CW.picked.cls);
+  openEdit(CW.picked.name+' 新方案',CW.picked.name,CW.picked.cls,undefined,true);
 }
 
 /* delete confirm */
@@ -1427,7 +1703,65 @@ function toggleSidebar(){document.querySelector('.app-shell').classList.toggle('
   </div>
   <div class="req-drawer-body">
 
+    <div class="req-version-group">
+      <div class="req-version-title">v2.7.2 <span>未成年人合规设置</span></div>
+      <div style="font-size:12px;color:#64748b;background:#f8fafc;border-left:3px solid #94a3b8;padding:8px 10px;margin-bottom:14px;line-height:1.6;"><strong style="color:#475569;">注释：</strong>据公司最新要求，已禁止18岁以下玩家注册登录，故选择适龄提示仅有显示作用。新建方案默认选择18+，历史方案保持原有值不变；未成年及游客时长限制已隐藏。</div>
+      <div class="req-section">
+      <div class="req-section-title">未成年人合规设置<span class="req-badge new">新增</span></div>
+      <div style="font-size:12px;color:#475569;margin-bottom:8px;line-height:1.6;">本版本调整未成年人合规配置：适龄提示新增 18+ 选项；适龄按钮展示时机、适龄提示详情链接、适龄按钮百分比、协议按钮、注销按钮及按钮位置字段继续保留；隐藏“未成年及游客时长限制”字段。</div>
+      <table class="req-table">
+        <thead><tr><th>项</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>新建方案默认值</td><td>新建方案的适龄提示默认选择「18+」</td></tr>
+          <tr><td>历史方案兼容</td><td>历史方案沿用原有适龄提示值，不自动修改、不批量迁移</td></tr>
+          <tr><td>字段展示</td><td>仅隐藏「未成年及游客时长限制」，其他未成年人合规配置继续展示并可编辑</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class="req-section">
+      <div class="req-section-title">配置规则与交互<span class="req-badge opt">规则</span></div>
+      <div style="font-size:12px;color:#475569;margin-bottom:8px;line-height:1.6;">本次调整仅作用于移动端 SDK 方案编辑页，不影响方案列表、查看页、非移动端 SDK 编辑页及既有历史数据。</div>
+      <table class="req-table">
+        <thead><tr><th>场景</th><th>处理规则</th></tr></thead>
+        <tbody>
+          <tr><td>进入移动端方案编辑</td><td>按当前方案已保存的 agePrompt 值回显；历史方案不得被默认值覆盖</td></tr>
+          <tr><td>新建移动端方案</td><td>初始化适龄提示单选项，默认选中「18+」；用户仍可手动切换其他选项</td></tr>
+          <tr><td>适龄提示切换</td><td>关闭、8+、12+、16+、18+ 均可选择；适龄按钮展示时机、详情链接、按钮百分比等字段保持展示</td></tr>
+          <tr><td>时长限制字段</td><td>「未成年及游客时长限制」整行隐藏，不参与页面展示；其余协议、注销和按钮位置配置不受影响</td></tr>
+          <tr><td>保存方案</td><td>保存当前表单数据及适龄提示选中值；仅保存用户当前编辑的方案，不修改其他方案</td></tr>
+          <tr><td>取消编辑</td><td>放弃本次修改并返回列表，不写入当前方案草稿</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="req-section">
+      <div class="req-section-title">字段说明<span class="req-badge opt">明细</span></div>
+      <table class="req-table">
+        <thead><tr><th>字段</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>适龄提示</td><td>单选 / 新建默认 18+</td><td>可选关闭、8+、12+、16+、18+；历史方案按原值回显</td></tr>
+          <tr><td>未成年及游客时长限制</td><td>隐藏</td><td>本版本不在编辑页展示该字段，历史数据不做迁移或清理</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="req-section">
+      <div class="req-section-title">验收标准<span class="req-badge new">验收</span></div>
+      <ul style="font-size:12px;color:#475569;line-height:1.8;padding-left:20px;">
+        <li>新建移动端 SDK 方案进入编辑页后，适龄提示默认选中「18+」。</li>
+        <li>打开任一历史移动端方案时，适龄提示保持该方案原有值，不被重置为「18+」。</li>
+        <li>适龄提示详情链接输入框正常显示，适龄按钮展示时机不异常换行。</li>
+        <li>「未成年及游客时长限制」字段不可见，其他未成年人合规字段正常显示。</li>
+        <li>保存、取消、返回列表、查看方案及非移动端编辑流程保持原有行为。</li>
+      </ul>
+    </div>
+
+    </div>
+
+    <div class="req-version-group">
+      <div class="req-version-title">v2.7.1 <span>方案管理基础能力</span></div>
+      <div class="req-section">
       <div class="req-section-title">顶部分类 Tab<span class="req-badge opt">优化</span></div>
       <div style="font-size:12px;color:#475569;margin-bottom:8px;line-height:1.6;">按 SDK 类型对方案分类，Tab 右上角数字为该分类下方案总数（含兜底+我的方案）。切换 Tab 时下方两个区块的列表同步按该类型过滤。</div>
       <table class="req-table">
@@ -1456,11 +1790,33 @@ function toggleSidebar(){document.querySelector('.app-shell').classList.toggle('
       </table>
     </div>
 
-  </div>
+    </div>
 </div>
 <script>
-function openReqDrawer(){ document.getElementById('reqDrawer').classList.add('open'); document.getElementById('reqOverlay').classList.add('open'); }
-function closeReqDrawer(){ document.getElementById('reqDrawer').classList.remove('open'); document.getElementById('reqOverlay').classList.remove('open'); }
+function openReqDrawer(){
+  var drawer=document.getElementById('reqDrawer');
+  var body=drawer.querySelector('.req-drawer-body');
+  body.scrollTop=0;
+  drawer.scrollTop=0;
+  drawer.classList.add('open');
+  document.getElementById('reqOverlay').classList.add('open');
+  setTimeout(function(){
+    body.scrollTop=0;
+    drawer.scrollTop=0;
+  },0);
+  requestAnimationFrame(function(){
+    body.scrollTop=0;
+    drawer.scrollTop=0;
+  });
+}
+function closeReqDrawer(){
+  var drawer=document.getElementById('reqDrawer');
+  var body=drawer.querySelector('.req-drawer-body');
+  drawer.classList.remove('open');
+  document.getElementById('reqOverlay').classList.remove('open');
+  body.scrollTo(0,0);
+  drawer.scrollTo(0,0);
+}
 </script>
 <script src="../sidebar.js"></script>
 </body>

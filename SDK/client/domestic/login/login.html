@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SDK 登录 · 双状态</title>
+<title>SDK 登录</title>
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
@@ -17,6 +17,7 @@
     align-items: center; justify-content: center;
     padding: 32px 16px 48px;
     box-sizing: border-box;
+    overflow-x: auto;
   }
   .canvas-title {
     color: #d8e4ff; font-size: 13px; text-align: center;
@@ -27,18 +28,60 @@
     margin-bottom: 28px; letter-spacing: 0.05em;
   }
   .frames-row {
-    display: flex; gap: 40px; align-items: flex-start; justify-content: center;
-    flex-wrap: wrap;
+    display: flex; align-items: flex-start; justify-content: center;
+    gap: 56px; position: relative; min-width: 696px;
+  }
+  .frames-row::after {
+    content: ''; position: absolute; top: 34px; bottom: 0; left: 50%;
+    width: 1px; background: rgba(120, 150, 179, .28);
+    transform: translateX(-50%); pointer-events: none;
   }
   .frame-cell { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .frame-label {
     color: #a8b3cc; font-size: 11px; letter-spacing: 0.1em;
   }
+  .req-fab {
+    position: fixed; right: 24px; bottom: 24px; z-index: 100;
+    width: 42px; height: 42px; border: 1px solid rgba(108, 180, 255, .55);
+    border-radius: 50%; background: #142b4a; color: #b9dcff;
+    display: grid; place-items: center; cursor: pointer;
+    box-shadow: 0 5px 18px rgba(0,0,0,.35); transition: background .15s, transform .15s;
+  }
+  .req-fab:hover { background: #1d4774; transform: translateY(-2px); }
+  .req-fab svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .req-overlay { position: fixed; inset: 0; z-index: 110; background: rgba(0,0,0,.42); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .req-overlay.open { opacity: 1; pointer-events: auto; }
+  .req-drawer {
+    position: fixed; top: 0; right: -420px; z-index: 111;
+    width: min(420px, 88vw); height: 100vh; overflow-y: auto;
+    background: #101b2b; color: #dcecff; border-left: 1px solid rgba(130,190,255,.2);
+    box-shadow: -8px 0 26px rgba(0,0,0,.38); transition: right .24s ease;
+    padding: 22px 20px; box-sizing: border-box;
+  }
+  .req-drawer.open { right: 0; }
+  .req-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid rgba(174,214,255,.2); }
+  .req-title { font-size: 17px; font-weight: 600; color: #fff; }
+  .req-version { color: #8fc8ff; font-size: 11px; margin-top: 4px; }
+  .req-close { width: 30px; height: 30px; border: 0; background: transparent; color: #a8bdd3; font-size: 24px; cursor: pointer; }
+  .req-section { padding: 16px 0; border-bottom: 1px solid rgba(174,214,255,.12); }
+  .req-section:last-child { border-bottom: 0; }
+  .req-section h3 { margin: 0 0 9px; color: #9ed0ff; font-size: 13px; }
+  .req-section ul { margin: 0; padding-left: 18px; color: #c2d3e5; font-size: 12px; line-height: 1.8; }
+  .flow-chart { color: #c2d3e5; font-size: 11px; text-align: center; }
+  .flow-node { padding: 8px 7px; border: 1px solid rgba(143,200,255,.55); border-radius: 6px; background: rgba(29,71,116,.32); line-height: 1.45; }
+  .flow-node small { color: #9fb6ca; font-size: 10px; }
+  .flow-arrow { color: #8fc8ff; font-size: 17px; line-height: 22px; }
+  .flow-branch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .flow-path { padding: 7px 5px; border-radius: 6px; background: rgba(0,0,0,.12); }
+  .flow-path > span { display: inline-block; margin-bottom: 2px; font-weight: 600; }
+  .flow-path.fail > span { color: #ffaeae; }
+  .flow-path.success > span { color: #9fe4bd; }
+  .flow-path small { display: block; color: #9fb6ca; line-height: 1.45; }
 </style>
 </head>
 <body>
-<div class="canvas-title">SDK 登录 · 双状态</div>
-<div class="canvas-sub">左：账号 + 手机 + 第三方 &nbsp;|&nbsp; 右：纯第三方</div>
+<div class="canvas-title">SDK 登录</div>
+<div class="canvas-sub">账号 + 手机 + 第三方</div>
 <div id="root"></div>
 
 <script type="text/babel">
@@ -171,18 +214,14 @@ function Feedback() {
 
 function AgeBadge() {
   return (
-    <div style={{
-      position: 'absolute', top: 18, right: 14, zIndex: 4,
-      width: 32, height: 40,
-      border: `2px solid ${tokens.ageGold}`, borderRadius: 3,
-      background: 'linear-gradient(180deg, rgba(20,46,82,.72), rgba(8,20,42,.78))',
-      color: tokens.ageText, fontWeight: 800, fontSize: 12, lineHeight: '14px',
-      textAlign: 'center', paddingTop: 1, boxShadow: '0 0 0 1px rgba(0,0,0,.4)',
-    }}>
-      12+
-      <span style={{ display: 'block', color: tokens.ageSub, fontSize: 6, lineHeight: '8px', fontWeight: 700, marginTop: 1 }}>CAIPA</span>
-      <span style={{ display: 'block', color: tokens.ageSub, fontSize: 6, lineHeight: '8px', fontWeight: 700, marginTop: 1 }}>适龄提示</span>
-    </div>
+    <img
+      src="./assets/age-rating.png"
+      alt="18+ 适龄提示"
+      style={{
+        position: 'absolute', top: 18, right: 14, zIndex: 4,
+        width: 42, height: 58, objectFit: 'contain',
+      }}
+    />
   );
 }
 
@@ -350,13 +389,53 @@ function LoginCardThirdPartyOnly({ providers }) {
             }}>
               <ProviderGlyph id={p.id} size={30} color="#fff" />
             </div>
-            <div style={{ fontSize: 11, color: '#555' }}>{p.name}</div>
+            <div style={{ fontSize: 11, color: '#d9e0e7' }}>{p.name}</div>
           </div>
         ))}
       </div>
       <Agreement />
       <SupportCorner />
     </section>
+  );
+}
+
+/* ============ C 端实名认证 ============ */
+function RealNameCard() {
+  const [name, setName] = React.useState('');
+  const [idCard, setIdCard] = React.useState('');
+  const [toast, setToast] = React.useState('');
+  const showToast = message => {
+    setToast(message);
+    window.clearTimeout(showToast.timer);
+    showToast.timer = window.setTimeout(() => setToast(''), 2600);
+  };
+  const submitRealName = () => {
+    if (!name || !idCard) {
+      showToast('请填写完整认证信息');
+      return;
+    }
+    showToast('实名认证失败，系统暂时不支持未成年人注册/登录游戏。');
+  };
+  return (
+    <>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'rgba(0,0,0,.28)' }} />
+      <section style={{
+        position: 'absolute', left: 22, right: 22, top: 160, zIndex: 9,
+        background: '#fff', borderRadius: 8, boxShadow: '0 10px 30px rgba(0,0,0,.18)',
+        padding: '18px 18px 14px', minHeight: 250,
+      }}>
+        <div style={{ textAlign: 'center', color: '#26364a', fontSize: 20, marginBottom: 10 }}>实名认证</div>
+        <div style={{ color: '#555', fontSize: 11, lineHeight: '17px', marginBottom: 10 }}>
+          根据国家新闻出版署《关于防止未成年人沉迷网络游戏的通知》和《关于进一步严格管理切实防止未成年人沉迷网络游戏的通知》规定，未实名认证不可进行游戏体验，请尽快完成实名认证。
+        </div>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="请输入真实姓名" style={{ width: '100%', height: 38, border: 0, borderBottom: '1px solid #d9dee5', outline: 0, fontSize: 14, boxSizing: 'border-box' }} />
+        <input value={idCard} onChange={e => setIdCard(e.target.value)} placeholder="请输入身份证号码" style={{ width: '100%', height: 38, border: 0, borderBottom: '1px solid #d9dee5', outline: 0, fontSize: 14, boxSizing: 'border-box' }} />
+        <button onClick={submitRealName} style={{ width: '100%', height: 36, marginTop: 14, border: 0, borderRadius: 19, background: '#2d9fdb', color: '#fff', fontSize: 15, cursor: 'pointer' }}>提交认证</button>
+        <div style={{ textAlign: 'center', color: '#52606d', fontSize: 12, marginTop: 9, cursor: 'pointer' }}>切换账号</div>
+        {toast && <div role="status" style={{ position: 'absolute', left: '50%', bottom: -48, transform: 'translateX(-50%)', width: 270, padding: '10px 14px', borderRadius: 6, background: 'rgba(28,37,51,.92)', color: '#fff', fontSize: 12, lineHeight: '17px', textAlign: 'center', boxShadow: '0 5px 16px rgba(0,0,0,.25)', zIndex: 12 }}>{toast}</div>}
+        <SupportCorner />
+      </section>
+    </>
   );
 }
 
@@ -375,11 +454,6 @@ function Screen({ Card }) {
 
 /* ============ App ============ */
 function App() {
-  const thirdPartyConfigs = [
-    { n: 1, label: '纯第三方 · 1 个' },
-    { n: 2, label: '纯第三方 · 2 个' },
-    { n: 3, label: '纯第三方 · 3 个' },
-  ];
   return (
     <div>
       <div className="frames-row">
@@ -389,20 +463,58 @@ function App() {
             <Screen Card={LoginCardWithAccount} />
           </IosFrame>
         </div>
-        {thirdPartyConfigs.map(cfg => (
-          <div key={cfg.n} className="frame-cell">
-            <div className="frame-label">{cfg.label}</div>
-            <IosFrame width={320} height={580}>
-              <Screen Card={() => <LoginCardThirdPartyOnly providers={PROVIDERS.slice(0, cfg.n)} />} />
-            </IosFrame>
-          </div>
-        ))}
+        <div className="frame-cell">
+          <div className="frame-label">C 端实名认证</div>
+          <IosFrame width={320} height={580}>
+            <Screen Card={RealNameCard} />
+          </IosFrame>
+        </div>
       </div>
     </div>
   );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+<div class="req-fab" onclick="openReqDrawer()" aria-label="打开需求说明" title="需求说明">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>
+</div>
+<div class="req-overlay" id="reqOverlay" onclick="closeReqDrawer()"></div>
+<aside class="req-drawer" id="reqDrawer" aria-label="需求说明">
+  <div class="req-header">
+    <div><div class="req-title">需求说明 · SDK 登录</div><div class="req-version">版本 2.7.2</div></div>
+    <button class="req-close" onclick="closeReqDrawer()" aria-label="关闭需求说明">×</button>
+  </div>
+  <section class="req-section">
+    <h3>实名认证业务逻辑</h3>
+    <ul>
+      <li>账密登录成功后，账号库新增一条通行证记录。</li>
+      <li>实名认证判定为未成年人时，实名信息不入库，通行证记录的实名信息保持为空。</li>
+      <li>页面停留在当前实名认证界面，并 Toast 提示：实名认证失败，系统暂时不支持未成年人注册/登录游戏。</li>
+      <li>玩家关闭游戏或切换账号后，重新登录该通行证仍会弹出实名认证。</li>
+      <li>再次提交未成年人身份证信息时，重复上述失败流程。</li>
+      <li>只有填入成年身份证信息后，实名信息才入库并完成实名认证。</li>
+    </ul>
+  </section>
+  <section class="req-section">
+    <h3>实名认证流程</h3>
+    <div class="flow-chart">
+      <div class="flow-node">账密登录成功</div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-node">账号库新增通行证记录<br><small>实名信息为空</small></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-node">提交实名认证信息</div>
+      <div class="flow-branch">
+        <div class="flow-path fail"><span>未成年人身份证</span><div class="flow-arrow">↓</div><div class="flow-node">实名不入库<br>Toast 提示失败<br>停留当前页面</div><div class="flow-arrow">↺</div><small>关闭游戏/切换账号后重新登录仍弹出实名认证</small></div>
+        <div class="flow-path success"><span>成年身份证</span><div class="flow-arrow">↓</div><div class="flow-node">实名信息入库<br>实名认证完成</div></div>
+      </div>
+    </div>
+  </section>
+</aside>
+<script>
+function openReqDrawer(){ document.getElementById('reqDrawer').classList.add('open'); document.getElementById('reqOverlay').classList.add('open'); }
+function closeReqDrawer(){ document.getElementById('reqDrawer').classList.remove('open'); document.getElementById('reqOverlay').classList.remove('open'); }
 </script>
 </body>
 </html>
