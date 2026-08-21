@@ -274,6 +274,19 @@ body{
 .s-rejected{background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
 .s-disabled{background:var(--grey-bg);color:var(--grey);border-color:var(--border);}
 
+/* 待审核提示放在审核操作右侧，审核独占一行 */
+tr:has(.ops.has-audit) td{background:#fff4df;}
+tr:has(.ops.has-audit):hover td{background:#ffedc7;}
+.status-pending-cell{vertical-align:middle;}
+.status-pending-cell .status-pill{font-weight:600;}
+.status-pending-cell .pending-hint{display:none;}
+.ops.has-audit{display:flex;flex-direction:column;align-items:flex-start;gap:7px;}
+.ops.has-audit .ops-main{display:flex;align-items:center;gap:8px;}
+.ops.has-audit .op-audit-line{display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.ops.has-audit .op-audit{display:inline-flex;align-items:center;position:relative;padding:2px 7px;border-radius:4px;background:#d58a00;color:#fff;font-size:12px;font-weight:600;line-height:18px;box-shadow:0 1px 3px rgba(213,138,0,.18);}
+.ops.has-audit .op-audit:hover{background:#b97400;color:#fff;}
+.ops.has-audit .audit-hint{color:#9a6a08;font-size:12px;font-weight:500;}
+.ops.has-audit .op-audit::after{top:2px;right:2px;background:#e24b4b;box-shadow:0 0 0 1px #fff;}
 .cell-time{font-size:13px;color:var(--ink-2);line-height:1.5715;font-variant-numeric:tabular-nums;min-width:130px;}
 .cell-time .time{color:var(--ink-2);}
 .cell-time .by{color:var(--ink-4);font-size:13px;}
@@ -349,7 +362,11 @@ body{
 .audit-compare-grid .cmp-col h5{font-size:14px;color:var(--ink-2);margin:0 0 12px;font-weight:500;display:flex;align-items:center;gap:6px;}
 .audit-compare-grid .cmp-col.orig h5 .tag{font-size:12px;color:var(--amber);background:var(--white);border:1px solid var(--amber-border);padding:0 7px;border-radius:4px;line-height:20px;font-weight:400;}
 .audit-compare-grid .cmp-col.new h5 .tag{font-size:12px;color:var(--green);background:var(--white);border:1px solid var(--green-border);padding:0 7px;border-radius:4px;line-height:20px;font-weight:400;}
-.audit-compare-grid .cmp-col .line{display:block;font-size:14px;color:var(--ink-2);margin:2px 0;}
+  .audit-compare-grid .cmp-col .line{display:block;font-size:14px;color:var(--ink-2);margin:2px 0;}
+  .audit-bindings{display:flex;flex-direction:column;gap:1px;}
+  .audit-binding-compl{display:inline-flex;margin-left:6px;padding:0 5px;border-radius:4px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);font-size:11px;line-height:18px;}
+  .audit-single-title{font-size:14px;color:var(--ink-2);margin:0 0 10px;font-weight:500;}
+
 .audit-compare-grid .cmp-col .label{color:var(--ink-3);font-size:14px;}
 @media(max-width:520px){.audit-compare-grid{grid-template-columns:1fr;}.audit-compare-grid .cmp-col.orig{border-right:0;border-bottom:1px solid var(--split);}}
 .audit-data .line{display:block;}
@@ -681,10 +698,10 @@ body{
                   </div>
                 </div>
               </td>
-              <td><span class="status-pill s-pending">待审核</span></td>
+              <td><span class="status-pill s-active">生效中</span></td>
               <td><div class="cell-time"><div class="time">2026-04-15 14:22:11</div><div class="by">林薇</div></div></td>
               <td><div class="cell-time"><div class="time">—</div><div class="by">未审批</div></div></td>
-              <td><div class="ops"><span class="op">编辑</span><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核</span><span class="op muted">删除</span></div></td>
+              <td><div class="ops has-audit"><div class="ops-main"><span class="op">编辑</span><span class="op muted">删除</span></div><div class="op-audit-line"><span class="op op-audit" onclick="openAudit(this.closest('tr'))">审核</span><span class="audit-hint">新方案需审批后生效</span></div></div></td>
             </tr>
 
             <tr>
@@ -933,8 +950,53 @@ body{
   const stateValue=item=>item.audit==='审核不通过'?'审核不通过':item.audit==='审核通过/已生效'?'审核通过':item.inner==='待内测'?'内测中':'审核中';
   const stateClass=value=>value==='审核通过'?'pass':value==='审核不通过'?'fail':'wait';
   const stateTag=value=>'<span class="audit-state '+stateClass(value)+'">'+value+'</span>';
-  const dataHtml=(item,label='小游戏方案：')=>'<span class="line"><span class="label">'+label+'</span>'+item.data+'</span><span class="line"><span class="label">生效时间(起)：</span>'+item.start+'</span><span class="line"><span class="label">生效时间(止)：</span>'+item.end+'</span>';
-  const beforeDataHtml=item=>'<span class="line"><span class="label">小游戏方案：</span>'+item.before+'</span><span class="line"><span class="label">生效时间(起)：</span>'+item.beforeStart+'</span><span class="line"><span class="label">生效时间(止)：</span>'+item.beforeEnd+'</span>';
+  const escapeHtml=value=>String(value==null?'':value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  function legacyBindings(item){
+    if(item.bindings&&item.bindings.length)return item.bindings;
+    return [{label:'小游戏方案：',name:item.data,start:item.start,end:item.end,compliance:'合规'}];
+  }
+  function rowBindings(row){
+    const block=row&&row.querySelector('.scheme-block');
+    if(!block)return [];
+    const times=[...block.querySelectorAll('.effect-row')].map(el=>el.querySelectorAll('span')[1]?.textContent.trim()||'');
+    return [...block.querySelectorAll(':scope > .row')].map(line=>({
+      label:line.querySelector('.lbl')?.textContent.trim()||'方案：',
+      name:line.querySelector('.lnk')?.textContent.trim()||'',
+      compliance:line.querySelector('.compl')?.textContent.trim()||'',
+      start:times[0]||'',end:times[1]||''
+    })).filter(binding=>binding.name);
+  }
+  function modifiedBindings(item,row){
+    if(item.bindings&&item.bindings.length)return item.bindings;
+    const current=rowBindings(row);
+    if(!current.length)return legacyBindings(item);
+    const next=current.map(binding=>({...binding}));
+    if(item.type==='edit'){
+      let replaced=false;
+      next.forEach(binding=>{
+        if(binding.name===item.before){binding.name=item.data;replaced=true;}
+      });
+      if(!replaced)next[0].name=item.data;
+    }else{
+      const target=next[0];
+      target.name=item.data;
+      target.compliance=target.compliance||'合规';
+    }
+    next.forEach(binding=>{
+      binding.start=item.start||binding.start;
+      binding.end=item.end||binding.end;
+    });
+    return next;
+  }
+  function bindingsHtml(bindings){
+    const first=bindings[0]||{};
+    return '<div class="audit-bindings">'+bindings.map(binding=>'<div class="line"><span class="label">'+escapeHtml(binding.label)+'</span>'+escapeHtml(binding.name)+(binding.compliance?'<span class="audit-binding-compl">'+escapeHtml(binding.compliance)+'</span>':'')+'</div>').join('')+'<div class="line"><span class="label">生效时间(起)：</span>'+escapeHtml(first.start||'—')+'</div><div class="line"><span class="label">生效时间(止)：</span>'+escapeHtml(first.end||'—')+'</div></div>';
+  }
+  function schemeBlockHtml(bindings){
+    return '<div class="scheme-block">'+bindings.map(binding=>'<div class="row"><span class="lbl">'+escapeHtml(binding.label)+'</span><span class="lnk">'+escapeHtml(binding.name)+'</span>'+(binding.compliance?'<span class="compl c-ok">'+escapeHtml(binding.compliance)+'</span>':'')+'</div>').join('')+'<div class="effect"><div class="effect-row"><span class="lbl">生效时间(起)：</span><span>'+escapeHtml(bindings[0]?.start||'—')+'</span></div><div class="effect-row"><span class="lbl">生效时间(止)：</span><span>'+escapeHtml(bindings[0]?.end||'—')+'</span></div></div></div>';
+  }
+  const dataHtml=(item,row)=>bindingsHtml(modifiedBindings(item,row));
+  const beforeDataHtml=(item,row)=>bindingsHtml(rowBindings(row).length?rowBindings(row):[{label:'方案：',name:item.before,start:item.beforeStart,end:item.beforeEnd,compliance:'合规'}]);
   function renderStepper(item){
     const sv=stateValue(item);
     const steps=[{label:'编辑申请',state:'done'},{label:'内测中',state:sv==='内测中'?'active':sv==='审核中'||sv==='审核通过'||sv==='审核不通过'?'done':''},{label:'审核中',state:sv==='审核中'?'active':sv==='审核通过'||sv==='审核不通过'?(sv==='审核不通过'?'fail':'done'):''},{label:sv==='审核不通过'?'不通过':'已生效',state:sv==='审核通过'?'done':sv==='审核不通过'?'fail':''}];
@@ -948,9 +1010,9 @@ body{
     const typeTag=isEdit?'<span style="font-size:12px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);padding:0 7px;border-radius:4px;font-weight:400;line-height:20px;margin-left:8px;display:inline-flex;align-items:center">修改</span>':'<span style="font-size:12px;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-soft);padding:0 7px;border-radius:4px;font-weight:400;line-height:20px;margin-left:8px;display:inline-flex;align-items:center">新建</span>';
     let dataSection='';
     if(isEdit){
-      dataSection='<div class="audit-compare-grid"><div class="cmp-col orig"><h5>原方案<span class="tag">修改前</span></h5>'+beforeDataHtml(item)+'</div><div class="cmp-col new"><h5>修改后方案<span class="tag">修改后</span></h5>'+dataHtml(item)+'</div></div>';
+      dataSection='<div class="audit-compare-grid"><div class="cmp-col orig"><h5>当前生效绑定<span class="tag">修改前</span></h5>'+beforeDataHtml(item,currentRow)+'</div><div class="cmp-col new"><h5>修改后绑定<span class="tag">修改后</span></h5>'+dataHtml(item,currentRow)+'</div></div>';
     }else{
-      dataSection='<div class="audit-data">'+dataHtml(item)+'</div>';
+      dataSection='<div class="audit-data"><h5 class="audit-single-title">修改后绑定</h5>'+dataHtml(item,currentRow)+'</div>';
     }
     document.getElementById('auditBody').innerHTML='<div class="audit-focus-title">'+f.title+typeTag+'</div><div class="audit-focus-desc">'+f.desc+'</div><div class="audit-data-block"><div class="audit-info-grid"><div class="audit-info-cell"><div class="i-lbl">申请ID</div><div class="i-val mono">'+item.id+'</div></div><div class="audit-info-cell"><div class="i-lbl">申请人</div><div class="i-val">'+item.applicant+'</div></div><div class="audit-info-cell"><div class="i-lbl">申请时间</div><div class="i-val">'+item.time+'</div></div></div>'+dataSection+'</div>';
   }
@@ -1020,7 +1082,8 @@ body{
     currentApplication=item;
     const cells=currentRow.querySelectorAll('td');
     const activeData=cells[2];
-    activeData.innerHTML='<div class="scheme-block"><div class="row"><span class="lbl">小游戏方案：</span><span class="lnk">'+item.data+'</span><span class="compl c-ok">合规</span></div><div class="effect"><div class="effect-row"><span class="lbl">生效时间(起)：</span><span>'+item.start+'</span></div><div class="effect-row"><span class="lbl">生效时间(止)：</span><span>'+item.end+'</span></div></div></div>';
+    const bindings=modifiedBindings(item,currentRow);
+    activeData.innerHTML=schemeBlockHtml(bindings);
     const pill=currentRow.querySelector('.status-pill');pill.className='status-pill s-active';pill.textContent='生效中';
     const now=new Date();const ts=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
     const approverCell=cells[5];approverCell.innerHTML='<div class="cell-time"><div class="time">'+ts+'</div><div class="by">'+item.applicant+'</div></div>';
