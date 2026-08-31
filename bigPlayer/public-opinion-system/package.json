@@ -1,0 +1,15 @@
+{
+  "name": "public-opinion-system",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["server", "worker"],
+  "scripts": {
+    "start:server": "npm --workspace server start",
+    "start:worker": "npm --workspace worker start",
+    "start:daily": "npm --workspace worker run start:daily",
+    "preflight:daily": "npm --workspace worker run preflight:daily",
+    "migrate": "npm --workspace server run migrate",
+    "test": "npm --workspace server test && npm --workspace worker test"
+  },
+  "engines": {"node": ">=20"}
+}

@@ -1,0 +1,1 @@
+ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS media JSON NULL AFTER body;
