@@ -50,4 +50,5 @@
 - SSRF：env 白名单是唯一可信边界，页面填入的 baseUrl 必须过 `hostAllowed`；localhost/内网非白名单一律拒绝。
 - 凭据：仅以 AES-256-GCM 密文落 `po_credentials.secret_cipher`，永不回显/记录明文；`CREDENTIAL_ENC_KEY` 缺失 fail-closed。
 - 未授权源 fail-closed，不伪造采集数据。
+- 2026-09-01：正式运行 `.env` 的 `BIGPLAYER_H5_ALLOWED_HOSTS` 已上线 `club.q1.com,club-en.q1.com`，保留原国内域名并纳入境外固定社区地址白名单；未改业务代码。
 - 软删除保留历史数据，零迁移（复用现有 `config` JSON 列）。
