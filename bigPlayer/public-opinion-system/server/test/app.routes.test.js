@@ -15,7 +15,10 @@ process.env.LOGIN_SESSION_INTERNAL_TOKEN = 'test-login-session-internal-token';
 
 const { Repository } = require('../src/db/repository');
 
-let server; let base; let repo; let gameId; let sourceId;
+  const mockLoginSession = {
+    async bindAccount() { return { bound: true }; },
+    async startLogin() { return { status: 'pending', sessionRef: 'test-session-ref' }; }
+  };
 async function api(path, options = {}) {
   const response = await fetch(`${base}${path}`, { headers: { 'content-type': 'application/json' }, ...options });
   return { status: response.status, body: await response.json() };
@@ -33,7 +36,10 @@ test.before(async () => {
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
   await repo.query('ALTER TABLE po_alerts ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
   await repo.query('ALTER TABLE po_keyword_rules ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
-  await repo.query('INSERT IGNORE INTO po_communities (id, game_id, name) VALUES (?,?,?)', ['c-test-1', 'g-test-1', '测试社区']);
+  await repo.query('ALTER TABLE po_communities ADD COLUMN IF NOT EXISTS external_id VARCHAR(32) NULL');
+  await repo.query('ALTER TABLE po_communities ADD COLUMN IF NOT EXISTS managed_by VARCHAR(80) NULL');
+  await repo.query('ALTER TABLE po_games ADD COLUMN IF NOT EXISTS external_id VARCHAR(32) NULL');
+  await repo.query('ALTER TABLE po_communities ADD COLUMN IF NOT EXISTS region_code VARCHAR(20) NULL');
 
   // 历史测试库可能残留旧结构（无 config/source_type 列）；幂等补列，保证软删除/新增读写可用。
   await repo.query('ALTER TABLE po_sources ADD COLUMN IF NOT EXISTS config TEXT NULL');
@@ -130,6 +136,9 @@ test.before(async () => {
   await repo.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_cipher, status) VALUES (?,?,?,?,?,?)', ['cr-test-1', 'a-test-1', sourceId, 'api_token', cipher, 'active']);
 
   const mod = require('../src/app');
+  mod.loginSessionClient.configured = () => true;
+  mod.loginSessionClient.bindAccount = async () => ({ bound: true });
+  mod.loginSessionClient.startLogin = async () => ({ status: 'pending', sessionRef: 'test-session-ref' });
   mod.communityDirectory.refresh = async () => [];
   server = mod.server.listen(0);
   await once(server, 'listening');
@@ -178,6 +187,72 @@ test('GET /overview 接受 period 时间视图并拒绝非法参数', async () =
   assert.equal(conflict.status, 400);
   const reversed = await api('/overview?from=2026-08-08T00:00:00.000Z&to=2026-08-01T00:00:00.000Z');
   assert.equal(reversed.status, 400);
+});
+
+test('GET /contents/:id 保留内容树翻译字段并为评论映射翻译对象', async () => {
+  const mod = require('../src/app');
+  const originalGetContentTree = mod.repo.getContentTree;
+  const originalListContents = mod.repo.listContents;
+  const root = {
+    id: 'translation-detail-root',
+    game_id: 'g-overseas-test',
+    source_id: 's-overseas-test',
+    content_type: 'post',
+    region_code: 'overseas',
+    translation_target_language: 'zh-CN',
+    translation_status: 'completed',
+    translated_title: '详情树译文标题',
+    translated_body: '详情树译文正文',
+    translation_source_language: 'en',
+    translation_version: 'translation-v1',
+    translated_at: '2026-09-09T08:00:00.000Z',
+    translation_error_code: null
+  };
+  const comment = {
+    id: 'translation-detail-comment',
+    root_content_id: root.id,
+    parent_content_id: root.id,
+    content_type: 'comment',
+    region_code: 'overseas',
+    translation_status: 'failed',
+    translated_title: null,
+    translated_body: null,
+    translation_error_code: 'TRANSLATION_PROVIDER_ERROR'
+  };
+
+  try {
+    mod.repo.getContentTree = async () => [root, comment];
+    // listContents 是分析视图；其中的过期翻译列不得覆盖 getContentTree 的当前值。
+    mod.repo.listContents = async () => [{
+      ...root,
+      analysis_status: 'completed',
+      summary: '分析摘要',
+      translation_status: 'not_requested',
+      translated_title: null,
+      translated_body: null,
+      translation_source_language: null
+    }];
+
+    const result = await api(`/contents/${root.id}`);
+    assert.equal(result.status, 200);
+    assert.equal(result.body.data.content.summary, '分析摘要');
+    assert.deepEqual(result.body.data.content.translation, {
+      targetLanguage: 'zh-CN',
+      status: 'completed',
+      title: '详情树译文标题',
+      body: '详情树译文正文',
+      sourceLanguage: 'en',
+      version: 'translation-v1',
+      translatedAt: '2026-09-09T08:00:00.000Z',
+      errorCode: null
+    });
+    assert.equal(result.body.data.comments.length, 1);
+    assert.equal(result.body.data.comments[0].translation.status, 'failed');
+    assert.equal(result.body.data.comments[0].translation.errorCode, 'TRANSLATION_PROVIDER_ERROR');
+  } finally {
+    mod.repo.getContentTree = originalGetContentTree;
+    mod.repo.listContents = originalListContents;
+  }
 });
 
 test('GET /alerts/:id 返回帖子和评论的完整原文，PATCH 保持处置能力', async () => {
@@ -259,7 +334,7 @@ test('quality contents support scoped listing, detail, and independent review', 
   const candidateId = 'quality-test-candidate';
   await repo.query('DELETE FROM po_quality_candidates WHERE id=?', [candidateId]);
   await repo.query('DELETE FROM po_contents WHERE id=?', [contentId]);
-  await repo.query('INSERT INTO po_contents (id, game_id, community_id, source_id, external_id, content_type, author_name, title, body, published_at, source_url, fingerprint) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', [contentId, gameId, 'c-test-1', sourceId, 'quality-external', 'post', '优质作者', '优质候选标题', '完整优质内容', '2026-08-20 09:00:00', 'https://community.bigplayer.com/post/quality', 'a'.repeat(64)]);
+  await repo.query('INSERT INTO po_contents (id, game_id, community_id, source_id, external_id, content_type, author_name, title, body, published_at, source_url, fingerprint) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', [contentId, gameId, 'c-test-1', sourceId, 'quality-external', 'post', '优质作者', '优质候选标题', '这是一段足够长、结构完整、包含明确问题背景、影响范围、复现步骤和解决建议的优质社区内容，用于验证优质内容接口的真实筛选条件。', '2026-08-20 09:00:00', 'https://community.bigplayer.com/post/quality', 'a'.repeat(64)]);
   await repo.query('INSERT INTO po_quality_candidates (id, content_id, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, analysis_version, model_name, content_fingerprint) VALUES (?,?,?,?,?,?,?,?,?,?)', [candidateId, contentId, 0.95, 1, 1, 1, '兼具公共价值与栏目参考价值', 'deep-v2', 'quality-model', 'a'.repeat(64)]);
 
   const list = await api(`/quality-contents?regionCode=domestic&gameId=${gameId}&communityId=c-test-1&sourceId=${sourceId}&recommendationType=home&reviewStatus=pending&page=1&pageSize=20`);
@@ -270,14 +345,14 @@ test('quality contents support scoped listing, detail, and independent review', 
 
   const detail = await api(`/quality-contents/${candidateId}?gameId=${gameId}&communityId=c-test-1`);
   assert.equal(detail.status, 200);
-  assert.equal(detail.body.data.body, '完整优质内容');
+  assert.equal(detail.body.data.body, '这是一段足够长、结构完整、包含明确问题背景、影响范围、复现步骤和解决建议的优质社区内容，用于验证优质内容接口的真实筛选条件。');
   const outsideScope = await api(`/quality-contents/${candidateId}?communityId=other-community`);
   assert.equal(outsideScope.status, 404);
 
   const accepted = await api(`/quality-contents/${candidateId}?gameId=${gameId}&communityId=c-test-1`, { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-admin-user': 'reviewer-1' }, body: JSON.stringify({ homeReviewStatus: 'accepted', reviewNote: '采纳首页推荐' }) });
   assert.equal(accepted.status, 200);
   assert.equal(accepted.body.data.home_review_status, 'accepted');
-  assert.equal(accepted.body.data.home_adopted, 1);
+  assert.equal(accepted.body.data.home_adopted, true);
   assert.equal(accepted.body.data.pin_review_status, 'pending');
   assert.equal(accepted.body.data.feature_review_status, 'pending');
   assert.equal(accepted.body.data.reviewer_id, 'reviewer-1');
@@ -292,6 +367,75 @@ test('quality contents support scoped listing, detail, and independent review', 
     const invalid = body == null ? await api(path) : await api(path, { method: 'PATCH', body: JSON.stringify(body) });
     assert.equal(invalid.status, 400);
     assert.equal(invalid.body.error.code, 'INVALID_INPUT');
+  }
+});
+
+test('independent review API normalizes booleans and exposes alert candidates fail-closed', async () => {
+  const contentId = 'quality-test-contract-content';
+  const emptyContentId = 'alert-detail-review-empty-content';
+  const candidateId = 'quality-test-contract-candidate';
+  const alertId = 'alert-detail-review-contract';
+  const emptyAlertId = 'alert-detail-review-empty';
+  const longBody = '这是一段用于验证独立审核接口合同的完整正文，必须足够长以通过优质内容候选的服务端筛选条件，并确保测试只验证返回结构。';
+
+  try {
+    await repo.query('INSERT INTO po_contents (id, game_id, community_id, source_id, external_id, content_type, author_name, title, body, published_at, fingerprint) VALUES (?,?,?,?,?,?,?,?,?,?,?), (?,?,?,?,?,?,?,?,?,?,?)', [
+      contentId, gameId, 'c-test-1', sourceId, 'quality-contract-external', 'post', '合同作者', '合同候选', longBody, '2026-09-10 09:00:00', 'b'.repeat(64),
+      emptyContentId, gameId, 'c-test-1', sourceId, 'quality-contract-empty', 'post', '空态作者', '无候选告警', longBody, '2026-09-10 09:05:00', 'c'.repeat(64)
+    ]);
+    await repo.query('INSERT INTO po_quality_candidates (id, content_id, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, analysis_version, model_name, content_fingerprint, home_review_status, pin_review_status, feature_review_status, home_adopted, pin_adopted, feature_adopted) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [candidateId, contentId, 0.95, 1, 0, 1, '合同测试推荐理由', 'deep-v2', 'quality-model', 'b'.repeat(64), 'accepted', 'rejected', 'pending', 1, 0, 0]);
+    await repo.query('INSERT INTO po_alerts (id, game_id, community_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?,?), (?,?,?,?,?,?,?)', [
+      alertId, gameId, 'c-test-1', 'urgent', 'ai_urgent', '有独立审核候选', '合同测试',
+      emptyAlertId, gameId, 'c-test-1', 'attention', 'aggregate', '无独立审核候选', '合同测试'
+    ]);
+    await repo.query('INSERT INTO po_alert_contents (alert_id, content_id) VALUES (?,?), (?,?)', [alertId, contentId, emptyAlertId, emptyContentId]);
+
+    const list = await api(`/quality-contents?gameId=${gameId}&communityId=c-test-1&page=1&pageSize=20`);
+    assert.equal(list.status, 200);
+    const listed = list.body.data.find(item => item.id === candidateId);
+    assert.ok(listed);
+    for (const key of ['recommend_home', 'recommend_pin', 'recommend_feature', 'home_adopted', 'pin_adopted', 'feature_adopted', 'canReview']) assert.equal(typeof listed[key], 'boolean', key);
+    assert.deepEqual([listed.recommend_home, listed.recommend_pin, listed.recommend_feature], [true, false, true]);
+    assert.equal(listed.canReview, true);
+
+    const detail = await api(`/quality-contents/${candidateId}?gameId=${gameId}&communityId=c-test-1`);
+    assert.equal(detail.status, 200);
+    assert.deepEqual([detail.body.data.recommend_home, detail.body.data.recommend_pin, detail.body.data.recommend_feature], [true, false, true]);
+    assert.equal(detail.body.data.canReview, true);
+
+    const patched = await api(`/quality-contents/${candidateId}?gameId=${gameId}&communityId=c-test-1`, { method: 'PATCH', body: JSON.stringify({ featureReviewStatus: 'accepted' }) });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.body.data.feature_review_status, 'accepted');
+    assert.equal(patched.body.data.feature_adopted, true);
+    assert.equal(typeof patched.body.data.recommend_feature, 'boolean');
+    assert.equal(patched.body.data.canReview, true);
+
+    const alerts = await api(`/alerts?gameId=${gameId}&communityId=c-test-1&page=1&pageSize=100`);
+    assert.equal(alerts.status, 200);
+    const listedAlert = alerts.body.data.find(item => item.id === alertId);
+    const listedEmpty = alerts.body.data.find(item => item.id === emptyAlertId);
+    assert.ok(listedAlert);
+    assert.ok(listedEmpty);
+    assert.equal(listedAlert.independent_reviews.length, 1);
+    assert.deepEqual(listedEmpty.independent_reviews, []);
+    const review = listedAlert.independent_reviews[0];
+    assert.equal(review.candidateId, candidateId);
+    assert.equal(review.contentId, contentId);
+    assert.equal(review.canReview, true);
+    for (const key of ['recommend_home', 'recommend_pin', 'recommend_feature', 'home_adopted', 'pin_adopted', 'feature_adopted']) assert.equal(typeof review[key], 'boolean', key);
+    assert.deepEqual([review.recommend_home, review.recommend_pin, review.recommend_feature], [true, false, true]);
+
+    const alertDetail = await api(`/alerts/${alertId}?gameId=${gameId}&communityId=c-test-1`);
+    const emptyAlertDetail = await api(`/alerts/${emptyAlertId}?gameId=${gameId}&communityId=c-test-1`);
+    assert.equal(alertDetail.status, 200);
+    assert.equal(alertDetail.body.data.independent_reviews[0].candidateId, candidateId);
+    assert.equal(alertDetail.body.data.independent_reviews[0].canReview, true);
+    assert.deepEqual(emptyAlertDetail.body.data.independent_reviews, []);
+  } finally {
+    await repo.query('DELETE FROM po_alert_contents WHERE alert_id IN (?,?)', [alertId, emptyAlertId]);
+    await repo.query('DELETE FROM po_quality_candidates WHERE id=?', [candidateId]);
+    await repo.query('DELETE FROM po_alerts WHERE id IN (?,?)', [alertId, emptyAlertId]);
+    await repo.query('DELETE FROM po_contents WHERE id IN (?,?)', [contentId, emptyContentId]);
   }
 });
 
@@ -322,9 +466,12 @@ test('sync status hides historical replies checkpoints', async () => {
 
 test('PATCH /sources/:id 更新采集频率 preserves historical reply config but does not expose it', async () => {
   const before = (await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config;
-  const res = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds: 600 }) });
+  const res = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds: 900 }) });
   assert.equal(res.status, 200);
-  assert.equal(res.body.data.frequency_seconds, 600);
+  assert.equal(res.body.data.frequency_seconds, 900);
+  const belowFloor = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds: 600 }) });
+  assert.equal(belowFloor.status, 400);
+  assert.equal(belowFloor.body.error.code, 'INVALID_INPUT');
   const responseConfig = typeof res.body.data.config === 'string' ? JSON.parse(res.body.data.config) : res.body.data.config;
   assert.equal(responseConfig.repliesApiUrl, undefined);
   const after = (await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config;
@@ -677,7 +824,10 @@ test('GET /sync-runs lists safely with strict pagination validation', async () =
     const list = await api(`/sync-runs?page=1&pageSize=20&runId=${runId}`);
     assert.equal(list.status, 200); assert.equal(list.body.data[0].id, runId); assert.equal(list.body.meta.total, 1);
     assert.equal(JSON.stringify(list.body).includes('secret_cipher'), false); assert.equal(JSON.stringify(list.body).includes('raw_payload'), false);
-    for (const query of ['page=0', 'page=1.5', 'pageSize=101', 'mode=unknown', 'limit=20']) { const invalid = await api(`/sync-runs?${query}`); assert.equal(invalid.status, 400, query); assert.equal(invalid.body.error.code, 'INVALID_INPUT'); }
+    for (const query of ['page=0', 'page=1.5', 'pageSize=101', 'mode=unknown', 'limit=101']) { const invalid = await api(`/sync-runs?${query}`); assert.equal(invalid.status, 400, query); assert.equal(invalid.body.error.code, 'INVALID_INPUT'); }
+    // limit 是 pageSize 的别名：合法值应返回 200 且生效
+    const alias = await api(`/sync-runs?limit=1&runId=${runId}`);
+    assert.equal(alias.status, 200); assert.equal(alias.body.meta.pageSize, 1);
   } finally { await repo.query('DELETE FROM po_sync_runs WHERE id=?', [runId]); }
 });
 
@@ -762,14 +912,57 @@ test('POST /sources 创建抖音源并原子生成待验证默认账号与加密
   assert.equal(accounts.length, 1);
 });
 
+test('POST /sources Discord 缺少加密密钥时返回明确 503 且不写入，配置测试密钥后可创建', async () => {
+  const originalKey = process.env.CREDENTIAL_ENC_KEY;
+  const displayName = 'Discord 配置回归源';
+  const token = 'discord-test-token-never-sent';
+  const payload = {
+    gameId,
+    communityId: 'c-test-1',
+    platform: 'discord',
+    displayName,
+    frequencySeconds: 1800,
+    guildId: '123456789012345678',
+    channelIds: ['223456789012345678'],
+    apiToken: token
+  };
+
+  try {
+    delete process.env.CREDENTIAL_ENC_KEY;
+    const missing = await api('/sources', { method: 'POST', body: JSON.stringify(payload) });
+    assert.equal(missing.status, 503);
+    assert.equal(missing.body.error.code, 'CREDENTIAL_ENC_KEY_MISSING');
+    assert.match(missing.body.error.message, /CREDENTIAL_ENC_KEY/);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_sources WHERE game_id=? AND platform=? AND display_name=?', [gameId, 'discord', displayName]))[0].total, 0);
+
+    process.env.CREDENTIAL_ENC_KEY = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    const configured = await api('/sources', { method: 'POST', body: JSON.stringify(payload) });
+    assert.equal(configured.status, 201);
+    assert.equal(configured.body.data.platform, 'discord');
+    assert.equal(JSON.stringify(configured.body).includes(token), false);
+    const credentials = await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', [configured.body.data.account.id, 'api_token']);
+    assert.equal(credentials.length, 1);
+    assert.equal(credentials[0].secret_cipher.includes(token), false);
+  } finally {
+    if (originalKey == null) delete process.env.CREDENTIAL_ENC_KEY;
+    else process.env.CREDENTIAL_ENC_KEY = originalKey;
+    const sources = await repo.query('SELECT id FROM po_sources WHERE game_id=? AND platform=? AND display_name=?', [gameId, 'discord', displayName]);
+    for (const source of sources) {
+      await repo.query('DELETE FROM po_credentials WHERE source_id=?', [source.id]);
+      await repo.query('DELETE FROM po_accounts WHERE source_id=?', [source.id]);
+      await repo.query('DELETE FROM po_sources WHERE id=?', [source.id]);
+    }
+  }
+});
+
 test('POST /sources 拒绝不存在游戏、未知平台、非法频率和缺失回溯起点', async () => {
   const missingGame = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId: 'missing', communityId: 'c-test-1', platform: 'douyin', displayName: 'x' }) });
   assert.equal(missingGame.status, 400); assert.equal(missingGame.body.error.code, 'GAME_NOT_FOUND');
-  const badPlatform = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'unknown', displayName: 'x' }) });
+  const badPlatform = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'unknown', displayName: '唯一非法平台测试源' }) });
   assert.equal(badPlatform.status, 400); assert.equal(badPlatform.body.error.code, 'INVALID_PLATFORM');
-  const badFrequency = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'douyin', displayName: 'x', frequencySeconds: 0 }) });
+  const badFrequency = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'douyin', displayName: '唯一非法频率测试源', frequencySeconds: 0 }) });
   assert.equal(badFrequency.status, 400);
-  const noHistory = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'douyin', displayName: 'x', syncMode: 'backfill' }) });
+  const noHistory = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'douyin', displayName: '唯一缺回溯起点测试源', syncMode: 'backfill' }) });
   assert.equal(noHistory.status, 400);
 });
 
@@ -814,10 +1007,18 @@ test('POST /sources 接管未配置 legacy H5 源并复用 source/account ID', a
 });
 
 test('POST /sources 普通重复源返回 typed 409 而不暴露 SQL', async () => {
-  const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '测试源', baseUrl: 'https://community.bigplayer.com/', apiToken: 'duplicate-token' }) });
-  assert.equal(res.status, 409);
-  assert.equal(res.body.error.code, 'SOURCE_ALREADY_EXISTS');
-  assert.doesNotMatch(res.body.error.message, /Duplicate entry|po_sources_/i);
+  const duplicateId = 's-duplicate-route-test';
+  const displayName = '唯一重复源测试';
+  await repo.query('DELETE FROM po_sources WHERE id=?', [duplicateId]);
+  await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status) VALUES (?,?,?,?,?,?,?)', [duplicateId, gameId, 'c-test-1', 'bigplayer_h5', displayName, 0, 'unconfigured']);
+  try {
+    const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName, baseUrl: 'https://community.bigplayer.com/', apiToken: 'duplicate-token' }) });
+    assert.equal(res.status, 409);
+    assert.equal(res.body.error.code, 'SOURCE_ALREADY_EXISTS');
+    assert.doesNotMatch(res.body.error.message, /Duplicate entry|po_sources_/i);
+  } finally {
+    await repo.query('DELETE FROM po_sources WHERE id=?', [duplicateId]);
+  }
 });
 
 test('POST /sources 单地址模式缺 Token 返回 400', async () => {
@@ -853,6 +1054,234 @@ test('PATCH /sources/:id 更新 baseUrl 走白名单校验（非白名单 400，
   const cfg = typeof ok.body.data.config === 'string' ? JSON.parse(ok.body.data.config) : ok.body.data.config;
   assert.equal(cfg.baseUrl, 'https://community.bigplayer.com/hub');
   assert.deepEqual(cfg.startPaths, ['/a', '/b']);
+});
+
+test('Facebook 来源无需来源 Token 即可停用落库，检测端点返回六项稳定失败详情', async () => {
+  const facebookGameId = '00000000-0000-0000-0000-000000000002';
+  const facebookCommunityId = '00000000-0000-0000-0000-000000000102';
+  const displayName = 'Facebook 无来源 Token 回归源';
+  const app = require('../src/app');
+  const connector = app.connectors.facebook;
+  const originalInstallationHealth = connector.installationHealth;
+  const originalAccountHealth = connector.accountHealth;
+  let createdSourceId = null;
+  try {
+    await repo.query('DELETE FROM po_credentials WHERE source_id IN (SELECT id FROM po_sources WHERE game_id=?)', [facebookGameId]);
+    await repo.query('DELETE FROM po_source_capabilities WHERE source_id IN (SELECT id FROM po_sources WHERE game_id=?)', [facebookGameId]);
+    await repo.query('DELETE FROM po_accounts WHERE game_id=?', [facebookGameId]);
+    await repo.query('DELETE FROM po_sources WHERE game_id=?', [facebookGameId]);
+    await repo.query('DELETE FROM po_communities WHERE id=?', [facebookCommunityId]);
+    await repo.query('DELETE FROM po_games WHERE id=?', [facebookGameId]);
+    await repo.query('INSERT INTO po_games (id,name,region_code) VALUES (?,?,?)', [facebookGameId, 'Last Night', 'overseas']);
+    await repo.query('INSERT INTO po_communities (id,game_id,name,status,region_code) VALUES (?,?,?,?,?)', [facebookCommunityId, facebookGameId, 'Last Night 海外社区', 'enabled', 'overseas']);
+    connector.installationHealth = async () => ({
+      platform: 'facebook',
+      installed: false,
+      configured: false,
+      reason: 'disabled by configuration',
+      systemCredentialStatus: 'not_configured'
+    });
+    connector.accountHealth = async () => ({
+      platform: 'facebook',
+      installed: false,
+      configured: false,
+      authorized: false,
+      reason: 'disabled by configuration',
+      systemCredentialStatus: 'not_configured'
+    });
+
+    const created = await api('/sources', { method: 'POST', body: JSON.stringify({
+      gameId: facebookGameId,
+      communityId: facebookCommunityId,
+      regionCode: 'overseas',
+      platform: 'facebook',
+      displayName,
+      baseUrl: 'https://www.facebook.com/LastLightSurvival',
+      frequencySeconds: 3600,
+      syncMode: 'incremental'
+    }) });
+    assert.equal(created.status, 201);
+    createdSourceId = created.body.data.id;
+    assert.equal(Number(created.body.data.enabled), 0);
+    assert.equal(created.body.data.systemCredentialStatus, 'not_configured');
+    assert.deepEqual(Object.keys(created.body.data.capabilities).sort(), ['comments', 'moderate', 'page', 'pageManagement', 'posts', 'replies'].sort());
+    for (const detail of Object.values(created.body.data.capabilities)) {
+      assert.equal(detail.status, 'unavailable');
+      assert.equal(detail.errorCode, 'FACEBOOK_SYSTEM_CREDENTIAL_NOT_CONFIGURED');
+    }
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_sources WHERE id=? AND enabled=0', [createdSourceId]))[0].total, 1);
+    assert.equal((await repo.query("SELECT COUNT(*) AS total FROM po_accounts WHERE source_id=? AND enabled=0 AND auth_status='unauthorized'", [createdSourceId]))[0].total, 1);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_credentials WHERE source_id=?', [createdSourceId]))[0].total, 0);
+
+    for (const endpoint of ['check-auth', 'check-capabilities']) {
+      const checked = await api(`/sources/${createdSourceId}/${endpoint}`, { method: 'POST', body: '{}' });
+      assert.equal(checked.status, 200, endpoint);
+      assert.equal(checked.body.data.authorized ?? checked.body.data.authStatus === 'authorized', false, endpoint);
+      assert.equal(checked.body.data.reason, 'FACEBOOK_SYSTEM_CREDENTIAL_NOT_CONFIGURED', endpoint);
+      assert.equal(checked.body.data.errorCode, 'FACEBOOK_SYSTEM_CREDENTIAL_NOT_CONFIGURED', endpoint);
+      assert.equal(checked.body.data.systemCredentialStatus, 'not_configured', endpoint);
+      assert.equal(Object.hasOwn(checked.body.data, 'tokenStatus'), false, endpoint);
+      assert.equal(Object.hasOwn(checked.body.data, 'expireAt'), false, endpoint);
+      for (const detail of Object.values(checked.body.data.capabilities)) {
+        assert.equal(detail.status, 'unavailable', endpoint);
+        assert.equal(detail.errorCode, 'FACEBOOK_SYSTEM_CREDENTIAL_NOT_CONFIGURED', endpoint);
+      }
+    }
+
+    connector.installationHealth = async () => ({
+      platform: 'facebook',
+      installed: true,
+      configured: true,
+      reason: null,
+      systemCredentialStatus: 'configured'
+    });
+    connector.accountHealth = async () => ({
+      platform: 'facebook',
+      installed: true,
+      configured: false,
+      authorized: false,
+      reason: 'FACEBOOK_PAGE_MANAGEMENT_REQUIRED',
+      errorCode: 'FACEBOOK_PAGE_MANAGEMENT_REQUIRED',
+      systemCredentialStatus: 'configured',
+      capabilities: {
+        page: { status: 'available', pageId: 'page-1', pageName: 'Last Light' },
+        pageManagement: { status: 'unavailable', errorCode: 'FACEBOOK_PAGE_MANAGEMENT_REQUIRED' },
+        moderate: { status: 'unavailable', errorCode: 'FACEBOOK_MODERATE_CAPABILITY_REQUIRED' },
+        posts: { status: 'untested' },
+        comments: { status: 'untested' },
+        replies: { status: 'untested' }
+      }
+    });
+    const managementBlocked = await api(`/sources/${createdSourceId}/check-capabilities`, { method: 'POST', body: '{}' });
+    assert.equal(managementBlocked.status, 200);
+    assert.equal(managementBlocked.body.data.reason, 'FACEBOOK_PAGE_MANAGEMENT_REQUIRED');
+    assert.equal(managementBlocked.body.data.capabilities.page.status, 'authorized_scope');
+    assert.equal(managementBlocked.body.data.capabilities.pageManagement.errorCode, 'FACEBOOK_PAGE_MANAGEMENT_REQUIRED');
+    assert.equal(managementBlocked.body.data.capabilities.moderate.errorCode, 'FACEBOOK_MODERATE_CAPABILITY_REQUIRED');
+    for (const scope of ['posts', 'comments', 'replies']) {
+      assert.equal(managementBlocked.body.data.capabilities[scope].status, 'unavailable', scope);
+      assert.equal(managementBlocked.body.data.capabilities[scope].errorCode, 'FACEBOOK_CAPABILITY_MISSING', scope);
+    }
+
+    const account = (await repo.query('SELECT id FROM po_accounts WHERE source_id=?', [createdSourceId]))[0];
+    const sourceCredential = await api(`/sources/${createdSourceId}/credential`, { method: 'PUT', body: JSON.stringify({ credentialType: 'api_token', secret: 'must-not-save' }) });
+    const accountCredential = await api(`/accounts/${account.id}/credential`, { method: 'PUT', body: JSON.stringify({ credentialType: 'api_token', secret: 'must-not-save' }) });
+    assert.equal(sourceCredential.status, 400);
+    assert.equal(accountCredential.status, 400);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_credentials WHERE source_id=?', [createdSourceId]))[0].total, 0);
+
+    connector.accountHealth = async () => ({
+      platform: 'facebook', installed: true, configured: true, authorized: true,
+      reason: null, errorCode: null, systemCredentialStatus: 'configured',
+      capabilities: Object.fromEntries(['page', 'pageManagement', 'moderate', 'posts', 'comments', 'replies'].map(scope => [scope, { status: 'available', ...(scope === 'page' ? { pageId: 'page-1', pageName: 'Last Light' } : {}) }]))
+    });
+    const authorized = await api(`/sources/${createdSourceId}/check-auth`, { method: 'POST', body: '{}' });
+    assert.equal(authorized.status, 200);
+    assert.equal(authorized.body.data.authStatus, 'authorized');
+    assert.equal((await repo.query('SELECT enabled FROM po_accounts WHERE id=?', [account.id]))[0].enabled, 1);
+    const enabled = await api(`/sources/${createdSourceId}`, { method: 'PATCH', body: JSON.stringify({ enabled: true }) });
+    assert.equal(enabled.status, 200);
+    assert.equal(Number(enabled.body.data.enabled), 1);
+  } finally {
+    connector.installationHealth = originalInstallationHealth;
+    connector.accountHealth = originalAccountHealth;
+    if (createdSourceId) {
+      await repo.query('DELETE FROM po_source_capabilities WHERE source_id=?', [createdSourceId]);
+      await repo.query('DELETE FROM po_credentials WHERE source_id=?', [createdSourceId]);
+      await repo.query('DELETE FROM po_accounts WHERE source_id=?', [createdSourceId]);
+      await repo.query('DELETE FROM po_sources WHERE id=?', [createdSourceId]);
+    }
+    await repo.query('DELETE FROM po_communities WHERE id=?', [facebookCommunityId]);
+    await repo.query('DELETE FROM po_games WHERE id=?', [facebookGameId]);
+  }
+});
+
+test('Facebook baseUrl 变化原子失效旧目标状态，规范化未变化时不误清', async () => {
+  const facebookGameId = '00000000-0000-0000-0000-000000000002';
+  const facebookCommunityId = '00000000-0000-0000-0000-000000000102';
+  const facebookSourceId = 'facebook-target-change-source';
+  const facebookAccountId = 'facebook-target-change-account';
+  const facebookRunId = 'facebook-target-change-run';
+  await repo.query(`CREATE TABLE IF NOT EXISTS po_source_schedule_state (
+    source_id VARCHAR(64) PRIMARY KEY, schedule_version BIGINT NOT NULL DEFAULT 1, effective_at DATETIME NOT NULL,
+    last_scheduled_at DATETIME NULL, next_scheduled_at DATETIME NULL, last_scan_at DATETIME NULL,
+    lease_run_id VARCHAR(64) NULL, lease_owner VARCHAR(160) NULL, lease_epoch BIGINT NOT NULL DEFAULT 0,
+    lease_until DATETIME NULL, last_status VARCHAR(30) NULL, last_reason_code VARCHAR(80) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  const cleanup = async () => {
+    await repo.query('DELETE FROM po_sync_checkpoints WHERE account_id=?', [facebookAccountId]);
+    await repo.query('DELETE FROM po_sync_runs WHERE account_id=?', [facebookAccountId]);
+    await repo.query('DELETE FROM po_source_schedule_state WHERE source_id=?', [facebookSourceId]);
+    await repo.query('DELETE FROM po_source_capabilities WHERE source_id=?', [facebookSourceId]);
+    await repo.query('DELETE FROM po_credentials WHERE source_id=?', [facebookSourceId]);
+    await repo.query('DELETE FROM po_accounts WHERE id=?', [facebookAccountId]);
+    await repo.query('DELETE FROM po_sources WHERE id=?', [facebookSourceId]);
+    await repo.query('DELETE FROM po_communities WHERE id=?', [facebookCommunityId]);
+    await repo.query('DELETE FROM po_games WHERE id=?', [facebookGameId]);
+  };
+  await cleanup();
+  try {
+    await repo.query('INSERT INTO po_games (id,name,region_code) VALUES (?,?,?)', [facebookGameId, 'Last Night', 'overseas']);
+    await repo.query('INSERT INTO po_communities (id,game_id,name,status,region_code) VALUES (?,?,?,?,?)', [facebookCommunityId, facebookGameId, 'Last Night 海外社区', 'enabled', 'overseas']);
+    await repo.query('INSERT INTO po_sources (id,game_id,community_id,platform,display_name,enabled,config,auth_status,collect_requested_at) VALUES (?,?,?,?,?,1,?,\'authorized\',NOW())', [facebookSourceId, facebookGameId, facebookCommunityId, 'facebook', 'Facebook 地址变更源', JSON.stringify({ baseUrl: 'https://www.facebook.com/old-page' })]);
+    await repo.query('INSERT INTO po_accounts (id,game_id,community_id,source_id,platform,platform_account_id,account_name,enabled,auth_status,profile_url,last_full_sync_at,last_incremental_sync_at,metadata) VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),NOW(),?)', [facebookAccountId, facebookGameId, facebookCommunityId, facebookSourceId, 'facebook', 'page-123', 'Facebook Page', 1, 'authorized', 'https://www.facebook.com/old-page', '{}']);
+    await repo.query('INSERT INTO po_credentials (id,account_id,source_id,credential_type,secret_cipher,status) VALUES (?,?,?,?,?,?)', ['facebook-target-change-credential', facebookAccountId, facebookSourceId, 'api_token', 'encrypted-token-kept', 'active']);
+    for (const capability of ['page', 'posts', 'comments', 'replies']) await repo.query('INSERT INTO po_source_capabilities (id,source_id,capability,status) VALUES (?,?,?,?)', [`facebook-cap-${capability}`, facebookSourceId, capability, 'authorized_scope']);
+    await repo.query('INSERT INTO po_sync_runs (id,account_id,status,sync_mode,lease_owner,lease_until) VALUES (?,?,\'running\',\'incremental\',?,DATE_ADD(NOW(), INTERVAL 1 HOUR))', [facebookRunId, facebookAccountId, 'old-worker']);
+    await repo.query('INSERT INTO po_sync_checkpoints (id,account_id,sync_scope,root_platform_content_id,status,task_kind,task_key,`cursor`) VALUES (?,?,?,?,?,?,?,?)', ['facebook-target-change-checkpoint', facebookAccountId, 'posts', '', 'running', 'sync', '', 'old-cursor']);
+    await repo.query('INSERT INTO po_source_schedule_state (source_id,schedule_version,effective_at,next_scheduled_at,lease_run_id,lease_owner,lease_epoch,lease_until) VALUES (?,1,NOW(),DATE_ADD(NOW(), INTERVAL 1 HOUR),?,?,1,DATE_ADD(NOW(), INTERVAL 1 HOUR))', [facebookSourceId, facebookRunId, 'scheduler-old']);
+
+    const changed = await api(`/sources/${facebookSourceId}`, { method: 'PATCH', body: JSON.stringify({ baseUrl: 'https://www.facebook.com/new-page' }) });
+    assert.equal(changed.status, 200);
+    const source = (await repo.query('SELECT enabled,auth_status,collect_requested_at,config FROM po_sources WHERE id=?', [facebookSourceId]))[0];
+    const account = (await repo.query('SELECT platform_account_id,profile_url,auth_status,auth_expire_at,last_full_sync_at,last_incremental_sync_at FROM po_accounts WHERE id=?', [facebookAccountId]))[0];
+    const run = (await repo.query('SELECT status,error_code,lease_owner,lease_until FROM po_sync_runs WHERE id=?', [facebookRunId]))[0];
+    const schedule = (await repo.query('SELECT next_scheduled_at,lease_run_id,lease_owner,lease_epoch,last_reason_code FROM po_source_schedule_state WHERE source_id=?', [facebookSourceId]))[0];
+    assert.equal(source.enabled, 0); assert.equal(source.auth_status, 'unconfigured'); assert.equal(source.collect_requested_at, null);
+    assert.equal(JSON.parse(source.config).baseUrl, 'https://www.facebook.com/new-page');
+    assert.equal(account.platform_account_id, `pending:${facebookAccountId}`); assert.equal(account.profile_url, null); assert.equal(account.auth_status, 'unconfigured');
+    assert.equal(account.last_full_sync_at, null); assert.equal(account.last_incremental_sync_at, null);
+    assert.equal(run.status, 'failed'); assert.equal(run.error_code, 'FACEBOOK_TARGET_CHANGED'); assert.equal(run.lease_owner, null);
+    assert.equal(schedule.next_scheduled_at, null); assert.equal(schedule.lease_run_id, null); assert.equal(schedule.lease_owner, null); assert.equal(Number(schedule.lease_epoch), 2); assert.equal(schedule.last_reason_code, 'FACEBOOK_TARGET_CHANGED');
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_source_capabilities WHERE source_id=?', [facebookSourceId]))[0].total, 0);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_sync_checkpoints WHERE account_id=?', [facebookAccountId]))[0].total, 0);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_credentials WHERE account_id=?', [facebookAccountId]))[0].total, 1);
+
+    await repo.query("UPDATE po_sources SET enabled=1, auth_status='authorized' WHERE id=?", [facebookSourceId]);
+    await repo.query("UPDATE po_accounts SET platform_account_id='page-456', auth_status='authorized' WHERE id=?", [facebookAccountId]);
+    await repo.query('INSERT INTO po_source_capabilities (id,source_id,capability,status) VALUES (?,?,?,?)', ['facebook-cap-same-page', facebookSourceId, 'page', 'authorized_scope']);
+    await repo.query('INSERT INTO po_sync_checkpoints (id,account_id,sync_scope,root_platform_content_id,status,task_kind,task_key,`cursor`) VALUES (?,?,?,?,?,?,?,?)', ['facebook-target-same-checkpoint', facebookAccountId, 'posts', '', 'completed', 'sync', '', 'safe-cursor']);
+    const unchanged = await api(`/sources/${facebookSourceId}`, { method: 'PATCH', body: JSON.stringify({ baseUrl: 'https://facebook.com/new-page/?utm_source=admin' }) });
+    assert.equal(unchanged.status, 200);
+    assert.equal((await repo.query('SELECT enabled FROM po_sources WHERE id=?', [facebookSourceId]))[0].enabled, 1);
+    assert.equal((await repo.query('SELECT platform_account_id FROM po_accounts WHERE id=?', [facebookAccountId]))[0].platform_account_id, 'page-456');
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_source_capabilities WHERE source_id=?', [facebookSourceId]))[0].total, 1);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_sync_checkpoints WHERE account_id=?', [facebookAccountId]))[0].total, 1);
+
+    const sourceCredentialRunId = 'facebook-source-credential-run';
+    await repo.query('INSERT INTO po_sync_runs (id,account_id,status,sync_mode,lease_owner,lease_until) VALUES (?,?,\'running\',\'incremental\',?,DATE_ADD(NOW(), INTERVAL 1 HOUR))', [sourceCredentialRunId, facebookAccountId, 'source-credential-worker']);
+    await repo.query('UPDATE po_source_schedule_state SET next_scheduled_at=DATE_ADD(NOW(), INTERVAL 1 HOUR),lease_run_id=?,lease_owner=?,lease_until=DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE source_id=?', [sourceCredentialRunId, 'source-credential-scheduler', facebookSourceId]);
+    const sourceCredential = await api(`/sources/${facebookSourceId}/credential`, { method: 'PUT', body: JSON.stringify({ credentialType: 'api_token', secret: 'replacement-source-token' }) });
+    assert.equal(sourceCredential.status, 400);
+    assert.equal((await repo.query('SELECT enabled FROM po_sources WHERE id=?', [facebookSourceId]))[0].enabled, 1);
+    assert.equal((await repo.query('SELECT status FROM po_sync_runs WHERE id=?', [sourceCredentialRunId]))[0].status, 'running');
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_source_capabilities WHERE source_id=?', [facebookSourceId]))[0].total, 1);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_sync_checkpoints WHERE account_id=?', [facebookAccountId]))[0].total, 1);
+    assert.equal((await repo.query('SELECT platform_account_id FROM po_accounts WHERE id=?', [facebookAccountId]))[0].platform_account_id, 'page-456');
+
+    const accountCredentialRunId = 'facebook-account-credential-run';
+    await repo.query("UPDATE po_sources SET enabled=1, auth_status='authorized' WHERE id=?", [facebookSourceId]);
+    await repo.query("UPDATE po_accounts SET auth_status='authorized' WHERE id=?", [facebookAccountId]);
+    await repo.query("UPDATE po_source_capabilities SET status='authorized_scope' WHERE source_id=? AND capability='page'", [facebookSourceId]);
+    await repo.query('INSERT INTO po_sync_runs (id,account_id,status,sync_mode,lease_owner,lease_until) VALUES (?,?,\'running\',\'incremental\',?,DATE_ADD(NOW(), INTERVAL 1 HOUR))', [accountCredentialRunId, facebookAccountId, 'account-credential-worker']);
+    const accountCredential = await api(`/accounts/${facebookAccountId}/credential`, { method: 'PUT', body: JSON.stringify({ credentialType: 'api_token', secret: 'replacement-account-token' }) });
+    assert.equal(accountCredential.status, 400);
+    assert.equal((await repo.query('SELECT enabled FROM po_sources WHERE id=?', [facebookSourceId]))[0].enabled, 1);
+    assert.equal((await repo.query('SELECT status FROM po_sync_runs WHERE id=?', [accountCredentialRunId]))[0].status, 'running');
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_source_capabilities WHERE source_id=?', [facebookSourceId]))[0].total, 1);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_sync_checkpoints WHERE account_id=?', [facebookAccountId]))[0].total, 1);
+  } finally { await cleanup(); }
 });
 
 test('DELETE /sources/:id 软删除：列表消失但 DB 行仍在（历史数据保留）', async () => {
