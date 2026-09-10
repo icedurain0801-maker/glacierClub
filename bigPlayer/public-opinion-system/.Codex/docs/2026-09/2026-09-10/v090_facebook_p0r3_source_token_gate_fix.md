@@ -47,7 +47,7 @@ Konga 管理页允许管理员仅填写有效 Facebook Page 地址创建停用�
 - Server 全量回归：336/336 PASS。
 - `node --check`：PASS。
 - `git diff --check`：PASS。
-- Server 在确认 running/queued 同步任务均为 0 后重载，当前 PID 21904，`/health` HTTP 200，DB `configured=true/status=ok`。
+- Server 在确认 running/queued 同步任务均为 0 后重载最终代码，当前 PID 23148，`/health` HTTP 200，DB `configured=true/status=ok`。
 - 按项目经理门禁未重启 Worker；PID 46764、启动时间 2026-09-07 20:20:28 保持不变。
 
 ## Konga 真实页面验收
