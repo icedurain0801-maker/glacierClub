@@ -1,6 +1,6 @@
 ---
 date: 2026-09-11
-status: implementation_complete_pending_qa
+status: qa_passed_pending_pm
 scope: bigplayer-post-detail-enrichment
 owner: 开发负责人
 ---
@@ -17,6 +17,7 @@ owner: 开发负责人
 | Repository 防降级 | `5538d3f` | 已有 `detail_enriched` 时拒绝后续 `summary_fallback` 覆盖 body/media/raw_payload；其他安全字段仍可更新；定向 `2/2`、Repository `103/103`、独立审查 PASS |
 | Connector 详情补全 | `f56fe48` | 固定详情 URL 与并发上限 4；保持列表顺序；失败保留摘要并写稳定 `_contentIntegrity`；合并长正文与媒体；空值不降级元数据；窗口时间固定使用列表 `createTime`；raw payload 递归剔除敏感字段；401 刷新复用显式 account/credentialContext；致命取消广播 sibling 并等待收敛 |
 | 精确提交与复核 | `f56fe48` | 以 HEAD 为底移植本需求，排除派单前 v2 cursor、分页预算、offset cap、重复页重试等脏改；干净候选 `connectorSlice 27/27`、`connectors 8/8`、定向 `9/9`，独立审查 PASS；主工作树 Server 全量 `362/362` |
+| 测试负责人盲测 | `f2b0b85` | 详情定向 `10/10`、Server 全量 `362/362`、目标语法与 `git diff --check` 通过；P0/P1/P2 均为 0，结论 PASS |
 
 ## 安全边界
 
@@ -37,5 +38,4 @@ owner: 开发负责人
 
 ## 待完成
 
-- 测试负责人盲测与回归。
-- 测试通过后向项目经理返件。
+- 向项目经理返件，由项目经理决定后续生产准入与发版安排。
