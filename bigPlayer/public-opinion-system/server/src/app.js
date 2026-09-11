@@ -99,6 +99,7 @@ function parseOverviewQuery(url) {
   return query;
 }
 async function readBody(req) { let body = ''; for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body, 'utf8') > Number(process.env.PUBLIC_OPINION_IMPORT_MAX_BODY_BYTES || 5242880)) { const error = new Error('request body is too large'); error.code = 'REQUEST_TOO_LARGE'; throw error; } } return body ? JSON.parse(body) : {}; }
+function isPlainObject(value) { if (!value || typeof value !== 'object' || Array.isArray(value)) return false; const prototype = Object.getPrototypeOf(value); return prototype === Object.prototype || prototype === null; }
 function requireImportToken(req) {
   const expected = String(process.env.PUBLIC_OPINION_IMPORT_TOKEN || '').trim();
   if (!expected) {
@@ -360,7 +361,7 @@ function sanitizeSource(source) {
   for (const key of REPLY_URL_ALIASES) { delete sanitized[key]; delete config[key]; }
   return { ...sanitized, config: typeof source.config === 'string' ? JSON.stringify(config) : config };
 }
-function credentialErrorStatus(code) { return ['CREDENTIAL_NOT_FOUND', 'CREDENTIAL_INACTIVE', 'CREDENTIAL_EXPIRED', 'UNAUTHORIZED'].includes(code) ? 401 : code === 'SOURCE_DISABLED' ? 409 : ['ACCOUNT_NOT_FOUND', 'CAPABILITY_UNSUPPORTED', 'GAME_DISABLED'].includes(code) ? 400 : 500; }
+function credentialErrorStatus(code) { return ['CREDENTIAL_NOT_FOUND', 'CREDENTIAL_INACTIVE', 'CREDENTIAL_EXPIRED', 'CREDENTIAL_SECRET_MISSING', 'UNAUTHORIZED'].includes(code) ? 401 : code === 'SOURCE_DISABLED' ? 409 : ['ACCOUNT_NOT_FOUND', 'CAPABILITY_UNSUPPORTED', 'GAME_DISABLED'].includes(code) ? 400 : 500; }
 async function requireEnabledCommunityForSource(source) {
   if (!source?.community_id || !source?.game_id) { const error = new Error('采集源未关联社区'); error.code = 'COMMUNITY_NOT_FOUND'; error.status = 400; throw error; }
   try { return await communityDirectory.requireEnabled({ communityId: source.community_id, gameId: source.game_id, regionCode: source.region_code }); }
@@ -375,7 +376,7 @@ async function requireEnabledCommunityForSource(source) {
 async function sourceWithAccount(source) {
   if (!source) return null;
   let accounts = []; try { accounts = await repo.listAccounts({ sourceId: source.id }); } catch (error) { if (error.code !== 'ER_NO_SUCH_TABLE') throw error; }
-  const account = accounts[0] || null;
+  const account = (source.default_account_id ? accounts.find(item => String(item.id) === String(source.default_account_id)) : null) || accounts[0] || null;
   const checkpoints = account ? await repo.getSyncStatus({ accountId: account.id }) : [];
   const credentials = account && !isFacebookSource(source) ? await repo.getAccountCredentialSummary(account.id) : [];
   const connector = connectors[source.platform]; let capabilities = {};
@@ -430,8 +431,20 @@ async function sourceWithCredentialState(source) {
   return isWesternSourceRecord(source) || isFacebookSource(source) ? sourceWithAccount(source) : source;
 }
 async function sourceById(id) { return (await repo.listSources()).find(source => source.id === id) || null; }
-async function defaultAccountForSource(source) {
+async function defaultAccountForSource(source, { exactDefault = false } = {}) {
   if (!source) return null;
+  if (exactDefault && Object.hasOwn(source, 'default_account_id')) {
+    if (!source.default_account_id) return null;
+    const account = await repo.getAccount(source.default_account_id);
+    if (!account) return null;
+    if (String(account.source_id) !== String(source.id) || String(account.game_id) !== String(source.game_id)
+      || String(account.platform) !== String(source.platform) || String(account.community_id || '') !== String(source.community_id || '')) {
+      const error = new Error('default account does not belong to source scope');
+      error.code = 'OWNERSHIP_MISMATCH';
+      throw error;
+    }
+    return account;
+  }
   if (isFacebookSource(source)) return (await repo.listAccounts({ sourceId: source.id, gameId: source.game_id, platform: source.platform }))[0] || null;
   return repo.getDefaultAccount({ sourceId: source.id, gameId: source.game_id, platform: source.platform });
 }
@@ -442,11 +455,16 @@ async function connectorAccountHealth(connector, source, account) {
       ? connector.accountHealth({ source, account, credentialContext })
     : connector.accountHealth({ ...source, id: account.id, account_id: account.id });
 }
-async function requireAuthorizedAccount(source) {
+async function requireAuthorizedAccount(source, { exactDefault = false, stableStateErrors = false } = {}) {
   const connector = source && connectors[source.platform];
   if (!connector) { const error = new Error('connector not found'); error.code = 'CAPABILITY_UNSUPPORTED'; throw error; }
-  const account = await defaultAccountForSource(source);
-  if (!account || !account.enabled) { const error = new Error('enabled default account is required'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
+  if (stableStateErrors && source.auth_status !== 'authorized') { const error = new Error('source is not authorized'); error.code = 'SOURCE_UNAUTHORIZED'; throw error; }
+  if (stableStateErrors && source.auth_expire_at && Date.parse(source.auth_expire_at) <= Date.now()) { const error = new Error('source authorization is expired'); error.code = 'SOURCE_AUTH_EXPIRED'; throw error; }
+  const account = await defaultAccountForSource(source, { exactDefault });
+  if (!account) { const error = new Error('default account is required'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
+  if (!account.enabled) { const error = new Error('default account is disabled'); error.code = stableStateErrors ? 'ACCOUNT_DISABLED' : 'ACCOUNT_NOT_FOUND'; throw error; }
+  if (stableStateErrors && account.auth_status !== 'authorized') { const error = new Error('default account is not authorized'); error.code = 'ACCOUNT_UNAUTHORIZED'; throw error; }
+  if (stableStateErrors && account.auth_expire_at && Date.parse(account.auth_expire_at) <= Date.now()) { const error = new Error('default account authorization is expired'); error.code = 'ACCOUNT_AUTH_EXPIRED'; throw error; }
   const health = await connectorAccountHealth(connector, source, account);
   if (isFacebookSource(source)) {
     const readiness = facebookReadinessError(health || {});
@@ -1529,18 +1547,63 @@ async function handler(req, res) {
       return json(res, 200, success({ queued: true, sourceId: id }));
     }
 
-    // Source 级同步控制是默认账号的兼容入口；开始同步会原子启用源并入队，避免停用源的任务被 Worker 丢弃。
+    // Source 级同步控制入口。直接 POST /sync 仅请求 Repository
+    // 为路径指定的 source 精确创建 manual run；不自动启用源，也不接受账号/范围替换。
     if (req.method === 'POST' && resource === 'sources' && id && path[2] === 'sync') {
-      const source = await sourceById(id); if (!source) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
-      assertWesternSourceRecord(source);
-      rejectPhaseAction(await sourceWithCredentialState(source));
-      const account = await defaultAccountForSource(source); if (!account) return json(res, 400, errorPayload('ACCOUNT_NOT_FOUND', '默认账号未配置'));
       const action = path[3];
       const body = (action === 'reset' || !action) ? await readBody(req) : {};
-      if (!action || action === 'resume' || action === 'reset') { await requireEnabledCommunityForSource(source); await requireAuthorizedAccount(source); await requireFacebookCapabilitiesReady(source); }
+      let mode;
+      let historyStart;
+      if (!action) {
+        if (!isPlainObject(body)) return json(res, 400, errorPayload('INVALID_INPUT', 'sync body must be a JSON object'));
+        const allowedKeys = new Set(['mode', 'historyStart']);
+        const unsupportedKeys = Object.keys(body).filter(key => !allowedKeys.has(key));
+        if (unsupportedKeys.length) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported sync fields: ${unsupportedKeys.join(', ')}`));
+        mode = body.mode || 'incremental';
+        if (!SYNC_MODES.has(mode)) return json(res, 400, errorPayload('INVALID_INPUT', 'mode must be incremental or backfill'));
+        historyStart = body.historyStart || null;
+        if (mode === 'backfill' && !historyStart) return json(res, 400, errorPayload('INVALID_INPUT', '历史回溯必须配置 historyStart'));
+      } else if (action === 'reset') {
+        if (!isPlainObject(body)) return json(res, 400, errorPayload('INVALID_INPUT', 'sync reset body must be a JSON object'));
+        const unsupportedKeys = Object.keys(body).filter(key => key !== 'historyStart');
+        if (unsupportedKeys.length) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported sync reset fields: ${unsupportedKeys.join(', ')}`));
+      }
+      const source = await sourceById(id); if (!source) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      assertWesternSourceRecord(source);
+      if (!action) {
+        // 停用源先在本地 fail-closed，不对外发起授权探测；Repository 事务内仍会二次复核。
+        if (!source.enabled) return json(res, 409, errorPayload('SOURCE_DISABLED', '采集源已停用'));
+        rejectPhaseAction(await sourceWithCredentialState(source));
+        await requireEnabledCommunityForSource(source);
+        await requireAuthorizedAccount(source, { exactDefault: true, stableStateErrors: true });
+        await requireFacebookCapabilitiesReady(source);
+        const started = await repo.startSourceSync({
+          sourceId: source.id,
+          syncMode: mode,
+          metadata: {
+            syncMode: mode,
+            crawlScope: mode === 'backfill' ? 'authorized_scope' : 'incremental',
+            ...(mode === 'backfill' ? { historyStart } : {})
+          }
+        });
+        const run = started.run;
+        return json(res, 200, success({ queued: run.status === 'queued', enabled: Boolean(started.enabled), runId: run.id, accountId: run.account_id, sourceId: run.source_id || source.id, mode: run.sync_mode, status: run.status, reused: Boolean(started.reused) }));
+      }
+      if (!['pause', 'resume', 'reset'].includes(action)) return json(res, 404, errorPayload('NOT_FOUND', 'sync action not found'));
+      if (action === 'reset') {
+        if (!source.enabled) return json(res, 409, errorPayload('SOURCE_DISABLED', '采集源已停用'));
+      }
+      rejectPhaseAction(await sourceWithCredentialState(source));
+      const account = await defaultAccountForSource(source, { exactDefault: action === 'reset' });
+      if (!account) return json(res, action === 'reset' ? 404 : 400, errorPayload('ACCOUNT_NOT_FOUND', '默认账号未配置'));
+      if (action === 'resume' || action === 'reset') {
+        await requireEnabledCommunityForSource(source);
+        await requireAuthorizedAccount(source, action === 'reset' ? { exactDefault: true, stableStateErrors: true } : undefined);
+        await requireFacebookCapabilitiesReady(source);
+      }
       const rows = await repo.getSyncStatus({ accountId: account.id });
       if (action === 'pause') { for (const checkpoint of rows) if (checkpoint.status === 'running' || checkpoint.status === 'idle') await repo.pauseSyncCheckpoint(checkpoint.id); return json(res, 200, success({ paused: true, accountId: account.id })); }
-      if ((action === 'resume' || action === 'reset') && !source.enabled) return json(res, 409, errorPayload('SOURCE_DISABLED', '采集源已停用，请先点击“开始同步”重新启用'));
+      if (action === 'resume' && !source.enabled) return json(res, 409, errorPayload('SOURCE_DISABLED', '采集源已停用，请先启用'));
       if (action === 'resume') { for (const checkpoint of rows) if (checkpoint.status === 'paused' || checkpoint.status === 'failed') await repo.releaseSyncCheckpoint(checkpoint.id, { status: 'idle' }); await repo.requestCollect(source.id); return json(res, 200, success({ queued: true, resumed: true, enabled: true, accountId: account.id })); }
       if (action === 'reset') {
         const metadata = parseConfig(account.metadata);
@@ -1548,23 +1611,12 @@ async function handler(req, res) {
         if (!historyStart) return json(res, 400, errorPayload('INVALID_INPUT', '授权范围全量回溯必须配置 historyStart'));
         const reset = await repo.resetSourceSync({
           sourceId: source.id,
-          accountId: account.id,
           metadata: { ...metadata, syncMode: 'backfill', crawlScope: 'authorized_scope', historyStart },
           syncMode: 'backfill'
         });
         const run = reset.run;
-        return json(res, 200, success({ queued: true, reset: true, enabled: reset.enabled, accountId: account.id, runId: run.id, mode: run.sync_mode, crawlScope: 'authorized_scope', status: run.status }));
+        return json(res, 200, success({ queued: run.status === 'queued', reset: true, enabled: reset.enabled, accountId: run.account_id, runId: run.id, mode: run.sync_mode, crawlScope: 'authorized_scope', status: run.status, reused: Boolean(reset.reused) }));
       }
-      const mode = body.mode || 'incremental';
-      if (!['incremental', 'backfill'].includes(mode)) return json(res, 400, errorPayload('INVALID_INPUT', 'mode must be incremental or backfill'));
-      const metadata = parseConfig(account.metadata);
-      const historyStart = body.historyStart || metadata.historyStart || metadata.history_start || null;
-      if (mode === 'backfill' && !historyStart) return json(res, 400, errorPayload('INVALID_INPUT', '历史回溯必须配置 historyStart'));
-      let started;
-      try { started = await repo.startSourceSync({ sourceId: source.id, accountId: account.id, metadata: { ...metadata, syncMode: mode, crawlScope: mode === 'backfill' ? 'authorized_scope' : (metadata.crawlScope || 'incremental'), ...(mode === 'backfill' ? { historyStart } : {}) }, syncMode: mode }); }
-      catch (error) { if (error.code === 'COMMUNITY_DISABLED') return json(res, 409, errorPayload('COMMUNITY_DISABLED', '社区已停用，不能启动同步')); throw error; }
-      const run = started.run;
-      return json(res, 200, success({ queued: run.status === 'queued', enabled: started.enabled, runId: run.id, accountId: run.account_id, mode: run.sync_mode, status: run.status, reused: Boolean(started.reused) }));
     }
     if (req.method === 'POST' && resource === 'sources' && id && path[2] === 'oauth' && path[3] === 'start') {
       const source = await sourceById(id); const account = await defaultAccountForSource(source); if (!source || !account) return json(res, 404, errorPayload('NOT_FOUND', 'source account not found'));
@@ -1710,7 +1762,7 @@ async function handler(req, res) {
     return json(res, 501, errorPayload('ENDPOINT_PENDING', 'this endpoint is reserved for the next domain module'));
   } catch (error) {
     console.error(error.code || error.name || 'ERROR', error.message);
-    const mapped = { INVALID_INPUT: 400, INVALID_JSON: 400, REQUEST_TOO_LARGE: 413, IMPORT_BATCH_TOO_LARGE: 413, UNAUTHORIZED: 401, SOURCE_AUTH_UNCONFIGURED: 401, WESTERN_SCOPE_MISMATCH: 400, FEATURE_NOT_AVAILABLE_IN_PHASE: 409, FIXED_BASE_URL_MISMATCH: 400, IMPORT_NOT_CONFIGURED: 503, ACCOUNT_SCOPE_MISMATCH: 400, SOURCE_DISABLED: 409, INVALID_CONFIRMATION: 400, OWNERSHIP_MISMATCH: 400, NOT_FOUND: 404, ACCOUNT_NOT_FOUND: 404, COMMUNITY_NOT_FOUND: 404, GAME_NOT_FOUND: 400, RUN_ACTIVE: 409, SOURCE_ALREADY_EXISTS: 409, INVALID_CREDENTIALS: 400, LOGIN_CHALLENGE_REQUIRED: 409, LOGIN_CHALLENGE_INVALID: 400, LOGIN_SESSION_EXPIRED: 409, LOGIN_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_NOT_CONFIGURED: 503, LOGIN_SESSION_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_TIMEOUT: 504, LOGIN_STATE_UNKNOWN: 503, AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: 409, AUTH_REFRESH_FAILED: 503, AUTH_REFRESH_ALREADY_RUNNING: 409, AUTH_REFRESH_CHALLENGE_REQUIRED: 409, COMMUNITY_PROVIDER_NOT_CONFIGURED: 503, COMMUNITY_PROVIDER_TIMEOUT: 504, COMMUNITY_PROVIDER_UNAVAILABLE: 503, COMMUNITY_PROVIDER_ERROR: 503, COMMUNITY_PROVIDER_INVALID_RESPONSE: 502, COMMUNITY_PROVIDER_UNKNOWN_GAME: 502, COMMUNITY_PROVIDER_REGION_MISMATCH: 502 };
+    const mapped = { INVALID_INPUT: 400, INVALID_JSON: 400, REQUEST_TOO_LARGE: 413, IMPORT_BATCH_TOO_LARGE: 413, UNAUTHORIZED: 401, SOURCE_AUTH_UNCONFIGURED: 401, WESTERN_SCOPE_MISMATCH: 400, FEATURE_NOT_AVAILABLE_IN_PHASE: 409, FIXED_BASE_URL_MISMATCH: 400, IMPORT_NOT_CONFIGURED: 503, ACCOUNT_SCOPE_MISMATCH: 400, SOURCE_DISABLED: 409, GAME_DISABLED: 409, COMMUNITY_DISABLED: 409, ACCOUNT_DISABLED: 409, SOURCE_UNAUTHORIZED: 409, SOURCE_AUTH_EXPIRED: 409, ACCOUNT_UNAUTHORIZED: 409, ACCOUNT_AUTH_EXPIRED: 409, PREVIOUS_RUN_ACTIVE: 409, SYNC_CHECKPOINT_ACTIVE: 409, SOURCE_SCHEDULE_LEASE_ACTIVE: 409, UNIFIED_SCHEDULER_SCHEMA_NOT_READY: 503, UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED: 503, INVALID_CONFIRMATION: 400, OWNERSHIP_MISMATCH: 400, NOT_FOUND: 404, SOURCE_NOT_FOUND: 404, ACCOUNT_NOT_FOUND: 404, COMMUNITY_NOT_FOUND: 404, GAME_NOT_FOUND: 400, RUN_ACTIVE: 409, SOURCE_ALREADY_EXISTS: 409, INVALID_CREDENTIALS: 400, LOGIN_CHALLENGE_REQUIRED: 409, LOGIN_CHALLENGE_INVALID: 400, LOGIN_SESSION_EXPIRED: 409, LOGIN_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_NOT_CONFIGURED: 503, LOGIN_SESSION_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_TIMEOUT: 504, LOGIN_STATE_UNKNOWN: 503, AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: 409, AUTH_REFRESH_FAILED: 503, AUTH_REFRESH_ALREADY_RUNNING: 409, AUTH_REFRESH_CHALLENGE_REQUIRED: 409, COMMUNITY_PROVIDER_NOT_CONFIGURED: 503, COMMUNITY_PROVIDER_TIMEOUT: 504, COMMUNITY_PROVIDER_UNAVAILABLE: 503, COMMUNITY_PROVIDER_ERROR: 503, COMMUNITY_PROVIDER_INVALID_RESPONSE: 502, COMMUNITY_PROVIDER_UNKNOWN_GAME: 502, COMMUNITY_PROVIDER_REGION_MISMATCH: 502 };
     const status = error.code === '22P02' ? 400 : error.status || mapped[error.code] || credentialErrorStatus(error.code);
     const publicMessages = { LOGIN_SESSION_SERVICE_NOT_CONFIGURED: '登录会话服务未配置，请先配置授权服务', LOGIN_SESSION_SERVICE_UNAVAILABLE: '登录会话服务不可用，请检查 4310 服务', LOGIN_SESSION_SERVICE_TIMEOUT: '登录会话服务响应超时，请稍后重试', LOGIN_STATE_UNKNOWN: '登录页面状态暂未识别，请稍后重试或完成页面验证', AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: '账号密码凭据未配置，请重新保存账号密码', AUTH_REFRESH_CHALLENGE_REQUIRED: '需要完成人工验证，请在授权工作区继续操作', COMMUNITY_PROVIDER_NOT_CONFIGURED: '社区 Provider 未配置，暂时无法开始同步' };
     const publicMessage = publicMessages[error.code] || (status >= 500 ? 'internal server error' : error.message);

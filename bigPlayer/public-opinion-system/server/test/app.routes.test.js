@@ -32,6 +32,7 @@ test.before(async () => {
   await repo.query('CREATE TABLE IF NOT EXISTS po_communities (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64) NOT NULL, name VARCHAR(160) NOT NULL, status VARCHAR(20) DEFAULT \'enabled\', sort_order INT DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY po_communities_test_game_name_uk (game_id, name))');
   await repo.query('ALTER TABLE po_games ADD COLUMN IF NOT EXISTS region_code VARCHAR(20) NOT NULL DEFAULT \'domestic\'');
   await repo.query('ALTER TABLE po_sources ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
+  await repo.query('ALTER TABLE po_sources ADD COLUMN IF NOT EXISTS default_account_id VARCHAR(64) NULL');
   await repo.query('ALTER TABLE po_accounts ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
   await repo.query('ALTER TABLE po_alerts ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
@@ -132,6 +133,7 @@ test.before(async () => {
   await repo.query('INSERT INTO po_communities (id, game_id, name) VALUES (?,?,?)', ['c-test-1', gameId, '测试社区']);
   await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status) VALUES (?,?,?,?,?,?,?)', [sourceId, gameId, 'c-test-1', 'bigplayer_h5', '测试源', 1, 'authorized']);
   await repo.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', ['a-test-1', gameId, 'c-test-1', sourceId, 'bigplayer_h5', 'tenant-test', '测试账号', 1, 'authorized', '{}']);
+  await repo.query('UPDATE po_sources SET default_account_id=? WHERE id=?', ['a-test-1', sourceId]);
   const cipher = require('../src/integrations/credentialCipher').encrypt('test-account-token');
   await repo.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_cipher, status) VALUES (?,?,?,?,?,?)', ['cr-test-1', 'a-test-1', sourceId, 'api_token', cipher, 'active']);
 
@@ -687,61 +689,114 @@ test('POST /sources/:id/collect 未授权源 fail-closed 返回 UNAUTHORIZED', a
   await repo.query('DELETE FROM po_sources WHERE id=?', ['s-unauth']);
 });
 
-test('POST /sources/:id/sync 授权通过后原子启用停用源并按模式入队', async () => {
-  const connector = require('../src/app').connectors.bigplayer_h5;
+test('POST /sources/:id/sync 仅使用路径 source 精确入队，重复请求返回 reused', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
   const originalHealth = connector.accountHealth;
+  const originalStartSourceSync = mod.repo.startSourceSync;
+  const calls = [];
   connector.accountHealth = async () => ({ authorized: true });
+  mod.repo.startSourceSync = async input => {
+    calls.push(input);
+    return {
+      enabled: true,
+      reused: calls.length > 1,
+      run: { id: 'run-manual-exact', source_id: sourceId, account_id: 'a-test-1', status: 'queued', sync_mode: 'backfill', trigger_type: 'manual' }
+    };
+  };
   try {
-    await repo.query('UPDATE po_sources SET enabled=0, collect_requested_at=NULL WHERE id=?', [sourceId]);
-    await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ preserved: true, historyStart: '2026-01-01T00:00' }), 'a-test-1']);
-    const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'backfill' }) });
-    assert.equal(res.status, 200);
-    assert.equal(res.body.data.queued, true);
-    assert.equal(res.body.data.enabled, true);
-    assert.equal(res.body.data.accountId, 'a-test-1');
-    assert.equal(res.body.data.mode, 'backfill');
-    assert.equal(res.body.data.status, 'queued');
-    assert.match(res.body.data.runId, /^[0-9a-f-]{36}$/);
-    assert.equal(res.body.data.reused, false);
+    await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
+    const request = { method: 'POST', body: JSON.stringify({ mode: 'backfill', historyStart: '2026-01-01T00:00' }) };
+    const first = await api(`/sources/${sourceId}/sync`, request);
+    const duplicate = await api(`/sources/${sourceId}/sync`, request);
+    assert.equal(first.status, 200);
+    assert.deepEqual(first.body.data, { queued: true, enabled: true, runId: 'run-manual-exact', accountId: 'a-test-1', sourceId, mode: 'backfill', status: 'queued', reused: false });
+    assert.equal(duplicate.status, 200);
+    assert.equal(duplicate.body.data.runId, 'run-manual-exact');
+    assert.equal(duplicate.body.data.reused, true);
+    assert.deepEqual(calls, [
+      { sourceId, syncMode: 'backfill', metadata: { syncMode: 'backfill', crawlScope: 'authorized_scope', historyStart: '2026-01-01T00:00' } },
+      { sourceId, syncMode: 'backfill', metadata: { syncMode: 'backfill', crawlScope: 'authorized_scope', historyStart: '2026-01-01T00:00' } }
+    ]);
+    for (const replacement of [{ accountId: 'a-other' }, { sourceId: 's-other' }, { communityId: 'c-other' }, { regionCode: 'overseas' }]) {
+      const rejected = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'incremental', ...replacement }) });
+      assert.equal(rejected.status, 400);
+      assert.equal(rejected.body.error.code, 'INVALID_INPUT');
+    }
+    assert.equal(calls.length, 2, '替换 source/account/scope 的请求不得进入 Repository');
     const source = (await repo.query('SELECT enabled, collect_requested_at FROM po_sources WHERE id=?', [sourceId]))[0];
     assert.equal(source.enabled, 1);
-    assert.ok(source.collect_requested_at, '开始同步必须真正写入 Worker 手动队列');
-    const account = (await repo.query('SELECT metadata FROM po_accounts WHERE id=?', ['a-test-1']))[0];
-    assert.deepEqual(JSON.parse(account.metadata), { preserved: true, historyStart: '2026-01-01T00:00', syncMode: 'backfill', crawlScope: 'authorized_scope' });
+    assert.equal(source.collect_requested_at, null, '精确入队不得写 legacy collect 标记');
   } finally {
     connector.accountHealth = originalHealth;
-    await repo.query('DELETE FROM po_sync_run_contents WHERE run_id IN (SELECT id FROM po_sync_runs WHERE account_id=?)', ['a-test-1']);
-    await repo.query('DELETE FROM po_sync_runs WHERE account_id=?', ['a-test-1']);
+    mod.repo.startSourceSync = originalStartSourceSync;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
   }
 });
 
-test('POST /sources/:id/sync/reset creates a new authorized-scope run from first page', async () => {
-  const connector = require('../src/app').connectors.bigplayer_h5;
+test('POST /sources/:id/sync 与 /sync/reset 在任何 probe/Repository 调用前拒绝非普通对象 body', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalListSources = mod.repo.listSources;
+  const originalStartSourceSync = mod.repo.startSourceSync;
+  const originalResetSourceSync = mod.repo.resetSourceSync;
   const originalHealth = connector.accountHealth;
+  const calls = { listSources: 0, start: 0, reset: 0, health: 0 };
+  mod.repo.listSources = async () => { calls.listSources += 1; return []; };
+  mod.repo.startSourceSync = async () => { calls.start += 1; throw new Error('must not enqueue'); };
+  mod.repo.resetSourceSync = async () => { calls.reset += 1; throw new Error('must not reset'); };
+  connector.accountHealth = async () => { calls.health += 1; return { authorized: true }; };
+  try {
+    const invalidBodies = [null, [], 'scalar', 1, true];
+    for (const endpoint of [`/sources/${sourceId}/sync`, `/sources/${sourceId}/sync/reset`]) {
+      for (const body of invalidBodies) {
+        const res = await api(endpoint, { method: 'POST', body: JSON.stringify(body) });
+        assert.equal(res.status, 400, `${endpoint} ${JSON.stringify(body)}`);
+        assert.equal(res.body.error.code, 'INVALID_INPUT');
+      }
+    }
+    assert.deepEqual(calls, { listSources: 0, start: 0, reset: 0, health: 0 });
+  } finally {
+    mod.repo.listSources = originalListSources;
+    mod.repo.startSourceSync = originalStartSourceSync;
+    mod.repo.resetSourceSync = originalResetSourceSync;
+    connector.accountHealth = originalHealth;
+  }
+});
+
+test('POST /sources/:id/sync/reset 继续使用 resetSourceSync 且不从 body 接收 accountId', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  const originalResetSourceSync = mod.repo.resetSourceSync;
+  let captured;
+  let resetCalls = 0;
   connector.accountHealth = async () => ({ authorized: true });
+  mod.repo.resetSourceSync = async input => {
+    resetCalls += 1;
+    captured = input;
+    return { enabled: true, reset: true, reused: false, run: { id: 'run-reset-exact', source_id: sourceId, account_id: 'a-test-1', status: 'running', sync_mode: 'backfill', trigger_type: 'manual' } };
+  };
   try {
     await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ historyStart: '2026-01-01T00:00', syncMode: 'incremental' }), 'a-test-1']);
-    await repo.query("INSERT INTO po_sync_checkpoints (id, account_id, sync_scope, root_platform_content_id, status, sync_mode, items_fetched) VALUES ('cp-reset',?,'posts','feed-a','completed','incremental',31)", ['a-test-1']);
-    await repo.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode) VALUES ('run-reset-active',?,'running','incremental')", ['a-test-1']);
     const res = await api(`/sources/${sourceId}/sync/reset`, { method: 'POST', body: JSON.stringify({}) });
     assert.equal(res.status, 200);
     assert.equal(res.body.data.reset, true);
     assert.equal(res.body.data.crawlScope, 'authorized_scope');
-    assert.match(res.body.data.runId, /^[0-9a-f-]{36}$/);
-    assert.notEqual(res.body.data.runId, 'run-reset-active');
-    const checkpoint = (await repo.query("SELECT status, `cursor`, items_fetched FROM po_sync_checkpoints WHERE id='cp-reset'"))[0];
-    assert.equal(checkpoint.status, 'idle');
-    assert.equal(checkpoint.cursor, null);
-    assert.equal(checkpoint.items_fetched, 0);
-    const oldRun = (await repo.query("SELECT status, error_code FROM po_sync_runs WHERE id='run-reset-active'"))[0];
-    assert.equal(oldRun.status, 'cancelled');
-    assert.equal(oldRun.error_code, 'RESET_BY_USER');
+    assert.equal(res.body.data.runId, 'run-reset-exact');
+    assert.equal(res.body.data.accountId, 'a-test-1');
+    assert.equal(res.body.data.reused, false);
+    assert.equal(res.body.data.status, 'running');
+    assert.equal(res.body.data.queued, false);
+    assert.equal(captured.sourceId, sourceId);
+    assert.equal(Object.hasOwn(captured, 'accountId'), false);
+    const rejected = await api(`/sources/${sourceId}/sync/reset`, { method: 'POST', body: JSON.stringify({ historyStart: '2026-01-01T00:00', accountId: 'a-other' }) });
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.body.error.code, 'INVALID_INPUT');
+    assert.equal(resetCalls, 1);
   } finally {
     connector.accountHealth = originalHealth;
-    await repo.query("DELETE FROM po_sync_checkpoints WHERE id='cp-reset'");
-    await repo.query('DELETE FROM po_sync_run_contents WHERE run_id IN (SELECT id FROM po_sync_runs WHERE account_id=?)', ['a-test-1']);
-    await repo.query('DELETE FROM po_sync_runs WHERE account_id=?', ['a-test-1']);
+    mod.repo.resetSourceSync = originalResetSourceSync;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
   }
 });
@@ -832,36 +887,100 @@ test('GET /sync-runs lists safely with strict pagination validation', async () =
 });
 
 test('POST /sources/:id/sync 授权失败时不启用也不入队', async () => {
-  const connector = require('../src/app').connectors.bigplayer_h5;
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
   const originalHealth = connector.accountHealth;
+  const originalStartSourceSync = mod.repo.startSourceSync;
+  let startCalls = 0;
   connector.accountHealth = async () => ({ authorized: false, reason: 'expired token' });
+  mod.repo.startSourceSync = async () => { startCalls += 1; throw new Error('must not enqueue'); };
   try {
-    await repo.query('UPDATE po_sources SET enabled=0, collect_requested_at=NULL WHERE id=?', [sourceId]);
+    await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
     const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'incremental' }) });
     assert.equal(res.status, 401);
     assert.equal(res.body.error.code, 'UNAUTHORIZED');
     const source = (await repo.query('SELECT enabled, collect_requested_at FROM po_sources WHERE id=?', [sourceId]))[0];
-    assert.equal(source.enabled, 0);
+    assert.equal(source.enabled, 1);
     assert.ok(!source.collect_requested_at);
+    assert.equal(startCalls, 0, '授权 preflight 失败不得入队');
   } finally {
     connector.accountHealth = originalHealth;
+    mod.repo.startSourceSync = originalStartSourceSync;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
   }
 });
 
-test('POST /sources/:id/sync 默认账号停用时不启用源', async () => {
+test('POST /sources/:id/sync 停用源/默认账号在外部授权探测前 fail-closed', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  const originalStartSourceSync = mod.repo.startSourceSync;
+  let healthCalls = 0;
+  let startCalls = 0;
+  connector.accountHealth = async () => { healthCalls += 1; return { authorized: true }; };
+  mod.repo.startSourceSync = async () => { startCalls += 1; throw new Error('must not enqueue'); };
   await repo.query('UPDATE po_sources SET enabled=0, collect_requested_at=NULL WHERE id=?', [sourceId]);
-  await repo.query('UPDATE po_accounts SET enabled=0 WHERE id=?', ['a-test-1']);
   try {
     const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'incremental' }) });
-    assert.equal(res.status, 400);
-    assert.equal(res.body.error.code, 'ACCOUNT_NOT_FOUND');
+    assert.equal(res.status, 409);
+    assert.equal(res.body.error.code, 'SOURCE_DISABLED');
     const source = (await repo.query('SELECT enabled, collect_requested_at FROM po_sources WHERE id=?', [sourceId]))[0];
     assert.equal(source.enabled, 0);
     assert.ok(!source.collect_requested_at);
+    assert.equal(healthCalls, 0);
+    assert.equal(startCalls, 0);
+
+    await repo.query('UPDATE po_sources SET enabled=1 WHERE id=?', [sourceId]);
+    await repo.query('UPDATE po_accounts SET enabled=0 WHERE id=?', ['a-test-1']);
+    const accountDisabled = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'incremental' }) });
+    assert.equal(accountDisabled.status, 409);
+    assert.equal(accountDisabled.body.error.code, 'ACCOUNT_DISABLED');
+    assert.equal(healthCalls, 0);
+    assert.equal(startCalls, 0);
   } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.startSourceSync = originalStartSourceSync;
     await repo.query('UPDATE po_accounts SET enabled=1 WHERE id=?', ['a-test-1']);
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
+  }
+});
+
+test('POST /sources/:id/sync 稳定映射 schema、状态、竞争、lease 与授权错误', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  const originalStartSourceSync = mod.repo.startSourceSync;
+  connector.accountHealth = async () => ({ authorized: true });
+  const cases = [
+    ['UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 503],
+    ['UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED', 503],
+    ['SOURCE_DISABLED', 409],
+    ['GAME_DISABLED', 409],
+    ['COMMUNITY_DISABLED', 409],
+    ['ACCOUNT_DISABLED', 409],
+    ['SOURCE_UNAUTHORIZED', 409],
+    ['SOURCE_AUTH_EXPIRED', 409],
+    ['ACCOUNT_UNAUTHORIZED', 409],
+    ['ACCOUNT_AUTH_EXPIRED', 409],
+    ['CREDENTIAL_SECRET_MISSING', 401],
+    ['PREVIOUS_RUN_ACTIVE', 409],
+    ['SYNC_CHECKPOINT_ACTIVE', 409],
+    ['SOURCE_SCHEDULE_LEASE_ACTIVE', 409],
+    ['ACCOUNT_NOT_FOUND', 404],
+    ['OWNERSHIP_MISMATCH', 400]
+  ];
+  try {
+    await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
+    await repo.query("UPDATE po_accounts SET enabled=1, auth_status='authorized' WHERE id=?", ['a-test-1']);
+    for (const [code, status] of cases) {
+      mod.repo.startSourceSync = async () => { const error = new Error(code); error.code = code; throw error; };
+      const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'incremental' }) });
+      assert.equal(res.status, status, code);
+      assert.equal(res.body.error.code, code);
+    }
+  } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.startSourceSync = originalStartSourceSync;
   }
 });
 
