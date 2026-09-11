@@ -12,6 +12,7 @@ owner: 开发负责人
 | 模块 | 提交 | 变更 | 验证 |
 |---|---|---|---|
 | Repository / migration contract | `03eb170` | manual run 单事务准入、活动 run/checkpoint/scheduler lease 互斥、legacy 入队收口、pre-023 兼容、source 默认账号与 schedule state 初始化合同 | Repository `101/101`；migration contract `15/15`；独立审查 PASS |
+| API | `06bec3e` | sync/reset 仅接受普通 JSON 对象，不接受 body 替换 source/account/scope；disabled source 不自动启用；稳定返回 run 身份、状态与复用结果；补齐 `CREDENTIAL_SECRET_MISSING` → HTTP 401 | app routes `51/51`；独立审查 PASS |
 
 ## 安全边界
 
@@ -21,6 +22,5 @@ owner: 开发负责人
 
 ## 待完成
 
-- API 精确入队与稳定错误映射提交。
 - scheduler / Worker 竞争门禁与 legacy fallback 提交。
 - 最终整体验证、测试负责人交接与项目经理返件。
