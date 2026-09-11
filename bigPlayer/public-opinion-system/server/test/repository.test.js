@@ -657,6 +657,29 @@ test('createSourceWithAccount 在同一事务创建源与默认账号', async ()
   assert.ok(!JSON.parse(sourceInsert.params[7]).repliesApiUrl, '新源不得创建 replies 配置');
   const accountInsert = executed.find(call => call.sql.startsWith('INSERT INTO po_accounts'));
   assert.match(accountInsert.params[4], /^pending:/);
+  assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sources SET default_account_id=')), '旧 schema 不写新字段');
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_source_schedule_state')), '旧 schema 不写调度表');
+  assert.equal(executed.at(-1).sql, 'COMMIT');
+});
+
+test('createSourceWithAccount 在 migration 023 后原子回写默认账号和调度状态', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const executed = [];
+  const conn = {
+    async query(sql, params = []) {
+      executed.push({ sql, params });
+      if (sql.includes('unified_scheduler_ready')) return [[{ unified_scheduler_ready: 1 }]];
+      return [{ affectedRows: 1 }];
+    },
+    async beginTransaction() { executed.push({ sql: 'BEGIN' }); }, async commit() { executed.push({ sql: 'COMMIT' }); }, async rollback() { executed.push({ sql: 'ROLLBACK' }); }, release() {}
+  };
+  repo.pool = { async getConnection() { return conn; }, async query(sql) { if (sql.includes('FROM po_sources')) return [[{ id: 's-new' }]]; if (sql.includes('FROM po_accounts')) return [[{ id: 'a-new' }]]; return [[]]; } };
+  await repo.createSourceWithAccount({ sourceId: 's-new', accountId: 'a-new', gameId: 'g1', communityId: 'c1', platform: 'bigplayer_h5', displayName: 'BigPlayer' });
+  const defaultAccount = executed.find(call => call.sql.startsWith('UPDATE po_sources SET default_account_id='));
+  assert.deepEqual(defaultAccount.params, ['a-new', 's-new']);
+  const scheduleState = executed.find(call => call.sql.startsWith('INSERT INTO po_source_schedule_state'));
+  assert.deepEqual(scheduleState.params, ['s-new']);
+  assert.ok(executed.findIndex(call => call.sql.startsWith('INSERT INTO po_accounts')) < executed.findIndex(call => call.sql.startsWith('UPDATE po_sources SET default_account_id=')));
   assert.equal(executed.at(-1).sql, 'COMMIT');
 });
 
@@ -723,47 +746,248 @@ test('checkpoint identity includes task kind and task key', async () => {
   assert.deepEqual(repo.calls[1].params.slice(3, 6), ['a1', 'source_sync', 'run-1']);
 });
 
-test('startSourceSync atomically creates a queued run and returns it', async () => {
+function manualSyncHarness(overrides = {}) {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   const executed = [];
+  const source = { id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', source_auth_expired: 0, default_account_id: 'a1', game_enabled: 1, community_status: 'enabled', ...(overrides.source || {}) };
+  const account = { id: 'a1', source_id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', account_auth_expired: 0, ...(overrides.account || {}) };
+  const credential = { id: 'credential-1', status: 'active', credential_expired: 0, has_secret_cipher: 1, ...(overrides.credential || {}) };
+  const schema = { migration_table_ready: 1, default_account_ready: 1, source_schedule_columns_ready: 1, run_source_ready: 1, run_trigger_ready: 1, run_schedule_column_ready: 1, run_slot_ready: 1, run_trigger_constraint_ready: 1, run_source_fk_ready: 1, schedule_state_ready: 1, schedule_state_columns_ready: 1, schedule_state_fk_ready: 1, ...(overrides.schema || {}) };
   const conn = {
     async query(sql, params = []) {
       executed.push({ sql, params });
-      if (sql.includes('FROM po_sources')) return [[{ id: 's1', enabled: 0, game_enabled: 1 }]];
-      if (sql.includes('FROM po_accounts')) return [[{ id: 'a1' }]];
-      if (sql.includes("status IN ('queued','running')")) return [[]];
-      if (sql.startsWith('SELECT * FROM po_sync_runs WHERE id=')) return [[{ id: params[0], account_id: 'a1', status: 'queued', sync_mode: 'incremental' }]];
+      if (overrides.schemaError && sql.includes('information_schema')) throw overrides.schemaError;
+      if (sql.includes('information_schema')) return [[schema]];
+      if (sql === 'SHOW CREATE TABLE po_sync_runs') return [[{ 'Create Table': overrides.checkDdl || "CREATE TABLE po_sync_runs (CONSTRAINT po_sync_runs_trigger_slot_chk CHECK ((trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)))" }]];
+      if (sql.startsWith('SELECT version FROM po_schema_migrations')) return [overrides.migrationMissing ? [] : [{ version: '023_unified_source_scheduling.sql' }]];
+      if (sql.includes('FROM po_sources s LEFT JOIN')) return [[source]];
+      if (sql.includes('FROM po_accounts a WHERE a.id=')) return [[overrides.accountMissing ? undefined : account].filter(Boolean)];
+      if (sql.includes('FROM po_credentials WHERE source_id=')) return [[overrides.credentialMissing ? undefined : credential].filter(Boolean)];
+      if (sql.startsWith('SELECT source_id, lease_owner')) return [[overrides.scheduleMissing ? undefined : { source_id: 's1', lease_active: overrides.leaseActive ? 1 : 0 }].filter(Boolean)];
+      if (sql.startsWith('SELECT * FROM po_sync_runs WHERE source_id=')) return [[overrides.manualRun].filter(Boolean)];
+      if (sql.startsWith('SELECT id FROM po_sync_runs WHERE source_id=')) return [[overrides.activeRun || overrides.manualRun].filter(Boolean)];
+      if (sql.startsWith('SELECT cp.id FROM po_sync_checkpoints')) return [[overrides.activeCheckpoint].filter(Boolean)];
+      if (sql.startsWith('SELECT * FROM po_sync_runs WHERE id=')) return [[{ id: params[0], source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'queued', sync_mode: params[0] ? (overrides.createdMode || 'incremental') : 'incremental' }]];
+      return [{ affectedRows: 1 }];
+    },
+    async beginTransaction() { executed.push({ sql: 'BEGIN', params: [] }); },
+    async commit() { executed.push({ sql: 'COMMIT', params: [] }); },
+    async rollback() { executed.push({ sql: 'ROLLBACK', params: [] }); },
+    release() { executed.push({ sql: 'RELEASE', params: [] }); }
+  };
+  repo.pool = { async getConnection() { return conn; } };
+  return { repo, executed };
+}
+
+test('createSyncRun accepts only queued legacy work and delegates to the locked enqueue boundary', async () => {
+  const repo = stubRepo(() => ({ affectedRows: 1 }));
+  const delegated = [];
+  repo.enqueueSyncRun = async input => { delegated.push(input); return { id: 'run-1', trigger_type: 'legacy' }; };
+  await assert.rejects(() => repo.createSyncRun({ accountId: 'a1', triggerType: 'legacy' }), error => error.code === 'INVALID_INPUT');
+  await assert.rejects(() => repo.createSyncRun({ sourceId: 's1', accountId: 'a1', triggerType: 'scheduled' }), error => error.code === 'INVALID_INPUT');
+  await assert.rejects(() => repo.createSyncRun({ sourceId: 's1', accountId: 'a1', triggerType: 'manual' }), error => error.code === 'INVALID_INPUT');
+  await assert.rejects(() => repo.createSyncRun({ sourceId: 's1', accountId: 'a1', triggerType: 'legacy', status: 'running' }), error => error.code === 'INVALID_INPUT');
+  const run = await repo.createSyncRun({ sourceId: 's1', accountId: 'a1', syncMode: 'incremental', status: 'queued', triggerType: 'legacy' });
+  assert.equal(run.id, 'run-1');
+  assert.deepEqual(delegated, [{ sourceId: 's1', accountId: 'a1', syncMode: 'incremental' }]);
+  assert.equal(repo.calls.length, 0, 'createSyncRun 不得直接写 po_sync_runs');
+});
+
+test('enqueueSyncRun locks the source and active runs before one legacy insert', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const executed = [];
+  let activeRun = null;
+  let leaseActive = false;
+  const conn = {
+    async query(sql, params = []) {
+      executed.push({ sql, params });
+      if (sql.startsWith('SELECT id FROM po_sources')) return [[{ id: 's1' }]];
+      if (sql.includes("table_name='po_source_schedule_state'")) return [[{ scheduler_state_ready: 1 }]];
+      if (sql.startsWith('SELECT source_id, lease_until')) return [[{ source_id: 's1', lease_active: leaseActive ? 1 : 0 }]];
+      if (sql.startsWith('SELECT id FROM po_accounts')) return [[{ id: 'a1' }]];
+      if (sql.startsWith('SELECT * FROM po_sync_runs WHERE source_id=')) return [[activeRun].filter(Boolean)];
+      if (sql.startsWith('SELECT * FROM po_sync_runs WHERE id=')) return [[{ id: params[0], source_id: 's1', account_id: 'a1', trigger_type: 'legacy', status: 'queued' }]];
       return [{ affectedRows: 1 }];
     },
     async beginTransaction() { executed.push({ sql: 'BEGIN' }); }, async commit() { executed.push({ sql: 'COMMIT' }); }, async rollback() { executed.push({ sql: 'ROLLBACK' }); }, release() {}
   };
   repo.pool = { async getConnection() { return conn; } };
-  const result = await repo.startSourceSync({ sourceId: 's1', accountId: 'a1', syncMode: 'incremental', metadata: { syncMode: 'incremental' } });
-  assert.equal(result.enabled, true);
-  assert.equal(result.run.status, 'queued');
-  assert.equal(result.run.account_id, 'a1');
-  assert.ok(executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  const run = await repo.enqueueSyncRun({ sourceId: 's1', accountId: 'a1' });
+  assert.equal(run.trigger_type, 'legacy');
+  assert.match(executed.find(call => call.sql.startsWith('SELECT id FROM po_sources')).sql, /FOR UPDATE/);
+  assert.match(executed.find(call => call.sql.startsWith('SELECT \* FROM po_sync_runs WHERE source_id=')).sql, /FOR UPDATE/);
+  const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.deepEqual(insert.params.slice(1), ['s1', 'a1', 'incremental']);
   assert.equal(executed.at(-1).sql, 'COMMIT');
+
+  activeRun = { id: 'run-existing', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'queued' };
+  executed.length = 0;
+  const reused = await repo.enqueueSyncRun({ sourceId: 's1', accountId: 'a1' });
+  assert.equal(reused.id, 'run-existing');
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  assert.equal(executed.at(-1).sql, 'COMMIT');
+
+  activeRun = null; leaseActive = true; executed.length = 0;
+  await assert.rejects(() => repo.enqueueSyncRun({ sourceId: 's1', accountId: 'a1' }), error => error.code === 'SOURCE_SCHEDULE_LEASE_ACTIVE');
+  const scheduleLock = executed.find(call => call.sql.startsWith('SELECT source_id, lease_until'));
+  assert.match(scheduleLock.sql, /lease_until>UTC_TIMESTAMP\(3\)/);
+  assert.match(scheduleLock.sql, /FOR UPDATE/);
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
 });
 
-test('startSourceSync reuses an active run instead of creating a duplicate', async () => {
+test('enqueueSyncRun preserves the pre-023 legacy insert when scheduler state table is absent', async () => {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   const executed = [];
-  const active = { id: 'run-existing', account_id: 'a1', status: 'running', sync_mode: 'incremental' };
   const conn = {
-    async query(sql) {
-      executed.push({ sql });
-      if (sql.includes('FROM po_sources')) return [[{ id: 's1', enabled: 1, game_enabled: 1 }]];
-      if (sql.includes('FROM po_accounts')) return [[{ id: 'a1' }]];
-      if (sql.includes("status IN ('queued','running')")) return [[active]];
+    async query(sql, params = []) {
+      executed.push({ sql, params });
+      if (sql.startsWith('SELECT id FROM po_sources')) return [[{ id: 's1' }]];
+      if (sql.includes("table_name='po_source_schedule_state'")) return [[{ scheduler_state_ready: 0 }]];
+      if (sql.startsWith('SELECT id FROM po_accounts')) return [[{ id: 'a1' }]];
+      if (sql.startsWith('SELECT r.* FROM po_sync_runs')) return [[]];
+      if (sql.startsWith('SELECT * FROM po_sync_runs WHERE id=')) return [[{ id: params[0], account_id: 'a1', status: 'queued' }]];
       return [{ affectedRows: 1 }];
     },
     async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}
   };
   repo.pool = { async getConnection() { return conn; } };
-  const result = await repo.startSourceSync({ sourceId: 's1', accountId: 'a1' });
+  await repo.enqueueSyncRun({ sourceId: 's1', accountId: 'a1' });
+  const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.match(insert.sql, /^INSERT INTO po_sync_runs \(id, account_id, status, sync_mode, started_at\)/);
+  assert.doesNotMatch(insert.sql, /source_id|trigger_type/);
+  assert.ok(!executed.some(call => call.sql.startsWith('SELECT source_id, lease_until')));
+});
+
+test('startSourceSync locks the source/default account and creates exactly one queued manual run', async () => {
+  const { repo, executed } = manualSyncHarness();
+  const result = await repo.startSourceSync({ sourceId: 's1', syncMode: 'incremental', metadata: { crawlScope: 'incremental' } });
+  assert.equal(result.reused, false);
+  assert.equal(result.run.trigger_type, 'manual');
+  const sourceLock = executed.find(call => call.sql.includes('FROM po_sources s LEFT JOIN'));
+  assert.match(sourceLock.sql, /FOR UPDATE/);
+  const schemaCheck = executed.find(call => call.sql.includes('information_schema'));
+  assert.match(schemaCheck.sql, /columns_list='source_id,scheduled_at'/);
+  assert.match(schemaCheck.sql, /po_sync_runs_trigger_slot_chk/);
+  assert.match(schemaCheck.sql, /po_sync_runs_source_fk/);
+  const accountLock = executed.find(call => call.sql.includes('FROM po_accounts a WHERE a.id='));
+  assert.deepEqual(accountLock.params, ['a1']);
+  const metadataUpdate = executed.find(call => call.sql.startsWith('UPDATE po_accounts SET metadata='));
+  assert.match(metadataUpdate.sql, /JSON_MERGE_PATCH/);
+  const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.match(insert.sql, /source_id, account_id, trigger_type, status, sync_mode/);
+  assert.deepEqual(insert.params.slice(1), ['s1', 'a1', 'incremental']);
+  assert.ok(!executed.some(call => /UPDATE po_sources SET enabled=1|collect_requested_at=NOW/.test(call.sql)));
+  assert.equal(executed.at(-2).sql, 'COMMIT');
+});
+
+test('startSourceSync reuses only the same active manual source and mode without mutation', async () => {
+  const manualRun = { id: 'run-existing', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'running', sync_mode: 'incremental' };
+  const { repo, executed } = manualSyncHarness({ manualRun });
+  const result = await repo.startSourceSync({ sourceId: 's1', syncMode: 'incremental', metadata: { changed: true } });
+  assert.equal(result.reused, true);
   assert.equal(result.run.id, 'run-existing');
-  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  assert.ok(!executed.some(call => /^(INSERT|UPDATE)/.test(call.sql)));
+  assert.ok(executed.some(call => call.sql === 'COMMIT'));
+});
+
+test('manual sync rejects disabled or unauthorized source/default account without mutation', async () => {
+  const cases = [
+    [{ source: { enabled: 0 } }, 'SOURCE_DISABLED'],
+    [{ source: { game_enabled: 0 } }, 'GAME_DISABLED'],
+    [{ source: { community_status: 'disabled' } }, 'COMMUNITY_DISABLED'],
+    [{ source: { auth_status: 'unconfigured' } }, 'SOURCE_UNAUTHORIZED'],
+    [{ source: { source_auth_expired: 1 } }, 'SOURCE_AUTH_EXPIRED'],
+    [{ source: { default_account_id: null } }, 'ACCOUNT_NOT_FOUND'],
+    [{ account: { enabled: 0 } }, 'ACCOUNT_DISABLED'],
+    [{ account: { auth_status: 'unconfigured' } }, 'ACCOUNT_UNAUTHORIZED'],
+    [{ account: { account_auth_expired: 1 } }, 'ACCOUNT_AUTH_EXPIRED'],
+    [{ account: { source_id: 'other' } }, 'OWNERSHIP_MISMATCH']
+  ];
+  for (const [overrides, code] of cases) {
+    const { repo, executed } = manualSyncHarness(overrides);
+    await assert.rejects(() => repo.startSourceSync({ sourceId: 's1' }), error => error.code === code, code);
+    assert.ok(executed.some(call => call.sql === 'ROLLBACK'), code);
+    assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')), code);
+    assert.ok(!executed.some(call => /UPDATE po_sources SET enabled=1/.test(call.sql)), code);
+  }
+});
+
+test('BigPlayer manual sync locks and validates the account api_token credential', async () => {
+  for (const [overrides, code] of [
+    [{ credentialMissing: true }, 'CREDENTIAL_NOT_FOUND'],
+    [{ credential: { status: 'unconfigured' } }, 'CREDENTIAL_INACTIVE'],
+    [{ credential: { credential_expired: 1 } }, 'CREDENTIAL_EXPIRED'],
+    [{ credential: { has_secret_cipher: 0 } }, 'CREDENTIAL_SECRET_MISSING']
+  ]) {
+    const { repo, executed } = manualSyncHarness(overrides);
+    await assert.rejects(() => repo.startSourceSync({ sourceId: 's1' }), error => error.code === code, code);
+    const credentialLock = executed.find(call => call.sql.includes('FROM po_credentials WHERE source_id='));
+    assert.match(credentialLock.sql, /credential_type='api_token'/);
+    assert.match(credentialLock.sql, /FOR UPDATE/);
+    assert.match(credentialLock.sql, /AS has_secret_cipher/);
+    assert.doesNotMatch(credentialLock.sql, /SELECT \*/i, '只查询密文存在性，不读取整行密文');
+    assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  }
+});
+
+test('manual sync fails closed for old or unverifiable unified scheduler schema', async () => {
+  for (const [overrides, code] of [
+    [{ schema: { run_source_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { run_slot_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { run_trigger_constraint_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { run_source_fk_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ checkDdl: "CREATE TABLE po_sync_runs (CONSTRAINT po_sync_runs_trigger_slot_chk CHECK (trigger_type IN ('legacy','manual')))" }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ migrationMissing: true }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schemaError: Object.assign(new Error('denied'), { code: 'ER_ACCESS_DENIED_ERROR' }) }, 'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED']
+  ]) {
+    const { repo, executed } = manualSyncHarness(overrides);
+    await assert.rejects(() => repo.startSourceSync({ sourceId: 's1' }), error => error.code === code, code);
+    assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+    assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  }
+});
+
+test('manual sync rejects competing run, checkpoint, and scheduler lease with stable codes', async () => {
+  for (const [overrides, code] of [
+    [{ activeRun: { id: 'run-other' } }, 'PREVIOUS_RUN_ACTIVE'],
+    [{ activeCheckpoint: { id: 'cp-running' } }, 'SYNC_CHECKPOINT_ACTIVE'],
+    [{ leaseActive: true }, 'SOURCE_SCHEDULE_LEASE_ACTIVE']
+  ]) {
+    const { repo, executed } = manualSyncHarness(overrides);
+    await assert.rejects(() => repo.startSourceSync({ sourceId: 's1' }), error => error.code === code, code);
+    assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+    assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  }
+});
+
+test('resetSourceSync resets every historical source checkpoint only after no active checkpoint remains', async () => {
+  const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
+  const result = await repo.resetSourceSync({ sourceId: 's1', metadata: { historyStart: '2026-09-01' } });
+  assert.equal(result.reset, true);
+  assert.equal(result.reused, false);
+  const checkpointReset = executed.find(call => call.sql.startsWith('UPDATE po_sync_checkpoints cp JOIN po_accounts'));
+  assert.ok(checkpointReset);
+  assert.deepEqual(checkpointReset.params, ['s1']);
+  assert.doesNotMatch(checkpointReset.sql, /WHERE[^]*cp\.status=/, '无活动 checkpoint 后重置该 source 的全部历史 checkpoint');
+  const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.equal(insert.params.at(-1), 'backfill');
+  assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sync_runs SET status=')));
+  assert.ok(!executed.some(call => /UPDATE po_sources SET enabled=1/.test(call.sql)));
+
+  const blocked = manualSyncHarness({ activeCheckpoint: { id: 'cp-running' } });
+  await assert.rejects(() => blocked.repo.resetSourceSync({ sourceId: 's1' }), error => error.code === 'SYNC_CHECKPOINT_ACTIVE');
+  assert.ok(!blocked.executed.some(call => call.sql.startsWith('UPDATE po_sync_checkpoints cp JOIN po_accounts')));
+});
+
+test('resetSourceSync never reuses an active manual run, including a different historyStart', async () => {
+  const manualRun = { id: 'run-from-start', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'queued', sync_mode: 'backfill' };
+  for (const historyStart of ['2026-09-01', '2026-08-01']) {
+    const { repo, executed } = manualSyncHarness({ manualRun });
+    await assert.rejects(() => repo.resetSourceSync({ sourceId: 's1', metadata: { historyStart } }), error => error.code === 'PREVIOUS_RUN_ACTIVE');
+    assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sync_checkpoints cp JOIN po_accounts')));
+    assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  }
 });
 
 test('sync run reads are scoped through account and source', async () => {

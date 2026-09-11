@@ -58,6 +58,14 @@ test('historical triggers are backfilled only when no scheduled slot exists', ()
   assert.doesNotMatch(compact, /trigger_type[^;]*DEFAULT 'manual'/i);
 });
 
+test('sync run source identity and trigger type are mandatory after cutover', () => {
+  has(/ALTER TABLE po_sync_runs MODIFY COLUMN source_id CHAR\(36\) NOT NULL/i);
+  has(/UNION ALL SELECT 'po_sync_runs','source_id','char\(36\)','NO','\*'/i);
+  has(/ALTER TABLE po_sync_runs ADD COLUMN trigger_type VARCHAR\(32\) NOT NULL DEFAULT ''legacy''/i);
+  has(/UNION ALL SELECT 'po_sync_runs','trigger_type','varchar\(32\)','NO','legacy'/i);
+  assert.doesNotMatch(compact, /trigger_type[^;]*DEFAULT 'manual'/i);
+});
+
 test('database check constraint permanently enforces trigger and slot combinations', () => {
   has(/ADD CONSTRAINT po_sync_runs_trigger_slot_chk CHECK/i);
   has(/trigger_type IN \('{1,2}legacy'{1,2},'{1,2}manual'{1,2}\) AND scheduled_at IS NULL/i);

@@ -2,6 +2,40 @@ const mysql = require('mysql2/promise');
 const crypto = require('node:crypto');
 
 const uuid = () => crypto.randomUUID();
+function repositoryError(code, message) { const error = new Error(message); error.code = code; return error; }
+function normalizedCheckDefinition(value) {
+  let normalized = String(value || '').replace(/`/g, '').replace(/\s+/g, '').toLowerCase();
+  const hasOuterPair = text => {
+    if (!text.startsWith('(') || !text.endsWith(')')) return false;
+    let depth = 0; let quote = null;
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      if (quote) { if (char === quote && text[index + 1] !== quote) quote = null; else if (char === quote) index += 1; continue; }
+      if (char === "'" || char === '"') { quote = char; continue; }
+      if (char === '(') depth += 1;
+      if (char === ')') depth -= 1;
+      if (depth === 0 && index < text.length - 1) return false;
+    }
+    return depth === 0;
+  };
+  while (hasOuterPair(normalized)) normalized = normalized.slice(1, -1);
+  return normalized;
+}
+function extractNamedCheck(createTableSql, constraintName) {
+  const marker = new RegExp(`\\bCONSTRAINT\\s+(?:\\\`${constraintName}\\\`|${constraintName})\\s+CHECK\\s*`, 'i').exec(String(createTableSql || ''));
+  if (!marker) return null;
+  const start = createTableSql.indexOf('(', marker.index + marker[0].length);
+  if (start < 0) return null;
+  let depth = 0; let quote = null;
+  for (let index = start; index < createTableSql.length; index += 1) {
+    const char = createTableSql[index];
+    if (quote) { if (char === quote && createTableSql[index + 1] !== quote) quote = null; else if (char === quote) index += 1; continue; }
+    if (char === "'" || char === '"' || char === '`') { quote = char; continue; }
+    if (char === '(') depth += 1;
+    if (char === ')' && --depth === 0) return createTableSql.slice(start + 1, index);
+  }
+  return null;
+}
 
 // 软删除过滤片段：config.deleted 为 true 的源不出现在列表，也不进调度/手动采集。
 // （表别名统一用 s；MySQL/MariaDB 下 JSON_EXTRACT 缺失键返回 NULL，存 true 时 = false 不成立故被过滤掉。）
@@ -651,11 +685,37 @@ class Repository {
     }
     return [];
   }
-  async createSyncRun(accountId, { syncMode = 'incremental', status = 'running' } = {}) { const id = uuid(); await this.query('INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?,?,?,CASE WHEN ?=\'running\' THEN NOW() ELSE NULL END)', [id, accountId, status, syncMode, status]); return this.getSyncRun(id); }
+  async createSyncRun({ sourceId, accountId, syncMode = 'incremental', status = 'queued', triggerType } = {}) {
+    if (!sourceId || !accountId || triggerType !== 'legacy' || status !== 'queued') throw repositoryError('INVALID_INPUT', 'createSyncRun only accepts a complete queued legacy run identity');
+    return this.enqueueSyncRun({ sourceId, accountId, syncMode });
+  }
   async enqueueSyncRun({ sourceId, accountId, syncMode = 'incremental' } = {}) {
-    const active = await this.getLatestSyncRunForSource(sourceId, { accountId });
-    if (active && ['queued', 'running'].includes(active.status)) return active;
-    return this.createSyncRun(accountId, { syncMode, status: 'queued' });
+    if (!sourceId || !accountId) throw repositoryError('INVALID_INPUT', 'sourceId and accountId are required');
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [sourceRows] = await conn.query(`SELECT id FROM po_sources s WHERE id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
+      if (!sourceRows[0]) throw repositoryError('SOURCE_NOT_FOUND', 'source not found');
+      const [schedulerTableRows] = await conn.query("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state') AS scheduler_state_ready");
+      const schedulerStateReady = Number(schedulerTableRows?.[0]?.scheduler_state_ready) === 1;
+      if (schedulerStateReady) {
+        const [scheduleRows] = await conn.query('SELECT source_id, lease_until, (lease_until IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)) AS lease_active FROM po_source_schedule_state WHERE source_id=? FOR UPDATE', [sourceId]);
+        if (Number(scheduleRows[0]?.lease_active)) throw repositoryError('SOURCE_SCHEDULE_LEASE_ACTIVE', 'source scheduler lease is active');
+      }
+      const [accountRows] = await conn.query('SELECT id FROM po_accounts WHERE id=? AND source_id=? FOR UPDATE', [accountId, sourceId]);
+      if (!accountRows[0]) throw repositoryError('OWNERSHIP_MISMATCH', 'account does not belong to source');
+      const activeSql = schedulerStateReady
+        ? "SELECT * FROM po_sync_runs WHERE source_id=? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE"
+        : "SELECT r.* FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE a.source_id=? AND r.status IN ('queued','running') ORDER BY r.created_at DESC LIMIT 1 FOR UPDATE";
+      const [activeRows] = await conn.query(activeSql, [sourceId]);
+      if (activeRows[0]) { await conn.commit(); return activeRows[0]; }
+      const id = uuid();
+      if (schedulerStateReady) await conn.query("INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, started_at) VALUES (?,?,?,'legacy','queued',?,NULL,NULL)", [id, sourceId, accountId, syncMode]);
+      else await conn.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?,'queued',?,NULL)", [id, accountId, syncMode]);
+      const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [id]);
+      await conn.commit();
+      return runRows[0] || null;
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   }
   async listRunnableSyncRuns({ limit = 100 } = {}) {
     return this.query(`SELECT r.*, s.id AS source_id, s.game_id, s.community_id, s.platform, s.source_type, s.display_name, s.enabled, s.frequency_seconds, s.config, s.active_window, s.auth_status, s.auth_expire_at, s.collect_requested_at, s.last_success_at, g.name AS game_name, g.region_code, g.enabled AS game_enabled, c.name AS community_name, c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND (r.status='queued' OR (r.status='running' AND (r.lease_until IS NULL OR r.lease_until<NOW()))) ORDER BY CASE WHEN r.status='queued' THEN 0 ELSE 1 END, r.created_at ASC LIMIT ?`, [Math.min(Math.max(Number(limit) || 100, 1), 500)]);
@@ -961,55 +1021,121 @@ class Repository {
   // 授权闸门在 Worker runSource 内仍生效（fail-closed，未授权不采集）。
   async requestCollect(sourceId) { await this.query('UPDATE po_sources SET collect_requested_at=NOW() WHERE id=?', [sourceId]); }
 
-  // 用户主动开始同步：启用源、保存同步模式、写入手动队列必须原子完成，避免出现“已启用但未入队”。
-  async startSourceSync({ sourceId, accountId, metadata = {}, syncMode = 'incremental' } = {}) {
+  async assertUnifiedSchedulerSchemaReady(conn) {
+    try {
+      const [rows] = await conn.query(`SELECT
+        EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_schema_migrations') AS migration_table_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND column_name='default_account_id' AND column_type='char(36)' AND is_nullable='YES') AS default_account_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND ((column_name='schedule_version' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO') OR (column_name='schedule_effective_at' AND column_type='datetime(3)' AND is_nullable='YES')))=2 AS source_schedule_columns_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='source_id' AND column_type='char(36)' AND is_nullable='NO') AS run_source_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='trigger_type' AND column_type='varchar(32)' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='legacy') AS run_trigger_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='scheduled_at' AND column_type='datetime(3)' AND is_nullable='YES') AS run_schedule_column_ready,
+        EXISTS(SELECT 1 FROM (SELECT index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND index_name='po_sync_runs_source_schedule_uk' GROUP BY index_name, non_unique) idx WHERE idx.non_unique=0 AND idx.columns_list='source_id,scheduled_at') AS run_slot_ready,
+        EXISTS(SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='po_sync_runs' AND constraint_name='po_sync_runs_trigger_slot_chk' AND constraint_type='CHECK') AS run_trigger_constraint_ready,
+        EXISTS(SELECT 1 FROM information_schema.key_column_usage k JOIN information_schema.referential_constraints r ON r.constraint_schema=k.constraint_schema AND r.table_name=k.table_name AND r.constraint_name=k.constraint_name WHERE k.constraint_schema=DATABASE() AND k.table_name='po_sync_runs' AND k.constraint_name='po_sync_runs_source_fk' AND k.column_name='source_id' AND k.referenced_table_name='po_sources' AND k.referenced_column_name='id' AND r.delete_rule='RESTRICT') AS run_source_fk_ready,
+        EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state') AS schedule_state_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state' AND ((column_name='source_id' AND column_type='char(36)' AND is_nullable='NO') OR (column_name='schedule_version' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO') OR (column_name='effective_at' AND column_type='datetime(3)' AND is_nullable='NO') OR (column_name='lease_run_id' AND column_type='char(36)' AND is_nullable='YES') OR (column_name='lease_owner' AND column_type='varchar(160)' AND is_nullable='YES') OR (column_name='lease_epoch' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO') OR (column_name='lease_until' AND column_type='datetime(3)' AND is_nullable='YES')))=7 AS schedule_state_columns_ready,
+        EXISTS(SELECT 1 FROM information_schema.key_column_usage k JOIN information_schema.referential_constraints r ON r.constraint_schema=k.constraint_schema AND r.table_name=k.table_name AND r.constraint_name=k.constraint_name WHERE k.constraint_schema=DATABASE() AND k.table_name='po_source_schedule_state' AND k.constraint_name='po_source_schedule_state_source_fk' AND k.column_name='source_id' AND k.referenced_table_name='po_sources' AND k.referenced_column_name='id' AND r.delete_rule='CASCADE') AS schedule_state_fk_ready`);
+      const readiness = rows[0] || {};
+      if (Object.values(readiness).some(value => Number(value) !== 1)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'unified scheduler schema is not ready');
+      const [createRows] = await conn.query('SHOW CREATE TABLE po_sync_runs');
+      const actualCheck = normalizedCheckDefinition(extractNamedCheck(createRows?.[0]?.['Create Table'], 'po_sync_runs_trigger_slot_chk'));
+      const expectedCheck = normalizedCheckDefinition("(trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)");
+      if (actualCheck !== expectedCheck) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'sync run trigger constraint is not ready');
+      const [migrationRows] = await conn.query('SELECT version FROM po_schema_migrations WHERE version=? LIMIT 1', ['023_unified_source_scheduling.sql']);
+      if (!migrationRows[0]) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'migration 023 is not applied');
+    } catch (error) {
+      if (error.code === 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY') throw error;
+      const wrapped = repositoryError('UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED', 'failed to verify unified scheduler schema');
+      wrapped.cause = error;
+      throw wrapped;
+    }
+  }
+
+  async enqueueManualSourceSync({ sourceId, metadata = {}, syncMode = 'incremental', reset = false } = {}) {
+    if (!sourceId) throw repositoryError('INVALID_INPUT', 'sourceId is required');
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [sourceRows] = await conn.query(`SELECT s.id, s.enabled, c.status AS community_status, g.enabled AS game_enabled FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
+      await this.assertUnifiedSchedulerSchemaReady(conn);
+      const [sourceRows] = await conn.query(`SELECT s.id, s.game_id, s.community_id, s.platform, s.enabled, s.auth_status, s.auth_expire_at,
+        s.default_account_id, g.enabled AS game_enabled, c.status AS community_status,
+        (s.auth_expire_at IS NOT NULL AND s.auth_expire_at<=UTC_TIMESTAMP(3)) AS source_auth_expired
+        FROM po_sources s LEFT JOIN po_games g ON g.id=s.game_id LEFT JOIN po_communities c ON c.id=s.community_id
+        WHERE s.id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
       const source = sourceRows[0];
-      if (!source) { const error = new Error('source not found'); error.code = 'SOURCE_NOT_FOUND'; throw error; }
-      if (source.community_status && source.community_status !== 'enabled') { const error = new Error('community is disabled'); error.code = 'COMMUNITY_DISABLED'; throw error; }
-      if (!source.game_enabled) { const error = new Error('game is disabled'); error.code = 'GAME_DISABLED'; throw error; }
-      const [accountRows] = await conn.query('SELECT id FROM po_accounts WHERE id=? AND source_id=? AND enabled=1 FOR UPDATE', [accountId, sourceId]);
-      if (!accountRows[0]) { const error = new Error('enabled default account is required'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
-      await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata || {}), accountId]);
-      await conn.query('UPDATE po_sources SET enabled=1, collect_requested_at=NOW(), updated_at=NOW() WHERE id=?', [sourceId]);
-      const [activeRuns] = await conn.query("SELECT * FROM po_sync_runs WHERE account_id=? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [accountId]);
-      let run = activeRuns[0];
-      const reused = Boolean(run);
-      if (!run) {
-        const runId = uuid();
-        await conn.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?, 'queued', ?, NULL)", [runId, accountId, syncMode]);
-        [run] = (await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [runId]))[0];
+      if (!source) throw repositoryError('SOURCE_NOT_FOUND', 'source not found');
+      if (!source.enabled) throw repositoryError('SOURCE_DISABLED', 'source is disabled');
+      if (!source.game_enabled) throw repositoryError('GAME_DISABLED', 'game is disabled');
+      if (source.community_status !== 'enabled') throw repositoryError('COMMUNITY_DISABLED', 'community is disabled');
+      if (source.auth_status !== 'authorized') throw repositoryError('SOURCE_UNAUTHORIZED', 'source is not authorized');
+      if (Number(source.source_auth_expired)) throw repositoryError('SOURCE_AUTH_EXPIRED', 'source authorization is expired');
+      if (!source.default_account_id) throw repositoryError('ACCOUNT_NOT_FOUND', 'default account is not configured');
+
+      const [accountRows] = await conn.query(`SELECT a.*,
+        (a.auth_expire_at IS NOT NULL AND a.auth_expire_at<=UTC_TIMESTAMP(3)) AS account_auth_expired
+        FROM po_accounts a WHERE a.id=? FOR UPDATE`, [source.default_account_id]);
+      const account = accountRows[0];
+      if (!account) throw repositoryError('ACCOUNT_NOT_FOUND', 'default account not found');
+      if (String(account.source_id) !== String(source.id) || String(account.game_id) !== String(source.game_id)
+        || String(account.platform) !== String(source.platform) || String(account.community_id || '') !== String(source.community_id || '')) {
+        throw repositoryError('OWNERSHIP_MISMATCH', 'default account does not belong to source scope');
       }
+      if (!account.enabled) throw repositoryError('ACCOUNT_DISABLED', 'default account is disabled');
+      if (account.auth_status !== 'authorized') throw repositoryError('ACCOUNT_UNAUTHORIZED', 'default account is not authorized');
+      if (Number(account.account_auth_expired)) throw repositoryError('ACCOUNT_AUTH_EXPIRED', 'default account authorization is expired');
+
+      if (source.platform === 'bigplayer_h5') {
+        const [credentialRows] = await conn.query(`SELECT id, status, expire_at,
+          (expire_at IS NOT NULL AND expire_at<=UTC_TIMESTAMP(3)) AS credential_expired,
+          (secret_cipher IS NOT NULL AND OCTET_LENGTH(secret_cipher)>0) AS has_secret_cipher
+          FROM po_credentials WHERE source_id=? AND account_id=? AND credential_type='api_token'
+          ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id]);
+        const credential = credentialRows[0];
+        if (!credential) throw repositoryError('CREDENTIAL_NOT_FOUND', 'active api_token credential not found');
+        if (credential.status !== 'active') throw repositoryError('CREDENTIAL_INACTIVE', 'api_token credential is inactive');
+        if (Number(credential.credential_expired)) throw repositoryError('CREDENTIAL_EXPIRED', 'api_token credential is expired');
+        if (!Number(credential.has_secret_cipher)) throw repositoryError('CREDENTIAL_SECRET_MISSING', 'api_token credential secret is missing');
+      }
+
+      const [scheduleRows] = await conn.query('SELECT source_id, lease_owner, lease_until, (lease_until IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)) AS lease_active FROM po_source_schedule_state WHERE source_id=? FOR UPDATE', [source.id]);
+      const scheduleState = scheduleRows[0];
+      if (!scheduleState) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'source scheduler state is missing');
+      if (!reset) {
+        const [manualRows] = await conn.query("SELECT * FROM po_sync_runs WHERE source_id=? AND account_id=? AND trigger_type='manual' AND sync_mode=? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [source.id, account.id, syncMode]);
+        if (manualRows[0]) {
+          await conn.commit();
+          return { enabled: true, previouslyEnabled: true, reset: false, reused: true, run: manualRows[0] };
+        }
+      }
+      const [activeRuns] = await conn.query("SELECT id FROM po_sync_runs WHERE source_id=? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [source.id]);
+      if (activeRuns[0]) throw repositoryError('PREVIOUS_RUN_ACTIVE', 'another sync run is active');
+      const [activeCheckpoints] = await conn.query("SELECT cp.id FROM po_sync_checkpoints cp JOIN po_accounts a ON a.id=cp.account_id WHERE a.source_id=? AND cp.status='running' AND (cp.lease_until IS NULL OR cp.lease_until>UTC_TIMESTAMP(3)) LIMIT 1 FOR UPDATE", [source.id]);
+      if (activeCheckpoints[0]) throw repositoryError('SYNC_CHECKPOINT_ACTIVE', 'a sync checkpoint is active');
+      if (Number(scheduleState.lease_active)) throw repositoryError('SOURCE_SCHEDULE_LEASE_ACTIVE', 'source scheduler lease is active');
+
+      if (reset) {
+        await conn.query("UPDATE po_sync_checkpoints cp JOIN po_accounts a ON a.id=cp.account_id SET cp.status='idle', cp.`cursor`=NULL, cp.items_fetched=0, cp.last_item_at=NULL, cp.error_code=NULL, cp.error_message=NULL, cp.lease_owner=NULL, cp.lease_until=NULL WHERE a.source_id=?", [source.id]);
+      }
+      if (metadata && Object.keys(metadata).length) {
+        await conn.query('UPDATE po_accounts SET metadata=JSON_MERGE_PATCH(COALESCE(metadata,JSON_OBJECT()),?), updated_at=NOW() WHERE id=?', [JSON.stringify(metadata), account.id]);
+      }
+      const runId = uuid();
+      await conn.query("INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, started_at) VALUES (?,?,?,'manual','queued',?,NULL,NULL)", [runId, source.id, account.id, syncMode]);
+      const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [runId]);
       await conn.commit();
-      return { enabled: true, previouslyEnabled: Boolean(source.enabled), reused, run };
+      return { enabled: true, previouslyEnabled: true, reset, reused: false, run: runRows[0] };
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   }
 
-  // 授权范围全量回溯：重置全部断点并创建独立的新运行，旧运行保留审计记录。
-  async resetSourceSync({ sourceId, accountId, metadata = {}, syncMode = 'backfill' } = {}) {
-    const conn = await this.pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      const [sourceRows] = await conn.query(`SELECT s.id, s.enabled, c.status AS community_status, g.enabled AS game_enabled FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
-      const source = sourceRows[0];
-      if (!source) { const error = new Error('source not found'); error.code = 'SOURCE_NOT_FOUND'; throw error; }
-      if (source.community_status && source.community_status !== 'enabled') { const error = new Error('community is disabled'); error.code = 'COMMUNITY_DISABLED'; throw error; }
-      if (!source.game_enabled) { const error = new Error('game is disabled'); error.code = 'GAME_DISABLED'; throw error; }
-      const [accountRows] = await conn.query('SELECT id FROM po_accounts WHERE id=? AND source_id=? AND enabled=1 FOR UPDATE', [accountId, sourceId]);
-      if (!accountRows[0]) { const error = new Error('enabled default account is required'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
-      await conn.query("UPDATE po_sync_checkpoints SET status='idle', `cursor`=NULL, items_fetched=0, last_item_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL WHERE account_id=?", [accountId]);
-      await conn.query("UPDATE po_sync_runs SET status='cancelled', finished_at=NOW(), error_code='RESET_BY_USER', error_message='run superseded by authorized-scope reset', lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE account_id=? AND status IN ('queued','running')", [accountId]);
-      await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata || {}), accountId]);
-      await conn.query('UPDATE po_sources SET enabled=1, collect_requested_at=NOW(), updated_at=NOW() WHERE id=?', [sourceId]);
-      const runId = uuid();
-      await conn.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?, 'queued', ?, NULL)", [runId, accountId, syncMode]);
-      const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [runId]);
-      await conn.commit();
-      return { enabled: true, reset: true, reused: false, run: runRows[0] };
-    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+  // 精确手动同步只会为已启用、已授权来源的默认账号创建一条 manual run。
+  async startSourceSync({ sourceId, metadata = {}, syncMode = 'incremental' } = {}) {
+    return this.enqueueManualSourceSync({ sourceId, metadata, syncMode, reset: false });
+  }
+
+  // 全量回溯仅在同一准入事务通过后重置断点，不会取消活动任务或自动启用来源。
+  async resetSourceSync({ sourceId, metadata = {}, syncMode = 'backfill' } = {}) {
+    return this.enqueueManualSourceSync({ sourceId, metadata, syncMode, reset: true });
   }
 
   // 被手动请求采集的源（collect_requested_at 非空）；捞出后即由 Worker 清空标记。
@@ -1052,11 +1178,21 @@ class Repository {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
+      const [schedulerSchemaRows] = await conn.query(`SELECT
+        ((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND column_name IN ('default_account_id','schedule_version','schedule_effective_at'))=3
+          AND EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state')) AS unified_scheduler_ready`);
+      const unifiedSchedulerReady = Number(schedulerSchemaRows?.[0]?.unified_scheduler_ready) === 1;
       await conn.query('INSERT INTO po_sources (id, game_id, community_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?,?)', [sourceId, gameId, communityId, platform, sourceType, displayName, 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
       if (maskedLoginIdentifier) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, masked_login_identifier, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, maskedLoginIdentifier, JSON.stringify(metadata || {})]);
       else if (communityId) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
       else await conn.query('INSERT INTO po_accounts (id, game_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
       if (credentialType && secretCipher) await conn.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status) VALUES (?,?,?,?,?,?,?)', [uuid(), accountId, sourceId, credentialType, '', secretCipher, 'active']);
+      if (unifiedSchedulerReady) {
+        await conn.query('UPDATE po_sources SET default_account_id=?, schedule_effective_at=COALESCE(schedule_effective_at,UTC_TIMESTAMP(3)) WHERE id=?', [accountId, sourceId]);
+        await conn.query(`INSERT INTO po_source_schedule_state (source_id, schedule_version, effective_at)
+          SELECT id, schedule_version, schedule_effective_at FROM po_sources WHERE id=?
+          ON DUPLICATE KEY UPDATE schedule_version=VALUES(schedule_version), effective_at=VALUES(effective_at)`, [sourceId]);
+      }
       await conn.commit();
     } catch (error) { await conn.rollback(); throw error; }
     finally { conn.release(); }
