@@ -1040,7 +1040,7 @@ async function runOnce(deps = buildDeps()) {
     ? allQueued.filter(item => {
       const run = item.syncRun || item.sync_run || item;
       const sourceRecord = item.source || item.sourceRecord || item.source_record || item;
-      const sourceId = first(sourceRecord, ['sourceId', 'source_id', 'id'], first(item, ['sourceId', 'source_id'], item.id));
+      const sourceId = first(sourceRecord, ['sourceId', 'source_id'], first(item, ['sourceId', 'source_id'], sourceRecord.id));
       const triggerType = first(run, ['triggerType', 'trigger_type'], null);
       return String(sourceId) === recoverySourceId && triggerType === 'manual';
     })

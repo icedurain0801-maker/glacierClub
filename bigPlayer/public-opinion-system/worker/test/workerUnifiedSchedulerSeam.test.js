@@ -370,3 +370,25 @@ test('runOnce recovery gate consumes only target manual runs and preserves unrel
   assert.deepEqual(result, { queued: 1, manual: 2, scanned: 0 });
   assert.deepEqual(calls, []);
 });
+
+test('runOnce recovery gate reads the flat repository source_id instead of the run id', async () => {
+  const calls = [];
+  const result = await runOnce({
+    repo: {
+      async health() {},
+      async listRunnableSyncRuns() {
+        return [{ id: 'manual-target-run', source_id: 'target-source', trigger_type: 'manual', status: 'queued', account_id: 'a1', sync_mode: 'incremental', platform: 'unknown', enabled: 1, game_enabled: 1 }];
+      },
+      async listManualDueSources() { return []; },
+      async claimSyncRun(input) { calls.push(input); return null; },
+      async listDueSources() { throw new Error('recovery mode must not scan periodic sources'); }
+    },
+    connectors: {},
+    ai: { configured() { return false; } },
+    sourceConcurrency: 1,
+    unifiedScheduler: { mode: 'enabled', recoverySourceId: 'target-source' }
+  });
+
+  assert.deepEqual(result, { queued: 1, manual: 0, scanned: 0 });
+  assert.deepEqual(calls, [{ runId: 'manual-target-run', leaseOwner: undefined, leaseSeconds: undefined }]);
+});
