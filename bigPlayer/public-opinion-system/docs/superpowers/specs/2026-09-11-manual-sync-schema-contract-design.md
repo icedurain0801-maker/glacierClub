@@ -16,7 +16,7 @@ After migration 023, create exactly one auditable `manual` sync run for one expl
 ## Repository contract
 
 - `createSyncRun` requires `sourceId` and writes `source_id`, `account_id`, `trigger_type`, `status`, `sync_mode`, and `started_at` explicitly.
-- Worker-created periodic runs pass `trigger_type='scheduled'`; source API-created runs pass `trigger_type='manual'`.
+- Unified scheduling continues to pass its precreated run with `trigger_type='scheduled'` and a non-null `scheduled_at`. A legacy Worker fallback without a schedule slot passes `trigger_type='legacy'`; source API-created runs pass `trigger_type='manual'`.
 - A dedicated source manual-enqueue transaction:
   1. verifies migration 023 schema readiness and fails closed on old/incomplete schema;
   2. locks the selected source row;
@@ -53,7 +53,7 @@ No failing path may enable a source, clear a checkpoint, reset a lease, or inser
 - Repository unit tests assert every run insert includes `source_id` and the correct trigger type.
 - Transaction tests cover enabled/manual success, exact persisted values, duplicate idempotency, disabled-source rejection, account/source ownership, authorization expiry, active run/checkpoint/lease conflicts, rollback, and old-schema fail-closed behavior.
 - API route tests assert the endpoint creates one queued manual run, returns `reused` on duplicate requests, rejects disabled sources without mutation, and surfaces stable error codes.
-- Worker tests assert scheduled enqueue calls carry the source ID and scheduled trigger type.
+- Worker tests assert the no-slot legacy fallback carries the source ID and `trigger_type='legacy'`; unified-scheduler tests retain the scheduled-slot contract.
 - Migration contract tests continue to assert the 023 `NOT NULL`/index definitions required by the repository contract.
 
 ## Scope boundary
