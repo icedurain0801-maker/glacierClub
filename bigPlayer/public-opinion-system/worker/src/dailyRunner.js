@@ -1,4 +1,5 @@
 const { previousBeijingDay } = require('./businessDay');
+const { schedulerMode, requireExplicitSchedulerMode } = require('./schedulerMode');
 const {
   buildDeps,
   checkAuthorization,
@@ -17,6 +18,12 @@ const DAILY_PROGRESS_CHECK_INTERVAL_MS = 60 * 1000;
 const DAILY_STALL_THRESHOLD_MS = 15 * 60 * 1000;
 const DAILY_PHASES = new Set(['preflight', 'collecting', 'draining_commits', 'draining_analysis', 'completed']);
 const COUNT_FIELDS = ['ready', 'skipped', 'total', 'active', 'pending', 'running', 'retryable', 'completed', 'failed', 'discovered', 'stored', 'fetched', 'inserted', 'changed', 'comments', 'analyzed', 'alerted'];
+const UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS = 'UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS';
+
+function legacyScheduledGate({ mode = process.env.UNIFIED_SOURCE_SCHEDULER_MODE, triggerType = 'scheduled' } = {}) {
+  if (triggerType !== 'scheduled' || schedulerMode({ UNIFIED_SOURCE_SCHEDULER_MODE: mode }) !== 'enabled') return null;
+  return { status: 'skipped', reasonCode: UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS };
+}
 
 function clockNow(deps) { return typeof deps?.clock === 'function' ? deps.clock() : Date.now(); }
 function sanitizeCounts(counts = {}) {
@@ -204,7 +211,15 @@ async function preflightSources(deps) {
   return { ready, skipped };
 }
 
-async function runDaily(deps = buildDeps(), { now = new Date(), dryRun = false } = {}) {
+async function runDaily(deps, {
+  now = new Date(),
+  dryRun = false,
+  triggerType = 'scheduled',
+  unifiedSchedulerMode = process.env.UNIFIED_SOURCE_SCHEDULER_MODE
+} = {}) {
+  const gate = legacyScheduledGate({ mode: unifiedSchedulerMode, triggerType });
+  if (gate) return gate;
+  deps = deps || buildDeps();
   const window = previousBeijingDay(now);
   const lockName = `po-daily-${window.businessDate}`;
   let locked = false;
@@ -298,8 +313,15 @@ async function runDaily(deps = buildDeps(), { now = new Date(), dryRun = false }
 }
 
 async function main() {
-  const deps = buildDeps();
+  let deps = null;
   try {
+    const mode = requireExplicitSchedulerMode(process.env);
+    const gate = legacyScheduledGate({ mode });
+    if (gate) {
+      console.log(JSON.stringify(gate));
+      return;
+    }
+    deps = buildDeps();
     const result = await runDaily(deps, { dryRun: process.argv.includes('--dry-run') });
     console.log(JSON.stringify(result));
     if (!result.dryRun && ['collection_failed', 'awaiting_manual_verification'].includes(result.collectionStatus)) process.exitCode = 2;
@@ -307,10 +329,10 @@ async function main() {
     console.error(JSON.stringify({ status: 'failed', code: error.code || 'DAILY_RUN_FAILED', message: error.message }));
     process.exitCode = 1;
   } finally {
-    await deps.repo.pool.end();
+    if (deps?.repo?.pool?.end) await deps.repo.pool.end();
   }
 }
 
 if (require.main === module) main();
 
-module.exports = { activeCount, analyzeWindow, enqueueWindow, enqueueOnlyDeps, runAnalysisPump, preflightSources, runDaily };
+module.exports = { activeCount, analyzeWindow, enqueueWindow, enqueueOnlyDeps, runAnalysisPump, preflightSources, runDaily, legacyScheduledGate };

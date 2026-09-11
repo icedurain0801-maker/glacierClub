@@ -4,6 +4,13 @@ const path = require('node:path');
 const { Q1AnalysisRunner } = require('./q1DailyAnalysisRunner');
 const { previousBeijingDay } = require('./businessDay');
 const { loadRuntimeEnv } = require('../../server/src/runtimeEnv');
+const { schedulerMode, requireExplicitSchedulerMode } = require('./schedulerMode');
+const UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS = 'UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS';
+
+function legacyScheduledGate({ mode = process.env.UNIFIED_SOURCE_SCHEDULER_MODE, triggerType = 'scheduled' } = {}) {
+  if (triggerType !== 'scheduled' || schedulerMode({ UNIFIED_SOURCE_SCHEDULER_MODE: mode }) !== 'enabled') return null;
+  return { status: 'skipped', reasonCode: UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS };
+}
 const { Repository } = require('../../server/src/db/repository');
 const { BigPlayerH5Connector, parseSourceConfig } = require('../../server/src/connectors/bigPlayerH5Connector');
 const { CredentialContext } = require('../../server/src/services/credentialContext');
@@ -192,7 +199,9 @@ function runCrawler({ script = path.resolve(__dirname, '../../scripts/q1_crawler
     });
   });
 }
-async function runQ1Daily({ sourceId, outDir, python, crawlerArgs = [], now = new Date(), runnerOptions = {}, log = console.log, crawler = runCrawler, analysisRunner = Q1AnalysisRunner } = {}) {
+async function runQ1Daily({ sourceId, outDir, python, crawlerArgs = [], now = new Date(), runnerOptions = {}, log = console.log, crawler = runCrawler, analysisRunner = Q1AnalysisRunner, triggerType = 'scheduled', unifiedSchedulerMode = process.env.UNIFIED_SOURCE_SCHEDULER_MODE } = {}) {
+  const gate = legacyScheduledGate({ mode: unifiedSchedulerMode, triggerType });
+  if (gate) return gate;
   if (!sourceId) throw new Error('sourceId is required');
   const window = yesterdayWindow(now);
   const lock = await acquireDailyLock(sourceId, window.businessDate, runnerOptions.lockDir);
@@ -252,10 +261,21 @@ async function runQ1Daily({ sourceId, outDir, python, crawlerArgs = [], now = ne
   }
 }
 if (require.main === module) {
-  const sourceId = process.env.Q1_SOURCE_ID;
-  const now = new Date();
-  const businessDate = yesterdayWindow(now).businessDate;
-  const outDir = process.env.Q1_DAILY_OUT_DIR || path.resolve(process.cwd(), '.temp', `q1-daily-${businessDate}`);
-  runQ1Daily({ sourceId, outDir }).then(result => console.log(JSON.stringify(result.report || result))).catch(error => { console.error(`[q1-daily] ${sanitizeMessage(error.message)}`); if (error.report) console.error(JSON.stringify(error.report)); process.exitCode = 1; });
+  try {
+    loadRuntimeEnv();
+    const mode = requireExplicitSchedulerMode(process.env);
+    const gate = legacyScheduledGate({ mode });
+    if (gate) console.log(JSON.stringify(gate));
+    else {
+      const sourceId = process.env.Q1_SOURCE_ID;
+      const now = new Date();
+      const businessDate = yesterdayWindow(now).businessDate;
+      const outDir = process.env.Q1_DAILY_OUT_DIR || path.resolve(process.cwd(), '.temp', `q1-daily-${businessDate}`);
+      runQ1Daily({ sourceId, outDir, unifiedSchedulerMode: mode }).then(result => console.log(JSON.stringify(result.report || result))).catch(error => { console.error(`[q1-daily] ${sanitizeMessage(error.message)}`); if (error.report) console.error(JSON.stringify(error.report)); process.exitCode = 1; });
+    }
+  } catch (error) {
+    console.error(JSON.stringify({ status: 'failed', code: error.code || 'Q1_DAILY_FAILED', message: sanitizeMessage(error.message) }));
+    process.exitCode = 1;
+  }
 }
-module.exports = { yesterdayWindow, runCrawler, runQ1Daily, runQ1Preflight, defaultQ1Preflight, createProductionQ1Preflight, sanitizeMessage, buildDailyReport, analysisCounts };
+module.exports = { yesterdayWindow, runCrawler, runQ1Daily, runQ1Preflight, defaultQ1Preflight, createProductionQ1Preflight, sanitizeMessage, buildDailyReport, analysisCounts, legacyScheduledGate };

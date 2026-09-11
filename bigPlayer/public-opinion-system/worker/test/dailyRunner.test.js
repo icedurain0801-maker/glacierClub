@@ -1,12 +1,27 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { activeCount, analyzeWindow, enqueueWindow, enqueueOnlyDeps, runAnalysisPump, preflightSources, runDaily } = require('../src/dailyRunner');
+const { activeCount, analyzeWindow, enqueueWindow, enqueueOnlyDeps, runAnalysisPump, preflightSources, runDaily, legacyScheduledGate } = require('../src/dailyRunner');
 
 const window = {
   publishedFrom: new Date('2026-08-10T16:00:00.000Z'),
   publishedTo: new Date('2026-08-11T16:00:00.000Z')
 };
+
+test('enabled unified mode yields scheduled daily runs without touching dependencies', async () => {
+  let dependencyCalls = 0;
+  const deps = { repo: { async health() { dependencyCalls += 1; } } };
+  const result = await runDaily(deps, { unifiedSchedulerMode: 'enabled' });
+
+  assert.deepEqual(result, {
+    status: 'skipped',
+    reasonCode: 'UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS'
+  });
+  assert.equal(dependencyCalls, 0);
+  assert.equal(legacyScheduledGate({ mode: 'off' }), null);
+  assert.equal(legacyScheduledGate({ mode: undefined }), null);
+  assert.equal(legacyScheduledGate({ mode: 'enabled', triggerType: 'manual' }), null);
+});
 
 function ai() {
   return {

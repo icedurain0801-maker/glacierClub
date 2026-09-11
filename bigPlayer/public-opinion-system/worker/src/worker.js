@@ -14,6 +14,7 @@ const { AiAnalyzer } = require('../../server/src/integrations/aiAnalyzer');
 const { DingTalkNotifier } = require('../../server/src/integrations/dingTalkNotifier');
 const { matchRules } = require('../../server/src/pipeline/ruleEngine');
 const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
+const { schedulerMode, requireExplicitSchedulerMode } = require('./schedulerMode');
 
 const SOCIAL_PLATFORMS = new Set(['douyin', 'xiaohongshu']);
 const MANUAL_VERIFICATION_CODES = new Set([
@@ -368,11 +369,16 @@ async function syncStagePage(deps, stage) {
   return { discovered: normalized.length, stored: Number(committed.storedCount || entries.filter(entry => entry.change !== 'unchanged').length), entries, capability: page.capability || stage.capability, completed: !page.hasMore, replyTargets, requestCursor, nextCursor: page.nextCursor };
 }
 
+function checkpointWindow(collectionWindow = {}) {
+  if (!collectionWindow.dailyBounded || !collectionWindow.publishedFrom || !collectionWindow.publishedTo) return { windowStart: '', windowEnd: '' };
+  return { windowStart: new Date(collectionWindow.publishedFrom).toISOString(), windowEnd: new Date(collectionWindow.publishedTo).toISOString() };
+}
+
 async function syncStage(deps, { source, account, connector, credential, sessionRef = null, scope, rootPlatformContentId = '', syncMode, syncRunId = null, postPlatformId = '', historyStart = null, updatedSince = null, taskKind, taskKey, keyword = null, feed = null, commentId = null, sortType = 0, onPageCommitted = null }) {
   taskKind ||= scope === 'posts' ? 'owned_content' : scope;
   taskKey ||= rootPlatformContentId || (scope === 'posts' ? 'owned' : 'root');
   const { syncScope, checkpointRoot } = stageIdentity({ scope, rootPlatformContentId, taskKind, taskKey });
-  const checkpoint = await deps.repo.claimSyncCheckpoint({ accountId: account.id, syncScope, rootPlatformContentId: checkpointRoot, syncMode, taskKind, taskKey, leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds });
+  const checkpoint = await deps.repo.claimSyncCheckpoint({ accountId: account.id, syncScope, rootPlatformContentId: checkpointRoot, syncMode, taskKind, taskKey, ...checkpointWindow(deps.collectionWindow), leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds });
   if (!checkpoint) return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', skipped: true };
   const stage = { source, account, connector, credential, activeSessionRef: sessionRef, scope, rootPlatformContentId, postPlatformId, historyStart, syncMode, syncRunId, taskKind, taskKey, keyword, feed, commentId, sortType, syncScope, checkpointRoot, checkpoint, cursor: checkpoint.cursor ?? null, capability: 'authorized_scope', effectiveUpdatedSince: updatedSince || first(checkpoint, ['last_item_at', 'lastItemAt'], first(account, ['last_incremental_sync_at', 'lastIncrementalSyncAt'])) };
   let discovered = 0; let stored = 0; let completed = false; const entries = []; const replyTargets = [];
@@ -652,6 +658,45 @@ async function claimSyncRun(deps, syncRun) {
   if (typeof deps.repo.claimSyncRun !== 'function') return syncRun;
   return deps.repo.claimSyncRun({ runId: syncRun.id, leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds });
 }
+function claimedLeaseOwner(deps, claimed) { return first(claimed, ['lease_owner', 'leaseOwner'], deps.leaseOwner); }
+function withClaimedLeaseOwner(deps, claimed) {
+  const leaseOwner = claimedLeaseOwner(deps, claimed);
+  return leaseOwner === deps.leaseOwner ? deps : { ...deps, leaseOwner };
+}
+
+function utcDateTime(value) {
+  if (value instanceof Date) return value;
+  const text = String(value || '').trim();
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,3})?$/.test(text) ? `${text.replace(' ', 'T')}Z` : text;
+  return new Date(normalized);
+}
+
+function withClaimedRunWindow(deps, claimed) {
+  const rawFrom = first(claimed, ['window_start', 'windowStart'], null);
+  const rawTo = first(claimed, ['window_end', 'windowEnd'], null);
+  if (rawFrom == null && rawTo == null) return deps;
+  const publishedFrom = utcDateTime(rawFrom); const publishedTo = utcDateTime(rawTo);
+  const duration = publishedTo.getTime() - publishedFrom.getTime();
+  if (rawFrom == null || rawTo == null || !Number.isFinite(duration) || duration <= 0 || duration > 7 * 24 * 60 * 60 * 1000) {
+    const error = new Error('sync run has an invalid bounded collection window');
+    error.code = 'SYNC_RUN_WINDOW_INVALID';
+    throw error;
+  }
+  return {
+    ...deps,
+    collectionWindow: { publishedFrom, publishedTo, dailyBounded: true },
+    analysisScope: { ...(deps.analysisScope || {}), publishedFrom, publishedTo }
+  };
+}
+async function validatedClaimedRunDeps(deps, source, claimed) {
+  const claimedDeps = withClaimedLeaseOwner(deps, claimed);
+  try { return withClaimedRunWindow(claimedDeps, claimed); }
+  catch (error) {
+    const run = await claimedDeps.repo.createRun(source.id);
+    await finishPagedFailure(claimedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
+    throw error;
+  }
+}
 async function runPagedSource(deps, source, connector, run, syncRun, knownAccount = null) {
   const account = knownAccount || await deps.repo.getDefaultAccount({ sourceId: source.id, gameId: source.game_id, platform: source.platform });
   if (!account) return deps.repo.finishRun(run.id, { status: 'failed', errorCode: 'ACCOUNT_NOT_FOUND', errorMessage: 'default platform account is not configured' });
@@ -665,29 +710,27 @@ async function runSource(deps, source, precreatedSyncRun = null) {
   if (!paged && !precreatedSyncRun) { const run = await deps.repo.createRun(source.id); return runLegacySource(deps, source, connector, run); }
   let claimed = precreatedSyncRun ? await claimSyncRun(deps, precreatedSyncRun) : null;
   if (precreatedSyncRun && !claimed) return { skipped: true, syncRunId: precreatedSyncRun.id };
-  const account = await deps.repo.getDefaultAccount({ sourceId: source.id, gameId: source.game_id, platform: source.platform });
+  let leasedDeps = claimed ? await validatedClaimedRunDeps(deps, source, claimed) : deps;
+  const account = await leasedDeps.repo.getDefaultAccount({ sourceId: source.id, gameId: source.game_id, platform: source.platform });
   if (!account) {
-    const run = await deps.repo.createRun(source.id);
+    const run = await leasedDeps.repo.createRun(source.id);
     const error = new Error('default platform account is not configured'); error.code = 'ACCOUNT_NOT_FOUND';
-    if (claimed) return finishPagedFailure(deps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
-    return deps.repo.finishRun(run.id, { status: 'failed', errorCode: error.code, errorMessage: error.message });
+    if (claimed) return finishPagedFailure(leasedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
+    return leasedDeps.repo.finishRun(run.id, { status: 'failed', errorCode: error.code, errorMessage: error.message });
   }
   if (!claimed) {
     const queued = await enqueueSyncRun(deps, source, account);
     claimed = await claimSyncRun(deps, queued);
     if (!claimed) return { skipped: true, syncRunId: queued.id };
+    leasedDeps = await validatedClaimedRunDeps(deps, source, claimed);
   }
-  const run = await deps.repo.createRun(source.id);
+  const run = await leasedDeps.repo.createRun(source.id);
   if (!connector) {
     const error = new Error(source.platform); error.code = 'CONNECTOR_NOT_FOUND';
-    await finishPagedFailure(deps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
+    await finishPagedFailure(leasedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
     return;
   }
-  return runPagedSource(deps, source, connector, run, claimed, account);
-}
-function schedulerMode(env = process.env) {
-  const mode = String(env.UNIFIED_SOURCE_SCHEDULER_MODE || 'off').trim().toLowerCase();
-  return ['off', 'shadow', 'enabled'].includes(mode) ? mode : 'off';
+  return runPagedSource(leasedDeps, source, connector, run, claimed, account);
 }
 function schedulerConnectorCapabilities(connectors = {}) {
   return Object.fromEntries(Object.entries(connectors).map(([platform, connector]) => {
@@ -821,5 +864,15 @@ async function runOnce(deps = buildDeps()) {
   return { queued: queued.length, manual: manual.length, scanned: sources.length };
 }
 const interval = Number(process.env.WORKER_INTERVAL_MS || 60000);
-if (require.main === module) { runOnce().catch(error => console.error('[worker]', error)); setInterval(() => runOnce().catch(error => console.error('[worker]', error)), interval); console.log(`public-opinion-worker scanning due sources every ${interval}ms`); }
+if (require.main === module) {
+  try {
+    const mode = requireExplicitSchedulerMode(process.env);
+    runOnce().catch(error => console.error('[worker]', error));
+    setInterval(() => runOnce().catch(error => console.error('[worker]', error)), interval);
+    console.log(`public-opinion-worker mode=${mode} scanning due sources every ${interval}ms`);
+  } catch (error) {
+    console.error(`[worker] status=failed errorCode=${error.code || 'UNIFIED_SCHEDULER_MODE_INVALID'}`);
+    process.exitCode = 1;
+  }
+}
 module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, isManualVerification, runBounded, runUnifiedSchedulerSeam };

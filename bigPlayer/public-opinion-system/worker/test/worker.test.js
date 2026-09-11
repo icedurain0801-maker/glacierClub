@@ -994,6 +994,66 @@ test('legacy no-slot paged source enqueues then claims and finishes the same run
   assert.equal(lifecycle[2][1].leaseOwner, 'worker-4');
 });
 
+test('precreated bounded run supplies its fixed window to Q1 feeds and checkpoint identity', async () => {
+  const feedCalls = []; const checkpointClaims = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'sr-window', sync_mode: 'backfill', trigger_type: 'manual', window_start: '2026-09-04 08:30:00.000', window_end: '2026-09-11 08:30:00.000' }; },
+    async finishSyncRun() {},
+    async claimSyncCheckpoint(input) { checkpointClaims.push(input); return { id: 'cp-window', cursor: null }; },
+    async upsertContentPage() { return { contents: [], storedCount: 0 }; },
+    async releaseSyncCheckpoint() {}, async loadKeywordRules() { return []; }, async enqueueAnalysisJob() {}
+  });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    hasSourceCapability() { return false; },
+    async discoverFeeds() { return [{ feedKey: 'home' }]; },
+    async listFeedContents(input) { feedCalls.push(input); return { items: [], nextCursor: null, hasMore: false }; }
+  };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: { configured() { return true; }, selectProfile() { return { version: 'l1' }; } }, alertEngine: {}, leaseOwner: 'window-worker', leaseSeconds: 30, pageBudget: 1, pageSize: 10 }, source, { id: 'sr-window', account_id: 'a1', sync_mode: 'backfill' });
+  assert.equal(feedCalls.length, 1);
+  assert.equal(new Date(feedCalls[0].publishedFrom).toISOString(), '2026-09-04T08:30:00.000Z');
+  assert.equal(new Date(feedCalls[0].publishedTo).toISOString(), '2026-09-11T08:30:00.000Z');
+  assert.equal(feedCalls[0].dailyBounded, true);
+  const q1Claim = checkpointClaims.find(item => item.taskKind === 'q1_feed');
+  assert.equal(q1Claim.windowStart, '2026-09-04T08:30:00.000Z');
+  assert.equal(q1Claim.windowEnd, '2026-09-11T08:30:00.000Z');
+});
+
+test('precreated run with an invalid bounded window fails closed before connector collection', async () => {
+  let collected = 0; let accountLookups = 0;
+  const terminal = { status: 'running', leaseOwner: 'window-worker:claim', leaseUntil: '2026-09-11T09:00:00.000Z' };
+  const finished = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { accountLookups += 1; throw new Error('account lookup must not run before window validation'); },
+    async claimSyncRun() { return { id: 'sr-invalid-window', sync_mode: 'backfill', lease_owner: 'window-worker:claim', window_start: '2026-09-04 08:30:00.000', window_end: null }; },
+    async finishSyncRun(id, patch) {
+      finished.push({ id, ...patch });
+      terminal.status = patch.status;
+      terminal.errorCode = patch.errorCode;
+      terminal.leaseOwner = null;
+      terminal.leaseUntil = null;
+      return { id, status: patch.status };
+    }
+  });
+  const connector = { async listOwnedContents() { collected += 1; return { items: [], nextCursor: null, hasMore: false }; } };
+  await assert.rejects(
+    () => runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: {}, leaseOwner: 'window-worker', leaseSeconds: 30 }, source, { id: 'sr-invalid-window' }),
+    error => error.code === 'SYNC_RUN_WINDOW_INVALID'
+  );
+  assert.equal(collected, 0);
+  assert.equal(accountLookups, 0);
+  assert.deepEqual(finished.map(({ id, status, errorCode, leaseOwner }) => ({ id, status, errorCode, leaseOwner })), [{
+    id: 'sr-invalid-window',
+    status: 'failed',
+    errorCode: 'SYNC_RUN_WINDOW_INVALID',
+    leaseOwner: 'window-worker:claim'
+  }]);
+  assert.deepEqual(terminal, { status: 'failed', errorCode: 'SYNC_RUN_WINDOW_INVALID', leaseOwner: null, leaseUntil: null });
+});
+
 test('legacy no-slot paged source fallback creates a run with source identity and legacy trigger', async () => {
   const created = [];
   const repo = makeRepo();

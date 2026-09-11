@@ -5,7 +5,22 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { runQ1Daily, runCrawler, runQ1Preflight, buildDailyReport, sanitizeMessage } = require('../src/q1DailyJob');
+const { runQ1Daily, runCrawler, runQ1Preflight, buildDailyReport, sanitizeMessage, legacyScheduledGate } = require('../src/q1DailyJob');
+
+test('enabled unified mode yields scheduled Q1 runs while off and manual keep legacy entry behavior', async () => {
+  const result = await runQ1Daily({ unifiedSchedulerMode: 'enabled' });
+  assert.deepEqual(result, {
+    status: 'skipped',
+    reasonCode: 'UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS'
+  });
+  assert.equal(legacyScheduledGate({ mode: 'off' }), null);
+  assert.equal(legacyScheduledGate({ mode: undefined }), null);
+  assert.equal(legacyScheduledGate({ mode: 'enabled', triggerType: 'manual' }), null);
+  await assert.rejects(
+    () => runQ1Daily({ unifiedSchedulerMode: 'enabled', triggerType: 'manual' }),
+    /sourceId is required/
+  );
+});
 
 test('builds a fixed sanitized daily report with analysis counters', () => {
   const report = buildDailyReport({
