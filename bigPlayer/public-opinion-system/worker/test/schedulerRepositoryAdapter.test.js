@@ -142,12 +142,28 @@ test('lease acquisition is a conditional update that increments and returns epoc
     }
   });
   assert.match(connection.calls[0].sql, /lease_epoch=lease_epoch\+1/);
-  assert.match(connection.calls[0].sql, /WHERE source_id=\? AND \(lease_until IS NULL OR lease_until<=\?\)$/);
+  assert.match(connection.calls[0].sql, /WHERE s\.source_id=\? AND \(lease_until IS NULL OR lease_until<=\?\)/);
+  assert.match(connection.calls[0].sql, /AND NOT EXISTS \(\s*SELECT 1 FROM po_sync_runs r WHERE r\.source_id=s\.source_id AND r\.status IN \('queued','running'\)\s*\)$/);
   assert.deepEqual(connection.calls[0].params, [
     'run-new', 'scheduler-a', '2026-09-08 18:04:00.000',
     'source-1', '2026-09-08 17:59:00.000'
   ]);
   assert.deepEqual(connection.calls[1].params, ['source-1', 'run-new', 'scheduler-a']);
+});
+
+test('an active manual run blocks lease acquisition in the same atomic update', async () => {
+  const activeRuns = [{ source_id: 'source-1', trigger_type: 'manual', status: 'queued' }];
+  const connection = fakeConnection(call => {
+    assert.match(call.sql, /^UPDATE po_source_schedule_state s /);
+    assert.match(call.sql, /NOT EXISTS \(\s*SELECT 1 FROM po_sync_runs r WHERE r\.source_id=s\.source_id AND r\.status IN \('queued','running'\)\s*\)$/);
+    assert.equal(activeRuns.some(run => run.source_id === call.params[3]
+      && ['queued', 'running'].includes(run.status)), true);
+    return [{ affectedRows: 0 }];
+  });
+  const adapter = createSchedulerRepositoryAdapter(connection);
+
+  assert.deepEqual(await adapter.acquireLease(lease()), { acquired: false, leaseToken: null });
+  assert.equal(connection.calls.length, 1);
 });
 
 test('an unexpired lease rejects acquisition without reading an epoch', async () => {

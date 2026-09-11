@@ -66,9 +66,13 @@ function createSchedulerRepositoryAdapter(connection) {
     const nowDb = toMariaDbDateTime(now, { name: 'now' });
     const leaseUntilDb = toMariaDbDateTime(leaseUntil, { name: 'leaseUntil' });
     const [result] = await connection.query(
-      `UPDATE po_source_schedule_state
+      `UPDATE po_source_schedule_state s
        SET lease_run_id=?, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=?
-       WHERE source_id=? AND (lease_until IS NULL OR lease_until<=?)`,
+       WHERE s.source_id=? AND (lease_until IS NULL OR lease_until<=?)
+         AND NOT EXISTS (
+           SELECT 1 FROM po_sync_runs r
+           WHERE r.source_id=s.source_id AND r.status IN ('queued','running')
+         )`,
       [runId, ownerId, leaseUntilDb, sourceId, nowDb]
     );
     if (result?.affectedRows !== 1) return { acquired: false, leaseToken: null };
