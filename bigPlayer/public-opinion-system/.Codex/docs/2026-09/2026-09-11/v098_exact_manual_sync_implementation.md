@@ -1,0 +1,26 @@
+---
+date: 2026-09-11
+status: in_progress
+scope: exact-manual-sync
+owner: 开发负责人
+---
+
+# v098 精确手动同步实现记录
+
+## 已完成
+
+| 模块 | 提交 | 变更 | 验证 |
+|---|---|---|---|
+| Repository / migration contract | `03eb170` | manual run 单事务准入、活动 run/checkpoint/scheduler lease 互斥、legacy 入队收口、pre-023 兼容、source 默认账号与 schedule state 初始化合同 | Repository `101/101`；migration contract `15/15`；独立审查 PASS |
+
+## 安全边界
+
+- 未执行生产 migration、Worker 重启、来源启用、真实同步、数据回补、发版或 push。
+- 未读取、输出或修改生产凭据；仅校验凭据元数据合同。
+- 派单前已存在的工作树改动保持未暂存，提交仅包含任务 baseline 之后的补丁。
+
+## 待完成
+
+- API 精确入队与稳定错误映射提交。
+- scheduler / Worker 竞争门禁与 legacy fallback 提交。
+- 最终整体验证、测试负责人交接与项目经理返件。
