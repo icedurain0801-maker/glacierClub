@@ -527,6 +527,104 @@ test('upsertContentPage updates content type when an existing external ID is rec
   assert.equal(result.contents[0].change, 'changed');
 });
 
+function contentIntegrityHarness() {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  let row = null;
+  const conn = {
+    async query(sql, params = []) {
+      if (sql.startsWith('SELECT * FROM po_contents')) return row ? [[{ ...row }]] : [[]];
+      if (sql.startsWith('INSERT INTO po_contents')) {
+        row = {
+          id: row?.id || params[0],
+          game_id: params[1],
+          source_id: params[2],
+          account_id: params[3],
+          external_id: params[4],
+          content_type: params[5],
+          platform_author_id: params[6],
+          root_content_id: params[7],
+          parent_content_id: params[8],
+          platform_parent_id: params[9],
+          content_depth: params[10],
+          is_deleted: params[11],
+          author_name: params[12],
+          title: params[13],
+          body: params[14],
+          media: JSON.parse(params[15]),
+          published_at: params[16],
+          source_url: params[17],
+          engagement: JSON.parse(params[18]),
+          fingerprint: params[19],
+          raw_payload: params[20] == null ? null : JSON.parse(params[20])
+        };
+        return { affectedRows: 1 };
+      }
+      return { affectedRows: 1 };
+    },
+    async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}
+  };
+  repo.pool = { async getConnection() { return conn; } };
+  return { repo, stored: () => row };
+}
+
+test('upsertContentPage does not downgrade detail-enriched content when a later detail request falls back', async () => {
+  const { repo, stored } = contentIntegrityHarness();
+  const account = { id: 'account-1', game_id: 'game-1', source_id: 'source-1' };
+  const enrichedPayload = {
+    id: 916457,
+    content: [{ type: 0, data: '完整正文' }, { type: 1, data: 'https://opsoss.q1.com/posts/916457/full.jpg' }],
+    _contentIntegrity: { status: 'detail_enriched' }
+  };
+
+  await repo.upsertContentPage({
+    account,
+    syncScope: 'posts',
+    items: [{
+      externalId: '916457', contentType: 'post', title: '帖子标题', body: '完整正文',
+      media: ['https://opsoss.q1.com/posts/916457/full.jpg'], engagement: { views: 10 }, rawPayload: enrichedPayload
+    }]
+  });
+  const fallback = await repo.upsertContentPage({
+    account,
+    syncScope: 'posts',
+    items: [{
+      externalId: '916457', contentType: 'post', title: '帖子标题', body: '列表摘要',
+      media: ['https://opsoss.q1.com/posts/916457/summary.jpg'], engagement: { views: 11 },
+      rawPayload: { id: 916457, content: [{ type: 0, data: '列表摘要' }], _contentIntegrity: { status: 'summary_fallback', code: 'DETAIL_FETCH_FAILED' } }
+    }]
+  });
+
+  assert.equal(stored().body, '完整正文');
+  assert.deepEqual(stored().media, ['https://opsoss.q1.com/posts/916457/full.jpg']);
+  assert.deepEqual(stored().raw_payload, enrichedPayload);
+  assert.deepEqual(stored().engagement, { views: 11 });
+  assert.equal(fallback.contents[0].change, 'changed');
+});
+
+test('upsertContentPage allows a later detail-enriched payload to replace an earlier enriched version', async () => {
+  const { repo, stored } = contentIntegrityHarness();
+  const account = { id: 'account-1', game_id: 'game-1', source_id: 'source-1' };
+  const firstPayload = { id: 916457, content: [{ type: 0, data: '完整正文 v1' }], _contentIntegrity: { status: 'detail_enriched' } };
+  const secondPayload = { id: 916457, content: [{ type: 0, data: '完整正文 v2' }], _contentIntegrity: { status: 'detail_enriched' } };
+
+  await repo.upsertContentPage({
+    account,
+    syncScope: 'posts',
+    items: [{ externalId: '916457', contentType: 'post', body: '完整正文 v1', media: ['v1.jpg'], engagement: { views: 10 }, rawPayload: firstPayload }]
+  });
+  const updated = await repo.upsertContentPage({
+    account,
+    syncScope: 'posts',
+    items: [{ externalId: '916457', contentType: 'post', body: '完整正文 v2', media: ['v2.jpg'], engagement: { views: 12 }, rawPayload: secondPayload }]
+  });
+
+  assert.equal(stored().body, '完整正文 v2');
+  assert.deepEqual(stored().media, ['v2.jpg']);
+  assert.deepEqual(stored().raw_payload, secondPayload);
+  assert.deepEqual(stored().engagement, { views: 12 });
+  assert.equal(updated.contents[0].change, 'changed');
+});
+
 test('importContentBatch commits comments one depth at a time', async () => {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   repo.query = async sql => sql.startsWith('SELECT * FROM po_sources')

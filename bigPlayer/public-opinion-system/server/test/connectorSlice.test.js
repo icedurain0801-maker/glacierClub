@@ -5,7 +5,8 @@ const { CredentialContext } = require('../src/services/credentialContext');
 const { BigPlayerH5Connector } = require('../src/connectors/bigPlayerH5Connector');
 const { DouyinConnector } = require('../src/connectors/douyinConnector');
 const { DouyinOAuthService } = require('../src/services/douyinOAuthService');
-const { ConnectorPageResult } = require('../src/connectors/baseConnector');
+const { ConnectorPageError, ConnectorPageResult } = require('../src/connectors/baseConnector');
+const q1PostDetail916457 = require('./fixtures/q1-post-detail-916457.json');
 
 const keyEnv = { CREDENTIAL_ENC_KEY: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90' };
 function credentialContext(token = 'account-token', patch = {}) {
@@ -123,6 +124,313 @@ test('Q1 H5 discovers schema feeds and uses endpoint-specific pagination', async
   assert.equal(compat.items[0].externalId, '907745');
   assert.equal(requests.filter(item => item.url.includes('/user/context')).length, 1);
   await assert.rejects(() => connector.listComments({ source, postId: '907744', sortType: 3 }), error => error.code === 'INVALID_PAGINATION');
+});
+
+test('Q1 feed enriches 916457-shaped summaries from exact detail requests without changing order', async () => {
+  const requests = [];
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS&lang=zh-CN' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const secondListItem = { id: 916458, title: '第二条摘要', content: [{ type: 0, data: '第二条列表摘要' }], createTime: '2026-09-10T08:16:00Z' };
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: credentialContext('detail-account-token'),
+    fetchImpl: async (url, options) => {
+      const href = String(url);
+      requests.push({ href, options });
+      const parsed = new URL(href);
+      if (parsed.pathname.endsWith('/post/model/merged-list')) {
+        return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [q1PostDetail916457.listItem, secondListItem], total: 2, hasMore: false } }) };
+      }
+      if (parsed.pathname === '/api/club/v1/auth/post/') {
+        const postId = parsed.searchParams.get('postId');
+        const payload = postId === '916457'
+          ? q1PostDetail916457.detailPayload
+          : { code: 0, data: { ...secondListItem, content: [{ type: 0, data: '第二条完整正文' }] } };
+        return { ok: true, status: 200, url: href, json: async () => payload };
+      }
+      throw new Error(`unexpected request: ${href}`);
+    }
+  });
+
+  const page = await connector.listFeedContents({ source, ...feed, limit: 20 });
+  assert.deepEqual(page.items.map(item => item.externalId), ['916457', '916458']);
+  const enriched = page.items[0];
+  assert.equal(enriched.body, q1PostDetail916457.expected.detailBody);
+  assert.deepEqual(enriched.media, q1PostDetail916457.expected.media);
+  assert.equal(enriched.engagement.comments, 37);
+  assert.equal(enriched.engagement.likes, 128);
+  assert.equal(enriched.engagement.views, 2048);
+  assert.deepEqual(enriched.rawPayload._contentIntegrity, { status: 'detail_enriched' });
+  assert.equal(page.items[1].body, '第二条完整正文');
+
+  const detailRequests = requests.filter(request => new URL(request.href).pathname === '/api/club/v1/auth/post/');
+  assert.equal(detailRequests.length, 2);
+  assert.deepEqual(detailRequests.map(request => new URL(request.href).searchParams.get('postId')), ['916457', '916458']);
+  for (const request of detailRequests) {
+    const parsed = new URL(request.href);
+    assert.deepEqual([...parsed.searchParams.keys()].sort(), ['postId', 'source']);
+    assert.equal(parsed.searchParams.get('source'), '0');
+    assert.equal(request.options.headers.authorization, 'Bearer detail-account-token');
+  }
+  assert.deepEqual(page.raw.paginationDiagnostics.contentEnrichment, { attempted: 2, enriched: 2, fallback: 0 });
+});
+
+test('Q1 detail HTTP/JSON/structure failures preserve the list summary with stable fallback diagnostics', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const cases = [
+    ['HTTP', 'DETAIL_FETCH_FAILED', href => ({ ok: false, status: 503, url: href, json: async () => ({}) })],
+    ['JSON', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => { throw new SyntaxError('invalid JSON'); } })],
+    ['structure', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: 916457, content: [] } }) })],
+    ['image-only content', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: 916457, content: [{ type: 1, data: 'https://opsoss.q1.com/posts/916457/detail-only.jpg' }] } }) })],
+    ['identity mismatch', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { ...q1PostDetail916457.detailPayload.data, id: 999999 } }) })]
+  ];
+
+  for (const [label, fallbackCode, detailResponse] of cases) {
+    let detailCalls = 0;
+    const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+      credentialContext: credentialContext('detail-account-token'),
+      fetchImpl: async url => {
+        const href = String(url);
+        if (new URL(href).pathname.endsWith('/post/model/merged-list')) {
+          return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [q1PostDetail916457.listItem], total: 1, hasMore: false } }) };
+        }
+        detailCalls += 1;
+        return detailResponse(href);
+      }
+    });
+
+    const page = await connector.listFeedContents({ source, ...feed, limit: 20 });
+    assert.equal(detailCalls, 1, label);
+    assert.equal(page.items.length, 1, label);
+    assert.equal(page.items[0].body, q1PostDetail916457.expected.summaryBody, label);
+    assert.deepEqual(page.items[0].media, q1PostDetail916457.expected.media, label);
+    assert.deepEqual(page.items[0].rawPayload.content, q1PostDetail916457.listItem.content, label);
+    assert.deepEqual(page.items[0].rawPayload._contentIntegrity, { status: 'summary_fallback', code: fallbackCode }, label);
+    assert.deepEqual(page.raw.paginationDiagnostics.contentEnrichment, { attempted: 1, enriched: 0, fallback: 1 }, label);
+    assert.equal(page.hasMore, false, label);
+  }
+});
+
+test('Q1 detail preserves list metadata, unions media, and strips sensitive detail fields from raw payload', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const listItem = {
+    id: 916457,
+    title: '列表标题不得丢失',
+    content: [
+      { type: 0, data: '列表摘要' },
+      { type: 1, data: 'https://opsoss.q1.com/posts/916457/list-only.jpg' },
+      { type: 1, data: 'https://opsoss.q1.com/posts/916457/shared.jpg' }
+    ],
+    commentCount: 7,
+    thumbsUpCount: 8,
+    clickCount: 9,
+    createTime: '2026-09-10T08:15:00Z',
+    user: { account: { id: 5569432 }, personality: { nickName: '列表作者' } }
+  };
+  const detail = {
+    id: 916457,
+    title: null,
+    content: [
+      { type: 0, data: '详情完整正文' },
+      { type: 1, data: 'https://opsoss.q1.com/posts/916457/shared.jpg' },
+      { type: 1, data: 'https://opsoss.q1.com/posts/916457/detail-only.jpg' }
+    ],
+    commentCount: null,
+    thumbsUpCount: null,
+    createTime: null,
+    apiToken: 'detail-top-token-must-not-leak',
+    password: 'detail-top-password-must-not-leak',
+    user: {
+      account: { id: null, access_token: 'detail-user-token-must-not-leak' },
+      personality: { nickName: null },
+      secret: 'detail-user-secret-must-not-leak'
+    }
+  };
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: credentialContext('detail-account-token'),
+    fetchImpl: async url => {
+      const href = String(url);
+      if (new URL(href).pathname.endsWith('/post/model/merged-list')) return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [listItem], total: 1, hasMore: false } }) };
+      return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: detail }) };
+    }
+  });
+
+  const page = await connector.listFeedContents({ source, ...feed, limit: 20 });
+  const item = page.items[0];
+  assert.equal(item.title, listItem.title);
+  assert.equal(item.authorName, '列表作者');
+  assert.equal(item.platformAuthorId, '5569432');
+  assert.equal(item.publishedAt, listItem.createTime);
+  assert.deepEqual(item.engagement, { comments: 7, likes: 8, views: 9 });
+  assert.match(item.body, /详情完整正文/);
+  assert.deepEqual(item.media, [
+    'https://opsoss.q1.com/posts/916457/list-only.jpg',
+    'https://opsoss.q1.com/posts/916457/shared.jpg',
+    'https://opsoss.q1.com/posts/916457/detail-only.jpg'
+  ]);
+  assert.deepEqual(item.rawPayload._contentIntegrity, { status: 'detail_enriched' });
+  const sensitiveKeys = [];
+  const visit = value => {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      if (/token|password|secret/i.test(key)) sensitiveKeys.push(key);
+      visit(child);
+    }
+  };
+  visit(item.rawPayload);
+  assert.deepEqual(sensitiveKeys, []);
+  const serialized = JSON.stringify(item.rawPayload);
+  for (const secret of ['detail-top-token-must-not-leak', 'detail-top-password-must-not-leak', 'detail-user-token-must-not-leak', 'detail-user-secret-must-not-leak']) assert.doesNotMatch(serialized, new RegExp(secret));
+});
+
+test('Q1 detail enrichment propagates abort instead of returning a summary fallback', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const controller = new AbortController();
+  const abortReason = Object.assign(new Error('detail enrichment lease lost'), { code: 'COLLECTION_CANCELLED' });
+  let detailStarted;
+  const started = new Promise(resolve => { detailStarted = resolve; });
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: credentialContext('detail-account-token'),
+    fetchImpl: async (url, options) => {
+      const href = String(url);
+      if (new URL(href).pathname.endsWith('/post/model/merged-list')) {
+        return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [q1PostDetail916457.listItem], total: 1, hasMore: false } }) };
+      }
+      detailStarted();
+      return new Promise((resolve, reject) => {
+        if (options.signal.aborted) return reject(options.signal.reason);
+        options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+      });
+    }
+  });
+
+  const pending = connector.listFeedContents({ source, ...feed, limit: 20, signal: controller.signal });
+  await Promise.race([started, new Promise(resolve => setTimeout(resolve, 20))]);
+  controller.abort(abortReason);
+  await assert.rejects(pending, error => error === abortReason || error.cause === abortReason || error.code === 'COLLECTION_CANCELLED' || error.cause?.code === 'COLLECTION_CANCELLED');
+});
+
+test('Q1 detail worker pool propagates cancellation nested in ConnectorPageError and stops claiming work', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const account = { id: 'a1', platform: 'bigplayer_h5' };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const list = Array.from({ length: 10 }, (_, index) => ({ id: 930000 + index, title: `摘要-${index}`, content: [{ type: 0, data: `摘要-${index}` }] }));
+  const controller = new AbortController();
+  const abortReason = Object.assign(new Error('nested cancellation'), { code: 'COLLECTION_CANCELLED' });
+  const wrappedCancellation = new ConnectorPageError('bigplayer_h5', 'posts', 1, abortReason);
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: credentialContext('detail-account-token'),
+    fetchImpl: async url => {
+      const href = String(url);
+      return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list, total: list.length, hasMore: false } }) };
+    }
+  });
+  const originalRequestQ1 = connector.requestQ1.bind(connector);
+  const claimed = [];
+  connector.requestQ1 = async (path, requestSource, apiToken, params, page, capability, authRefreshRetried, signal) => {
+    if (path !== '/api/club/v1/auth/post/') return originalRequestQ1(path, requestSource, apiToken, params, page, capability, authRefreshRetried, signal);
+    if (signal?.aborted) throw wrappedCancellation;
+    claimed.push(String(params.postId));
+    if (claimed.length === 1) {
+      controller.abort(abortReason);
+      throw wrappedCancellation;
+    }
+    return { code: 0, data: { id: Number(params.postId), content: [{ type: 0, data: `完整正文-${params.postId}` }] } };
+  };
+
+  await assert.rejects(
+    () => connector.listFeedContents({ source, account, ...feed, limit: 20, signal: controller.signal }),
+    error => error === wrappedCancellation || error.cause === abortReason || error.cause?.code === 'COLLECTION_CANCELLED'
+  );
+  assert.ok(claimed.length >= 1);
+  assert.ok(claimed.length <= 4, `abort 后仍领取了 ${claimed.length} 个 detail，超过初始并发槽`);
+  assert.ok(claimed.length < list.length, 'abort 后不得继续领取后续 detail');
+});
+
+test('Q1 detail 401 refresh reuses the explicitly supplied credential context and account', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const account = { id: 'explicit-account', source_id: 's1', platform: 'bigplayer_h5' };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const explicitLoads = [];
+  const explicitCredentialContext = {
+    async loadApiToken(subject, credentialType) {
+      explicitLoads.push({ subject, credentialType });
+      return explicitLoads.length === 1 ? 'initial-explicit-token' : 'refreshed-explicit-token';
+    }
+  };
+  let defaultContextLoads = 0;
+  const refreshCalls = [];
+  const authorizations = [];
+  let detailAttempts = 0;
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: { async loadApiToken() { defaultContextLoads += 1; return 'wrong-default-token'; } },
+    authRefreshCoordinator: { async refresh(input) { refreshCalls.push(input); } },
+    fetchImpl: async (url, options) => {
+      const href = String(url);
+      const parsed = new URL(href);
+      authorizations.push(options.headers.authorization);
+      if (parsed.pathname.endsWith('/post/model/merged-list')) {
+        return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [q1PostDetail916457.listItem], total: 1, hasMore: false } }) };
+      }
+      detailAttempts += 1;
+      if (detailAttempts === 1) return { ok: false, status: 401, url: href, json: async () => ({}) };
+      return { ok: true, status: 200, url: href, json: async () => q1PostDetail916457.detailPayload };
+    }
+  });
+
+  const page = await connector.listFeedContents({ source, account, credentialContext: explicitCredentialContext, ...feed, limit: 20 });
+  assert.equal(page.items[0].rawPayload._contentIntegrity.status, 'detail_enriched');
+  assert.equal(detailAttempts, 2);
+  assert.equal(defaultContextLoads, 0);
+  assert.equal(explicitLoads.length, 2);
+  assert.strictEqual(explicitLoads[0].subject, account);
+  assert.strictEqual(explicitLoads[1].subject, account);
+  assert.deepEqual(explicitLoads.map(call => call.credentialType), ['api_token', 'api_token']);
+  assert.equal(refreshCalls.length, 1);
+  assert.strictEqual(refreshCalls[0].account, account);
+  assert.deepEqual(authorizations, ['Bearer initial-explicit-token', 'Bearer initial-explicit-token', 'Bearer refreshed-explicit-token']);
+});
+
+test('Q1 detail enrichment uses a fixed concurrency limit of at most four', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const list = Array.from({ length: 9 }, (_, index) => ({ id: 920000 + index, title: `摘要-${index}`, content: [{ type: 0, data: `摘要-${index}` }] }));
+  let active = 0;
+  let maxActive = 0;
+  let detailCalls = 0;
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: credentialContext('detail-account-token'),
+    fetchImpl: async url => {
+      const href = String(url);
+      const parsed = new URL(href);
+      if (parsed.pathname.endsWith('/post/model/merged-list')) {
+        return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list, total: list.length, hasMore: false } }) };
+      }
+      detailCalls += 1;
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      active -= 1;
+      const id = Number(parsed.searchParams.get('postId'));
+      return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id, title: `详情-${id}`, content: [{ type: 0, data: `完整正文-${id}` }] } }) };
+    }
+  });
+
+  const page = await connector.listFeedContents({ source, ...feed, limit: 20 });
+  assert.equal(detailCalls, list.length);
+  assert.ok(maxActive > 1, `expected concurrent detail requests, observed ${maxActive}`);
+  assert.ok(maxActive <= 4, `detail concurrency ${maxActive} exceeded fixed limit 4`);
+  assert.deepEqual(page.items.map(item => item.externalId), list.map(item => String(item.id)));
+  assert.deepEqual(page.raw.paginationDiagnostics.contentEnrichment, { attempted: list.length, enriched: list.length, fallback: 0 });
 });
 
 test('Q1 comments omit top-level commentId, advance by last ID and schedule incomplete replies', async () => {
