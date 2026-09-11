@@ -1,6 +1,6 @@
 ---
 date: 2026-09-11
-status: in_progress
+status: ready_for_qa
 scope: exact-manual-sync
 owner: 开发负责人
 ---
@@ -24,4 +24,16 @@ owner: 开发负责人
 
 ## 待完成
 
-- 最终整体验证、测试负责人交接与项目经理返件。
+- 测试负责人盲测与回归。
+- 项目经理验收返件。
+
+## 开发侧最终验证
+
+- `server/test/repository.test.js`：`101/101`。
+- `server/test/app.routes.test.js`：`51/51`。
+- `worker/test/worker.test.js`：`72/72`。
+- `worker/test/schedulerRepositoryAdapter.test.js`：`11/11`。
+- `server/test/unifiedSchedulerMigration.contract.test.js`：`15/15`。
+- `node --check`：API、Repository、Worker、scheduler adapter 均通过。
+- `git diff --check`：通过（仅现有 CRLF 提示，无空白错误）。
+- 暂存区为空；派单前的 Repository/Worker 脏改仍保留在工作树且未被提交。
