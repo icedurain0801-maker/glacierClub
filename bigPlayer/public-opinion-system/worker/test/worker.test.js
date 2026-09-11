@@ -994,11 +994,11 @@ test('legacy no-slot paged source enqueues then claims and finishes the same run
   assert.equal(lifecycle[2][1].leaseOwner, 'worker-4');
 });
 
-test('precreated bounded run supplies its fixed window to Q1 feeds and checkpoint identity', async () => {
+test('precreated bounded run ignores legacy historyStart while supplying its fixed window to Q1 feeds', async () => {
   const feedCalls = []; const checkpointClaims = [];
   const repo = makeRepo();
   Object.assign(repo, {
-    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async getDefaultAccount() { return { id: 'a1', metadata: { historyStart: '2026-08-11T18:02:00.000Z' } }; }, async updateAccount() {},
     async claimSyncRun() { return { id: 'sr-window', sync_mode: 'backfill', trigger_type: 'manual', window_start: '2026-09-04 08:30:00.000', window_end: '2026-09-11 08:30:00.000' }; },
     async finishSyncRun() {},
     async claimSyncCheckpoint(input) { checkpointClaims.push(input); return { id: 'cp-window', cursor: null }; },
@@ -1016,6 +1016,7 @@ test('precreated bounded run supplies its fixed window to Q1 feeds and checkpoin
   assert.equal(new Date(feedCalls[0].publishedFrom).toISOString(), '2026-09-04T08:30:00.000Z');
   assert.equal(new Date(feedCalls[0].publishedTo).toISOString(), '2026-09-11T08:30:00.000Z');
   assert.equal(feedCalls[0].dailyBounded, true);
+  assert.equal(feedCalls[0].historyStart, null);
   const q1Claim = checkpointClaims.find(item => item.taskKind === 'q1_feed');
   assert.equal(q1Claim.windowStart, '2026-09-04T08:30:00.000Z');
   assert.equal(q1Claim.windowEnd, '2026-09-11T08:30:00.000Z');

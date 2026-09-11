@@ -620,9 +620,10 @@ async function runDailyQ1Collection(deps, context) {
 }
 
 async function runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
-  const metadata = parseObject(account.metadata); const syncMode = syncModeOf(source, account, syncRun); const historyStart = metadata.historyStart || metadata.history_start || null;
+  const metadata = parseObject(account.metadata); const syncMode = syncModeOf(source, account, syncRun);
   const collectionWindow = deps.collectionWindow || {};
   const dailyBounded = Boolean(collectionWindow.dailyBounded);
+  const historyStart = dailyBounded ? null : (metadata.historyStart || metadata.history_start || null);
   const publishedFromMs = collectionWindow.publishedFrom == null ? -Infinity : new Date(collectionWindow.publishedFrom).getTime();
   const publishedToMs = collectionWindow.publishedTo == null ? Infinity : new Date(collectionWindow.publishedTo).getTime();
   const isInCollectionWindow = entry => {
