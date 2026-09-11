@@ -18,6 +18,7 @@ Konga 舆情数据概览在境内 / BigPlayer（`regionCode=domestic`、`communi
 | done | 获取浏览器失败请求、HTTP/响应、反向代理、Server 健康与日志根因 | 已定位为 `4320` Server 无监听，代理返回稳定 `UPSTREAM_UNAVAILABLE` | 开发负责人 |
 | done | 按根因最小修复 Konga 到舆情 API 的运行态链路 | 仅恢复目标 Server；同入口概览 API 均为 200，页面显示合法空态 | 开发负责人 |
 | done | 独立运行态回归 | API 与页面均通过；真实采集/数据恢复仍未准入 | 测试负责人 |
+| open_risk | 进程守护恢复 | `BigPlayer Keep Server Alive` 计划任务 Disabled 且目标脚本缺失，服务可用性无持续保障 | 运维 / 发布负责人 |
 
 ## 口径
 
