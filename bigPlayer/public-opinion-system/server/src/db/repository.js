@@ -1455,8 +1455,11 @@ class Repository {
       if (Object.values(readiness).some(value => Number(value) !== 1)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'unified scheduler schema is not ready');
       const [createRows] = await conn.query('SHOW CREATE TABLE po_sync_runs');
       const actualCheck = normalizedCheckDefinition(extractNamedCheck(createRows?.[0]?.['Create Table'], 'po_sync_runs_trigger_slot_chk'));
-      const expectedCheck = normalizedCheckDefinition("(trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)");
-      if (actualCheck !== expectedCheck) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'sync run trigger constraint is not ready');
+      const expectedChecks = [
+        "(trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)",
+        "trigger_type IN ('legacy','manual') AND scheduled_at IS NULL OR trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL"
+      ].map(normalizedCheckDefinition);
+      if (!expectedChecks.includes(actualCheck)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'sync run trigger constraint is not ready');
       const [migrationRows] = await conn.query('SELECT version FROM po_schema_migrations WHERE version=? LIMIT 1', ['023_unified_source_scheduling.sql']);
       if (!migrationRows[0]) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'migration 023 is not applied');
     } catch (error) {

@@ -1539,6 +1539,16 @@ test('manual sync fails closed for old or unverifiable unified scheduler schema'
   }
 });
 
+test('manual sync accepts MariaDB equivalent trigger constraint precedence', async () => {
+  const { repo, executed } = manualSyncHarness({
+    checkDdl: "CREATE TABLE po_sync_runs (CONSTRAINT po_sync_runs_trigger_slot_chk CHECK (trigger_type IN ('legacy','manual') AND scheduled_at IS NULL OR trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL))"
+  });
+  const result = await repo.startSourceSync({ sourceId: 's1' });
+  assert.equal(result.reused, false);
+  assert.equal(result.run.trigger_type, 'manual');
+  assert.ok(executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+});
+
 test('manual sync rejects competing run, checkpoint, and scheduler lease with stable codes', async () => {
   for (const [overrides, code] of [
     [{ activeRun: { id: 'run-other' } }, 'PREVIOUS_RUN_ACTIVE'],
