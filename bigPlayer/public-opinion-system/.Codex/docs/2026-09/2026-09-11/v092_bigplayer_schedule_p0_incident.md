@@ -1,6 +1,6 @@
 ---
 date: 2026-09-11
-status: code_fixed_external_admission_pending
+status: code_verified_external_admission_pending
 scope: bigplayer-domestic-and-overseas-scheduling
 owner: 项目经理
 ---
@@ -16,9 +16,9 @@ owner: 项目经理
 | 状态 | 事项 | 验收 | 负责人 |
 |---|---|---|---|
 | done | 核对两个范围的 BigPlayer source 准入、频率、计划时间、近 48 小时 run、Worker 健康和 DB 内容水位 | 已确认 schema、Worker、来源和失败码事实 | 开发负责人 |
-| done | 最小代码修复：失败后按来源频率节流，禁止每分钟重试风暴；补齐统一调度接线和迁移准入合同 | 定向回归证明失败不绕过 60 分钟间隔，缺迁移明确 fail-closed | 开发负责人 |
+| done | 最小代码修复：失败后按来源频率节流，禁止每分钟重试风暴；补齐统一调度接线和迁移准入合同 | 开发与独立回归均通过 | 开发负责人 |
 | blocked_external | 受控生产迁移 023、Worker 可信候选镜像重载、两个来源凭据复核 | 外部操作前置，不得作为代码已修复或真实采集恢复 | 运维 / 发布负责人 |
-| done | 独立代码复审、回归与状态收口 | 两轮复审无 P0/P1；记录代码修复边界及外部阻塞 | 开发负责人 / 项目经理 |
+| done | 独立回归与状态收口 | 定向 `82/82`、Server `338/338`、Worker `183/183`，缺陷 `0` | 测试负责人 / 项目经理 |
 
 ## 约束
 
@@ -65,3 +65,9 @@ owner: 项目经理
 - 运行中的 Worker 仍是 2026-09-07 启动的旧进程，未加载本次代码或 2026-09-10 的凭据主体修复。
 - 境内来源仍为 `enabled=0`；境内、境外真实凭据可用性不在本次代码修改范围。
 - 因以上门禁，本返件只证明代码合同已修复，不宣称真实数据已经恢复。
+
+## 独立回归
+
+结论：P0/P1/P2 代码合同 `PASS`，缺陷 `0`。测试负责人独立验证：定向 `82/82 PASS`、Server 全量 `338/338 PASS`、Worker 全量 `183/183 PASS`，9 个目标文件语法检查和 `git diff --check` 均通过。报告：`.tests/2026-09/2026-09-11/v093_bigplayer_schedule_p0_regression.md`。
+
+生产准入仍为 `NOT_ADMITTED`：仍需受控应用 migration `023`、可信 Worker 候选镜像重载、两个来源的凭据/授权核验，以及受控真实采集观测。上述外部操作完成前，不能宣称 60 分钟调度已在生产恢复或近两日数据已补齐。
