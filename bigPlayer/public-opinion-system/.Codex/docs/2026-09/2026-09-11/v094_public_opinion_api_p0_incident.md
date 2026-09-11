@@ -1,6 +1,6 @@
 ---
 date: 2026-09-11
-status: runtime_restored_independent_acceptance_pending
+status: runtime_api_pass_persistence_gap
 scope: konga-public-opinion-runtime-api
 owner: 项目经理
 ---
@@ -17,7 +17,7 @@ Konga 舆情数据概览在境内 / BigPlayer（`regionCode=domestic`、`communi
 |---|---|---|---|
 | done | 获取浏览器失败请求、HTTP/响应、反向代理、Server 健康与日志根因 | 已定位为 `4320` Server 无监听，代理返回稳定 `UPSTREAM_UNAVAILABLE` | 开发负责人 |
 | done | 按根因最小修复 Konga 到舆情 API 的运行态链路 | 仅恢复目标 Server；同入口概览 API 均为 200，页面显示合法空态 | 开发负责人 |
-| pending | 独立运行态回归 | 页面不再显示“舆情 API 暂不可用” | 测试负责人 |
+| done | 独立运行态回归 | API 与页面均通过；真实采集/数据恢复仍未准入 | 测试负责人 |
 
 ## 口径
 
@@ -49,3 +49,10 @@ Konga 舆情数据概览在境内 / BigPlayer（`regionCode=domestic`、`communi
 - 计划任务 `BigPlayer Keep Server Alive` 当前为 `Disabled`，动作指向已不存在的 `scripts/run-hidden.vbs`，因此没有有效进程守护；本轮未扩大授权范围去修改 Windows 计划任务。
 - 历史 Server 退出时没有可用 stdout/stderr，无法确认是人工停止还是启动失败；只能确认本次直接故障为 `4320` 进程缺失。
 - 当前页面恢复只证明 API 可用与合法空态渲染，不证明 BigPlayer 真实采集、近两日数据补齐或统一调度生产准入完成。
+
+## 独立回归
+
+- 测试负责人已确认：`4320`（PID `36632`）监听，本机 `/health` 与外部 `communities`、`overview`、`sources` 均为 HTTP 200。
+- 指定入口展示合法空态且不再出现“舆情 API 暂不可用”，浏览器可访问性状态无阻断提示。
+- 报告：`.tests/2026-09/2026-09-11/v095_public_opinion_api_runtime_regression.md`。
+- 结论：运行态 API `PASS`；真实采集、历史数据补齐和调度生产准入仍为 `NOT_ADMITTED`。
