@@ -685,20 +685,126 @@ async function runSource(deps, source, precreatedSyncRun = null) {
   }
   return runPagedSource(deps, source, connector, run, claimed, account);
 }
-function buildDeps() {
-  const repo = new Repository(); const credentialContext = new CredentialContext({ repo }); const oauthService = new DouyinOAuthService(); const loginSessionClient = new LoginSessionClient(); const authRefreshCoordinator = new AuthRefreshCoordinator({ repo, loginSessionClient });
-  const connectors = { bigplayer_h5: new BigPlayerH5Connector(process.env, { credentialContext, authRefreshCoordinator }), ...buildExternalConnectors(process.env, { credentialContext, douyinOAuthService: oauthService, loginSessionClient }) }; const ai = new AiAnalyzer(); const notifier = new DingTalkNotifier();
-  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), accountLocks: new Map(), leaseOwner: `${process.pid}-${crypto.randomUUID()}`, leaseSeconds: Number(process.env.SYNC_LEASE_SECONDS || 300), pageSize: Number(process.env.SYNC_PAGE_SIZE || 50), pageBudget: Number(process.env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(process.env.SYNC_PAGE_TIMEOUT_MS || process.env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(process.env.WORKER_SOURCE_CONCURRENCY || 4)), analysisJobBatchSize: Number(process.env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisMaxAttempts: Number(process.env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(process.env.AI_ANALYSIS_RETRY_BASE_MS || 1000) };
+function schedulerMode(env = process.env) {
+  const mode = String(env.UNIFIED_SOURCE_SCHEDULER_MODE || 'off').trim().toLowerCase();
+  return ['off', 'shadow', 'enabled'].includes(mode) ? mode : 'off';
+}
+function schedulerConnectorCapabilities(connectors = {}) {
+  return Object.fromEntries(Object.entries(connectors).map(([platform, connector]) => {
+    const capabilities = new Set(Array.isArray(connector?.capabilities) ? connector.capabilities : []);
+    return [platform, {
+      available: Boolean(connector) && connector.enabled !== false,
+      supportsScheduling: capabilities.has('posts') || capabilities.has('owned_content')
+    }];
+  }));
+}
+function buildDeps(env = process.env) {
+  const repo = new Repository(env); const credentialContext = new CredentialContext({ repo }); const oauthService = new DouyinOAuthService(); const loginSessionClient = new LoginSessionClient(); const authRefreshCoordinator = new AuthRefreshCoordinator({ repo, loginSessionClient });
+  const connectors = { bigplayer_h5: new BigPlayerH5Connector(env, { credentialContext, authRefreshCoordinator }), ...buildExternalConnectors(env, { credentialContext, douyinOAuthService: oauthService, loginSessionClient }) }; const ai = new AiAnalyzer(); const notifier = new DingTalkNotifier();
+  const leaseOwner = `${process.pid}-${crypto.randomUUID()}`;
+  const unifiedScheduler = {
+    mode: schedulerMode(env),
+    connection: repo.pool,
+    workerId: `source-scheduler:${leaseOwner}`,
+    now: () => new Date(),
+    connectorCapabilities: schedulerConnectorCapabilities(connectors)
+  };
+  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), accountLocks: new Map(), leaseOwner, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), unifiedScheduler };
+}
+async function unifiedSchedulerSchemaReady(connection) {
+  const [rows] = await connection.query(
+    `SELECT
+       EXISTS (
+         SELECT 1 FROM po_schema_migrations
+         WHERE version='023_unified_source_scheduling.sql'
+       ) AS migration_applied,
+       EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state'
+       ) AS schedule_state_table,
+       (
+         SELECT COUNT(*) FROM information_schema.columns
+         WHERE table_schema=DATABASE() AND (
+           (table_name='po_sources' AND column_name IN ('default_account_id','schedule_version','schedule_effective_at'))
+           OR (table_name='po_sync_runs' AND column_name IN ('source_id','trigger_type','scheduled_at','window_start','window_end','schedule_version'))
+           OR (table_name='po_source_schedule_state' AND column_name IN ('source_id','schedule_version','effective_at','last_scheduled_at','next_scheduled_at','last_scan_at','lease_run_id','lease_owner','lease_epoch','lease_until','last_status','last_reason_code'))
+         )
+       ) AS required_column_count,
+       (
+         SELECT COUNT(*) FROM information_schema.statistics
+         WHERE table_schema=DATABASE() AND table_name='po_sync_runs'
+           AND index_name='po_sync_runs_source_schedule_uk' AND non_unique=0
+       ) AS schedule_slot_unique_columns,
+       (
+         SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ',')
+         FROM information_schema.statistics
+         WHERE table_schema=DATABASE() AND table_name='po_sync_runs'
+           AND index_name='po_sync_runs_source_schedule_uk' AND non_unique=0
+       ) AS schedule_slot_columns`,
+    []
+  );
+  const schema = rows?.[0] || {};
+  return Number(schema.migration_applied || 0) === 1
+    && Number(schema.schedule_state_table || 0) === 1
+    && Number(schema.required_column_count || 0) === 21
+    && Number(schema.schedule_slot_unique_columns || 0) === 2
+    && schema.schedule_slot_columns === 'source_id,scheduled_at';
+}
+async function runUnifiedSchedulerSeam(options = {}) {
+  const mode = options.mode || 'off';
+  if (mode !== 'shadow' && mode !== 'enabled') return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_OFF' };
+  const logger = options.logger || console;
+  if (!options.connection || !options.workerId || !options.now || options.connectorCapabilities == null) {
+    const error = new Error('connection, workerId, now and connectorCapabilities are required');
+    error.code = 'UNIFIED_SCHEDULER_CONFIG_INVALID';
+    logger.error('[worker] unified scheduler invalid configuration', error);
+    return { status: 'failed', reasonCode: error.code };
+  }
+  try {
+    let schemaReady;
+    try { schemaReady = await unifiedSchedulerSchemaReady(options.connection); }
+    catch (error) {
+      logger.error('[worker] unified scheduler schema admission failed', error);
+      return { status: 'failed', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED' };
+    }
+    if (!schemaReady) return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' };
+    if (mode === 'shadow') return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SHADOW_NO_WRITE' };
+    const runJob = options.runJob || require('./unifiedSourceSchedulerJob').runUnifiedSourceSchedulerOnce;
+    return await runJob({
+      connection: options.connection,
+      workerId: options.workerId,
+      now: typeof options.now === 'function' ? options.now() : options.now,
+      connectorCapabilities: options.connectorCapabilities,
+      lastProcessedBySource: options.lastProcessedBySource,
+      existingEvidence: options.existingEvidence,
+      leaseDurationMs: options.leaseDurationMs,
+      idFactory: options.idFactory
+    });
+  } catch (error) {
+    logger.error('[worker] unified scheduler failed', error);
+    return { status: 'failed', reasonCode: 'UNIFIED_SCHEDULER_FAILED' };
+  }
+}
+function unifiedSchedulerOwnsPeriodicSources(options, result) {
+  if (schedulerMode({ UNIFIED_SOURCE_SCHEDULER_MODE: options?.mode }) !== 'enabled') return false;
+  return !new Set([
+    'UNIFIED_SCHEDULER_OFF',
+    'UNIFIED_SCHEDULER_CONFIG_INVALID',
+    'UNIFIED_SCHEDULER_SCHEMA_NOT_READY',
+    'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED'
+  ]).has(result?.reasonCode);
 }
 async function runBounded(items, limit, operation) {
   let next = 0; const worker = async () => { while (next < items.length) { const index = next; next += 1; await operation(items[index]); } };
   await Promise.all(Array.from({ length: Math.min(Math.max(1, Number(limit) || 1), items.length) }, worker));
 }
 async function runOnce(deps = buildDeps()) {
+  if (typeof deps.repo.health === 'function') await deps.repo.health();
   const queued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await deps.repo.listRunnableSyncRuns() : [];
   const manual = await deps.repo.listManualDueSources(); const manualRunnable = [];
   for (const source of manual) { await deps.repo.clearManualRequest(source.id); if (source.enabled && source.game_enabled) manualRunnable.push(source); }
-  const sources = await deps.repo.listDueSources(new Date()); const work = new Map();
+  const schedulerResult = await runUnifiedSchedulerSeam(deps.unifiedScheduler);
+  const sources = unifiedSchedulerOwnsPeriodicSources(deps.unifiedScheduler, schedulerResult) ? [] : await deps.repo.listDueSources(new Date()); const work = new Map();
   for (const item of queued) {
     const queuedSource = item.source || item.sourceRecord || item.source_record || { ...item, id: first(item, ['sourceId', 'source_id'], item.id) };
     const syncRun = item.syncRun || item.sync_run || item;
@@ -716,4 +822,4 @@ async function runOnce(deps = buildDeps()) {
 }
 const interval = Number(process.env.WORKER_INTERVAL_MS || 60000);
 if (require.main === module) { runOnce().catch(error => console.error('[worker]', error)); setInterval(() => runOnce().catch(error => console.error('[worker]', error)), interval); console.log(`public-opinion-worker scanning due sources every ${interval}ms`); }
-module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, isManualVerification, runBounded };
+module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, isManualVerification, runBounded, runUnifiedSchedulerSeam };
