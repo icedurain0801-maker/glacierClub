@@ -82,6 +82,10 @@ test('Q1 H5 discovers schema feeds and uses endpoint-specific pagination', async
       ] } }) };
       if (href.includes('/comment/')) return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: [], total: 0 }) };
       const params = new URL(href).searchParams;
+      if (new URL(href).pathname === '/api/club/v1/auth/post/') {
+        const postId = Number(params.get('postId'));
+        return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: postId, title: '签到', content: [{ type: 0, data: '8月签到' }] } }) };
+      }
       const id = params.get('offsetId') === '0' ? 907744 : 907745;
       return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [{ id, title: '签到', content: [{ type: 0, data: '8月签到' }], commentCount: 2, createTime: '2026-08-13T01:10:39Z', user: { account: { id: 5569432 }, personality: { nickName: '打发空闲' } } }], total: 2, hasMore: params.get('offsetId') === '0' } }) };
     }
@@ -105,17 +109,19 @@ test('Q1 H5 discovers schema feeds and uses endpoint-specific pagination', async
 
   const home = feeds[0];
   const first = await connector.listFeedContents({ source, ...home, limit: 1 });
-  const homeRequest = requests.at(-1).url;
+  const homeRequest = requests.filter(item => item.url.includes('/post/model/merged-list')).at(-1).url;
   assert.match(homeRequest, /merged-list/); assert.match(homeRequest, /pageIndex=1/); assert.match(homeRequest, /offsetId=0/);
   assert.equal(first.items[0].externalId, '907744'); assert.equal(first.items[0].body, '8月签到'); assert.equal(first.hasMore, true);
   const homeCursor = JSON.parse(first.nextCursor);
   assert.equal(homeCursor.pageIndex, 2); assert.equal(homeCursor.offsetId, 1); assert.equal(homeCursor.feedKey, home.feedKey);
   const second = await connector.listFeedContents({ source, ...home, cursor: first.nextCursor, limit: 1 });
-  assert.match(requests.at(-1).url, /pageIndex=2/); assert.match(requests.at(-1).url, /offsetId=1/); assert.equal(second.hasMore, false);
+  const secondHomeRequest = requests.filter(item => item.url.includes('/post/model/merged-list')).at(-1).url;
+  assert.match(secondHomeRequest, /pageIndex=2/); assert.match(secondHomeRequest, /offsetId=1/); assert.equal(second.hasMore, false);
 
   const circle = feeds.find(feed => feed.pageKind === 'circle' && feed.type === 5);
   const circlePage = await connector.listFeedContents({ source, ...circle, limit: 1 });
-  assert.match(requests.at(-1).url, /post\/activity\/list/); assert.match(requests.at(-1).url, /sectionId=21/); assert.match(requests.at(-1).url, /type=5/); assert.doesNotMatch(requests.at(-1).url, /pageIndex=/);
+  const circleRequest = requests.filter(item => item.url.includes('/post/activity/list')).at(-1).url;
+  assert.match(circleRequest, /post\/activity\/list/); assert.match(circleRequest, /sectionId=21/); assert.match(circleRequest, /type=5/); assert.doesNotMatch(circleRequest, /pageIndex=/);
   const circleCursor = JSON.parse(circlePage.nextCursor);
   assert.equal(circleCursor.endpointKind, 'activity'); assert.equal(circleCursor.offsetId, 1);
   await assert.rejects(() => connector.listFeedContents({ source, ...circle, cursor: first.nextCursor, limit: 1 }), error => error.code === 'INVALID_PAGINATION');
@@ -184,6 +190,8 @@ test('Q1 detail HTTP/JSON/structure failures preserve the list summary with stab
     ['JSON', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => { throw new SyntaxError('invalid JSON'); } })],
     ['structure', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: 916457, content: [] } }) })],
     ['image-only content', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: 916457, content: [{ type: 1, data: 'https://opsoss.q1.com/posts/916457/detail-only.jpg' }] } }) })],
+    ['relative image-only content', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: 916457, content: [{ type: 1, data: '/posts/916457/detail-only.jpg' }] } }) })],
+    ['data URI image-only content', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: 916457, content: [{ type: 1, data: 'data:image/png;base64,aW1hZ2U=' }] } }) })],
     ['identity mismatch', 'DETAIL_RESPONSE_INVALID', href => ({ ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { ...q1PostDetail916457.detailPayload.data, id: 999999 } }) })]
   ];
 
@@ -245,8 +253,20 @@ test('Q1 detail preserves list metadata, unions media, and strips sensitive deta
     apiToken: 'detail-top-token-must-not-leak',
     password: 'detail-top-password-must-not-leak',
     user: {
-      account: { id: null, access_token: 'detail-user-token-must-not-leak' },
-      personality: { nickName: null },
+      account: {
+        id: null,
+        access_token: 'detail-user-token-must-not-leak',
+        authorization: 'Bearer detail-authorization-must-not-leak',
+        sessionId: 'detail-session-id-must-not-leak',
+        apiKey: 'detail-api-key-must-not-leak',
+        credential: { value: 'detail-credential-must-not-leak' },
+        bearer: 'detail-bearer-must-not-leak',
+        privateKey: 'detail-private-key-must-not-leak'
+      },
+      personality: {
+        nickName: null,
+        nested: [{ authorization: 'nested-authorization-must-not-leak' }, { sessionId: 'nested-session-must-not-leak' }]
+      },
       secret: 'detail-user-secret-must-not-leak'
     }
   };
@@ -274,17 +294,63 @@ test('Q1 detail preserves list metadata, unions media, and strips sensitive deta
   ]);
   assert.deepEqual(item.rawPayload._contentIntegrity, { status: 'detail_enriched' });
   const sensitiveKeys = [];
+  const sensitiveNames = new Set(['authorization', 'sessionid', 'apikey', 'credential', 'bearer', 'privatekey']);
   const visit = value => {
     if (!value || typeof value !== 'object') return;
     for (const [key, child] of Object.entries(value)) {
-      if (/token|password|secret/i.test(key)) sensitiveKeys.push(key);
+      const normalizedKey = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      if (/token|password|secret|cookie/i.test(key) || sensitiveNames.has(normalizedKey)) sensitiveKeys.push(key);
       visit(child);
     }
   };
   visit(item.rawPayload);
   assert.deepEqual(sensitiveKeys, []);
   const serialized = JSON.stringify(item.rawPayload);
-  for (const secret of ['detail-top-token-must-not-leak', 'detail-top-password-must-not-leak', 'detail-user-token-must-not-leak', 'detail-user-secret-must-not-leak']) assert.doesNotMatch(serialized, new RegExp(secret));
+  for (const secret of [
+    'detail-top-token-must-not-leak', 'detail-top-password-must-not-leak', 'detail-user-token-must-not-leak',
+    'detail-authorization-must-not-leak', 'detail-session-id-must-not-leak', 'detail-api-key-must-not-leak',
+    'detail-credential-must-not-leak', 'detail-bearer-must-not-leak', 'detail-private-key-must-not-leak',
+    'nested-authorization-must-not-leak', 'nested-session-must-not-leak', 'detail-user-secret-must-not-leak'
+  ]) assert.doesNotMatch(serialized, new RegExp(secret));
+});
+
+test('Q1 detail empty metadata and createTime drift cannot overwrite list identity or daily-window time', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const listItem = {
+    id: 916459,
+    title: '列表标题',
+    content: [{ type: 0, data: '列表摘要' }],
+    createTime: '2026-09-10T08:15:00Z',
+    user: { account: { id: 5569432 }, personality: { nickName: '列表作者' } }
+  };
+  const detailItem = {
+    id: 916459,
+    title: '',
+    content: [{ type: 0, data: '详情完整正文' }],
+    createTime: '2026-09-12T08:15:00Z',
+    user: { account: { id: '' }, personality: { nickName: '' } }
+  };
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: credentialContext('detail-account-token'),
+    fetchImpl: async url => {
+      const href = String(url);
+      if (new URL(href).pathname.endsWith('/post/model/merged-list')) return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [listItem], total: 1, hasMore: false } }) };
+      return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: detailItem }) };
+    }
+  });
+
+  const page = await connector.listFeedContents({
+    source, ...feed, limit: 20, dailyBounded: true,
+    publishedFrom: '2026-09-10T00:00:00Z', publishedTo: '2026-09-11T00:00:00Z'
+  });
+  assert.equal(page.items.length, 1, 'daily window must use the list createTime rather than drifted detail metadata');
+  assert.equal(page.items[0].title, listItem.title);
+  assert.equal(page.items[0].authorName, listItem.user.personality.nickName);
+  assert.equal(page.items[0].platformAuthorId, String(listItem.user.account.id));
+  assert.equal(page.items[0].publishedAt, listItem.createTime);
+  assert.equal(page.items[0].body, '详情完整正文');
 });
 
 test('Q1 detail enrichment propagates abort instead of returning a summary fallback', async () => {
@@ -352,6 +418,61 @@ test('Q1 detail worker pool propagates cancellation nested in ConnectorPageError
   assert.ok(claimed.length >= 1);
   assert.ok(claimed.length <= 4, `abort 后仍领取了 ${claimed.length} 个 detail，超过初始并发槽`);
   assert.ok(claimed.length < list.length, 'abort 后不得继续领取后续 detail');
+});
+
+test('Q1 detail worker pool aborts sibling requests for nested daily timeout without aborting the external signal', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const list = Array.from({ length: 8 }, (_, index) => ({ id: 940000 + index, content: [{ type: 0, data: `摘要-${index}` }] }));
+  const external = new AbortController();
+  const detailSignals = [];
+  let siblingAborts = 0;
+  let detailCalls = 0;
+  const dailyTimeout = Object.assign(new Error('daily run timeout'), { code: 'DAILY_RUN_TIMEOUT' });
+  const nestedTimeout = new ConnectorPageError('bigplayer_h5', 'posts', 1, dailyTimeout);
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com', BIGPLAYER_H5_TIMEOUT_MS: '5000' }, {
+    credentialContext: credentialContext('detail-account-token'),
+    fetchImpl: async (url, options) => {
+      const href = String(url);
+      if (new URL(href).pathname.endsWith('/post/model/merged-list')) return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list, total: list.length, hasMore: false } }) };
+      detailCalls += 1;
+      detailSignals.push(options.signal);
+      if (detailCalls === 1) throw nestedTimeout;
+      return new Promise((resolve, reject) => {
+        const onAbort = () => { siblingAborts += 1; reject(options.signal.reason); };
+        if (options.signal.aborted) onAbort();
+        else options.signal.addEventListener('abort', onAbort, { once: true });
+      });
+    }
+  });
+  const hasNestedCode = (error, code) => {
+    const seen = new Set();
+    let current = error;
+    while (current && typeof current === 'object' && !seen.has(current)) {
+      if (current.code === code) return true;
+      seen.add(current);
+      current = current.cause;
+    }
+    return false;
+  };
+  let guardTimer;
+  const guard = new Promise((resolve, reject) => { guardTimer = setTimeout(() => reject(Object.assign(new Error('detail pool did not settle'), { code: 'TEST_TIMEOUT' })), 250); });
+  const startedAt = Date.now();
+
+  try {
+    await assert.rejects(
+      Promise.race([connector.listFeedContents({ source, ...feed, limit: 20, signal: external.signal }), guard]),
+      error => hasNestedCode(error, 'DAILY_RUN_TIMEOUT')
+    );
+  } finally {
+    clearTimeout(guardTimer);
+  }
+  assert.ok(Date.now() - startedAt < 250, 'nested daily timeout must not wait for per-request timeout');
+  assert.equal(external.signal.aborted, false, 'the caller-owned signal must not be aborted internally');
+  assert.ok(detailSignals.length > 1, 'the initial concurrent siblings must have started');
+  assert.ok(detailSignals.every(signal => signal !== external.signal), 'detail fetches must observe internal/combined signals');
+  assert.equal(siblingAborts, detailSignals.length - 1, 'every in-flight sibling must settle through internal cancellation');
 });
 
 test('Q1 detail 401 refresh reuses the explicitly supplied credential context and account', async () => {
@@ -468,7 +589,12 @@ test('Q1 feed treats an undocumented short page as resumable', async () => {
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
     credentialContext: credentialContext(),
     fetchImpl: async url => {
-      const params = new URL(url).searchParams;
+      const parsed = new URL(url);
+      const params = parsed.searchParams;
+      if (parsed.pathname === '/api/club/v1/auth/post/') {
+        const id = Number(params.get('postId'));
+        return { ok: true, status: 200, url: String(url), json: async () => ({ code: 0, data: { id, title: '帖子', content: [{ type: 0, data: `完整正文-${id}` }] } }) };
+      }
       requests.push(params.get('pageIndex'));
       const id = params.get('pageIndex') === '1' ? 1001 : 1002;
       return { ok: true, status: 200, url: String(url), json: async () => ({ code: 0, data: { list: [{ id, title: '帖子' }], total: 3, hasMore: false } }) };
@@ -492,8 +618,14 @@ test('Q1 feed continues after a 20-item first page and consumes the remaining pa
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
     credentialContext: credentialContext(),
     fetchImpl: async url => {
-      const href = String(url); requests.push(href);
-      const params = new URL(href).searchParams;
+      const href = String(url);
+      const parsed = new URL(href);
+      const params = parsed.searchParams;
+      if (parsed.pathname === '/api/club/v1/auth/post/') {
+        const id = Number(params.get('postId'));
+        return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { ...post(id), content: [{ type: 0, data: `完整正文-${id}` }] } }) };
+      }
+      requests.push(href);
       const firstPage = params.get('pageIndex') === '1';
       const items = firstPage
         ? Array.from({ length: 20 }, (_, index) => post(2000 + index))
@@ -533,8 +665,14 @@ test('Q1 feed honors explicit hasMore when total is page-local', async () => {
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
     credentialContext: credentialContext(),
     fetchImpl: async url => {
-      const href = String(url); requests.push(href);
-      const firstPage = new URL(href).searchParams.get('pageIndex') === '1';
+      const href = String(url);
+      const parsed = new URL(href);
+      if (parsed.pathname === '/api/club/v1/auth/post/') {
+        const id = Number(parsed.searchParams.get('postId'));
+        return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id, title: '帖子', content: [{ type: 0, data: `完整正文-${id}` }] } }) };
+      }
+      requests.push(href);
+      const firstPage = parsed.searchParams.get('pageIndex') === '1';
       return { ok: true, status: 200, url: href, json: async () => ({ code: 0, total: 20, hasMore: firstPage, data: Array.from({ length: firstPage ? 20 : 1 }, (_, index) => ({ id: firstPage ? index + 1 : 21, title: '帖子' })) }) };
     }
   });
