@@ -887,9 +887,11 @@ class Repository {
   async getContentTree(rootContentId, options = {}) { return this.listContentTree({ ...options, rootContentId, page: 1, pageSize: options.pageSize || 1000 }); }
 
 
-  // 到期采集源：启用 + 距上次成功已过 frequency + 处于生效时段（active_window 在应用层判定）
+  // 到期采集源：启用 + 距最近成功或实际尝试已过 frequency + 处于生效时段（active_window 在应用层判定）。
+  // queued/running 任务由 runnable 队列负责，不能同时作为周期任务再次入队。
   async listDueSources(now = new Date()) {
-    const rows = await this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND (s.last_success_at IS NULL OR s.last_success_at <= (NOW() - INTERVAL s.frequency_seconds SECOND)) ORDER BY s.last_success_at IS NOT NULL, s.last_success_at ASC`);
+    const lastRunAt = 'COALESCE(GREATEST(s.last_success_at,run_state.last_attempt_at),s.last_success_at,run_state.last_attempt_at)';
+    const rows = await this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status, run_state.last_attempt_at FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id LEFT JOIN (SELECT a.source_id, MAX(CASE WHEN r.started_at IS NOT NULL THEN COALESCE(r.finished_at,r.started_at) ELSE NULL END) AS last_attempt_at, MAX(CASE WHEN r.status IN ('queued','running') THEN 1 ELSE 0 END) AS has_active_run FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id GROUP BY a.source_id) run_state ON run_state.source_id=s.id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND COALESCE(run_state.has_active_run,0)=0 AND (${lastRunAt} IS NULL OR ${lastRunAt} <= (NOW() - INTERVAL s.frequency_seconds SECOND)) ORDER BY ${lastRunAt} IS NOT NULL, ${lastRunAt} ASC`);
     return rows.filter(row => isWithinActiveWindow(row.active_window, now));
   }
 
