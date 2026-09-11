@@ -644,9 +644,9 @@ async function withAccountLock(deps, accountId, operation) {
 }
 function syncModeOf(source, account, syncRun) { const metadata = parseObject(account?.metadata); return first(syncRun, ['syncMode', 'sync_mode'], metadata.syncMode || metadata.sync_mode || source.sync_mode || 'incremental'); }
 async function enqueueSyncRun(deps, source, account) {
-  const input = { sourceId: source.id, accountId: account.id, syncMode: syncModeOf(source, account) };
+  const input = { sourceId: source.id, accountId: account.id, syncMode: syncModeOf(source, account), triggerType: 'legacy' };
   if (typeof deps.repo.enqueueSyncRun === 'function') return deps.repo.enqueueSyncRun(input);
-  return deps.repo.createSyncRun(account.id, { syncMode: input.syncMode });
+  return deps.repo.createSyncRun(input);
 }
 async function claimSyncRun(deps, syncRun) {
   if (typeof deps.repo.claimSyncRun !== 'function') return syncRun;

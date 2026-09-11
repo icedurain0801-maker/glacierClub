@@ -975,7 +975,7 @@ test('runOnce prefers queued run while clearing compatible manual marker and ded
   assert.deepEqual(result, { queued: 1, manual: 1, scanned: 1 });
 });
 
-test('scheduled paged source enqueues then claims and finishes the same run', async () => {
+test('legacy no-slot paged source enqueues then claims and finishes the same run', async () => {
   const lifecycle = [];
   const repo = makeRepo();
   Object.assign(repo, {
@@ -988,8 +988,25 @@ test('scheduled paged source enqueues then claims and finishes the same run', as
   const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents() { return { items: [], nextCursor: null, hasMore: false }; } };
   await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'worker-4', leaseSeconds: 45, pageBudget: 1, pageSize: 10 }, source);
   assert.deepEqual(lifecycle.map(item => item[0]), ['enqueue', 'claim', 'finish']);
-  assert.deepEqual(lifecycle[0][1], { sourceId: 's1', accountId: 'a1', syncMode: 'backfill' });
+  assert.deepEqual(lifecycle[0][1], { sourceId: 's1', accountId: 'a1', syncMode: 'backfill', triggerType: 'legacy' });
   assert.equal(lifecycle[1][1].runId, 'sr-new');
   assert.equal(lifecycle[2][1].id, 'sr-new');
   assert.equal(lifecycle[2][1].leaseOwner, 'worker-4');
+});
+
+test('legacy no-slot paged source fallback creates a run with source identity and legacy trigger', async () => {
+  const created = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: { syncMode: 'incremental' } }; }, async updateAccount() {},
+    async createSyncRun(input) { created.push(input); return { id: 'sr-fallback', sync_mode: input.syncMode }; },
+    async claimSyncRun(input) { return { id: input.runId, sync_mode: 'incremental' }; },
+    async finishSyncRun() {},
+    async claimSyncCheckpoint() { return { id: 'cp1', cursor: null }; }, async upsertContentPage() { return { contents: [], storedCount: 0 }; }, async releaseSyncCheckpoint() {}, async listSyncParents() { return []; }
+  });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents() { return { items: [], nextCursor: null, hasMore: false }; } };
+
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'worker-fallback', leaseSeconds: 45, pageBudget: 1, pageSize: 10 }, source);
+
+  assert.deepEqual(created, [{ sourceId: 's1', accountId: 'a1', syncMode: 'incremental', triggerType: 'legacy' }]);
 });
