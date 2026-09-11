@@ -689,14 +689,52 @@ test('POST /sources/:id/collect 未授权源 fail-closed 返回 UNAUTHORIZED', a
   await repo.query('DELETE FROM po_sources WHERE id=?', ['s-unauth']);
 });
 
+test('BigPlayer legacy gate deterministically selects the id-first legacy account when enabled accounts tie on updated_at', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const legacySourceId = 's-legacy-account-selection';
+  const cleanAccountId = 'z-clean-same-second';
+  const legacyAccountId = 'a-legacy-same-second';
+  const originalHealth = connector.accountHealth;
+  const originalRequestCollect = mod.repo.requestCollect;
+  const originalReleaseSyncCheckpoint = mod.repo.releaseSyncCheckpoint;
+  const calls = { health: 0, collect: 0, checkpointWrite: 0 };
+  connector.accountHealth = async () => { calls.health += 1; return { authorized: true }; };
+  mod.repo.requestCollect = async () => { calls.collect += 1; return { affectedRows: 1 }; };
+  mod.repo.releaseSyncCheckpoint = async () => { calls.checkpointWrite += 1; return true; };
+  try {
+    await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status, config, default_account_id) VALUES (?,?,?,?,?,?,?,?,NULL)', [legacySourceId, gameId, 'c-test-1', 'bigplayer_h5', '无默认账号源', 1, 'authorized', JSON.stringify({ baseUrl: 'https://community.bigplayer.com/' })]);
+    await repo.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, enabled, auth_status, metadata, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [cleanAccountId, gameId, 'c-test-1', legacySourceId, 'bigplayer_h5', 'tenant-clean', '同秒增量账号', 1, 'authorized', JSON.stringify({ syncMode: 'incremental' }), '2026-09-11 08:30:00']);
+    await repo.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, enabled, auth_status, metadata, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [legacyAccountId, gameId, 'c-test-1', legacySourceId, 'bigplayer_h5', 'tenant-legacy', '同秒回溯账号', 1, 'authorized', JSON.stringify({ syncMode: 'backfill', historyStart: '2026-09-01' }), '2026-09-11 08:30:00']);
+
+    for (const endpoint of [`/sources/${legacySourceId}/collect`, `/sources/${legacySourceId}/sync/resume`]) {
+      const result = await api(endpoint, { method: 'POST' });
+      assert.equal(result.status, 400);
+      assert.equal(result.body.error.code, 'INVALID_INPUT');
+    }
+    assert.deepEqual(calls, { health: 0, collect: 0, checkpointWrite: 0 });
+  } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.requestCollect = originalRequestCollect;
+    mod.repo.releaseSyncCheckpoint = originalReleaseSyncCheckpoint;
+    await repo.query('DELETE FROM po_accounts WHERE source_id=?', [legacySourceId]);
+    await repo.query('DELETE FROM po_sources WHERE id=?', [legacySourceId]);
+  }
+});
+
 test('POST /sources/:id/sync 仅使用路径 source 精确入队，重复请求返回 reused', async () => {
   const mod = require('../src/app');
   const connector = mod.connectors.bigplayer_h5;
   const originalHealth = connector.accountHealth;
   const originalStartSourceSync = mod.repo.startSourceSync;
+  const originalStartBoundedSourceBackfill = mod.repo.startBoundedSourceBackfill;
+  const originalValidateBoundedSourceBackfillWindow = mod.repo.validateBoundedSourceBackfillWindow;
   const calls = [];
-  connector.accountHealth = async () => ({ authorized: true });
+  const order = [];
+  connector.accountHealth = async () => { order.push('external-health'); return { authorized: true }; };
+  mod.repo.validateBoundedSourceBackfillWindow = async input => { order.push('db-window'); return { publishedFrom: input.publishedFrom, publishedTo: input.publishedTo }; };
   mod.repo.startSourceSync = async input => {
+    order.push('enqueue');
     calls.push(input);
     return {
       enabled: true,
@@ -704,20 +742,22 @@ test('POST /sources/:id/sync 仅使用路径 source 精确入队，重复请求�
       run: { id: 'run-manual-exact', source_id: sourceId, account_id: 'a-test-1', status: 'queued', sync_mode: 'backfill', trigger_type: 'manual' }
     };
   };
+  mod.repo.startBoundedSourceBackfill = mod.repo.startSourceSync;
   try {
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
-    const request = { method: 'POST', body: JSON.stringify({ mode: 'backfill', historyStart: '2026-01-01T00:00' }) };
+    const request = { method: 'POST', body: JSON.stringify({ mode: 'backfill', publishedFrom: '2026-09-04T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' }) };
     const first = await api(`/sources/${sourceId}/sync`, request);
     const duplicate = await api(`/sources/${sourceId}/sync`, request);
     assert.equal(first.status, 200);
-    assert.deepEqual(first.body.data, { queued: true, enabled: true, runId: 'run-manual-exact', accountId: 'a-test-1', sourceId, mode: 'backfill', status: 'queued', reused: false });
+    assert.deepEqual(first.body.data, { queued: true, enabled: true, runId: 'run-manual-exact', accountId: 'a-test-1', sourceId, mode: 'backfill', status: 'queued', reused: false, publishedFrom: '2026-09-04T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' });
     assert.equal(duplicate.status, 200);
     assert.equal(duplicate.body.data.runId, 'run-manual-exact');
     assert.equal(duplicate.body.data.reused, true);
     assert.deepEqual(calls, [
-      { sourceId, syncMode: 'backfill', metadata: { syncMode: 'backfill', crawlScope: 'authorized_scope', historyStart: '2026-01-01T00:00' } },
-      { sourceId, syncMode: 'backfill', metadata: { syncMode: 'backfill', crawlScope: 'authorized_scope', historyStart: '2026-01-01T00:00' } }
+      { sourceId, publishedFrom: '2026-09-04T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' },
+      { sourceId, publishedFrom: '2026-09-04T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' }
     ]);
+    assert.deepEqual(order, ['db-window', 'external-health', 'enqueue', 'db-window', 'external-health', 'enqueue']);
     for (const replacement of [{ accountId: 'a-other' }, { sourceId: 's-other' }, { communityId: 'c-other' }, { regionCode: 'overseas' }]) {
       const rejected = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'incremental', ...replacement }) });
       assert.equal(rejected.status, 400);
@@ -730,6 +770,8 @@ test('POST /sources/:id/sync 仅使用路径 source 精确入队，重复请求�
   } finally {
     connector.accountHealth = originalHealth;
     mod.repo.startSourceSync = originalStartSourceSync;
+    mod.repo.startBoundedSourceBackfill = originalStartBoundedSourceBackfill;
+    mod.repo.validateBoundedSourceBackfillWindow = originalValidateBoundedSourceBackfillWindow;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
   }
 });
@@ -764,7 +806,7 @@ test('POST /sources/:id/sync 与 /sync/reset 在任何 probe/Repository 调用�
   }
 });
 
-test('POST /sources/:id/sync/reset 继续使用 resetSourceSync 且不从 body 接收 accountId', async () => {
+test('POST /sources/:id/sync/reset rejects BigPlayer before resetting checkpoints', async () => {
   const mod = require('../src/app');
   const connector = mod.connectors.bigplayer_h5;
   const originalHealth = connector.accountHealth;
@@ -780,20 +822,13 @@ test('POST /sources/:id/sync/reset 继续使用 resetSourceSync 且不从 body �
   try {
     await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ historyStart: '2026-01-01T00:00', syncMode: 'incremental' }), 'a-test-1']);
     const res = await api(`/sources/${sourceId}/sync/reset`, { method: 'POST', body: JSON.stringify({}) });
-    assert.equal(res.status, 200);
-    assert.equal(res.body.data.reset, true);
-    assert.equal(res.body.data.crawlScope, 'authorized_scope');
-    assert.equal(res.body.data.runId, 'run-reset-exact');
-    assert.equal(res.body.data.accountId, 'a-test-1');
-    assert.equal(res.body.data.reused, false);
-    assert.equal(res.body.data.status, 'running');
-    assert.equal(res.body.data.queued, false);
-    assert.equal(captured.sourceId, sourceId);
-    assert.equal(Object.hasOwn(captured, 'accountId'), false);
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error.code, 'INVALID_INPUT');
+    assert.equal(resetCalls, 0);
     const rejected = await api(`/sources/${sourceId}/sync/reset`, { method: 'POST', body: JSON.stringify({ historyStart: '2026-01-01T00:00', accountId: 'a-other' }) });
     assert.equal(rejected.status, 400);
     assert.equal(rejected.body.error.code, 'INVALID_INPUT');
-    assert.equal(resetCalls, 1);
+    assert.equal(resetCalls, 0);
   } finally {
     connector.accountHealth = originalHealth;
     mod.repo.resetSourceSync = originalResetSourceSync;
@@ -801,15 +836,83 @@ test('POST /sources/:id/sync/reset 继续使用 resetSourceSync 且不从 body �
   }
 });
 
-test('POST /sources/:id/sync rejects backfill without historyStart', async () => {
+test('BigPlayer legacy backfill trigger routes fail closed before probes, collect flags, or checkpoint writes', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  const originalRequestCollect = mod.repo.requestCollect;
+  const originalResetSyncCheckpoint = mod.repo.resetSyncCheckpoint;
+  const calls = { health: 0, collect: 0, checkpoint: 0 };
+  connector.accountHealth = async () => { calls.health += 1; return { authorized: true }; };
+  mod.repo.requestCollect = async () => { calls.collect += 1; throw new Error('must not request legacy collection'); };
+  mod.repo.resetSyncCheckpoint = async () => { calls.checkpoint += 1; throw new Error('must not reset'); };
+  try {
+    await repo.query('UPDATE po_sources SET config=?, collect_requested_at=NULL WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' }), sourceId]);
+    await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' }), 'a-test-1']);
+    for (const endpoint of [
+      `/sources/${sourceId}/collect`,
+      `/sources/${sourceId}/sync/resume`,
+      '/accounts/a-test-1/sync',
+      '/accounts/a-test-1/sync/resume',
+      '/accounts/a-test-1/sync/reset'
+    ]) {
+      const res = await api(endpoint, { method: 'POST', body: JSON.stringify({}) });
+      assert.equal(res.status, 400, endpoint);
+      assert.equal(res.body.error.code, 'INVALID_INPUT', endpoint);
+    }
+    assert.deepEqual(calls, { health: 0, collect: 0, checkpoint: 0 });
+    const state = (await repo.query('SELECT collect_requested_at FROM po_sources WHERE id=?', [sourceId]))[0];
+    assert.equal(state.collect_requested_at, null);
+  } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.requestCollect = originalRequestCollect;
+    mod.repo.resetSyncCheckpoint = originalResetSyncCheckpoint;
+    await repo.query('UPDATE po_sources SET config=?, collect_requested_at=NULL WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', syncMode: 'incremental', historyStart: null }), sourceId]);
+    await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ syncMode: 'incremental', historyStart: null }), 'a-test-1']);
+  }
+});
+
+test('BigPlayer source and account configuration APIs reject legacy backfill state without persistence', async () => {
+  const uniqueSourceId = 'legacy-backfill-api-rejected';
+  const uniqueAccountId = 'legacy-backfill-account-rejected';
+  const beforeSource = (await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0];
+  const beforeAccount = (await repo.query('SELECT metadata FROM po_accounts WHERE id=?', ['a-test-1']))[0];
+  const attempts = [
+    ['/sources', { gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: uniqueSourceId, syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' }],
+    [`/sources/${sourceId}/configuration`, { displayName: 'blocked', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 900, syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z', enabled: false, credential: {} }],
+    [`/sources/${sourceId}`, { syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' }],
+    ['/accounts', { sourceId, platform: 'bigplayer_h5', platformAccountId: uniqueAccountId, accountName: 'blocked', metadata: { syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' } }],
+    ['/accounts/a-test-1', { metadata: { syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' } }]
+  ];
+  for (const [endpoint, body] of attempts) {
+    const res = await api(endpoint, { method: endpoint === '/sources' || endpoint === '/accounts' ? 'POST' : 'PATCH', body: JSON.stringify(body) });
+    assert.equal(res.status, 400, endpoint);
+    assert.equal(res.body.error.code, 'INVALID_INPUT', endpoint);
+  }
+  assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_sources WHERE display_name=?', [uniqueSourceId]))[0].total, 0);
+  assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_accounts WHERE platform_account_id=?', [uniqueAccountId]))[0].total, 0);
+  assert.equal((await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config, beforeSource.config);
+  assert.equal((await repo.query('SELECT metadata FROM po_accounts WHERE id=?', ['a-test-1']))[0].metadata, beforeAccount.metadata);
+});
+
+test('POST /sources/:id/sync requires a complete bounded UTC window for BigPlayer backfill', async () => {
   const connector = require('../src/app').connectors.bigplayer_h5;
   const originalHealth = connector.accountHealth;
   connector.accountHealth = async () => ({ authorized: true });
   try {
     await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({}), 'a-test-1']);
-    const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'backfill' }) });
-    assert.equal(res.status, 400);
-    assert.equal(res.body.error.code, 'INVALID_INPUT');
+    for (const body of [
+      { mode: 'backfill' },
+      { mode: 'backfill', historyStart: '2026-09-04T08:30:00Z' },
+      { mode: 'backfill', publishedFrom: '2026-09-04T08:30:00.000Z' },
+      { mode: 'backfill', publishedFrom: '2026-09-04T08:30:00+08:00', publishedTo: '2026-09-11T08:30:00.000Z' },
+      { mode: 'backfill', publishedFrom: '2026-09-11T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' },
+      { mode: 'backfill', publishedFrom: '2026-09-04T08:29:59.999Z', publishedTo: '2026-09-11T08:30:00.000Z' }
+    ]) {
+      const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify(body) });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+    }
   } finally {
     connector.accountHealth = originalHealth;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
@@ -907,6 +1010,80 @@ test('POST /sources/:id/sync 授权失败时不启用也不入队', async () => 
     connector.accountHealth = originalHealth;
     mod.repo.startSourceSync = originalStartSourceSync;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
+  }
+});
+
+test('POST /sources/:id/sync lookbackDays=7 persists and returns one DB-anchored exact window without external probes', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  const originalStartRecentSourceBackfill = mod.repo.startRecentSourceBackfill;
+  const calls = [];
+  connector.accountHealth = async () => { throw new Error('must not probe before or after atomic DB admission'); };
+  mod.repo.startRecentSourceBackfill = async input => {
+    calls.push(input);
+    return {
+      enabled: true,
+      reused: false,
+      window: { publishedFrom: '2026-09-04T08:30:00.123Z', publishedTo: '2026-09-11T08:30:00.123Z' },
+      run: { id: 'run-db-anchored', source_id: sourceId, account_id: 'a-test-1', status: 'queued', sync_mode: 'backfill', trigger_type: 'manual', window_start: '2026-09-04 08:30:00.123', window_end: '2026-09-11 08:30:00.123' }
+    };
+  };
+  try {
+    const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'backfill', lookbackDays: 7 }) });
+    assert.equal(res.status, 200);
+    assert.deepEqual(calls, [{ sourceId, lookbackDays: 7 }]);
+    assert.equal(Date.parse(res.body.data.publishedTo) - Date.parse(res.body.data.publishedFrom), 7 * 24 * 60 * 60 * 1000);
+    assert.equal(res.body.data.publishedFrom, '2026-09-04T08:30:00.123Z');
+    assert.equal(res.body.data.publishedTo, '2026-09-11T08:30:00.123Z');
+    for (const lookbackDays of [1, 6, 8]) {
+      const rejected = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'backfill', lookbackDays }) });
+      assert.equal(rejected.status, 400);
+    }
+    assert.equal(calls.length, 1);
+  } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.startRecentSourceBackfill = originalStartRecentSourceBackfill;
+  }
+});
+
+test('POST /sources/:id/sync returns the Repository authoritative rejection for historical and future BigPlayer windows', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  const originalValidateBoundedSourceBackfillWindow = mod.repo.validateBoundedSourceBackfillWindow;
+  const originalStartBoundedSourceBackfill = mod.repo.startBoundedSourceBackfill;
+  const calls = [];
+  let healthCalls = 0;
+  let enqueueCalls = 0;
+  connector.accountHealth = async () => { healthCalls += 1; return { authorized: true }; };
+  mod.repo.validateBoundedSourceBackfillWindow = async input => {
+    calls.push(input);
+    const error = new Error(input.publishedTo.endsWith('001Z') ? 'publishedTo must not be in the future' : 'publishedFrom must be within the last 7 days');
+    error.code = 'INVALID_INPUT';
+    throw error;
+  };
+  mod.repo.startBoundedSourceBackfill = async () => { enqueueCalls += 1; throw new Error('must not enqueue'); };
+  try {
+    const runsBefore = Number((await repo.query('SELECT COUNT(*) AS total FROM po_sync_runs WHERE account_id=?', ['a-test-1']))[0].total);
+    for (const body of [
+      { mode: 'backfill', publishedFrom: '2026-09-03T08:30:00.000Z', publishedTo: '2026-09-04T08:30:00.000Z' },
+      { mode: 'backfill', publishedFrom: '2026-09-11T08:29:59.999Z', publishedTo: '2026-09-11T08:30:00.001Z' }
+    ]) {
+      const res = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify(body) });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+    }
+    assert.equal(calls.length, 2, 'valid-shaped windows must reach the Repository authority check');
+    assert.deepEqual(calls[0], { sourceId, publishedFrom: '2026-09-03T08:30:00.000Z', publishedTo: '2026-09-04T08:30:00.000Z' });
+    assert.equal(healthCalls, 0, 'invalid DB windows must be rejected before external authorization probes');
+    assert.equal(enqueueCalls, 0);
+    const runsAfter = Number((await repo.query('SELECT COUNT(*) AS total FROM po_sync_runs WHERE account_id=?', ['a-test-1']))[0].total);
+    assert.equal(runsAfter, runsBefore);
+  } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.validateBoundedSourceBackfillWindow = originalValidateBoundedSourceBackfillWindow;
+    mod.repo.startBoundedSourceBackfill = originalStartBoundedSourceBackfill;
   }
 });
 

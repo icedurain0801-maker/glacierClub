@@ -5,11 +5,63 @@ const { Repository, isWithinActiveWindow } = require('../src/db/repository');
 // 构造一个不会真正连库的 Repository：覆盖 query 记录 SQL/params，返回预设行。
 function stubRepo(handler) {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
-  repo.pool = { async query() { throw new Error('pool.query should not be called in unit test'); }, async end() {} };
+  repo.pool = {
+    async query() { throw new Error('pool.query should not be called in unit test'); },
+    async getConnection() {
+      return {
+        async beginTransaction() {},
+      async query(sql, params = []) {
+        const result = await repo.query(sql, params);
+        return Array.isArray(result) ? [result, []] : [result, []];
+      },
+        async commit() {},
+        async rollback() {},
+        release() {}
+      };
+    },
+    async end() {}
+  };
   repo.calls = [];
   repo.query = async (sql, params = []) => { repo.calls.push({ sql, params }); return handler ? handler(sql, params) : []; };
   return repo;
 }
+
+test('renewSyncRunLease only renews an owned running run', async () => {
+  const repo = stubRepo(() => ({ affectedRows: 1 }));
+  const renewed = await repo.renewSyncRunLease('run-1', 'owner-1', 45);
+  assert.equal(renewed, true);
+  assert.match(repo.calls[0].sql, /status='running'/);
+  assert.match(repo.calls[0].sql, /lease_owner=\?/);
+  assert.deepEqual(repo.calls[0].params, [45, 'run-1', 'owner-1']);
+});
+
+test('listGames and listCommunities support external directory identifiers', async () => {
+  const repo = stubRepo(() => []);
+  await repo.listGames({ regionCode: 'overseas', externalId: '100017' });
+  assert.deepEqual(repo.calls[0].params, ['overseas', '100017']);
+  assert.match(repo.calls[0].sql, /region_code=\?/);
+  assert.match(repo.calls[0].sql, /external_id=\?/);
+  await repo.listCommunities({ regionCode: 'overseas', externalId: '100017' });
+  assert.deepEqual(repo.calls[1].params, ['overseas', '100017']);
+  assert.match(repo.calls[1].sql, /c\.external_id=\?/);
+});
+test('listSources combines sourceId with the complete scope using AND filters', async () => {
+  const repo = stubRepo(() => []);
+  await repo.listSources('last-night-game', {
+    sourceId: 'last-night-source',
+    regionCode: 'overseas',
+    communityId: 'last-night-community',
+    platform: 'bigplayer_h5'
+  });
+
+  assert.match(repo.calls[0].sql, /s\.id=\?/);
+  assert.match(repo.calls[0].sql, /s\.game_id=\?/);
+  assert.match(repo.calls[0].sql, /g\.region_code=\?/);
+  assert.match(repo.calls[0].sql, /s\.community_id=\?/);
+  assert.match(repo.calls[0].sql, /s\.platform=\?/);
+  assert.deepEqual(repo.calls[0].params, ['last-night-source', 'last-night-game', 'overseas', 'last-night-community', 'bigplayer_h5']);
+});
+
 
 test('active_window: 空窗口视为全天生效', () => {
   assert.equal(isWithinActiveWindow(null), true);
@@ -113,7 +165,7 @@ test('getAlert 返回帖子和评论的完整关联原文', async () => {
     { id: 'c-comment', content_type: 'comment', body: '完整评论', author_id: 'author-comment' }
   ];
   const repo = stubRepo(sql => {
-    if (/FROM po_alerts WHERE id=\?/.test(sql)) return [{ id: 'a1', title: '告警' }];
+    if (/FROM po_alerts a .*a\.id=\?/.test(sql)) return [{ id: 'a1', title: '告警' }];
     if (/FROM po_alert_contents ac/.test(sql)) return related;
     return [];
   });
@@ -125,11 +177,12 @@ test('getAlert 返回帖子和评论的完整关联原文', async () => {
   assert.equal(alert.related_contents[0].body, longBody);
   assert.equal(alert.related_contents[0].author_id, 'author-post');
   assert.equal(alert.related_contents[1].author_id, 'author-comment');
-  assert.equal(repo.calls.length, 2);
-  assert.match(repo.calls[1].sql, /c\.platform_author_id AS author_id/);
-  assert.match(repo.calls[1].sql, /JOIN po_contents c ON c\.id=ac\.content_id/);
-  assert.doesNotMatch(repo.calls[1].sql, /LEFT\s*\(|SUBSTRING\s*\(/i);
-  assert.deepEqual(repo.calls[1].params, ['a1']);
+  const relatedCall = repo.calls.find(call => /FROM po_alert_contents ac/.test(call.sql));
+  assert.ok(relatedCall);
+  assert.match(relatedCall.sql, /c\.platform_author_id AS author_id/);
+  assert.match(relatedCall.sql, /JOIN po_contents c ON c\.id=ac\.content_id/);
+  assert.doesNotMatch(relatedCall.sql, /LEFT\s*\(|SUBSTRING\s*\(/i);
+  assert.deepEqual(relatedCall.params, ['a1']);
 });
 
 test('getAlert 不存在时不查询关联内容，无关联时返回空数组', async () => {
@@ -137,9 +190,11 @@ test('getAlert 不存在时不查询关联内容，无关联时返回空数组',
   assert.equal(await missing.getAlert('missing'), null);
   assert.equal(missing.calls.length, 1);
 
-  const empty = stubRepo(sql => /FROM po_alerts WHERE id=\?/.test(sql) ? [{ id: 'a-empty' }] : []);
-  assert.deepEqual((await empty.getAlert('a-empty')).related_contents, []);
-  assert.equal(empty.calls.length, 2);
+  const empty = stubRepo(sql => /FROM po_alerts a .*a\.id=\?/.test(sql) ? [{ id: 'a-empty' }] : []);
+  const emptyAlert = await empty.getAlert('a-empty');
+  assert.deepEqual(emptyAlert.related_contents, []);
+  assert.deepEqual(emptyAlert.independent_reviews, []);
+  assert.equal(empty.calls.length, 3);
 });
 
 test('updateDingStatus 幂等回写推送状态', async () => {
@@ -181,7 +236,7 @@ test('insertAnalysis never falls back from model explanation to task trigger', a
 });
 
 test('legacy insertContent persists source community ownership', async () => {
-  const repo = stubRepo(sql => sql.startsWith('INSERT IGNORE') ? { affectedRows: 1 } : [{ id: 'content-1' }]);
+  const repo = stubRepo(sql => sql.startsWith('INSERT INTO po_contents') ? { affectedRows: 1 } : [{ id: 'content-1' }]);
   const source = { id: 'source-1', game_id: 'game-1', community_id: 'community-1' };
   const raw = { externalId: 'external-1', contentType: 'post', authorName: 'author', title: 'title', body: 'body', publishedAt: '2026-08-14 10:00:00', sourceUrl: 'https://example.test/post/1', engagement: { likes: 2 }, fingerprint: 'fp-1' };
 
@@ -203,6 +258,9 @@ test('claimAnalysisJobs scopes claims by ownership and published window with a u
 
   const claim = repo.calls[0];
   assert.match(claim.sql, /JOIN po_contents c ON c\.id=j\.content_id/);
+  assert.match(claim.sql, /JOIN po_sources s ON s\.id=c\.source_id/);
+  assert.match(claim.sql, /s\.enabled=1/);
+  assert.match(claim.sql, /j\.lease_owner NOT LIKE 'q1-daily:%:%:%:%'/);
   assert.match(claim.sql, /c\.source_id=\?/);
   assert.match(claim.sql, /c\.account_id=\?/);
   assert.match(claim.sql, /c\.game_id=\?/);
@@ -212,6 +270,43 @@ test('claimAnalysisJobs scopes claims by ownership and published window with a u
   assert.match(claim.params[0], /^worker-1:/);
   assert.deepEqual(claim.params.slice(1), [120, 'light', 'sentiment-v2', 'source-1', 'account-1', 'game-1', 'community-1', '2026-08-10T16:00:00.000Z', '2026-08-11T16:00:00.000Z', 500]);
   assert.equal(repo.calls[1].params[0], claim.params[0], 'claim 后只能查询本次唯一 lease owner');
+});
+
+test('claimAnalysisJobs only bypasses disabled source gate for an exact auditable manual scope', async () => {
+  const repo = stubRepo(sql => sql.startsWith('UPDATE po_analysis_jobs') ? { affectedRows: 1 } : []);
+  const scope = {
+    profile: 'deep', version: 'quality-v1', leaseOwner: 'q1-daily:1234:5c21f78d-5f67-4467-963d-dcdeb5e26cab:2026-09-09',
+    sourceId: '5c21f78d-5f67-4467-963d-dcdeb5e26cab', contentIds: ['content-1'],
+    publishedFrom: '2026-09-08T16:00:00.000Z', publishedTo: '2026-09-09T16:00:00.000Z', businessDate: '2026-09-09', allowDisabledSource: true
+  };
+
+  await repo.claimAnalysisJobs(scope);
+
+  assert.doesNotMatch(repo.calls[0].sql, /s\.enabled=1/);
+  assert.match(repo.calls[0].sql, /c\.source_id=\?/);
+  assert.match(repo.calls[0].sql, /c\.id IN \(\?\)/);
+  assert.match(repo.calls[0].sql, /c\.published_at>=\?.*c\.published_at<\?/);
+});
+
+test('claimAnalysisJobs rejects disabled source bypass without the complete manual fence', async () => {
+  const repo = stubRepo(() => []);
+  await assert.rejects(
+    () => repo.claimAnalysisJobs({
+      profile: 'deep', version: 'quality-v1', leaseOwner: 'worker-1', sourceId: 'source-1',
+      contentIds: ['content-1'], publishedFrom: 'from', publishedTo: 'to', allowDisabledSource: true
+    }),
+    error => error.code === 'ANALYSIS_CLAIM_SCOPE_REQUIRED'
+  );
+  await assert.rejects(
+    () => repo.claimAnalysisJobs({
+      profile: 'deep', version: 'quality-v1',
+      leaseOwner: 'q1-daily:1234:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:2026-09-09',
+      sourceId: '5c21f78d-5f67-4467-963d-dcdeb5e26cab', contentIds: ['content-1'],
+      publishedFrom: 'from', publishedTo: 'to', businessDate: '2026-09-09', allowDisabledSource: true
+    }),
+    error => error.code === 'ANALYSIS_CLAIM_SCOPE_REQUIRED'
+  );
+  assert.equal(repo.calls.length, 0);
 });
 
 test('countAnalysisJobs and countContentsByType keep yesterday isolation in SQL', async () => {
@@ -255,7 +350,7 @@ test('content list and tree queries expose analysis_reason', async () => {
 
 test('getOverview 返回完整归属的 trend 与 hotNegative', async () => {
   const repo = stubRepo((sql) => {
-    if (/DATE\(c\.collected_at\)/.test(sql)) return [{ date: '2026-08-07', negative: 2, total: 5 }];
+    if (/DATE_ADD\(c\.published_at, INTERVAL 8 HOUR\)/.test(sql)) return [{ date: '2026-08-07', negative: 2, total: 5 }];
     if (/engagement DESC/.test(sql)) return [{ id: 'c1', game_name: '超能世界', community_name: '超能世界国服版', engagement: 99 }];
     if (/GROUP BY s\.platform/.test(sql)) return [{ platform: 'taptap', count: 5 }];
     if (/GROUP BY a\.sentiment/.test(sql)) return [{ sentiment: 'negative', count: 2 }];
@@ -274,7 +369,7 @@ test('getOverview 返回完整归属的 trend 与 hotNegative', async () => {
   assert.equal(overview.activeAlerts[0].game_name, '超能世界');
   assert.equal(overview.metrics.total, 5);
 
-  const trend = repo.calls.find(({ sql }) => /DATE\(c\.collected_at\)/.test(sql));
+  const trend = repo.calls.find(({ sql }) => /DATE_ADD\(c\.published_at, INTERVAL 8 HOUR\)/.test(sql));
   assert.match(trend.sql, /JOIN po_games g ON g\.id=c\.game_id/);
   assert.match(trend.sql, /g\.region_code=\?/);
   assert.doesNotMatch(trend.sql, /CURRENT_DATE - INTERVAL 6 DAY/);
@@ -316,6 +411,111 @@ test('updateSource 序列化 active_window', async () => {
   assert.equal(upd.params[2], '{"days":[1,2],"start":"09:00","end":"18:00"}');
 });
 
+test('Facebook baseUrl 变化在同一事务内失效身份、运行、能力和 checkpoint，但保留凭据与历史内容', async () => {
+  const repo = stubRepo((sql) => {
+    if (sql.startsWith('SELECT * FROM po_sources')) return [{ id: 's-fb', platform: 'facebook', config: JSON.stringify({ baseUrl: 'https://www.facebook.com/old-page' }) }];
+    if (sql.startsWith('SELECT * FROM po_accounts')) return [{ id: 'a-fb' }];
+    return { affectedRows: 1 };
+  });
+  await repo.updateSource('s-fb', { enabled: true, baseUrl: 'https://www.facebook.com/new-page' });
+  const sql = repo.calls.map(call => call.sql);
+  assert.ok(sql.some(value => value.includes("auth_status='unconfigured'") && value.includes('collect_requested_at=NULL')));
+  assert.ok(sql.some(value => value.startsWith('UPDATE po_accounts SET platform_account_id=') && value.includes('profile_url=NULL') && value.includes('last_full_sync_at=NULL')));
+  assert.ok(sql.some(value => value.startsWith('UPDATE po_sync_runs') && value.includes('error_code=?') && value.includes("status IN ('queued','running')")));
+  assert.ok(sql.some(value => value.startsWith('UPDATE po_source_schedule_state') && value.includes('next_scheduled_at=NULL') && value.includes('lease_epoch=lease_epoch+1')));
+  assert.ok(sql.some(value => value.startsWith('DELETE FROM po_source_capabilities') && value.includes('capability IN (?,?,?,?)')));
+  assert.ok(sql.some(value => value.startsWith('DELETE cp FROM po_sync_checkpoints')));
+  assert.ok(!sql.some(value => /po_credentials|po_contents|po_quality_candidates|po_alerts/.test(value)));
+  const accountReset = repo.calls.find(call => call.sql.startsWith('UPDATE po_accounts SET platform_account_id='));
+  assert.deepEqual(accountReset.params, ['pending:a-fb', 'a-fb']);
+});
+
+test('Facebook baseUrl 规范化后未变化不误清授权、能力或 checkpoint', async () => {
+  const repo = stubRepo((sql) => sql.startsWith('SELECT * FROM po_sources')
+    ? [{ id: 's-fb', platform: 'facebook', config: JSON.stringify({ baseUrl: 'https://facebook.com/same-page/?utm_source=legacy' }) }]
+    : { affectedRows: 1 });
+  await repo.updateSource('s-fb', { enabled: true, baseUrl: 'https://www.facebook.com/same-page' });
+  assert.ok(!repo.calls.some(call => call.sql.includes("auth_status='unconfigured'")));
+  assert.ok(!repo.calls.some(call => call.sql.includes('po_source_capabilities')));
+  assert.ok(!repo.calls.some(call => call.sql.includes('po_sync_checkpoints')));
+  const sourceUpdate = repo.calls.find(call => call.sql.startsWith('UPDATE po_sources SET enabled=COALESCE'));
+  assert.equal(sourceUpdate.params[0], 1);
+});
+
+test('Facebook baseUrl 安全失效任一步失败时原子回滚', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const executed = [];
+  const conn = {
+    async query(sql) {
+      executed.push(sql);
+      if (sql.startsWith('SELECT * FROM po_sources')) return [[{ id: 's-fb', platform: 'facebook', config: '{"baseUrl":"https://www.facebook.com/old-page"}' }]];
+      if (sql.startsWith('SELECT * FROM po_accounts')) return [[{ id: 'a-fb' }]];
+      if (sql.startsWith('DELETE FROM po_source_capabilities')) throw new Error('capability reset failed');
+      return [{ affectedRows: 1 }];
+    },
+    async beginTransaction() { executed.push('BEGIN'); }, async commit() { executed.push('COMMIT'); }, async rollback() { executed.push('ROLLBACK'); }, release() {}
+  };
+  repo.pool = { async getConnection() { return conn; } };
+  await assert.rejects(() => repo.updateSource('s-fb', { baseUrl: 'https://www.facebook.com/new-page' }), /capability reset failed/);
+  assert.ok(executed.includes('ROLLBACK'));
+  assert.ok(!executed.includes('COMMIT'));
+});
+
+test('Facebook configuration 端点使用同一目标失效状态机且不删除 Token', async () => {
+  const repo = stubRepo((sql) => {
+    if (sql.startsWith('SELECT * FROM po_sources')) return [{ id: 's-fb', platform: 'facebook', config: '{"baseUrl":"https://www.facebook.com/old-page"}' }];
+    if (sql.startsWith('SELECT * FROM po_accounts')) return [{ id: 'a-fb', metadata: '{}' }];
+    return { affectedRows: 1 };
+  });
+  repo.listAccounts = async () => [{ id: 'a-fb', platform_account_id: 'pending:a-fb' }];
+  await repo.updateSourceConfiguration('s-fb', { displayName: 'Facebook', baseUrl: 'https://www.facebook.com/new-page', frequencySeconds: 3600, syncMode: 'incremental', historyStart: null, enabled: true });
+  const sourceWrite = repo.calls.find(call => call.sql.startsWith('UPDATE po_sources SET display_name='));
+  assert.equal(sourceWrite.params[1], 0, '地址变化必须覆盖请求中的 enabled=true');
+  assert.ok(repo.calls.some(call => call.sql.startsWith('UPDATE po_sync_runs') && call.params[0] === 'FACEBOOK_TARGET_CHANGED'));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('DELETE cp FROM po_sync_checkpoints')));
+  assert.ok(!repo.calls.some(call => call.sql.includes('DELETE FROM po_credentials')));
+});
+
+test('Facebook 同地址写入新 Token 时 fail-close，但保留 Page 身份与 checkpoint', async () => {
+  const repo = stubRepo((sql) => {
+    if (sql.startsWith('SELECT * FROM po_sources')) return [{ id: 's-fb', platform: 'facebook', config: '{"baseUrl":"https://www.facebook.com/same-page"}' }];
+    if (sql.startsWith('SELECT * FROM po_accounts')) return [{ id: 'a-fb', platform_account_id: 'page-123', metadata: '{}' }];
+    return { affectedRows: 1 };
+  });
+  repo.listAccounts = async () => [{ id: 'a-fb', platform_account_id: 'page-123' }];
+  await repo.updateSourceConfiguration('s-fb', { displayName: 'Facebook', baseUrl: 'https://facebook.com/same-page/?utm_source=admin', frequencySeconds: 3600, syncMode: 'incremental', historyStart: null, enabled: true, credential: { credentialType: 'api_token' }, credentialCipher: 'NEW-CIPHER' });
+  const sourceWrite = repo.calls.find(call => call.sql.startsWith('UPDATE po_sources SET display_name='));
+  assert.equal(sourceWrite.params[1], 1, '配置主写保持调用参数，随后 fail-close 写在同一事务');
+  assert.ok(repo.calls.some(call => call.sql.startsWith('INSERT INTO po_credentials') && call.params.at(-1) === 'NEW-CIPHER'));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('UPDATE po_sources SET enabled=0')));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('UPDATE po_accounts SET auth_status=') && !call.sql.includes('platform_account_id')));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('UPDATE po_sync_runs') && call.params[0] === 'FACEBOOK_CREDENTIAL_CHANGED'));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('DELETE FROM po_source_capabilities')));
+  assert.ok(!repo.calls.some(call => call.sql.startsWith('DELETE cp FROM po_sync_checkpoints')));
+  assert.ok(!repo.calls.some(call => call.sql.startsWith('UPDATE po_accounts SET platform_account_id=')));
+});
+
+test('Facebook 目标变化终止旧 run 后旧 worker 的后续入库被 lease/status 栅栏拒绝', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  let runActive = true; const executed = [];
+  const conn = {
+    async query(sql) {
+      executed.push(sql);
+      if (sql.startsWith('SELECT * FROM po_sources')) return [[{ id: 's-fb', platform: 'facebook', config: '{"baseUrl":"https://www.facebook.com/old-page"}' }]];
+      if (sql.startsWith('SELECT * FROM po_accounts')) return [[{ id: 'a-fb' }]];
+      if (sql.startsWith('UPDATE po_sync_runs')) { runActive = false; return [{ affectedRows: 1 }]; }
+      if (sql.startsWith('SELECT r.id FROM po_sync_runs')) return [runActive ? [{ id: 'run-old' }] : []];
+      return [{ affectedRows: 1 }];
+    },
+    async beginTransaction() { executed.push('BEGIN'); }, async commit() { executed.push('COMMIT'); }, async rollback() { executed.push('ROLLBACK'); }, release() {}
+  };
+  repo.pool = { async getConnection() { return conn; } };
+  repo.query = async sql => sql.startsWith('SELECT * FROM po_sources') ? [{ id: 's-fb' }] : [];
+  await repo.updateSource('s-fb', { baseUrl: 'https://www.facebook.com/new-page' });
+  await assert.rejects(() => repo.upsertContentPage({ account: { id: 'a-fb', source_id: 's-fb' }, syncRunId: 'run-old', syncScope: 'posts', leaseOwner: 'old-worker', items: [{ externalId: 'should-not-write' }] }), error => error.code === 'SYNC_RUN_LEASE_LOST');
+  assert.ok(!executed.some(sql => sql.startsWith('INSERT INTO po_contents')));
+});
+
 test('upsertCredential 无记录时插入密文、不落明文', async () => {
   const repo = stubRepo((sql) => (sql.includes('FROM po_credentials WHERE source_id') && sql.startsWith('SELECT') ? [] : { affectedRows: 1 }));
   // 让 getCredential 第一次返回 null（无记录），插入后再 getCredential 返回空
@@ -342,14 +542,40 @@ test('upsertCredential 已有时走 UPDATE 并清空 failure_reason', async () =
 });
 
 test('upsertAccountCredential uses account/type unique key for idempotent writes', async () => {
-  const repo = stubRepo((sql) => sql.startsWith('SELECT id, account_id, credential_type') ? [{ id: 'cr1', account_id: 'a1', credential_type: 'api_token' }] : { affectedRows: 1 });
+  const repo = stubRepo((sql) => {
+    if (sql.startsWith('SELECT source_id FROM po_accounts')) return [{ source_id: 's1' }];
+    if (sql.startsWith('SELECT id, platform FROM po_sources')) return [{ id: 's1', platform: 'bigplayer_h5' }];
+    if (sql.startsWith('SELECT * FROM po_accounts')) return [{ id: 'a1', source_id: 's1', platform: 'bigplayer_h5' }];
+    if (sql.startsWith('SELECT id, account_id, credential_type')) return [{ id: 'cr1', account_id: 'a1', credential_type: 'api_token' }];
+    return { affectedRows: 1 };
+  });
   const row = await repo.upsertAccountCredential('a1', { credentialType: 'api_token', secretCipher: 'ENC' });
   assert.equal(row.id, 'cr1');
   const write = repo.calls.find(c => c.sql.startsWith('INSERT INTO po_credentials'));
   assert.ok(write, '应使用 INSERT ... ON DUPLICATE KEY UPDATE');
   assert.match(write.sql, /ON DUPLICATE KEY UPDATE/);
   assert.match(write.sql, /failure_reason=NULL/);
-  assert.equal(write.params.at(-1), 'a1');
+  assert.equal(write.params[1], 'a1');
+  assert.equal(write.params[2], 's1');
+});
+
+test('upsertAccountCredential 的 Facebook Token 公共入口同事务 fail-close 且保留 Page/checkpoint', async () => {
+  const repo = stubRepo((sql) => {
+    if (sql.startsWith('SELECT source_id FROM po_accounts')) return [{ source_id: 's-fb' }];
+    if (sql.startsWith('SELECT id, platform FROM po_sources')) return [{ id: 's-fb', platform: 'facebook' }];
+    if (sql.startsWith('SELECT * FROM po_accounts')) return [{ id: 'a-fb', source_id: 's-fb', platform: 'facebook', platform_account_id: 'page-123' }];
+    if (sql.startsWith('SELECT id, account_id, credential_type')) return [{ id: 'cr-fb', account_id: 'a-fb', credential_type: 'api_token', status: 'active' }];
+    return { affectedRows: 1 };
+  });
+  const row = await repo.upsertAccountCredential('a-fb', { credentialType: 'api_token', secretCipher: 'NEW-CIPHER' });
+  assert.equal(row.id, 'cr-fb');
+  assert.ok(repo.calls.some(call => call.sql.startsWith('INSERT INTO po_credentials')));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('UPDATE po_sources SET enabled=0')));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('UPDATE po_sync_runs') && call.params[0] === 'FACEBOOK_CREDENTIAL_CHANGED'));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('UPDATE po_source_schedule_state') && call.params[0] === 'FACEBOOK_CREDENTIAL_CHANGED'));
+  assert.ok(repo.calls.some(call => call.sql.startsWith('DELETE FROM po_source_capabilities')));
+  assert.ok(!repo.calls.some(call => call.sql.startsWith('DELETE cp FROM po_sync_checkpoints')));
+  assert.ok(!repo.calls.some(call => call.sql.startsWith('UPDATE po_accounts SET platform_account_id=')));
 });
 
 test('credential lookup is redacted by default and explicit internal lookup includes secret', async () => {
@@ -368,9 +594,11 @@ test('account CRUD/default account uses game-scoped identity', async () => {
   assert.equal(account.id, 'a1');
   const insert = repo.calls.find(c => c.sql.startsWith('INSERT INTO po_accounts'));
   assert.equal(insert.params[1], 'g1');
-  assert.equal(insert.params[4], 'u1');
+  assert.equal(insert.params[2], null);
+  assert.equal(insert.params[5], 'u1');
   await repo.getDefaultAccount({ gameId: 'g1', platform: 'h5' });
   assert.match(repo.calls.at(-1).sql, /enabled=\?/);
+  assert.match(repo.calls.at(-1).sql, /ORDER BY a\.updated_at DESC, a\.id ASC/);
 });
 
 test('claim checkpoint is atomic and lease based', async () => {
@@ -380,6 +608,40 @@ test('claim checkpoint is atomic and lease based', async () => {
   assert.match(repo.calls[0].sql, /INSERT IGNORE/);
   assert.match(repo.calls[1].sql, /lease_until/);
   assert.doesNotMatch(repo.calls[1].sql, /'paused'/);
+});
+
+test('checkpoint identity isolates exact collection windows and preserves same-window resume', async () => {
+  const rows = new Map();
+  const repo = stubRepo((sql, params) => {
+    if (sql.startsWith('INSERT IGNORE')) {
+      const key = params.slice(1, 8).join('|');
+      if (!rows.has(key)) rows.set(key, { id: `cp-${rows.size + 1}`, status: 'idle', cursor: null });
+      return { affectedRows: 1 };
+    }
+    if (sql.startsWith('UPDATE po_sync_checkpoints SET status=')) {
+      const key = params.slice(3, 10).join('|');
+      const row = rows.get(key); row.status = 'running'; row.lease_owner = params[0]; return { affectedRows: 1 };
+    }
+    if (sql.startsWith('SELECT * FROM po_sync_checkpoints')) return [rows.get(params.join('|'))];
+    return { affectedRows: 1 };
+  });
+  const base = { accountId: 'a1', taskKind: 'q1_feed', taskKey: 'home', syncScope: 'posts', leaseOwner: 'worker-1' };
+  const first = await repo.claimSyncCheckpoint({ ...base, windowStart: '2026-09-04T16:00:00.000Z', windowEnd: '2026-09-05T16:00:00.000Z' });
+  rows.get('a1|q1_feed|home|posts||2026-09-04T16:00:00.000Z|2026-09-05T16:00:00.000Z').cursor = 'page-2';
+  const resumed = await repo.claimSyncCheckpoint({ ...base, windowStart: '2026-09-04T16:00:00.000Z', windowEnd: '2026-09-05T16:00:00.000Z' });
+  const nextDate = await repo.claimSyncCheckpoint({ ...base, windowStart: '2026-09-05T16:00:00.000Z', windowEnd: '2026-09-06T16:00:00.000Z' });
+  assert.equal(resumed.id, first.id);
+  assert.equal(resumed.cursor, 'page-2');
+  assert.notEqual(nextDate.id, first.id);
+  assert.equal(nextDate.cursor, null);
+});
+
+test('checkpoint release remains fenced against a stale owner', async () => {
+  const repo = stubRepo(sql => sql.startsWith('UPDATE') ? { affectedRows: 0 } : [{ id: 'cp1', status: 'running', lease_owner: 'current-owner' }]);
+  const row = await repo.releaseSyncCheckpoint('cp1', { status: 'completed', leaseOwner: 'stale-owner' });
+  assert.equal(row.lease_owner, 'current-owner');
+  assert.match(repo.calls[0].sql, /WHERE id=\? AND lease_owner=\?/);
+  assert.equal(repo.calls[0].params.at(-1), 'stale-owner');
 });
 
 test('reply checkpoints are historical only and cannot be claimed or listed as active status', async () => {
@@ -409,7 +671,7 @@ test('listContentTree includes root content and uses analysis alias filters', as
   assert.match(repo.calls[0].sql, /\(c\.id=\? OR c\.root_content_id=\?\)/);
   assert.match(repo.calls[0].sql, /an\.sentiment=\?/);
   assert.match(repo.calls[0].sql, /an\.severity=\?/);
-  assert.deepEqual(repo.calls[0].params.slice(0, 5), ['sentiment-v1', 'urgent', 'negative', 'p1', 'p1']);
+  assert.deepEqual(repo.calls[0].params.slice(0, 7), ['sentiment-v1', 'translation-v1', 'translation-v1', 'urgent', 'negative', 'p1', 'p1']);
 });
 
 test('listContentTree sorts post and comment tabs globally by publish time', async () => {
@@ -438,7 +700,7 @@ test('listContentTree applies region filtering consistently with the flat conten
   const call = repo.calls[0];
   assert.match(call.sql, /JOIN po_games g ON g\.id=c\.game_id/);
   assert.match(call.sql, /g\.region_code=\?/);
-  assert.deepEqual(call.params.slice(0, 4), ['sentiment-v1', 'g1', 'overseas', 'p1']);
+  assert.deepEqual(call.params.slice(0, 6), ['sentiment-v1', 'translation-v1', 'translation-v1', 'g1', 'overseas', 'p1']);
 });
 
 test('listContentTree filters content by community ownership', async () => {
@@ -449,9 +711,27 @@ test('listContentTree filters content by community ownership', async () => {
   const call = repo.calls[0];
   assert.match(call.sql, /c\.game_id=\?/);
   assert.match(call.sql, /c\.community_id=\?/);
-  assert.deepEqual(call.params.slice(0, 5), ['sentiment-v1', 'game-1', 'community-1', 'post-1', 'post-1']);
+  assert.deepEqual(call.params.slice(0, 7), ['sentiment-v1', 'translation-v1', 'translation-v1', 'game-1', 'community-1', 'post-1', 'post-1']);
 });
 
+test('upsertContentPage validates active sync-run lease before writing content', async () => {
+  const repo = stubRepo(sql => {
+    if (sql.includes('FROM po_sync_runs') && sql.includes('FOR UPDATE')) return [];
+    return { affectedRows: 1 };
+  });
+  await assert.rejects(() => repo.upsertContentPage({
+    account: { id: 'a1', game_id: 'g1', source_id: 's1' }, syncRunId: 'run-1', syncScope: 'posts', leaseOwner: 'worker-1', items: []
+  }), error => error.code === 'SYNC_RUN_LEASE_LOST');
+  assert.equal(repo.calls.filter(call => call.sql.startsWith('INSERT INTO po_contents')).length, 0);
+  const lease = repo.calls.find(call => call.sql.includes('FROM po_sync_runs'));
+  assert.match(lease.sql, /r\.account_id=\?/);
+  assert.match(lease.sql, /a\.source_id=\?/);
+  assert.match(lease.sql, /r\.status='running'/);
+  assert.match(lease.sql, /r\.lease_owner=\?/);
+  assert.match(lease.sql, /r\.lease_until>NOW\(\)/);
+  assert.match(lease.sql, /FOR UPDATE/);
+  assert.deepEqual(lease.params, ['run-1', 'a1', 's1', 'worker-1']);
+});
 test('upsertContentPage commits content before checkpoint advancement', async () => {
   const executed = [];
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
@@ -494,8 +774,8 @@ test('upsertContentPage persists explicit comment root parent and depth', async 
   assert.equal(insert.params[9], 'comment-db');
   assert.equal(insert.params[10], 'comment1');
   assert.equal(insert.params[11], 2);
-  assert.equal(insert.params.length, 21);
-  assert.match(insert.sql, /VALUES \(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,NOW\(\),NOW\(\)\)/);
+  assert.equal(insert.params.length, 22);
+  assert.match(insert.sql, /VALUES \(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,NOW\(\),NOW\(\)\)/);
 });
 test('upsertContentPage updates content type when an existing external ID is reclassified', async () => {
   const executed = [];
@@ -847,10 +1127,10 @@ test('checkpoint identity includes task kind and task key', async () => {
 function manualSyncHarness(overrides = {}) {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   const executed = [];
-  const source = { id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', source_auth_expired: 0, default_account_id: 'a1', game_enabled: 1, community_status: 'enabled', ...(overrides.source || {}) };
+  const source = { id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', source_auth_expired: 0, admission_anchor: '2026-09-11 08:30:00.000', default_account_id: 'a1', game_enabled: 1, community_status: 'enabled', ...(overrides.source || {}) };
   const account = { id: 'a1', source_id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', account_auth_expired: 0, ...(overrides.account || {}) };
   const credential = { id: 'credential-1', status: 'active', credential_expired: 0, has_secret_cipher: 1, ...(overrides.credential || {}) };
-  const schema = { migration_table_ready: 1, default_account_ready: 1, source_schedule_columns_ready: 1, run_source_ready: 1, run_trigger_ready: 1, run_schedule_column_ready: 1, run_slot_ready: 1, run_trigger_constraint_ready: 1, run_source_fk_ready: 1, schedule_state_ready: 1, schedule_state_columns_ready: 1, schedule_state_fk_ready: 1, ...(overrides.schema || {}) };
+  const schema = { migration_table_ready: 1, default_account_ready: 1, source_schedule_columns_ready: 1, checkpoint_window_columns_ready: 1, checkpoint_window_index_ready: 1, run_source_ready: 1, run_trigger_ready: 1, run_schedule_column_ready: 1, run_window_columns_ready: 1, run_slot_ready: 1, run_trigger_constraint_ready: 1, run_source_fk_ready: 1, schedule_state_ready: 1, schedule_state_columns_ready: 1, schedule_state_fk_ready: 1, ...(overrides.schema || {}) };
   const conn = {
     async query(sql, params = []) {
       executed.push({ sql, params });
@@ -915,7 +1195,7 @@ test('enqueueSyncRun locks the source and active runs before one legacy insert',
   assert.match(executed.find(call => call.sql.startsWith('SELECT id FROM po_sources')).sql, /FOR UPDATE/);
   assert.match(executed.find(call => call.sql.startsWith('SELECT \* FROM po_sync_runs WHERE source_id=')).sql, /FOR UPDATE/);
   const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
-  assert.deepEqual(insert.params.slice(1), ['s1', 'a1', 'incremental']);
+  assert.deepEqual(insert.params.slice(1, 4), ['s1', 'a1', 'incremental']);
   assert.equal(executed.at(-1).sql, 'COMMIT');
 
   activeRun = { id: 'run-existing', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'queued' };
@@ -974,9 +1254,219 @@ test('startSourceSync locks the source/default account and creates exactly one q
   assert.match(metadataUpdate.sql, /JSON_MERGE_PATCH/);
   const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
   assert.match(insert.sql, /source_id, account_id, trigger_type, status, sync_mode/);
-  assert.deepEqual(insert.params.slice(1), ['s1', 'a1', 'incremental']);
+  assert.deepEqual(insert.params.slice(1, 4), ['s1', 'a1', 'incremental']);
   assert.ok(!executed.some(call => /UPDATE po_sources SET enabled=1|collect_requested_at=NOW/.test(call.sql)));
   assert.equal(executed.at(-2).sql, 'COMMIT');
+});
+
+test('startBoundedSourceBackfill stores one exact UTC window without mutating account metadata or checkpoints', async () => {
+  const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
+  const result = await repo.startBoundedSourceBackfill({
+    sourceId: 's1',
+    publishedFrom: '2026-09-04T08:30:00.000Z',
+    publishedTo: '2026-09-11T08:30:00.000Z'
+  });
+  assert.equal(result.reused, false);
+  const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.match(insert.sql, /window_start, window_end/);
+  assert.deepEqual(insert.params.slice(1), [
+    's1', 'a1', 'backfill', '2026-09-04 08:30:00.000', '2026-09-11 08:30:00.000'
+  ]);
+  assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_accounts SET metadata=')));
+  assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sync_checkpoints')));
+  assert.ok(!executed.some(call => /frequency_seconds/.test(call.sql)));
+  const sourceLock = executed.find(call => call.sql.includes('FROM po_sources s LEFT JOIN'));
+  assert.match(sourceLock.sql, /UTC_TIMESTAMP\(3\) AS admission_anchor/);
+});
+
+test('BigPlayer bounded backfill accepts a window shorter than seven days against the fixed database UTC anchor', async () => {
+  const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
+  await repo.startBoundedSourceBackfill({
+    sourceId: 's1',
+    publishedFrom: '2026-09-10T08:30:00.000Z',
+    publishedTo: '2026-09-11T08:30:00.000Z'
+  });
+  const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.deepEqual(insert.params.slice(-2), ['2026-09-10 08:30:00.000', '2026-09-11 08:30:00.000']);
+});
+
+test('BigPlayer bounded backfill rejects historical and future windows without persistent writes', async () => {
+  for (const [publishedFrom, publishedTo] of [
+    ['2026-09-04T08:29:59.999Z', '2026-09-05T08:30:00.000Z'],
+    ['2026-09-11T08:29:59.999Z', '2026-09-11T08:30:00.001Z']
+  ]) {
+    const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
+    await assert.rejects(
+      () => repo.startBoundedSourceBackfill({ sourceId: 's1', publishedFrom, publishedTo }),
+      error => error.code === 'INVALID_INPUT'
+    );
+    assert.match(executed.find(call => call.sql.includes('FROM po_sources s LEFT JOIN')).sql, /UTC_TIMESTAMP\(3\) AS admission_anchor/);
+    assert.ok(!executed.some(call => /^(INSERT|UPDATE|DELETE)\b/.test(call.sql)), 'rejected window must not persist run, metadata, checkpoint, or schedule changes');
+    assert.ok(!executed.some(call => /frequency_seconds/.test(call.sql)));
+    assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+    assert.ok(!executed.some(call => call.sql === 'COMMIT'));
+  }
+});
+
+test('startRecentSourceBackfill derives and persists one exact seven-day window from the transaction DB anchor', async () => {
+  const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
+  const result = await repo.startRecentSourceBackfill({ sourceId: 's1', lookbackDays: 7 });
+  const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.deepEqual(insert.params.slice(-2), ['2026-09-04 08:30:00.000', '2026-09-11 08:30:00.000']);
+  assert.deepEqual(result.window, { publishedFrom: '2026-09-04T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' });
+  assert.equal(Date.parse(result.window.publishedTo) - Date.parse(result.window.publishedFrom), 7 * 24 * 60 * 60 * 1000);
+  assert.match(executed.find(call => call.sql.includes('FROM po_sources s LEFT JOIN')).sql, /UTC_TIMESTAMP\(3\) AS admission_anchor/);
+});
+
+test('startRecentSourceBackfill reuses the active run persisted window instead of recomputing it', async () => {
+  const existing = {
+    id: 'run-existing', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'running', sync_mode: 'backfill',
+    window_start: '2026-09-04 08:29:59.000', window_end: '2026-09-11 08:29:59.000'
+  };
+  const { repo, executed } = manualSyncHarness({ manualRun: existing, source: { admission_anchor: '2026-09-11 08:30:00.000' } });
+  const result = await repo.startRecentSourceBackfill({ sourceId: 's1', lookbackDays: 7 });
+  assert.equal(result.reused, true);
+  assert.equal(result.run.id, existing.id);
+  assert.deepEqual(result.window, { publishedFrom: '2026-09-04T08:29:59.000Z', publishedTo: '2026-09-11T08:29:59.000Z' });
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  assert.match(executed.find(call => call.sql.startsWith('SELECT * FROM po_sync_runs WHERE source_id=')).sql, /window_start IS NOT NULL AND window_end IS NOT NULL/);
+});
+
+test('startRecentSourceBackfill does not reuse an active bounded window shorter than seven days', async () => {
+  const existing = {
+    id: 'run-existing-short', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'running', sync_mode: 'backfill',
+    window_start: '2026-09-10 08:30:00.000', window_end: '2026-09-11 08:30:00.000'
+  };
+  const { repo, executed } = manualSyncHarness({ manualRun: existing });
+  await assert.rejects(
+    () => repo.startRecentSourceBackfill({ sourceId: 's1', lookbackDays: 7 }),
+    error => error.code === 'PREVIOUS_RUN_ACTIVE'
+  );
+  const reuseLookup = executed.find(call => call.sql.startsWith('SELECT * FROM po_sync_runs WHERE source_id='));
+  assert.match(reuseLookup.sql, /TIMESTAMPDIFF\(MICROSECOND,window_start,window_end\)=\?/);
+  assert.equal(reuseLookup.params.at(-1), 7 * 24 * 60 * 60 * 1000 * 1000);
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+});
+
+test('startRecentSourceBackfill accepts only lookbackDays 7 for BigPlayer', async () => {
+  for (const lookbackDays of [1, 6, 8, 'bad']) {
+    const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
+    await assert.rejects(() => repo.startRecentSourceBackfill({ sourceId: 's1', lookbackDays }), error => error.code === 'INVALID_INPUT');
+    assert.equal(executed.length, 0);
+  }
+  const { repo, executed } = manualSyncHarness({ source: { platform: 'douyin' } });
+  await assert.rejects(() => repo.startRecentSourceBackfill({ sourceId: 's1', lookbackDays: 7 }), error => error.code === 'INVALID_INPUT');
+  assert.ok(!executed.some(call => /^(INSERT|UPDATE|DELETE)\b/.test(call.sql)));
+});
+
+test('validateBoundedSourceBackfillWindow uses DB UTC and returns the normalized fixed window', async () => {
+  const repo = stubRepo(() => [{ id: 's1', platform: 'bigplayer_h5', admission_anchor: '2026-09-11 08:30:00.000' }]);
+  const window = await repo.validateBoundedSourceBackfillWindow({ sourceId: 's1', publishedFrom: '2026-09-10T08:30:00Z', publishedTo: '2026-09-11T08:30:00Z' });
+  assert.deepEqual(window, { publishedFrom: '2026-09-10T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' });
+  assert.match(repo.calls[0].sql, /UTC_TIMESTAMP\(3\) AS admission_anchor/);
+});
+
+test('requestCollect rejects legacy BigPlayer backfill atomically but keeps incremental and other platforms compatible', async () => {
+  const run = async row => {
+    const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+    const executed = [];
+    const conn = {
+      async query(sql, params = []) {
+        executed.push({ sql, params });
+        if (sql.includes('FROM po_sources s LEFT JOIN po_accounts')) return [[row]];
+        return [{ affectedRows: 1 }];
+      },
+      async beginTransaction() { executed.push({ sql: 'BEGIN' }); },
+      async commit() { executed.push({ sql: 'COMMIT' }); },
+      async rollback() { executed.push({ sql: 'ROLLBACK' }); },
+      release() {}
+    };
+    repo.pool = { async getConnection() { return conn; } };
+    return { repo, executed };
+  };
+  for (const row of [
+    { id: 's1', platform: 'bigplayer_h5', config: JSON.stringify({ syncMode: 'backfill', historyStart: '2026-01-01' }), account_metadata: '{}' },
+    { id: 's1', platform: 'bigplayer_h5', config: '{}', account_metadata: JSON.stringify({ syncMode: 'backfill', historyStart: '2026-01-01' }) }
+  ]) {
+    const { repo, executed } = await run(row);
+    await assert.rejects(() => repo.requestCollect('s1'), error => error.code === 'INVALID_INPUT');
+    assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sources')));
+    assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+  }
+  for (const row of [
+    { id: 's1', platform: 'bigplayer_h5', config: JSON.stringify({ syncMode: 'incremental', historyStart: null }), account_metadata: '{}' },
+    { id: 's1', platform: 'douyin', config: JSON.stringify({ syncMode: 'backfill', historyStart: '2026-01-01' }), account_metadata: '{}' }
+  ]) {
+    const { repo, executed } = await run(row);
+    await repo.requestCollect('s1');
+    assert.ok(executed.some(call => call.sql.startsWith('UPDATE po_sources SET collect_requested_at=UTC_TIMESTAMP(3)')));
+    assert.ok(executed.some(call => call.sql === 'COMMIT'));
+  }
+});
+
+test('requestCollect checks the same newest enabled account used by source authorization', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const executed = [];
+  const conn = {
+    async query(sql, params = []) {
+      executed.push({ sql, params });
+      if (sql.includes('FROM po_sources s LEFT JOIN po_accounts')) {
+        const usesNewestEnabledAccount = /a\.enabled=1/.test(sql) && /ORDER BY a\.updated_at DESC, a\.id ASC LIMIT 1/.test(sql);
+        return [[{
+          id: 's1', platform: 'bigplayer_h5', config: '{}',
+          account_metadata: usesNewestEnabledAccount ? JSON.stringify({ syncMode: 'backfill', historyStart: '2026-09-01' }) : null
+        }]];
+      }
+      return [{ affectedRows: 1 }];
+    },
+    async beginTransaction() { executed.push({ sql: 'BEGIN' }); },
+    async commit() { executed.push({ sql: 'COMMIT' }); },
+    async rollback() { executed.push({ sql: 'ROLLBACK' }); },
+    release() {}
+  };
+  repo.pool = { async getConnection() { return conn; } };
+
+  await assert.rejects(() => repo.requestCollect('s1'), error => error.code === 'INVALID_INPUT');
+  const selection = executed.find(call => call.sql.includes('FROM po_sources s LEFT JOIN po_accounts'));
+  assert.match(selection.sql, /a\.enabled=1/);
+  assert.match(selection.sql, /ORDER BY a\.updated_at DESC, a\.id ASC LIMIT 1/);
+  assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sources')));
+  assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+});
+
+test('BigPlayer backfill fails closed without a complete UTC window and rejects windows over seven days', async () => {
+  for (const input of [
+    { sourceId: 's1', syncMode: 'backfill', metadata: { historyStart: '2026-09-04T08:30:00Z' } },
+    { sourceId: 's1', publishedFrom: '2026-09-04T08:30:00.000Z' },
+    { sourceId: 's1', publishedFrom: '2026-09-04T08:30:00+08:00', publishedTo: '2026-09-11T08:30:00.000Z' },
+    { sourceId: 's1', publishedFrom: '2026-09-11T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' },
+    { sourceId: 's1', publishedFrom: '2026-09-04T08:29:59.999Z', publishedTo: '2026-09-11T08:30:00.000Z' }
+  ]) {
+    const { repo, executed } = manualSyncHarness();
+    const operation = Object.hasOwn(input, 'syncMode')
+      ? () => repo.startSourceSync(input)
+      : () => repo.startBoundedSourceBackfill(input);
+    await assert.rejects(operation, error => error.code === 'INVALID_INPUT');
+    assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+    assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sync_checkpoints')));
+  }
+});
+
+test('bounded manual backfill reuses only the same active source window', async () => {
+  const same = manualSyncHarness({ manualRun: { id: 'run-existing', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'running', sync_mode: 'backfill', window_start: '2026-09-04 08:30:00.000', window_end: '2026-09-11 08:30:00.000' } });
+  const reused = await same.repo.startBoundedSourceBackfill({ sourceId: 's1', publishedFrom: '2026-09-04T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' });
+  assert.equal(reused.reused, true);
+  const sameWindowLookup = same.executed.find(call => call.sql.startsWith('SELECT * FROM po_sync_runs WHERE source_id='));
+  assert.match(sameWindowLookup.sql, /window_start=\? AND window_end=\?/);
+  assert.deepEqual(sameWindowLookup.params.slice(-2), ['2026-09-04 08:30:00.000', '2026-09-11 08:30:00.000']);
+  assert.ok(!same.executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+
+  const different = manualSyncHarness({ activeRun: { id: 'run-other-window' } });
+  await assert.rejects(
+    () => different.repo.startBoundedSourceBackfill({ sourceId: 's1', publishedFrom: '2026-09-05T08:30:00.000Z', publishedTo: '2026-09-10T08:30:00.000Z' }),
+    error => error.code === 'PREVIOUS_RUN_ACTIVE'
+  );
+  assert.ok(!different.executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
 });
 
 test('startSourceSync reuses only the same active manual source and mode without mutation', async () => {
@@ -1032,6 +1522,9 @@ test('BigPlayer manual sync locks and validates the account api_token credential
 test('manual sync fails closed for old or unverifiable unified scheduler schema', async () => {
   for (const [overrides, code] of [
     [{ schema: { run_source_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { checkpoint_window_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { checkpoint_window_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { run_window_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_slot_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_trigger_constraint_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_source_fk_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
@@ -1060,7 +1553,7 @@ test('manual sync rejects competing run, checkpoint, and scheduler lease with st
 });
 
 test('resetSourceSync resets every historical source checkpoint only after no active checkpoint remains', async () => {
-  const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
+  const { repo, executed } = manualSyncHarness({ createdMode: 'backfill', source: { platform: 'douyin' }, account: { platform: 'douyin' } });
   const result = await repo.resetSourceSync({ sourceId: 's1', metadata: { historyStart: '2026-09-01' } });
   assert.equal(result.reset, true);
   assert.equal(result.reused, false);
@@ -1069,11 +1562,11 @@ test('resetSourceSync resets every historical source checkpoint only after no ac
   assert.deepEqual(checkpointReset.params, ['s1']);
   assert.doesNotMatch(checkpointReset.sql, /WHERE[^]*cp\.status=/, '无活动 checkpoint 后重置该 source 的全部历史 checkpoint');
   const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
-  assert.equal(insert.params.at(-1), 'backfill');
+  assert.equal(insert.params[3], 'backfill');
   assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sync_runs SET status=')));
   assert.ok(!executed.some(call => /UPDATE po_sources SET enabled=1/.test(call.sql)));
 
-  const blocked = manualSyncHarness({ activeCheckpoint: { id: 'cp-running' } });
+  const blocked = manualSyncHarness({ activeCheckpoint: { id: 'cp-running' }, source: { platform: 'douyin' }, account: { platform: 'douyin' } });
   await assert.rejects(() => blocked.repo.resetSourceSync({ sourceId: 's1' }), error => error.code === 'SYNC_CHECKPOINT_ACTIVE');
   assert.ok(!blocked.executed.some(call => call.sql.startsWith('UPDATE po_sync_checkpoints cp JOIN po_accounts')));
 });
@@ -1081,7 +1574,7 @@ test('resetSourceSync resets every historical source checkpoint only after no ac
 test('resetSourceSync never reuses an active manual run, including a different historyStart', async () => {
   const manualRun = { id: 'run-from-start', source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'queued', sync_mode: 'backfill' };
   for (const historyStart of ['2026-09-01', '2026-08-01']) {
-    const { repo, executed } = manualSyncHarness({ manualRun });
+    const { repo, executed } = manualSyncHarness({ manualRun, source: { platform: 'douyin' }, account: { platform: 'douyin' } });
     await assert.rejects(() => repo.resetSourceSync({ sourceId: 's1', metadata: { historyStart } }), error => error.code === 'PREVIOUS_RUN_ACTIVE');
     assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sync_checkpoints cp JOIN po_accounts')));
     assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
@@ -1149,7 +1642,12 @@ test('finishSyncRun preserves accumulated counters and enforces lease ownership'
   assert.equal(run.fetched_count, 9);
 });
 
-test('upsertContentPage associates content once and updates run/checkpoint atomically', async () => {
+test('finishSyncRun returns null when stale worker no longer owns the lease', async () => {
+  const repo = stubRepo(sql => sql.startsWith('UPDATE') ? { affectedRows: 0 } : [{ id: 'run-1', status: 'completed_full' }]);
+  assert.equal(await repo.finishSyncRun('run-1', { status: 'completed_full', leaseOwner: 'worker-stale' }), null);
+  assert.equal(repo.calls.length, 1, 'stale owner must not read another worker final result');
+});
+test('upsertContentPage records sync-run progress and links content idempotently', async () => {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   const executed = [];
   let associationCount = 0;
@@ -1168,7 +1666,7 @@ test('upsertContentPage associates content once and updates run/checkpoint atomi
   await repo.upsertContentPage(input);
   const scopeCheck = executed.find(call => call.sql.startsWith('SELECT r.id FROM po_sync_runs'));
   assert.ok(scopeCheck);
-  assert.doesNotMatch(scopeCheck.sql, /FOR UPDATE/);
+  assert.match(scopeCheck.sql, /FOR UPDATE/);
   const runUpdate = executed.find(call => call.sql.startsWith('UPDATE po_sync_runs SET fetched_count'));
   assert.ok(runUpdate);
   assert.deepEqual(runUpdate.params.slice(0, 7), [1, 1, 0, 0, 4, 1, 1]);
@@ -1177,6 +1675,7 @@ test('upsertContentPage associates content once and updates run/checkpoint atomi
   assert.ok(executed.findIndex(call => call.sql.startsWith('INSERT IGNORE INTO po_sync_run_contents')) < executed.findIndex(call => call.sql.startsWith('UPDATE po_sync_runs SET fetched_count')));
   assert.equal(executed.at(-1).sql, 'COMMIT');
 });
+
 
 test('upsertContentPage excludes comment rows from post progress counters', async () => {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
@@ -1229,7 +1728,7 @@ test('upsertContentPage treats equivalent DB dates and JSON key order as unchang
   assert.deepEqual(changed.runUpdate.params.slice(0, 7), [1, 0, 1, 0, 2, 1, 1]);
 });
 
-test('upsertContentPage rejects a run outside the account/source scope', async () => {
+test('upsertContentPage rejects a run outside the account/source scope as lease loss and rolls back', async () => {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   let beganTransaction = false; let rolledBack = false;
   const conn = {
@@ -1237,9 +1736,9 @@ test('upsertContentPage rejects a run outside the account/source scope', async (
     async beginTransaction() { beganTransaction = true; }, async commit() {}, async rollback() { rolledBack = true; }, release() {}
   };
   repo.pool = { async getConnection() { return conn; } };
-  await assert.rejects(() => repo.upsertContentPage({ account: { id: 'a1', source_id: 's1' }, syncRunId: 'run-other', syncScope: 'posts' }), error => error.code === 'SYNC_RUN_SCOPE_MISMATCH');
-  assert.equal(beganTransaction, false);
-  assert.equal(rolledBack, false);
+  await assert.rejects(() => repo.upsertContentPage({ account: { id: 'a1', source_id: 's1' }, syncRunId: 'run-other', syncScope: 'posts' }), error => error.code === 'SYNC_RUN_LEASE_LOST');
+  assert.equal(beganTransaction, true);
+  assert.equal(rolledBack, true);
 });
 
 test('releaseSyncCheckpoint distinguishes omitted cursor from explicit clear', async () => {
@@ -1307,10 +1806,15 @@ test('listContentTree exposes actual breakdown and compatible total comment coun
 });
 
 test('quality candidate upsert is deep-only, idempotent, and preserves review fields', async () => {
-  const repo = stubRepo(sql => sql.startsWith('SELECT * FROM po_quality_candidates') ? [{ id: 'q1', home_review_status: 'accepted' }] : sql.startsWith('DELETE FROM po_quality_candidates') ? { affectedRows: 1 } : { affectedRows: 1 });
-  assert.equal(await repo.upsertQualityCandidate('c1', { body: '短内容', qualityScore: 0.9, recommendHome: true }), null);
+  const repo = stubRepo(sql => {
+    if (sql.startsWith('SELECT * FROM po_quality_candidates')) return [{ id: 'q1', home_review_status: 'accepted' }];
+    if (sql.startsWith('DELETE FROM po_quality_candidates')) return { affectedRows: 1 };
+    return { affectedRows: 1 };
+  });
+  assert.equal(await repo.upsertQualityCandidate('c1', { body: '短内容', qualityScore: 0.79, recommendHome: true }), null);
   assert.equal(repo.calls.length, 1);
-  const candidate = await repo.upsertQualityCandidate('c1', { body: '这是一段长度足够的正文，用于验证深度分析产生的优质内容候选可以正常写入并保留审核字段。', qualityScore: 0.9, recommendHome: true, qualityReason: 'high value', analysisVersion: 'deep-v2', modelName: 'model', contentFingerprint: 'fp' });
+  const longBody = '这是一段长度足够的正文，用于验证深度分析产生的优质内容候选可以正常写入并保留审核字段。'.repeat(2);
+  const candidate = await repo.upsertQualityCandidate('c1', { body: longBody, qualityScore: 0.9, recommendHome: true, qualityReason: 'high value', analysisVersion: 'deep-v2', modelName: 'model', contentFingerprint: 'fp' });
   assert.equal(candidate.id, 'q1');
   assert.match(repo.calls[1].sql, /ON DUPLICATE KEY UPDATE/);
   assert.doesNotMatch(repo.calls[1].sql, /home_review_status=VALUES|home_adopted=VALUES|reviewer_id=VALUES/);
@@ -1346,19 +1850,19 @@ test('quality content queries enforce scope, recommendation review, date, and pa
   assert.deepEqual(repo.calls[2].params, ['q1', 'g1', 'cm1', 's1', 'domestic']);
 });
 
-test('upsertQualityCandidate rejects short or low-score recommendations', async () => {
+test('upsertQualityCandidate rejects low-score recommendations', async () => {
   const repo = stubRepo(() => ({ affectedRows: 1 }));
-  assert.equal(await repo.upsertQualityCandidate('short', { body: '不足五十字', qualityScore: 0.99, recommendHome: true, sentiment: 'positive' }), null);
   assert.equal(await repo.upsertQualityCandidate('low', { body: '这是一个长度足够的正文，包含完整信息和上下文，应该可以通过正文长度校验。', qualityScore: 0.79, recommendHome: true, sentiment: 'positive' }), null);
-  assert.equal(repo.calls.filter(call => call.sql.startsWith('DELETE FROM po_quality_candidates')).length, 2);
+  assert.equal(repo.calls.filter(call => call.sql.startsWith('DELETE FROM po_quality_candidates')).length, 1);
 });
 test('quality review update maps only requested fields and records reviewer', async () => {
   const repo = stubRepo(sql => sql.startsWith('UPDATE po_quality_candidates') ? { affectedRows: 1 } : [{ id: 'q1', home_review_status: 'accepted', home_adopted: 1 }]);
   const updated = await repo.updateQualityCandidate('q1', { homeReviewStatus: 'accepted', homeAdopted: true, reviewNote: 'approved' }, 'reviewer-1');
   assert.equal(updated.id, 'q1');
-  assert.match(repo.calls[0].sql, /home_review_status=\?, home_adopted=\?, review_note=\?/);
-  assert.doesNotMatch(repo.calls[0].sql, /pin_review_status|feature_review_status/);
-  assert.deepEqual(repo.calls[0].params, ['accepted', 1, 'approved', 'reviewer-1', 'q1']);
+  const update = repo.calls.find(call => call.sql.startsWith('UPDATE po_quality_candidates'));
+  assert.match(update.sql, /home_review_status=\?, home_adopted=\?, review_note=\?/);
+  assert.doesNotMatch(update.sql, /pin_review_status|feature_review_status/);
+  assert.deepEqual(update.params, ['accepted', 1, 'approved', 'reviewer-1', 'q1']);
   await assert.rejects(() => repo.updateQualityCandidate('q1', { unknown: true }), error => error.code === 'INVALID_INPUT');
 });
 
