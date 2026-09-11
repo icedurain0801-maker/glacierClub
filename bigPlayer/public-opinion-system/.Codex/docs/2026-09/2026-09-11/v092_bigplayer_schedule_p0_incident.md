@@ -1,6 +1,6 @@
 ---
 date: 2026-09-11
-status: code_verified_external_admission_pending
+status: production_sync_admission_blocked
 scope: bigplayer-domestic-and-overseas-scheduling
 owner: 项目经理
 ---
@@ -19,6 +19,7 @@ owner: 项目经理
 | done | 最小代码修复：失败后按来源频率节流，禁止每分钟重试风暴；补齐统一调度接线和迁移准入合同 | 开发与独立回归均通过 | 开发负责人 |
 | blocked_external | 受控生产迁移 023、Worker 可信候选镜像重载、两个来源凭据复核 | 外部操作前置，不得作为代码已修复或真实采集恢复 | 运维 / 发布负责人 |
 | done | 独立回归与状态收口 | 定向 `82/82`、Server `338/338`、Worker `183/183`，缺陷 `0` | 测试负责人 / 项目经理 |
+| blocked | 生产准入与受控真实同步 | 多项生产门禁失败，未启动任何同步；详见 `v096_bigplayer_production_sync_admission_blocked.md` | 开发负责人 |
 
 ## 约束
 
@@ -71,3 +72,9 @@ owner: 项目经理
 结论：P0/P1/P2 代码合同 `PASS`，缺陷 `0`。测试负责人独立验证：定向 `82/82 PASS`、Server 全量 `338/338 PASS`、Worker 全量 `183/183 PASS`，9 个目标文件语法检查和 `git diff --check` 均通过。报告：`.tests/2026-09/2026-09-11/v093_bigplayer_schedule_p0_regression.md`。
 
 生产准入仍为 `NOT_ADMITTED`：仍需受控应用 migration `023`、可信 Worker 候选镜像重载、两个来源的凭据/授权核验，以及受控真实采集观测。上述外部操作完成前，不能宣称 60 分钟调度已在生产恢复或近两日数据已补齐。
+
+## 业务恢复复开
+
+2026-09-11 用户截图确认 API 已正常返回合法空态，但境内 / BigPlayer 当天仍为帖子 `0`、评论 `0`、内容列表 `0`。该结果证明接口恢复，不证明采集恢复；本事故转为“生产数据恢复进行中”。下一步仅允许先核验 migration `023`、当前 Worker、境内 source 启用状态、两地凭据/授权和近 48 小时 run；前置齐备后，每个地区最多执行一个受控同步任务并检查 DB/页面可见性。
+
+只读准入核验随后确认两地均为 `NOT_ADMITTED`：生产库无 migration `023`，旧 Worker 未加载目标代码，境内来源禁用，两地运行态持续 `CREDENTIAL_NOT_FOUND`，且现有手动入队路径与 migration 023 的 `source_id NOT NULL` 合同不兼容。本轮未启动任何同步；完整证据与后续最小修复范围见 `v096_bigplayer_production_sync_admission_blocked.md`。
