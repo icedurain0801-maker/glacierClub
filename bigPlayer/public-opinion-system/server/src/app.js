@@ -145,6 +145,15 @@ function parsePublishedBoundary(value, key) {
   // ISO boundary, including +08:00 browser values, before string comparison.
   return new Date(value).toISOString().slice(0, 19).replace('T', ' ');
 }
+const UTC_SYNC_BOUNDARY_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+function parseUtcSyncBoundary(value, key) {
+  if (typeof value !== 'string' || !UTC_SYNC_BOUNDARY_PATTERN.test(value) || Number.isNaN(Date.parse(value))) {
+    const error = new Error(`${key} must be a UTC ISO date-time ending in Z`);
+    error.code = 'INVALID_INPUT';
+    throw error;
+  }
+  return new Date(value).toISOString();
+}
 async function latestQ1Batch() {
   const root = process.env.Q1_DAILY_OUT_ROOT || path.resolve(__dirname, '../../../.temp');
   let entries;
@@ -429,6 +438,25 @@ async function sourceWithAccount(source) {
 }
 async function sourceWithCredentialState(source) {
   return isWesternSourceRecord(source) || isFacebookSource(source) ? sourceWithAccount(source) : source;
+}
+function hasLegacyBigPlayerBackfill(...values) {
+  return values.some(value => {
+    const config = parseConfig(value);
+    return config.syncMode === 'backfill' || (config.historyStart != null && config.historyStart !== '');
+  });
+}
+function rejectBigPlayerLegacyBackfill(platform, ...values) {
+  if (normalizePlatform(platform) !== 'bigplayer_h5' || !hasLegacyBigPlayerBackfill(...values)) return;
+  const error = new Error('BigPlayer backfill requires POST /sources/:id/sync with publishedFrom and publishedTo');
+  error.code = 'INVALID_INPUT';
+  throw error;
+}
+async function rejectConfiguredBigPlayerLegacyBackfill(source, account = null) {
+  if (!source || normalizePlatform(source.platform) !== 'bigplayer_h5') return;
+  // Keep this gate aligned with requireAuthorizedAccount/source sync: when an
+  // explicit account is not supplied, the newest enabled account is selected.
+  const effectiveAccount = account || await defaultAccountForSource(source);
+  rejectBigPlayerLegacyBackfill(source.platform, source.config, effectiveAccount?.metadata);
 }
 async function sourceById(id) { return (await repo.listSources()).find(source => source.id === id) || null; }
 async function defaultAccountForSource(source, { exactDefault = false } = {}) {
@@ -1101,6 +1129,7 @@ async function handler(req, res) {
       if (!game) return json(res, 400, errorPayload('GAME_NOT_FOUND', '归属游戏不存在或已删除'));
       const platform = normalizePlatform(body.platform);
       if (!SOURCE_PLATFORMS.has(platform)) return json(res, 400, errorPayload('INVALID_PLATFORM', 'platform is not supported'));
+      rejectBigPlayerLegacyBackfill(platform, { syncMode: body.syncMode, historyStart: body.historyStart }, body.metadata);
       if (platform === 'facebook') {
         const sensitiveError = facebookSensitivePayloadError(body);
         if (sensitiveError) return json(res, 400, errorPayload(sensitiveError.code, sensitiveError.message, sensitiveError.details));
@@ -1254,6 +1283,7 @@ async function handler(req, res) {
       for (const key of Object.keys(body || {})) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported field: ${key}`));
       const currentSource = await sourceById(id);
       if (!currentSource) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      rejectBigPlayerLegacyBackfill(currentSource.platform, { syncMode: body.syncMode, historyStart: body.historyStart });
       assertWesternSourceRecord(currentSource);
       if (isFacebookSource(currentSource) && (body.platformAccountId != null || body.accountName != null)) return json(res, 400, errorPayload('INVALID_INPUT', 'Facebook Page 身份仅由官方能力检测更新'));
       if (isFacebookSource(currentSource)) {
@@ -1350,6 +1380,7 @@ async function handler(req, res) {
       for (const key of Object.keys(body || {})) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported field: ${key}`));
       const currentSource = await sourceById(id);
       if (!currentSource) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      rejectBigPlayerLegacyBackfill(currentSource.platform, { syncMode: body.syncMode, historyStart: body.historyStart });
       assertWesternSourceRecord(currentSource);
       const westernSource = isWesternSourceRecord(currentSource);
       if (westernSource && body.enabled) {
@@ -1533,6 +1564,7 @@ async function handler(req, res) {
     if (req.method === 'POST' && resource === 'sources' && id && path[2] === 'collect') {
       const source = await sourceById(id);
       if (!source) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      await rejectConfiguredBigPlayerLegacyBackfill(source);
       assertWesternSourceRecord(source);
       rejectPhaseAction(await sourceWithCredentialState(source));
       try { await requireAuthorizedAccount(source); await requireFacebookCapabilitiesReady(source); }
@@ -1554,15 +1586,35 @@ async function handler(req, res) {
       const body = (action === 'reset' || !action) ? await readBody(req) : {};
       let mode;
       let historyStart;
+      let publishedFrom;
+      let publishedTo;
+      let boundedBackfill = false;
+      let databaseAnchoredBackfill = false;
       if (!action) {
         if (!isPlainObject(body)) return json(res, 400, errorPayload('INVALID_INPUT', 'sync body must be a JSON object'));
-        const allowedKeys = new Set(['mode', 'historyStart']);
+        const allowedKeys = new Set(['mode', 'historyStart', 'publishedFrom', 'publishedTo', 'lookbackDays']);
         const unsupportedKeys = Object.keys(body).filter(key => !allowedKeys.has(key));
         if (unsupportedKeys.length) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported sync fields: ${unsupportedKeys.join(', ')}`));
         mode = body.mode || 'incremental';
         if (!SYNC_MODES.has(mode)) return json(res, 400, errorPayload('INVALID_INPUT', 'mode must be incremental or backfill'));
         historyStart = body.historyStart || null;
-        if (mode === 'backfill' && !historyStart) return json(res, 400, errorPayload('INVALID_INPUT', '历史回溯必须配置 historyStart'));
+        const hasPublishedFrom = body.publishedFrom != null && body.publishedFrom !== '';
+        const hasPublishedTo = body.publishedTo != null && body.publishedTo !== '';
+        const hasLookbackDays = body.lookbackDays != null && body.lookbackDays !== '';
+        if (hasLookbackDays) {
+          if (mode !== 'backfill' || Number(body.lookbackDays) !== 7 || historyStart || hasPublishedFrom || hasPublishedTo) return json(res, 400, errorPayload('INVALID_INPUT', 'database-anchored BigPlayer backfill requires lookbackDays=7 only'));
+          databaseAnchoredBackfill = true;
+        } else if (hasPublishedFrom || hasPublishedTo) {
+          if (mode !== 'backfill' || historyStart || !hasPublishedFrom || !hasPublishedTo) return json(res, 400, errorPayload('INVALID_INPUT', 'bounded backfill requires only publishedFrom and publishedTo'));
+          try {
+            publishedFrom = parseUtcSyncBoundary(body.publishedFrom, 'publishedFrom');
+            publishedTo = parseUtcSyncBoundary(body.publishedTo, 'publishedTo');
+          } catch (error) { return json(res, 400, errorPayload(error.code, error.message)); }
+          const duration = Date.parse(publishedTo) - Date.parse(publishedFrom);
+          if (duration <= 0) return json(res, 400, errorPayload('INVALID_INPUT', 'publishedFrom must be earlier than publishedTo'));
+          if (duration > 7 * 24 * 60 * 60 * 1000) return json(res, 400, errorPayload('INVALID_INPUT', 'bounded backfill window must not exceed 7 days'));
+          boundedBackfill = true;
+        }
       } else if (action === 'reset') {
         if (!isPlainObject(body)) return json(res, 400, errorPayload('INVALID_INPUT', 'sync reset body must be a JSON object'));
         const unsupportedKeys = Object.keys(body).filter(key => key !== 'historyStart');
@@ -1571,28 +1623,45 @@ async function handler(req, res) {
       const source = await sourceById(id); if (!source) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
       assertWesternSourceRecord(source);
       if (!action) {
+        if (databaseAnchoredBackfill && source.platform !== 'bigplayer_h5') return json(res, 400, errorPayload('INVALID_INPUT', 'lookbackDays is only supported for BigPlayer backfill'));
+        if (source.platform === 'bigplayer_h5' && mode === 'backfill' && !boundedBackfill && !databaseAnchoredBackfill) return json(res, 400, errorPayload('INVALID_INPUT', 'BigPlayer backfill requires publishedFrom and publishedTo'));
+        if (source.platform !== 'bigplayer_h5' && mode === 'backfill' && !boundedBackfill && !historyStart) return json(res, 400, errorPayload('INVALID_INPUT', '历史回溯必须配置 historyStart'));
+        if (source.platform === 'bigplayer_h5' && databaseAnchoredBackfill) {
+          const started = await repo.startRecentSourceBackfill({ sourceId: source.id, lookbackDays: 7 });
+          const run = started.run;
+          return json(res, 200, success({ queued: run.status === 'queued', enabled: Boolean(started.enabled), runId: run.id, accountId: run.account_id, sourceId: run.source_id || source.id, mode: run.sync_mode, status: run.status, reused: Boolean(started.reused), publishedFrom: started.window.publishedFrom, publishedTo: started.window.publishedTo }));
+        }
+        if (source.platform === 'bigplayer_h5' && boundedBackfill) {
+          const admitted = await repo.validateBoundedSourceBackfillWindow({ sourceId: source.id, publishedFrom, publishedTo });
+          publishedFrom = admitted.publishedFrom;
+          publishedTo = admitted.publishedTo;
+        }
         // 停用源先在本地 fail-closed，不对外发起授权探测；Repository 事务内仍会二次复核。
         if (!source.enabled) return json(res, 409, errorPayload('SOURCE_DISABLED', '采集源已停用'));
         rejectPhaseAction(await sourceWithCredentialState(source));
         await requireEnabledCommunityForSource(source);
         await requireAuthorizedAccount(source, { exactDefault: true, stableStateErrors: true });
         await requireFacebookCapabilitiesReady(source);
-        const started = await repo.startSourceSync({
-          sourceId: source.id,
-          syncMode: mode,
-          metadata: {
+        const started = boundedBackfill
+          ? await repo.startBoundedSourceBackfill({ sourceId: source.id, publishedFrom, publishedTo })
+          : await repo.startSourceSync({
+            sourceId: source.id,
             syncMode: mode,
-            crawlScope: mode === 'backfill' ? 'authorized_scope' : 'incremental',
-            ...(mode === 'backfill' ? { historyStart } : {})
-          }
-        });
+            metadata: {
+              syncMode: mode,
+              crawlScope: mode === 'backfill' ? 'authorized_scope' : 'incremental',
+              ...(mode === 'backfill' ? { historyStart } : {})
+            }
+          });
         const run = started.run;
-        return json(res, 200, success({ queued: run.status === 'queued', enabled: Boolean(started.enabled), runId: run.id, accountId: run.account_id, sourceId: run.source_id || source.id, mode: run.sync_mode, status: run.status, reused: Boolean(started.reused) }));
+        return json(res, 200, success({ queued: run.status === 'queued', enabled: Boolean(started.enabled), runId: run.id, accountId: run.account_id, sourceId: run.source_id || source.id, mode: run.sync_mode, status: run.status, reused: Boolean(started.reused), ...(boundedBackfill ? { publishedFrom, publishedTo } : {}) }));
       }
       if (!['pause', 'resume', 'reset'].includes(action)) return json(res, 404, errorPayload('NOT_FOUND', 'sync action not found'));
       if (action === 'reset') {
         if (!source.enabled) return json(res, 409, errorPayload('SOURCE_DISABLED', '采集源已停用'));
+        if (source.platform === 'bigplayer_h5') return json(res, 400, errorPayload('INVALID_INPUT', 'BigPlayer backfill must use a bounded window and cannot reset checkpoints'));
       }
+      if (action === 'resume') await rejectConfiguredBigPlayerLegacyBackfill(source);
       rejectPhaseAction(await sourceWithCredentialState(source));
       const account = await defaultAccountForSource(source, { exactDefault: action === 'reset' });
       if (!account) return json(res, action === 'reset' ? 404 : 400, errorPayload('ACCOUNT_NOT_FOUND', '默认账号未配置'));
@@ -1630,6 +1699,7 @@ async function handler(req, res) {
       if (!body.sourceId || !body.platform || !body.platformAccountId || !body.accountName) return json(res, 400, errorPayload('INVALID_INPUT', 'sourceId/platform/platformAccountId/accountName are required'));
       const source = await sourceById(body.sourceId);
       if (!source || source.platform !== body.platform) return json(res, 400, errorPayload('OWNERSHIP_MISMATCH', 'account must belong to the specified source/platform'));
+      rejectBigPlayerLegacyBackfill(source.platform, body, body.metadata);
       if (isFacebookSource(source)) return json(res, 400, errorPayload('INVALID_INPUT', 'Facebook Page 账号仅由创建来源与官方能力检测管理'));
       let scope;
       try { scope = await resolveCanonicalScope({ regionCode: body.regionCode, communityId: body.communityId || source.community_id, gameId: body.gameId || source.game_id }); }
@@ -1637,7 +1707,7 @@ async function handler(req, res) {
       if (scope.gameId !== source.game_id || scope.communityId !== source.community_id) return json(res, 400, errorPayload('OWNERSHIP_MISMATCH', 'account must belong to the specified source/community/game'));
       return json(res, 201, success(await repo.createAccount({ ...body, gameId: scope.gameId, communityId: scope.communityId, platform: source.platform })));
     }
-    if (req.method === 'PATCH' && resource === 'accounts' && id) { const body = await readBody(req); const currentAccount = await repo.getAccount(id); if (!currentAccount) return json(res, 404, errorPayload('NOT_FOUND', 'account not found')); if (currentAccount.platform === 'facebook' && ['platformAccountId', 'accountName', 'profileUrl'].some(key => body[key] != null)) return json(res, 400, errorPayload('INVALID_INPUT', 'Facebook Page 身份仅由官方能力检测更新')); const account = await repo.updateAccount(id, accountPatch(body)); return json(res, 200, success(account)); }
+    if (req.method === 'PATCH' && resource === 'accounts' && id) { const body = await readBody(req); const currentAccount = await repo.getAccount(id); if (!currentAccount) return json(res, 404, errorPayload('NOT_FOUND', 'account not found')); rejectBigPlayerLegacyBackfill(currentAccount.platform, body, body.metadata); if (currentAccount.platform === 'facebook' && ['platformAccountId', 'accountName', 'profileUrl'].some(key => body[key] != null)) return json(res, 400, errorPayload('INVALID_INPUT', 'Facebook Page 身份仅由官方能力检测更新')); const account = await repo.updateAccount(id, accountPatch(body)); return json(res, 200, success(account)); }
     if (req.method === 'PUT' && resource === 'accounts' && id && path[2] === 'credential') {
       const account = await repo.getAccount(id); if (!account) return json(res, 404, errorPayload('ACCOUNT_NOT_FOUND', 'account not found'));
       const source = await sourceById(account.source_id); const body = await readBody(req);
@@ -1700,7 +1770,22 @@ async function handler(req, res) {
       return json(res, 200, success(result));
     }
     if (req.method === 'POST' && resource === 'accounts' && id && path[2] === 'check-auth') { const account = await repo.getAccount(id); if (!account) return json(res, 404, errorPayload('NOT_FOUND', 'account not found')); const source = await sourceById(account.source_id); rejectPhaseAction(await sourceWithCredentialState(source)); const connector = connectors[account.platform]; const health = connector ? await connectorAccountHealth(connector, source, account) : { authorized: false, reason: 'connector not found' }; const authStatus = health.authorized ? 'authorized' : 'unauthorized'; await persistFacebookPageIdentity(source, account, health); await repo.updateAccount(id, { authStatus }); await repo.updateSourceAuth(account.source_id, { authStatus }); if (isFacebookSource(source)) { const facebook = facebookCapabilityResponse(health || {}); for (const scope of FACEBOOK_REQUIRED_CAPABILITIES) { const detail = facebook.capabilities[scope]; await repo.upsertSourceCapability(source.id, scope, { status: normalizeFacebookCapabilityStatus(detail), detail }); } return json(res, 200, success({ authStatus, reason: health.authorized ? null : facebook.reason, errorCode: health.authorized ? null : facebook.reason, systemCredentialStatus: facebook.systemCredentialStatus, capabilities: facebook.capabilities, pageId: health.pageId || null, pageName: health.pageName || null, pageUrl: health.pageUrl || null })); } return json(res, 200, success({ authStatus, reason: health.reason || null })); }
-    if (req.method === 'POST' && resource === 'accounts' && id && path[2] === 'sync') { const account = await repo.getAccount(id); if (!account) return json(res, 404, errorPayload('NOT_FOUND', 'account not found')); const source = await sourceById(account.source_id); rejectPhaseAction(await sourceWithCredentialState(source)); if (!source || source.game_id !== account.game_id || source.platform !== account.platform) return json(res, 400, errorPayload('OWNERSHIP_MISMATCH', 'account source ownership is invalid')); const action = path[3]; if (!action || action === 'resume' || action === 'reset') { await requireEnabledCommunityForSource(source); await requireAuthorizedAccount(source); await requireFacebookCapabilitiesReady(source); } const rows = await repo.getSyncStatus({ accountId: id }); if (action === 'pause') { for (const checkpoint of rows) await repo.pauseSyncCheckpoint(checkpoint.id); return json(res, 200, success({ paused: true })); } if (action === 'reset') { for (const checkpoint of rows) await repo.resetSyncCheckpoint({ accountId: id, syncScope: checkpoint.sync_scope, rootPlatformContentId: checkpoint.root_platform_content_id }); } if (action === 'resume' || action === 'reset' || !action) await repo.requestCollect(source.id); return json(res, 200, success({ queued: true, action: action || 'start' })); }
+    if (req.method === 'POST' && resource === 'accounts' && id && path[2] === 'sync') {
+      const account = await repo.getAccount(id);
+      if (!account) return json(res, 404, errorPayload('NOT_FOUND', 'account not found'));
+      const source = await sourceById(account.source_id);
+      if (!source || source.game_id !== account.game_id || source.platform !== account.platform) return json(res, 400, errorPayload('OWNERSHIP_MISMATCH', 'account source ownership is invalid'));
+      const action = path[3];
+      if (source.platform === 'bigplayer_h5' && action === 'reset') return json(res, 400, errorPayload('INVALID_INPUT', 'BigPlayer backfill must use a bounded source-level window and cannot reset checkpoints'));
+      if (!action || action === 'resume') await rejectConfiguredBigPlayerLegacyBackfill(source, account);
+      rejectPhaseAction(await sourceWithCredentialState(source));
+      if (!action || action === 'resume' || action === 'reset') { await requireEnabledCommunityForSource(source); await requireAuthorizedAccount(source); await requireFacebookCapabilitiesReady(source); }
+      const rows = await repo.getSyncStatus({ accountId: id });
+      if (action === 'pause') { for (const checkpoint of rows) await repo.pauseSyncCheckpoint(checkpoint.id); return json(res, 200, success({ paused: true })); }
+      if (action === 'reset') { for (const checkpoint of rows) await repo.resetSyncCheckpoint({ accountId: id, syncScope: checkpoint.sync_scope, rootPlatformContentId: checkpoint.root_platform_content_id }); }
+      if (action === 'resume' || action === 'reset' || !action) await repo.requestCollect(source.id);
+      return json(res, 200, success({ queued: true, action: action || 'start' }));
+    }
     if (req.method === 'POST' && resource === 'accounts' && id && path[2] === 'oauth' && path[3] === 'start') { const account = await repo.getAccount(id); if (!account || account.platform !== 'douyin') return json(res, 400, errorPayload('CAPABILITY_UNSUPPORTED', 'Douyin account required')); return json(res, 200, success({ authorizationUrl: douyinOAuth.createAuthorizationUrl({ accountId: id }).url })); }
     if (req.method === 'GET' && resource === 'oauth' && id === 'douyin' && path[2] === 'callback') {
       if (url.searchParams.get('error')) return redirect(res, oauthReturnUrl({ oauth: 'error', message: url.searchParams.get('error_description') || url.searchParams.get('error') }));
