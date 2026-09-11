@@ -14,6 +14,7 @@ const { AiAnalyzer } = require('../../server/src/integrations/aiAnalyzer');
 const { DingTalkNotifier } = require('../../server/src/integrations/dingTalkNotifier');
 const { matchRules } = require('../../server/src/pipeline/ruleEngine');
 const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
+const { sanitizeMessage } = require('./q1DailyJob');
 const { schedulerMode, requireExplicitSchedulerMode } = require('./schedulerMode');
 
 const SOCIAL_PLATFORMS = new Set(['douyin', 'xiaohongshu']);
@@ -24,8 +25,21 @@ const MANUAL_VERIFICATION_CODES = new Set([
 
 function first(item, keys, fallback = null) { for (const key of keys) if (item?.[key] != null) return item[key]; return fallback; }
 function parseObject(value) { if (!value) return {}; if (typeof value === 'object') return value; try { return JSON.parse(value); } catch { return {}; } }
-function errorCode(error) { return error?.code || error?.cause?.code || error?.details?.cause || 'SYNC_STAGE_FAILED'; }
+function errorCode(error) {
+  const nested = error?.cause?.code || error?.details?.cause;
+  return nested === 'SYNC_RUN_LEASE_LOST' || nested === 'DAILY_RUN_TIMEOUT' || nested === 'SYNC_PAGE_TIMEOUT' || nested === 'SYNC_DISCOVERY_TIMEOUT'
+    ? nested
+    : error?.code || nested || 'SYNC_STAGE_FAILED';
+}
+function safeErrorMessage(error, fallback = 'operation failed') {
+  return sanitizeMessage(String(error?.message || fallback).slice(0, 500));
+}
 function isSessionExpired(error) { return errorCode(error) === 'SESSION_EXPIRED'; }
+function facebookAuthFailureStatus(error) {
+  const code = errorCode(error);
+  if (code === 'FACEBOOK_TOKEN_EXPIRED') return 'expired';
+  return ['FACEBOOK_TOKEN_INVALID', 'FACEBOOK_PAGE_MISMATCH', 'FACEBOOK_PERMISSION_MISSING'].includes(code) ? 'unauthorized' : null;
+}
 function isManualVerification(error) { const code = errorCode(error); return MANUAL_VERIFICATION_CODES.has(code) || /(?:VERIFICATION|CAPTCHA|CHALLENGE|QR_CODE|DEVICE_CONFIRMATION).*REQUIRED/.test(code); }
 function isSocialPlatform(platform) { return SOCIAL_PLATFORMS.has(platform); }
 function sessionBinding(source, account) { return { sourceId: source.id, accountId: account.id, platform: source.platform }; }
@@ -109,6 +123,20 @@ function analysisCacheKey(ai, item, profile) {
     version: spec.version
   };
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function assertCanonicalCommunityScope(game, content) {
+  const gameId = game?.id == null ? '' : String(game.id);
+  const contentGameId = content?.game_id ?? content?.gameId;
+  const gameCommunityId = game?.community_id ?? game?.communityId;
+  const contentCommunityId = content?.community_id ?? content?.communityId;
+  if (!gameId || contentGameId == null || !gameCommunityId || !contentCommunityId
+    || gameId !== String(contentGameId) || String(gameCommunityId) !== String(contentCommunityId)) {
+    const error = new Error('canonical game/community scope is missing or inconsistent');
+    error.code = 'CANONICAL_SCOPE_MISMATCH';
+    throw error;
+  }
+  return { gameId, communityId: String(contentCommunityId) };
 }
 
 function cacheAnalysis(row) {
@@ -201,7 +229,7 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
         if (typeof repo.insertAnalysis === 'function') await repo.insertAnalysis(job.content_id, analysis);
         if (typeof repo.upsertAnalysisCache === 'function' && !cacheByKey.has(analysisCacheKey(ai, job, profile))) await repo.upsertAnalysisCache({ ...analysis, cacheKey: analysisCacheKey(ai, job, profile), contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
         const qualityCandidate = profile === 'deep' ? qualityCandidateOf(analysis) : null;
-        if (qualityCandidate && typeof repo.upsertQualityCandidate === 'function') await repo.upsertQualityCandidate(job.content_id, { ...qualityCandidate, body: job.body });
+        if (qualityCandidate && typeof repo.upsertQualityCandidate === 'function') { try { await repo.upsertQualityCandidate(job.content_id, qualityCandidate); } catch (qualityError) { console.error('upsertQualityCandidate failed:', qualityError?.code || 'QUALITY_CANDIDATE_FAILED'); } }
         await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status: 'completed' }); analyzed += 1;
         const jobRules = source?.game_id ? sourceRules : (typeof repo.loadKeywordRules === 'function' ? await repo.loadKeywordRules(job.game_id, job.platform, job.community_id) : []);
         const hit = matchRules({ title: raw.title, body: raw.body, authorName: raw.author_name || raw.authorName }, jobRules);
@@ -211,12 +239,15 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
           const alertAnalysis = effectiveAnalysisForAlert(analysis, lightAnalysis);
           // 注意 ...raw 放前面：raw（=job 行）的 id 是 job id，若放在后会覆盖正确的 content id，
           // 导致 po_alert_contents 的 FK 静默失败（INSERT IGNORE 吞错），告警丢失关联内容。
-          const created = hit.needAI && (source?.game_id || job.game_id) ? await deps.alertEngine.process({ game: source?.game_id ? game : { id: job.game_id, name: job.game_name || job.platform, region_code: job.region_code, community_id: job.community_id, dingtalk_webhook_ref: null }, content: { ...raw, id: job.content_id, community_id: job.community_id }, hit, analysis: alertAnalysis }) : (alertAnalysis.severity === 'urgent' && job.game_id && typeof deps.alertEngine.processAiUrgent === 'function' ? await deps.alertEngine.processAiUrgent({ game: { id: job.game_id, name: raw.game_name || raw.platform, region_code: job.region_code, community_id: job.community_id, dingtalk_webhook_ref: null }, content: { ...raw, id: job.content_id, community_id: job.community_id }, analysis: alertAnalysis }) : []);
+          const alertGame = source?.game_id ? game : { id: job.game_id, name: job.game_name || job.platform, region_code: job.region_code, community_id: job.community_id, dingtalk_webhook_ref: null };
+          const alertContent = { ...raw, id: job.content_id, game_id: job.game_id, community_id: job.community_id };
+          assertCanonicalCommunityScope(alertGame, alertContent);
+          const created = hit.needAI && job.game_id ? await deps.alertEngine.process({ game: alertGame, content: alertContent, hit, analysis: alertAnalysis }) : (alertAnalysis.severity === 'urgent' && job.game_id && typeof deps.alertEngine.processAiUrgent === 'function' ? await deps.alertEngine.processAiUrgent({ game: alertGame, content: alertContent, analysis: alertAnalysis }) : []);
           alerted += created.filter(item => !item.reused).length;
         }
       }
     } catch (error) {
-      for (const job of jobs) { const attempts = Number(job.attempts || 1); const status = attempts >= (deps.analysisMaxAttempts || 3) ? 'failed' : 'retryable'; const retryAt = status === 'retryable' ? new Date(Date.now() + (deps.analysisRetryBaseMs || 1000) * 2 ** Math.max(0, attempts - 1)) : null; await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status, errorCode: errorCode(error), errorMessage: error?.message || 'analysis job failed', retryAt }); }
+      for (const job of jobs) { const attempts = Number(job.attempts || 1); const status = attempts >= (deps.analysisMaxAttempts || 3) ? 'failed' : 'retryable'; const retryAt = status === 'retryable' ? new Date(Date.now() + (deps.analysisRetryBaseMs || 1000) * 2 ** Math.max(0, attempts - 1)) : null; await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status, errorCode: errorCode(error), errorMessage: safeErrorMessage(error, 'analysis job failed'), retryAt }); }
     }
   }
   return { analyzed, alerted };
@@ -282,44 +313,84 @@ async function runLegacySource(deps, source, connector, run) {
     for (const raw of rawItems) { const content = await deps.repo.insertContent(source, raw); if (content) entries.push({ content, raw, change: 'inserted' }); }
     const downstream = await processDownstream(deps, source, entries);
     await deps.repo.finishRun(run.id, { status: 'success', discoveredCount: rawItems.length, storedCount: entries.length, analyzedCount: downstream.analyzed, alertedCount: downstream.alerted }); await deps.repo.markSourceRun(source.id, { status: 'success' });
-  } catch (error) { await deps.repo.finishRun(run.id, { status: 'failed', errorCode: errorCode(error) || 'COLLECTION_FAILED', errorMessage: error.message }); await deps.repo.markSourceRun(source.id, { status: 'failed', errorCode: errorCode(error), errorMessage: error.message }); }
+  } catch (error) { await deps.repo.finishRun(run.id, { status: 'failed', errorCode: errorCode(error) || 'COLLECTION_FAILED', errorMessage: safeErrorMessage(error) }); await deps.repo.markSourceRun(source.id, { status: 'failed', errorCode: errorCode(error), errorMessage: safeErrorMessage(error) }); }
 }
 
 function stageIdentity({ scope, rootPlatformContentId, taskKind, taskKey }) {
   if (taskKind === 'keyword_search') return { syncScope: 'posts', checkpointRoot: `keyword:${taskKey}` };
+  if (taskKind === 'facebook_reply') return { syncScope: 'comments', checkpointRoot: rootPlatformContentId };
   return { syncScope: scope, checkpointRoot: rootPlatformContentId };
 }
-async function invokePage(connector, scope, input, taskKind) {
+function invokePage(connector, scope, input, taskKind) {
   if (taskKind === 'keyword_search') return connector.searchContents(input);
   if (taskKind === 'q1_feed' && typeof connector.listFeedContents === 'function') return connector.listFeedContents(input);
+  if (taskKind === 'facebook_reply' && typeof connector.listReplies === 'function') return connector.listReplies(input);
   if (scope === 'posts') return (typeof connector.listOwnedContents === 'function' ? connector.listOwnedContents(input) : connector.listPosts(input));
   if (scope === 'comments') return connector.listComments(input);
   throw new Error('HISTORICAL_REPLY_SCOPE_UNSUPPORTED');
 }
 
+function stableError(code, message) { const error = new Error(message); error.code = code; return error; }
+function remainingDeadlineMs(deps) {
+  if (!Number.isFinite(Number(deps?.deadlineAt))) return Infinity;
+  return Math.max(0, Number(deps.deadlineAt) - Date.now());
+}
 function assertDeadline(deps) {
-  if (deps?.deadlineAt != null && Date.now() >= deps.deadlineAt) {
-    const error = new Error('daily run timed out before the next operation');
-    error.code = 'DAILY_RUN_TIMEOUT';
-    throw error;
+  deps.leaseGuard?.check();
+  if (remainingDeadlineMs(deps) <= 0) {
+    deps.leaseGuard?.stopScheduling?.(stableError('DAILY_RUN_TIMEOUT', 'daily run deadline exceeded'));
+    throw stableError('DAILY_RUN_TIMEOUT', 'daily run deadline exceeded');
   }
 }
 
-function withTimeout(operation, timeoutMs, code) {
+function withTimeout(operation, timeoutMs, code, message = `operation timed out after ${timeoutMs}ms`) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return operation;
   let timer;
   const timeout = new Promise((resolve, reject) => {
-    timer = setTimeout(() => {
-      const error = new Error(`operation timed out after ${timeoutMs}ms`);
-      error.code = code;
-      reject(error);
-    }, timeoutMs);
+    timer = setTimeout(() => reject(stableError(code, message)), timeoutMs);
   });
   return Promise.race([operation, timeout]).finally(() => clearTimeout(timer));
 }
 
-function invokePageWithTimeout(connector, scope, input, taskKind, timeoutMs) {
-  return withTimeout(invokePage(connector, scope, input, taskKind), timeoutMs, 'SYNC_PAGE_TIMEOUT');
+function createOperationSignal(deps, timeoutMs, timeoutCode, timeoutMessage) {
+  const controller = new AbortController();
+  const removers = [];
+  let timer = null;
+  const abort = reason => { if (!controller.signal.aborted) controller.abort(reason); };
+  const addSignal = signal => {
+    if (!signal) return;
+    if (signal.aborted) return abort(signal.reason);
+    const listener = () => abort(signal.reason);
+    signal.addEventListener('abort', listener, { once: true });
+    removers.push(() => signal.removeEventListener('abort', listener));
+  };
+  addSignal(deps?.leaseGuard?.signal);
+  const remaining = remainingDeadlineMs(deps);
+  const boundedMs = Math.min(Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : Infinity, remaining);
+  if (Number.isFinite(boundedMs)) timer = setTimeout(() => abort(stableError(remaining <= boundedMs ? 'DAILY_RUN_TIMEOUT' : timeoutCode, remaining <= boundedMs ? 'daily run deadline exceeded' : timeoutMessage)), Math.max(0, boundedMs));
+  return { signal: controller.signal, abort, cleanup() { if (timer) clearTimeout(timer); for (const remove of removers) remove(); } };
+}
+
+async function invokePageWithTimeout(connector, scope, input, taskKind, deps) {
+  const pageTimeoutMs = Number(deps.pageTimeoutMs);
+  const remaining = remainingDeadlineMs(deps);
+  const timeoutMs = Math.min(Number.isFinite(pageTimeoutMs) && pageTimeoutMs > 0 ? pageTimeoutMs : Infinity, remaining);
+  const timeoutCode = Number.isFinite(remaining) && remaining <= (Number.isFinite(pageTimeoutMs) && pageTimeoutMs > 0 ? pageTimeoutMs : Infinity) ? 'DAILY_RUN_TIMEOUT' : 'SYNC_PAGE_TIMEOUT';
+  const operation = createOperationSignal(deps, pageTimeoutMs, 'SYNC_PAGE_TIMEOUT', 'connector page timed out');
+  try {
+    return await withTimeout(invokePage(connector, scope, { ...input, signal: operation.signal }, taskKind), timeoutMs, timeoutCode, timeoutCode === 'DAILY_RUN_TIMEOUT' ? 'daily run deadline exceeded' : 'connector page timed out');
+  } finally { operation.cleanup(); }
+}
+
+async function discoverFeedsWithTimeout(deps, connector, input) {
+  assertDeadline(deps);
+  const configuredTimeoutMs = Number(deps.discoveryTimeoutMs);
+  const discoveryTimeoutMs = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0 ? configuredTimeoutMs : remainingDeadlineMs(deps);
+  const operation = createOperationSignal(deps, discoveryTimeoutMs, 'SYNC_DISCOVERY_TIMEOUT', 'feed discovery timed out');
+  const timeoutMs = Math.min(discoveryTimeoutMs, remainingDeadlineMs(deps));
+  const code = remainingDeadlineMs(deps) <= discoveryTimeoutMs ? 'DAILY_RUN_TIMEOUT' : 'SYNC_DISCOVERY_TIMEOUT';
+  try { return await withTimeout(connector.discoverFeeds({ ...input, signal: operation.signal }), timeoutMs, code, code === 'DAILY_RUN_TIMEOUT' ? 'daily run deadline exceeded' : 'feed discovery timed out'); }
+  finally { operation.cleanup(); }
 }
 
 function createCommitLane() {
@@ -342,13 +413,16 @@ async function syncStagePage(deps, stage) {
   const requestCursor = stage.cursor;
   const { source, account, connector, credential, scope, rootPlatformContentId, postPlatformId, historyStart, taskKind, taskKey, keyword, feed, commentId, sortType } = stage;
   const collectionWindow = deps.collectionWindow || {};
-  const input = { source, account, credentialContext: credential, sessionRef: stage.activeSessionRef, cursor: requestCursor, limit: deps.pageSize, historyStart, updatedSince: stage.effectiveUpdatedSince, publishedFrom: collectionWindow.publishedFrom, publishedTo: collectionWindow.publishedTo, dailyBounded: Boolean(collectionWindow.dailyBounded), keyword, postId: rootPlatformContentId, rootContentId: rootPlatformContentId, commentId, parentCommentId: commentId, sortType, taskKind, taskKey, feed, ...(feed || {}) };
+  const input = { source, account, credentialContext: deps.credentialContext, sessionRef: stage.activeSessionRef, signal: deps.leaseGuard?.signal, cursor: requestCursor, limit: deps.pageSize, historyStart, updatedSince: stage.effectiveUpdatedSince, publishedFrom: collectionWindow.publishedFrom, publishedTo: collectionWindow.publishedTo, dailyBounded: Boolean(collectionWindow.dailyBounded), keyword, postId: rootPlatformContentId, rootContentId: rootPlatformContentId, commentId, parentCommentId: commentId, sortType, taskKind, taskKey, feed, ...(feed || {}) };
   let page;
-  try { page = await invokePageWithTimeout(connector, scope, input, taskKind, deps.pageTimeoutMs); }
-  catch (error) {
+  try {
+    page = await invokePageWithTimeout(connector, scope, input, taskKind, deps);
+    assertDeadline(deps);
+  } catch (error) {
     if (!isSessionExpired(error) || !isSocialPlatform(source.platform)) throw error;
     stage.activeSessionRef = await refreshSessionRef(deps.loginSessionClient, source, account);
-    page = await invokePageWithTimeout(connector, scope, { ...input, sessionRef: stage.activeSessionRef }, taskKind, deps.pageTimeoutMs);
+    page = await invokePageWithTimeout(connector, scope, { ...input, sessionRef: stage.activeSessionRef }, taskKind, deps);
+    assertDeadline(deps);
   }
   if (!page || !Array.isArray(page.items) || typeof page.hasMore !== 'boolean') { const error = new Error('connector page result is malformed'); error.code = 'MALFORMED_RESPONSE'; throw error; }
   if (page.hasMore && (page.nextCursor == null || String(page.nextCursor) === String(requestCursor ?? ''))) { const error = new Error('pagination cursor did not advance'); error.code = 'MALFORMED_RESPONSE'; throw error; }
@@ -357,14 +431,27 @@ async function syncStagePage(deps, stage) {
     const targetCommentId = String(target?.commentId || '').trim();
     if (targetCommentId) replyTargets.push({ postId: String(target.postId || rootPlatformContentId || postPlatformId), commentId: targetCommentId, sortType: Number(target.sortType || 0) });
   }
+  if (source.platform === 'facebook' && scope === 'comments' && taskKind !== 'facebook_reply' && !replyTargets.length) for (const item of page.items) {
+    const targetCommentId = String(first(item, ['externalId', 'external_id', 'id'], '') || '').trim();
+    if (targetCommentId) replyTargets.push({ postId: String(rootPlatformContentId || postPlatformId), commentId: targetCommentId, sortType: 0 });
+  }
   const sourceItems = scope === 'comments' ? flattenCommentTree(page.items, { rootPlatformContentId: rootPlatformContentId || postPlatformId }) : page.items;
-  const normalized = sourceItems.map(raw => normalizePlatformItem(raw, { scope, rootPlatformContentId: scope === 'comments' ? (rootPlatformContentId || postPlatformId) : '', parentPlatformContentId: null }));
+  const normalized = sourceItems.map(raw => normalizePlatformItem(taskKind === 'facebook_reply' ? { ...raw, platformParentId: commentId, contentDepth: 2 } : raw, { scope, rootPlatformContentId: scope === 'comments' ? (rootPlatformContentId || postPlatformId) : '', parentPlatformContentId: taskKind === 'facebook_reply' ? commentId : null }));
   const upsertInput = { account, source, syncScope: stage.syncScope, rootPlatformContentId: stage.checkpointRoot, items: normalized, nextCursor: page.nextCursor, hasMore: page.hasMore, syncMode: stage.syncMode, syncRunId: stage.syncRunId, taskKind, taskKey, feed, checkpointId: stage.checkpoint.id, leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds, lastItemAt: page.platformWatermark || null };
   // A fetch that finishes at or after the daily deadline must not advance its checkpoint.
   assertDeadline(deps);
   const commit = () => deps.repo.upsertContentPage(upsertInput);
   const committed = deps.commitLane ? await deps.commitLane.submit(commit) : await commit();
   const entries = (committed.contents || []).map((entry, index) => entry?.content ? { ...entry, raw: normalized[index] } : { content: entry, raw: normalized[index], change: 'changed' });
+  if (source.region_code === 'overseas' && typeof deps.repo.enqueueTranslationJob === 'function') {
+    for (const entry of entries.filter(item => item.change !== 'unchanged' && !item.content?.is_deleted)) {
+      try {
+        await deps.repo.enqueueTranslationJob(entry.content.id, { targetLanguage: 'zh-CN', version: process.env.AI_TRANSLATION_VERSION || 'translation-v1', contentFingerprint: entry.content.fingerprint || entry.raw?.fingerprint });
+      } catch (error) {
+        console.error(new Date().toISOString(), 'translation enqueue failed:', errorCode(error));
+      }
+    }
+  }
   stage.cursor = page.nextCursor;
   return { discovered: normalized.length, stored: Number(committed.storedCount || entries.filter(entry => entry.change !== 'unchanged').length), entries, capability: page.capability || stage.capability, completed: !page.hasMore, replyTargets, requestCursor, nextCursor: page.nextCursor };
 }
@@ -393,7 +480,7 @@ async function syncStage(deps, { source, account, connector, credential, session
     return { discovered, stored, entries, capability: stage.capability, completed, replyTargets };
   } catch (error) {
     const code = errorCode(error); const unsupported = code === 'CAPABILITY_UNSUPPORTED'; const manual = isManualVerification(error);
-    await deps.repo.releaseSyncCheckpoint(checkpoint.id, { status: manual ? 'awaiting_manual_verification' : unsupported ? 'unsupported' : 'failed', cursor: stage.cursor, itemsFetched: discovered, errorCode: code, errorMessage: error.message, taskKind, taskKey, leaseOwner: deps.leaseOwner });
+    await deps.repo.releaseSyncCheckpoint(checkpoint.id, { status: manual ? 'awaiting_manual_verification' : unsupported ? 'unsupported' : 'failed', cursor: stage.cursor, itemsFetched: discovered, errorCode: code, errorMessage: safeErrorMessage(error), taskKind, taskKey, leaseOwner: deps.leaseOwner });
     if (unsupported) return { discovered, stored, entries, capability: 'unsupported', unsupported: true };
     throw error;
   }
@@ -404,21 +491,32 @@ function createTaskScheduler(limit, onError = null) {
   const queue = [];
   const idleWaiters = [];
   let active = 0;
+  let stopped = false;
   const settleIdle = () => {
     if (active || queue.length) return;
     while (idleWaiters.length) idleWaiters.shift()();
   };
+  const stop = () => { stopped = true; queue.length = 0; settleIdle(); };
   const pump = () => {
-    while (active < concurrency && queue.length) {
+    while (!stopped && active < concurrency && queue.length) {
       const operation = queue.shift(); active += 1;
-      Promise.resolve().then(operation).catch(error => onError?.(error)).finally(() => { active -= 1; pump(); settleIdle(); });
+      Promise.resolve().then(operation).catch(error => onError?.(error)).finally(() => {
+        active -= 1;
+        pump();
+        settleIdle();
+      });
     }
     settleIdle();
   };
   return {
-    add(operation) { queue.push(operation); pump(); },
-    idle() { return active || queue.length ? new Promise(resolve => idleWaiters.push(resolve)) : Promise.resolve(); },
-    stats() { return { queued: queue.length, active, concurrency }; }
+    add(operation) { if (stopped) return false; queue.push(operation); pump(); return true; },
+    stop,
+    idle(timeoutMs = Infinity) {
+      if (!active && !queue.length) return Promise.resolve();
+      const idle = new Promise(resolve => idleWaiters.push(resolve));
+      return Number.isFinite(timeoutMs) && timeoutMs >= 0 ? withTimeout(idle, timeoutMs, 'SCHEDULER_SHUTDOWN_TIMEOUT').catch(error => { if (error.code !== 'SCHEDULER_SHUTDOWN_TIMEOUT') throw error; }) : idle;
+    },
+    stats() { return { queued: queue.length, active, concurrency, stopped }; }
   };
 }
 
@@ -428,18 +526,31 @@ async function drainAndCloseCommitLane(commitLane) {
   await commitLane.drain();
   commitLane.close();
 }
-async function finishPagedFailure(deps, source, run, syncRun, counts, error, commitLane = null) {
+function createFinishOnce(deps, source, run, syncRun) {
+  let finished = null;
+  return (status, counts, { errorCode: code = null, errorMessage = null, sourceStatus = status, sourceErrorMessage = errorMessage } = {}) => {
+    if (finished) return finished;
+    finished = (async () => {
+      const finishedSyncRun = await deps.repo.finishSyncRun(syncRun.id, { status, discoveredCount: counts.discovered, storedCount: counts.stored, errorCode: code, errorMessage, leaseOwner: deps.leaseOwner });
+      if (finishedSyncRun === null) return;
+      await deps.repo.finishRun(run.id, { status: status === 'completed_authorized_scope' || status === 'completed_full' ? 'success' : status, discoveredCount: counts.discovered, storedCount: counts.stored, analyzedCount: counts.analyzed, alertedCount: counts.alerted, errorCode: code, errorMessage });
+      await deps.repo.markSourceRun(source.id, { status: sourceStatus, errorCode: code, errorMessage: sourceErrorMessage });
+    })();
+    return finished;
+  };
+}
+
+async function finishPagedFailure(deps, source, run, syncRun, counts, error, commitLane = null, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
   await drainAndCloseCommitLane(commitLane);
   const code = errorCode(error); const manual = isManualVerification(error); const timedOut = code === 'DAILY_RUN_TIMEOUT'; const status = manual ? 'awaiting_manual_verification' : timedOut ? 'partial' : 'failed';
-  await deps.repo.finishSyncRun(syncRun.id, { status, discoveredCount: counts.discovered, storedCount: counts.stored, errorCode: code, errorMessage: error.message, leaseOwner: deps.leaseOwner });
-  await deps.repo.finishRun(run.id, { status, discoveredCount: counts.discovered, storedCount: counts.stored, analyzedCount: counts.analyzed, alertedCount: counts.alerted, errorCode: code, errorMessage: error.message });
-  await deps.repo.markSourceRun(source.id, { status: timedOut ? 'partial' : 'failed', errorCode: code, errorMessage: manual ? `awaiting_manual_verification: ${error.message}` : error.message });
+  const message = safeErrorMessage(error);
+  await finishOnce(status, counts, { errorCode: code, errorMessage: message, sourceStatus: timedOut ? 'partial' : 'failed', sourceErrorMessage: manual ? `awaiting_manual_verification: ${message}` : message });
   if (manual && typeof deps.repo.updateSourceAuth === 'function') await deps.repo.updateSourceAuth(source.id, { authStatus: 'awaiting_manual_verification' });
 }
 
 async function runDailyQ1Collection(deps, context) {
   const { source, connector, account, syncRun, credential, sessionRef, syncMode, historyStart, commentPageBudget, commentsSupported, isInCollectionWindow, recordPage, recordStageResult, failStage } = context;
-  const feeds = await connector.discoverFeeds({ source, account, credentialContext: credential });
+  const feeds = await discoverFeedsWithTimeout(deps, connector, { source, account, credentialContext: deps.credentialContext });
   if (!Array.isArray(feeds) || !feeds.length) { const error = new Error('Q1 board schema did not expose any feeds'); error.code = 'MALFORMED_RESPONSE'; throw error; }
   const feedKeys = new Set();
   for (const feed of feeds) { const key = String(feed.feedKey || '').trim(); if (!key || feedKeys.has(key)) { const error = new Error('Q1 feed descriptor has an empty or duplicate feedKey'); error.code = 'MALFORMED_RESPONSE'; throw error; } feedKeys.add(key); }
@@ -448,7 +559,9 @@ async function runDailyQ1Collection(deps, context) {
   const feedScheduler = createTaskScheduler(deps.dailyFeedFetchConcurrency ?? process.env.DAILY_FEED_FETCH_CONCURRENCY ?? 4, capture);
   const commentScheduler = createTaskScheduler(deps.dailyCommentFetchConcurrency ?? process.env.DAILY_COMMENT_FETCH_CONCURRENCY ?? 4, capture);
   const replyScheduler = createTaskScheduler(deps.dailyReplyFetchConcurrency ?? process.env.DAILY_REPLY_FETCH_CONCURRENCY ?? 4, capture);
-  const stageDeps = { ...deps, commitLane: deps.commitLane };
+  const stopSchedulers = () => { feedScheduler.stop(); commentScheduler.stop(); replyScheduler.stop(); };
+  deps.leaseGuard?.onStop?.(stopSchedulers);
+  const stageDeps = { ...deps, commitLane: deps.commitLane, leaseGuard: deps.leaseGuard };
 
   const scheduleReply = target => {
     const key = `${target.postId}:${target.commentId}:${target.sortType || 0}`;
@@ -461,7 +574,7 @@ async function runDailyQ1Collection(deps, context) {
         if (!result.completed && !result.skipped && !result.unsupported) replyScheduler.add(runTask);
         else recordStageResult(result);
         if (result.unsupported) failStage('q1_reply', replyTaskKey, Object.assign(new Error('reply capability unsupported'), { code: 'CAPABILITY_UNSUPPORTED' }));
-      } catch (error) { if (isManualVerification(error) || errorCode(error) === 'DAILY_RUN_TIMEOUT') throw error; failStage('q1_reply', replyTaskKey, error); }
+      } catch (error) { const code = errorCode(error); if (isManualVerification(error) || code === 'DAILY_RUN_TIMEOUT' || code === 'SYNC_RUN_LEASE_LOST') throw error; failStage('q1_reply', replyTaskKey, error); }
     };
     replyScheduler.add(runTask);
   };
@@ -474,7 +587,7 @@ async function runDailyQ1Collection(deps, context) {
         if (!result.completed && !result.skipped && !result.unsupported) commentScheduler.add(runTask);
         else recordStageResult(result);
         if (result.unsupported) failStage('comments', postId, Object.assign(new Error('comment capability unsupported'), { code: 'CAPABILITY_UNSUPPORTED' }));
-      } catch (error) { if (isManualVerification(error) || errorCode(error) === 'DAILY_RUN_TIMEOUT') throw error; failStage('comments', postId, error); }
+      } catch (error) { const code = errorCode(error); if (isManualVerification(error) || code === 'DAILY_RUN_TIMEOUT' || code === 'SYNC_RUN_LEASE_LOST') throw error; failStage('comments', postId, error); }
     };
     commentScheduler.add(runTask);
   };
@@ -490,16 +603,23 @@ async function runDailyQ1Collection(deps, context) {
         if (!result.completed && !result.skipped && !result.unsupported) feedScheduler.add(runTask);
         else recordStageResult(result);
         if (result.unsupported) failStage('q1_feed', feedKey, Object.assign(new Error('feed capability unsupported'), { code: 'CAPABILITY_UNSUPPORTED' }));
-      } catch (error) { if (isManualVerification(error) || errorCode(error) === 'DAILY_RUN_TIMEOUT') throw error; failStage('q1_feed', feedKey, error); }
+      } catch (error) {
+        const code = errorCode(error);
+        if (isManualVerification(error) || code === 'DAILY_RUN_TIMEOUT' || code === 'SYNC_RUN_LEASE_LOST') throw error;
+        failStage('q1_feed', feedKey, error);
+        if (code === 'SYNC_PAGE_TIMEOUT' || code === 'SYNC_DISCOVERY_TIMEOUT') return;
+      }
     };
     feedScheduler.add(runTask);
   };
   feeds.forEach(scheduleFeed);
-  await feedScheduler.idle(); await commentScheduler.idle(); await replyScheduler.idle();
+  const shutdownTimeoutMs = Math.max(1, Number(deps.schedulerShutdownTimeoutMs ?? 100));
+  await feedScheduler.idle(shutdownTimeoutMs); await commentScheduler.idle(shutdownTimeoutMs); await replyScheduler.idle(shutdownTimeoutMs);
+  deps.leaseGuard?.check?.();
   if (fatalError) throw fatalError;
 }
 
-async function runPagedSourceUnlocked(deps, source, connector, run, account, syncRun) {
+async function runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
   const metadata = parseObject(account.metadata); const syncMode = syncModeOf(source, account, syncRun); const historyStart = metadata.historyStart || metadata.history_start || null;
   const collectionWindow = deps.collectionWindow || {};
   const dailyBounded = Boolean(collectionWindow.dailyBounded);
@@ -514,21 +634,22 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
   const commentPageBudget = Math.max(1, Number(deps.commentPageBudget || process.env.DAILY_COMMENT_PAGE_BUDGET || deps.pageBudget));
   const analysisScope = deps.analysisScope || {};
   const commitLane = dailyBounded ? (deps.commitLane || createCommitLane()) : null;
-  const sourceDeps = commitLane ? { ...deps, commitLane } : deps;
-  const counts = { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }; let incomplete = false; const diagnostics = []; const capabilities = []; const replyTargets = new Map();
+  const leaseGuard = deps.leaseGuard || null;
+  const sourceDeps = (commitLane || leaseGuard) ? { ...deps, ...(commitLane ? { commitLane } : {}), ...(leaseGuard ? { leaseGuard } : {}) } : deps;
+  const counts = { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }; let incomplete = false; let committedPages = 0; const diagnostics = []; const capabilities = []; const replyTargets = new Map();
   const record = async (result, trackCompletion = true) => {
     counts.discovered += result.discovered; counts.stored += result.stored; capabilities.push(result.capability);
     const downstream = dailyBounded ? await enqueueDailyAnalysis(sourceDeps, source, result.entries, analysisScope) : await processDownstream(sourceDeps, source, result.entries, analysisScope); counts.analyzed += downstream.analyzed; counts.alerted += downstream.alerted;
     for (const target of result.replyTargets || []) replyTargets.set(`${target.postId}:${target.commentId}:${target.sortType || 0}`, target);
-    if (trackCompletion && (result.unsupported || (!result.completed && !result.skipped))) incomplete = true;
+    if (trackCompletion && (result.unsupported || (!result.completed && !result.skipped) || (dailyBounded && result.skipped))) incomplete = true;
     return result;
   };
-  const recordPage = result => record(result, false);
+  const recordPage = result => { committedPages += 1; return record(result, false); };
   const recordStageResult = result => {
-    if (result.unsupported || (!result.completed && !result.skipped)) incomplete = true;
+    if (result.unsupported || (!result.completed && !result.skipped) || (dailyBounded && result.skipped)) incomplete = true;
     return result;
   };
-  const failStage = (scope, rootId, error) => { incomplete = true; diagnostics.push({ scope, rootId, code: errorCode(error), message: error.message }); };
+  const failStage = (scope, rootId, error) => { incomplete = true; diagnostics.push({ scope, rootId, code: errorCode(error), message: safeErrorMessage(error) }); };
   const immediateCommentPosts = new Set();
   let gate = null;
   let credential = null;
@@ -551,13 +672,14 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
     if (!gate.authorized) { const error = new Error(gate.reason || 'credentials required'); error.code = gate.reason || 'UNAUTHORIZED'; throw error; }
     // TapTap 免登采集：无需凭据，直接通过连接器健康检查。
     credential = source.platform === 'taptap' ? null : (isSocialPlatform(source.platform) ? null : await deps.credentialContext.load(account, 'api_token'));
+    const facebookPageAccounting = source.platform === 'facebook';
     let posts = { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: true, replyTargets: [] };
     const commentsSupported = typeof connector.hasSourceCapability !== 'function' || connector.hasSourceCapability('comments', source);
     const usesDailyQ1Scheduler = dailyBounded && source.platform === 'bigplayer_h5' && typeof connector.discoverFeeds === 'function' && typeof connector.listFeedContents === 'function';
     if (usesDailyQ1Scheduler) {
       await runDailyQ1Collection(sourceDeps, { source, connector, account, syncRun, credential, sessionRef: gate.sessionRef, syncMode, historyStart, commentPageBudget, commentsSupported, isInCollectionWindow, recordPage, recordStageResult, failStage });
     } else if (source.platform === 'bigplayer_h5' && typeof connector.discoverFeeds === 'function' && typeof connector.listFeedContents === 'function') {
-      const feeds = await connector.discoverFeeds({ source, account, credentialContext: credential });
+      const feeds = await discoverFeedsWithTimeout(deps, connector, { source, account, credentialContext: deps.credentialContext });
       if (!Array.isArray(feeds) || !feeds.length) { const error = new Error('Q1 board schema did not expose any feeds'); error.code = 'MALFORMED_RESPONSE'; throw error; }
       const feedKeys = new Set();
       for (const feed of feeds) {
@@ -585,7 +707,8 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
         pendingFeeds = nextPending;
       }
     } else {
-      posts = await syncStage(sourceDeps, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'posts', syncMode, syncRunId: syncRun.id, historyStart, taskKind: 'owned_content', taskKey: 'owned' }); await record(posts);
+      posts = await syncStage(sourceDeps, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'posts', syncMode, syncRunId: syncRun.id, historyStart, taskKind: 'owned_content', taskKey: 'owned', ...(facebookPageAccounting ? { onPageCommitted: recordPage } : {}) });
+      if (facebookPageAccounting) recordStageResult(posts); else await record(posts);
     }
     if (typeof deps.repo.loadKeywordRules === 'function' && typeof connector.searchContents === 'function') {
       const rules = validKeywordRules(await deps.repo.loadKeywordRules(source.game_id, source.platform, source.community_id));
@@ -602,7 +725,7 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
       const commentParents = dailyBounded
         ? []
         : typeof deps.repo.listSyncParents === 'function'
-          ? await deps.repo.listSyncParents(account.id, 'comments', { includeCompleted: Boolean(deps.refreshAllComments), includeFailed: true, limit: commentParentLimit })
+          ? await deps.repo.listSyncParents(account.id, 'comments', { includeCompleted: source.platform === 'facebook' || Boolean(deps.refreshAllComments), includeFailed: true, limit: commentParentLimit })
           : [];
       const candidateParents = [...freshPosts.map(entry => ({ post_platform_id: entry.raw.externalId, root_platform_content_id: entry.raw.externalId })), ...commentParents];
       const seenPosts = new Set();
@@ -619,34 +742,50 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
         const postId = String(parent.post_platform_id || parent.root_platform_content_id || '').trim();
         try {
           assertDeadline(deps);
-          await record(await syncStage({ ...sourceDeps, pageBudget: Math.min(deps.pageBudget, commentPageBudget) }, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'comments', rootPlatformContentId: postId, postPlatformId: postId, syncMode, syncRunId: syncRun.id, historyStart }));
-        } catch (error) { if (isManualVerification(error)) throw error; failStage('comments', postId, error); }
+          const result = await syncStage({ ...sourceDeps, pageBudget: Math.min(deps.pageBudget, commentPageBudget) }, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'comments', rootPlatformContentId: postId, postPlatformId: postId, syncMode, syncRunId: syncRun.id, historyStart, ...(facebookPageAccounting ? { onPageCommitted: recordPage } : {}) });
+          if (facebookPageAccounting) recordStageResult(result); else await record(result);
+        } catch (error) { if (isManualVerification(error) || (source.platform === 'facebook' && facebookAuthFailureStatus(error))) throw error; failStage('comments', postId, error); }
       });
       const replyConcurrency = dailyBounded
         ? Math.max(1, Number(sourceDeps.dailyReplyFetchConcurrency ?? process.env.DAILY_REPLY_FETCH_CONCURRENCY ?? 4))
         : Math.max(1, Number(process.env.SYNC_REPLY_CONCURRENCY || process.env.SYNC_COMMENT_CONCURRENCY || 4));
       await runBounded([...replyTargets.values()], replyConcurrency, async target => {
         assertDeadline(deps);
-        const replyTaskKey = `reply:${target.commentId}:${target.sortType || 0}`;
-        try { await record(await syncStage({ ...sourceDeps, pageBudget: Math.min(deps.pageBudget, commentPageBudget) }, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'comments', rootPlatformContentId: target.postId, postPlatformId: target.postId, commentId: target.commentId, sortType: target.sortType || 0, syncMode, syncRunId: syncRun.id, historyStart, taskKind: 'q1_reply', taskKey: replyTaskKey })); }
-        catch (error) { if (isManualVerification(error)) throw error; failStage('q1_reply', replyTaskKey, error); }
+        const facebookReply = source.platform === 'facebook';
+        const replyTaskKind = facebookReply ? 'facebook_reply' : 'q1_reply';
+        const replyTaskKey = facebookReply ? `reply:${target.commentId}` : `reply:${target.commentId}:${target.sortType || 0}`;
+        try {
+          const result = await syncStage({ ...sourceDeps, pageBudget: Math.min(deps.pageBudget, commentPageBudget) }, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'comments', rootPlatformContentId: target.postId, postPlatformId: target.postId, commentId: target.commentId, sortType: target.sortType || 0, syncMode, syncRunId: syncRun.id, historyStart, taskKind: replyTaskKind, taskKey: replyTaskKey, ...(facebookReply ? { onPageCommitted: recordPage } : {}) });
+          if (facebookReply) recordStageResult(result); else await record(result);
+        }
+        catch (error) { if (isManualVerification(error) || (source.platform === 'facebook' && facebookAuthFailureStatus(error))) throw error; failStage(replyTaskKind, replyTaskKey, error); }
       });
     }
     await drainAndCloseCommitLane(commitLane);
     const allFull = capabilities.length > 0 && capabilities.every(value => value === 'full');
-    const realFull = source.platform === 'bigplayer_h5' && allFull && !incomplete && process.env.BIGPLAYER_H5_PROVIDER_VERIFIED === 'true';
+    const realFull = allFull && !incomplete && (source.platform === 'facebook' || (source.platform === 'bigplayer_h5' && process.env.BIGPLAYER_H5_PROVIDER_VERIFIED === 'true'));
     const status = incomplete ? 'partial' : realFull ? 'completed_full' : 'completed_authorized_scope'; const errorMessage = diagnostics.length ? JSON.stringify(diagnostics.slice(0, 20)) : null;
-    await deps.repo.finishSyncRun(syncRun.id, { status, discoveredCount: counts.discovered, storedCount: counts.stored, errorCode: incomplete ? 'PARTIAL_SYNC' : null, errorMessage, leaseOwner: deps.leaseOwner });
-    await deps.repo.finishRun(run.id, { status: incomplete ? 'partial' : 'success', discoveredCount: counts.discovered, storedCount: counts.stored, analyzedCount: counts.analyzed, alertedCount: counts.alerted, errorCode: incomplete ? 'PARTIAL_SYNC' : null, errorMessage });
-    await deps.repo.markSourceRun(source.id, { status: incomplete ? 'failed' : 'success', errorCode: incomplete ? 'PARTIAL_SYNC' : null, errorMessage });
-  } catch (error) { await finishPagedFailure(deps, source, run, syncRun, counts, error, commitLane); if (error.code === 'DAILY_RUN_TIMEOUT') throw error; }
+    await finishOnce(status, counts, { errorCode: incomplete ? 'PARTIAL_SYNC' : null, errorMessage, sourceStatus: incomplete ? 'failed' : 'success' });
+  } catch (error) {
+    const facebookAuthStatus = source.platform === 'facebook' ? facebookAuthFailureStatus(error) : null;
+    if (facebookAuthStatus) {
+      if (typeof deps.repo.updateAccount === 'function') await deps.repo.updateAccount(account.id, { authStatus: facebookAuthStatus });
+      if (typeof deps.repo.updateSourceAuth === 'function') await deps.repo.updateSourceAuth(source.id, { authStatus: facebookAuthStatus });
+    }
+    if (source.platform === 'facebook' && committedPages > 0 && !facebookAuthStatus) {
+      await drainAndCloseCommitLane(commitLane);
+      await finishOnce('partial', counts, { errorCode: errorCode(error), errorMessage: safeErrorMessage(error), sourceStatus: 'partial' });
+    } else await finishPagedFailure(deps, source, run, syncRun, counts, error, commitLane, finishOnce);
+    if (error.code === 'DAILY_RUN_TIMEOUT') throw error;
+  }
 }
 
 async function withAccountLock(deps, accountId, operation) {
-  const locks = deps.accountLocks || (deps.accountLocks = new Map()); const previous = locks.get(accountId) || Promise.resolve();
-  let release; const current = new Promise(resolve => { release = resolve; }); locks.set(accountId, current);
-  await previous;
-  try { return await operation(); } finally { release(); if (locks.get(accountId) === current) locks.delete(accountId); }
+  if (typeof deps.repo.acquireAdvisoryLock !== 'function') return operation();
+  const name = `public-opinion-sync-account-${accountId}`;
+  const acquired = await deps.repo.acquireAdvisoryLock(name, 0);
+  if (!acquired) return { skipped: true, reason: 'account_locked' };
+  try { return await operation(); } finally { await deps.repo.releaseAdvisoryLock(name); }
 }
 function syncModeOf(source, account, syncRun) { const metadata = parseObject(account?.metadata); return first(syncRun, ['syncMode', 'sync_mode'], metadata.syncMode || metadata.sync_mode || source.sync_mode || 'incremental'); }
 async function enqueueSyncRun(deps, source, account) {
@@ -658,6 +797,8 @@ async function claimSyncRun(deps, syncRun) {
   if (typeof deps.repo.claimSyncRun !== 'function') return syncRun;
   return deps.repo.claimSyncRun({ runId: syncRun.id, leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds });
 }
+// The repository stores a per-claim owner (`${leaseOwner}:${uuid}`), so all fencing after the claim
+// must use that persisted value instead of the base deps.leaseOwner.
 function claimedLeaseOwner(deps, claimed) { return first(claimed, ['lease_owner', 'leaseOwner'], deps.leaseOwner); }
 function withClaimedLeaseOwner(deps, claimed) {
   const leaseOwner = claimedLeaseOwner(deps, claimed);
@@ -690,17 +831,48 @@ function withClaimedRunWindow(deps, claimed) {
 }
 async function validatedClaimedRunDeps(deps, source, claimed) {
   const claimedDeps = withClaimedLeaseOwner(deps, claimed);
-  try { return withClaimedRunWindow(claimedDeps, claimed); }
-  catch (error) {
+  try {
+    return withClaimedRunWindow(claimedDeps, claimed);
+  } catch (error) {
     const run = await claimedDeps.repo.createRun(source.id);
     await finishPagedFailure(claimedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
     throw error;
   }
 }
-async function runPagedSource(deps, source, connector, run, syncRun, knownAccount = null) {
+async function runPagedSource(deps, source, connector, run, syncRun, knownAccount = null, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
   const account = knownAccount || await deps.repo.getDefaultAccount({ sourceId: source.id, gameId: source.game_id, platform: source.platform });
   if (!account) return deps.repo.finishRun(run.id, { status: 'failed', errorCode: 'ACCOUNT_NOT_FOUND', errorMessage: 'default platform account is not configured' });
-  return withAccountLock(deps, account.id, () => runPagedSourceUnlocked(deps, source, connector, run, account, syncRun));
+  return withAccountLock(deps, account.id, () => runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce));
+}
+
+function createLeaseGuard(deps, syncRun) {
+  const now = typeof deps.monotonicNow === 'function' ? deps.monotonicNow : () => performance.now();
+  const leaseMs = Math.max(1, Number(deps.leaseSeconds || 300) * 1000);
+  let deadline = now() + leaseMs; let lost = false; let timer = null; let renewing = Promise.resolve();
+  const controller = new AbortController();
+  const stopListeners = new Set();
+  const stopTimer = () => { if (timer) { clearInterval(timer); timer = null; } };
+  const leaseError = () => stableError('SYNC_RUN_LEASE_LOST', 'sync run lease was lost');
+  const fail = (reason = leaseError()) => { if (lost) return; lost = true; stopTimer(); if (!controller.signal.aborted) controller.abort(reason); for (const listener of stopListeners) listener(reason); };
+  const check = () => {
+    if (lost || now() >= deadline) {
+      fail();
+      throw controller.signal.reason?.code ? controller.signal.reason : leaseError();
+    }
+  };
+  const renew = async () => {
+    if (lost || typeof deps.repo.renewSyncRunLease !== 'function') return;
+    renewing = renewing.then(async () => {
+      check();
+      const ok = await deps.repo.renewSyncRunLease(syncRun.id, deps.leaseOwner, deps.leaseSeconds);
+      if (!ok) return fail();
+      deadline = now() + leaseMs;
+    }).catch(fail);
+    await renewing;
+  };
+  const interval = Math.max(10, Number(deps.leaseHeartbeatMs || (leaseMs / 3)));
+  if (syncRun?.id && typeof deps.repo.renewSyncRunLease === 'function') timer = setInterval(() => { renew(); }, interval);
+  return { check, start: renew, stopScheduling: fail, onStop(listener) { stopListeners.add(listener); return () => stopListeners.delete(listener); }, signal: controller.signal, stop: async () => { stopTimer(); await renewing; } };
 }
 
 async function runSource(deps, source, precreatedSyncRun = null) {
@@ -716,7 +888,7 @@ async function runSource(deps, source, precreatedSyncRun = null) {
     const run = await leasedDeps.repo.createRun(source.id);
     const error = new Error('default platform account is not configured'); error.code = 'ACCOUNT_NOT_FOUND';
     if (claimed) return finishPagedFailure(leasedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
-    return leasedDeps.repo.finishRun(run.id, { status: 'failed', errorCode: error.code, errorMessage: error.message });
+    return leasedDeps.repo.finishRun(run.id, { status: 'failed', errorCode: error.code, errorMessage: safeErrorMessage(error) });
   }
   if (!claimed) {
     const queued = await enqueueSyncRun(deps, source, account);
@@ -724,13 +896,28 @@ async function runSource(deps, source, precreatedSyncRun = null) {
     if (!claimed) return { skipped: true, syncRunId: queued.id };
     leasedDeps = await validatedClaimedRunDeps(deps, source, claimed);
   }
-  const run = await leasedDeps.repo.createRun(source.id);
+  const dailyBounded = Boolean(leasedDeps.collectionWindow?.dailyBounded);
+  const configuredDailyTimeoutMs = Number(leasedDeps.dailyRunTimeoutMs ?? process.env.DAILY_RUN_TIMEOUT_MS ?? 30 * 60 * 1000);
+  const boundedDeps = dailyBounded && !Number.isFinite(Number(leasedDeps.deadlineAt))
+    ? { ...leasedDeps, deadlineAt: Date.now() + Math.max(1, Number.isFinite(configuredDailyTimeoutMs) ? configuredDailyTimeoutMs : 30 * 60 * 1000) }
+    : leasedDeps;
+  const run = await boundedDeps.repo.createRun(source.id);
   if (!connector) {
     const error = new Error(source.platform); error.code = 'CONNECTOR_NOT_FOUND';
-    await finishPagedFailure(leasedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
+    await finishPagedFailure(boundedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
     return;
   }
-  return runPagedSource(leasedDeps, source, connector, run, claimed, account);
+  const leaseGuard = createLeaseGuard(boundedDeps, claimed);
+  const finishOnce = createFinishOnce(boundedDeps, source, run, claimed);
+  const guardedDeps = { ...boundedDeps, leaseGuard };
+  try {
+    await leaseGuard.start();
+    leaseGuard.check();
+    return await runPagedSource(guardedDeps, source, connector, run, claimed, account, finishOnce);
+  } catch (error) {
+    await finishPagedFailure(guardedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error, null, finishOnce);
+    if (error?.code !== 'SYNC_RUN_LEASE_LOST') throw error;
+  } finally { await leaseGuard.stop(); }
 }
 function schedulerConnectorCapabilities(connectors = {}) {
   return Object.fromEntries(Object.entries(connectors).map(([platform, connector]) => {
@@ -742,17 +929,19 @@ function schedulerConnectorCapabilities(connectors = {}) {
   }));
 }
 function buildDeps(env = process.env) {
-  const repo = new Repository(env); const credentialContext = new CredentialContext({ repo }); const oauthService = new DouyinOAuthService(); const loginSessionClient = new LoginSessionClient(); const authRefreshCoordinator = new AuthRefreshCoordinator({ repo, loginSessionClient });
+  const repo = new Repository(env); const credentialContext = new CredentialContext({ repo }); const oauthService = new DouyinOAuthService(env); const loginSessionClient = new LoginSessionClient(env); const authRefreshCoordinator = new AuthRefreshCoordinator({ repo, loginSessionClient });
   const connectors = { bigplayer_h5: new BigPlayerH5Connector(env, { credentialContext, authRefreshCoordinator }), ...buildExternalConnectors(env, { credentialContext, douyinOAuthService: oauthService, loginSessionClient }) }; const ai = new AiAnalyzer(); const notifier = new DingTalkNotifier();
   const leaseOwner = `${process.pid}-${crypto.randomUUID()}`;
   const unifiedScheduler = {
     mode: schedulerMode(env),
+    // 受控生产恢复：指定 source 时禁止统一调度写入，只消费该 source 的 manual run。
+    recoverySourceId: String(env.UNIFIED_SCHEDULER_RECOVERY_SOURCE_ID || env.UNIFIED_SOURCE_SCHEDULER_RECOVERY_SOURCE_ID || '').trim() || null,
     connection: repo.pool,
     workerId: `source-scheduler:${leaseOwner}`,
     now: () => new Date(),
     connectorCapabilities: schedulerConnectorCapabilities(connectors)
   };
-  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), accountLocks: new Map(), leaseOwner, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), unifiedScheduler };
+  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), leaseOwner, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), leaseHeartbeatMs: Number(env.SYNC_LEASE_HEARTBEAT_MS || 0), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), unifiedScheduler };
 }
 async function unifiedSchedulerSchemaReady(connection) {
   const [rows] = await connection.query(
@@ -796,6 +985,7 @@ async function unifiedSchedulerSchemaReady(connection) {
 async function runUnifiedSchedulerSeam(options = {}) {
   const mode = options.mode || 'off';
   if (mode !== 'shadow' && mode !== 'enabled') return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_OFF' };
+  if (mode === 'enabled' && options.recoverySourceId) return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_RECOVERY_MANUAL_ONLY' };
   const logger = options.logger || console;
   if (!options.connection || !options.workerId || !options.now || options.connectorCapabilities == null) {
     const error = new Error('connection, workerId, now and connectorCapabilities are required');
@@ -843,11 +1033,28 @@ async function runBounded(items, limit, operation) {
 }
 async function runOnce(deps = buildDeps()) {
   if (typeof deps.repo.health === 'function') await deps.repo.health();
-  const queued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await deps.repo.listRunnableSyncRuns() : [];
+  const recoverySourceId = String(deps.unifiedScheduler?.recoverySourceId || '').trim() || null;
+  const allQueued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await deps.repo.listRunnableSyncRuns() : [];
+  const queued = recoverySourceId
+    ? allQueued.filter(item => {
+      const run = item.syncRun || item.sync_run || item;
+      const sourceRecord = item.source || item.sourceRecord || item.source_record || item;
+      const sourceId = first(sourceRecord, ['sourceId', 'source_id', 'id'], first(item, ['sourceId', 'source_id'], item.id));
+      const triggerType = first(run, ['triggerType', 'trigger_type'], null);
+      return String(sourceId) === recoverySourceId && triggerType === 'manual';
+    })
+    : allQueued;
   const manual = await deps.repo.listManualDueSources(); const manualRunnable = [];
-  for (const source of manual) { await deps.repo.clearManualRequest(source.id); if (source.enabled && source.game_enabled) manualRunnable.push(source); }
-  const schedulerResult = await runUnifiedSchedulerSeam(deps.unifiedScheduler);
-  const sources = unifiedSchedulerOwnsPeriodicSources(deps.unifiedScheduler, schedulerResult) ? [] : await deps.repo.listDueSources(new Date()); const work = new Map();
+  for (const source of manual) {
+    // 恢复模式只消费已入队的 manual run；marker 不得降级为 legacy 入队，也不清理其他请求。
+    if (recoverySourceId) continue;
+    await deps.repo.clearManualRequest(source.id);
+    if (source.enabled && source.game_enabled) manualRunnable.push(source);
+  }
+  const schedulerResult = await runUnifiedSchedulerSeam({ ...(deps.unifiedScheduler || {}), recoverySourceId });
+  const sources = recoverySourceId
+    ? []
+    : (unifiedSchedulerOwnsPeriodicSources(deps.unifiedScheduler, schedulerResult) ? [] : await deps.repo.listDueSources(new Date())); const work = new Map();
   for (const item of queued) {
     const queuedSource = item.source || item.sourceRecord || item.source_record || { ...item, id: first(item, ['sourceId', 'source_id'], item.id) };
     const syncRun = item.syncRun || item.sync_run || item;
@@ -865,14 +1072,20 @@ async function runOnce(deps = buildDeps()) {
 }
 const interval = Number(process.env.WORKER_INTERVAL_MS || 60000);
 if (require.main === module) {
+  // P0 连接池泄漏修复：过去每轮 runOnce 都 new 一个 Repository（各自 10 连接的池）且从不 pool.end()，
+  // 长驻进程连接数随轮次线性增长直至打满 MySQL max_connections。
+  // 现改为常驻进程复用同一份模块级 deps（与 analysisWorker 的做法一致）；一次性 CLI 路径
+  // （dailyRunner/q1DailyJob）不受影响，它们各自构建并在结束时关闭自己的池。
   try {
     const mode = requireExplicitSchedulerMode(process.env);
-    runOnce().catch(error => console.error('[worker]', error));
-    setInterval(() => runOnce().catch(error => console.error('[worker]', error)), interval);
+    let sharedDeps = null; let inflight = Promise.resolve();
+    const scheduleRun = () => { inflight = inflight.then(async () => { if (!sharedDeps) sharedDeps = buildDeps(); await runOnce(sharedDeps); }).catch(error => console.error('[worker] status=failed errorCode=', errorCode(error))); return inflight; };
+    scheduleRun();
+    setInterval(scheduleRun, interval);
     console.log(`public-opinion-worker mode=${mode} scanning due sources every ${interval}ms`);
   } catch (error) {
     console.error(`[worker] status=failed errorCode=${error.code || 'UNIFIED_SCHEDULER_MODE_INVALID'}`);
     process.exitCode = 1;
   }
 }
-module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, isManualVerification, runBounded, runUnifiedSchedulerSeam };
+module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, assertCanonicalCommunityScope, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, safeErrorMessage, isManualVerification, runBounded, runUnifiedSchedulerSeam, schedulerMode, requireExplicitSchedulerMode };

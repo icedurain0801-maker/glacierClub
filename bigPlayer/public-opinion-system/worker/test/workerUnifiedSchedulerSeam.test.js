@@ -33,11 +33,13 @@ test('buildDeps wires the explicit scheduler mode, repository pool and real conn
     DB_PASSWORD: 'unused',
     DB_NAME: 'unused',
     UNIFIED_SOURCE_SCHEDULER_MODE: 'enabled',
+    UNIFIED_SCHEDULER_RECOVERY_SOURCE_ID: 'recovery-source',
     BIGPLAYER_H5_ENABLED: 'true',
     BIGPLAYER_H5_API_BASE_URL: 'https://community.bigplayer.com'
   });
   try {
     assert.equal(deps.unifiedScheduler.mode, 'enabled');
+    assert.equal(deps.unifiedScheduler.recoverySourceId, 'recovery-source');
     assert.strictEqual(deps.unifiedScheduler.connection, deps.repo.pool);
     assert.equal(typeof deps.unifiedScheduler.workerId, 'string');
     assert.equal(typeof deps.unifiedScheduler.now, 'function');
@@ -85,6 +87,18 @@ test('enabled mode calls the injected job with injected dependencies after schem
   assert.equal(calls[0].workerId, 'worker-a');
   assert.equal(calls[0].leaseDurationMs, 120000);
   assert.equal(calls[0].idFactory(), 'run-1');
+});
+
+test('enabled recovery gate skips scheduler writes entirely', async () => {
+  let called = 0;
+  const result = await runUnifiedSchedulerSeam({
+    mode: 'enabled',
+    recoverySourceId: 'target-source',
+    runJob: async () => { called += 1; }
+  });
+
+  assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_RECOVERY_MANUAL_ONLY' });
+  assert.equal(called, 0);
 });
 
 test('shadow mode performs admission only and never invokes the writing scheduler job', async () => {
@@ -326,4 +340,33 @@ test('runOnce shadow admission does not write and keeps the legacy periodic scan
 
   assert.deepEqual(calls, ['health', 'queued', 'manual', 'due']);
   assert.equal(schedulerCalls, 0);
+});
+
+test('runOnce recovery gate consumes only target manual runs and preserves unrelated markers', async () => {
+  const calls = [];
+  const target = { id: 'target-source', enabled: 1, game_enabled: 1, platform: 'unknown' };
+  const other = { id: 'other-source', enabled: 1, game_enabled: 1, platform: 'unknown' };
+  const result = await runOnce({
+    repo: {
+      async health() {},
+      async listRunnableSyncRuns() {
+        return [
+          { id: 'manual-target', source_id: 'target-source', trigger_type: 'manual', source: target },
+          { id: 'scheduled-target', source_id: 'target-source', trigger_type: 'scheduled_catchup', source: target },
+          { id: 'manual-other', source_id: 'other-source', trigger_type: 'manual', source: other }
+        ];
+      },
+      async listManualDueSources() { return [target, other]; },
+      async clearManualRequest(sourceId) { calls.push(`clear:${sourceId}`); },
+      async claimSyncRun() { return null; },
+      async listDueSources() { calls.push('due'); return []; }
+    },
+    connectors: {},
+    ai: { configured() { return false; } },
+    sourceConcurrency: 1,
+    unifiedScheduler: { mode: 'enabled', recoverySourceId: 'target-source' }
+  });
+
+  assert.deepEqual(result, { queued: 1, manual: 2, scanned: 0 });
+  assert.deepEqual(calls, []);
 });
