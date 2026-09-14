@@ -129,7 +129,7 @@ test('基础配置保存不再携带启用开关或历史回溯字段', () => {
 
 test('TapTap 仅展示网页地址并按社区填充默认 URL', () => {
   const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
-  const superWorld = { platform: 'taptap', community_name: '超能世界', display_name: 'TapTap001', config: {} };
+  const superWorld = { platform: 'taptap', community_name: '超能世界国服版', display_name: 'TapTap001', config: {} };
   const other = { platform: 'taptap', community_name: '其他社区', display_name: 'TapTap002', config: {} };
   const panel = api.platformPanel(superWorld);
   assert.equal(api.taptapDefaultUrl(superWorld), 'https://www.taptap.cn/app/239580/topic?os=android');
