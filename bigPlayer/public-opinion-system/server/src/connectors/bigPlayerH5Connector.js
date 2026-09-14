@@ -26,6 +26,10 @@ function authorizationValue(token) {
   const value = String(token || '').trim();
   return /^Bearer\s+/i.test(value) ? value : `Bearer ${value}`;
 }
+function tokenReauthorizationError(error) {
+  if (error?.code !== 'AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED') return error;
+  return new ConnectorError('UNAUTHORIZED', 'Q1 API token was rejected; reauthorization is required', { cause: error.code });
+}
 function q1Language(value) {
   const language = String(value || '').trim().toLowerCase();
   if (!language || language === 'zh-cn' || language === 'zh-hans') return 'zh-Hans';
@@ -578,7 +582,8 @@ class BigPlayerH5Connector extends BaseConnector {
       const refreshCredentialContext = requestContext.credentialContext || this.credentialContext;
       if (!refreshAccount?.id) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing'));
       if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
-      await this.authRefreshCoordinator.refresh({ source, account: refreshAccount, signal });
+      try { await this.authRefreshCoordinator.refresh({ source, account: refreshAccount, signal }); }
+      catch (error) { throw new ConnectorPageError(this.platform, capability, page, tokenReauthorizationError(error)); }
       if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
       const refreshedToken = await this.loadApiToken(source, refreshCredentialContext, refreshAccount);
       return this.requestQ1(path, source, refreshedToken, params, page, capability, true, signal, { credentialContext: refreshCredentialContext, account: refreshAccount });
@@ -775,7 +780,8 @@ class BigPlayerH5Connector extends BaseConnector {
     if (!response.ok && (response.status === 401 || response.status === 403) && this.authRefreshCoordinator && !authRefreshRetried) {
       const account = params.account || source.account || (source.account_id ? { id: source.account_id, platform: source.platform } : null);
       if (!account?.id) throw new ConnectorPageError(this.platform, capability, params.cursor || 1, new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing'));
-      await this.authRefreshCoordinator.refresh({ source, account });
+      try { await this.authRefreshCoordinator.refresh({ source, account }); }
+      catch (error) { throw new ConnectorPageError(this.platform, capability, params.cursor || 1, tokenReauthorizationError(error)); }
       return this.requestJson(capability, source, params, credentialContext, pathParams, { probe, authRefreshRetried: true });
     }
     if (!response.ok) {

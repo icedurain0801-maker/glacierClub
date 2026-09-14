@@ -132,6 +132,21 @@ test('Q1 H5 discovers schema feeds and uses endpoint-specific pagination', async
   await assert.rejects(() => connector.listComments({ source, postId: '907744', sortType: 3 }), error => error.code === 'INVALID_PAGINATION');
 });
 
+test('credential context loads the active account api_token used by BigPlayer', async () => {
+  const context = new CredentialContext({
+    repo: {
+      getCredentialByAccount: async (accountId, credentialType) => {
+        assert.equal(accountId, 'account-1');
+        assert.equal(credentialType, 'api_token');
+        return { id: 'cr-token', status: 'active', credential_type: 'api_token', expire_at: null, secret_cipher: encrypt('Bearer saved-account-token', keyEnv) };
+      }
+    },
+    env: keyEnv,
+    now: () => new Date('2026-08-07T00:00:00Z')
+  });
+  assert.equal(await context.loadApiToken({ id: 'account-1' }), 'Bearer saved-account-token');
+});
+
 test('Q1 feed enriches 916457-shaped summaries from exact detail requests without changing order', async () => {
   const requests = [];
   const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS&lang=zh-CN' } };
