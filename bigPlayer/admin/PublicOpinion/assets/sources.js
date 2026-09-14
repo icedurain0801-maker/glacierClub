@@ -613,16 +613,30 @@ function renderChallenge() {
   const meta = Status.challengeMeta(challenge); const imageUrl = pick(challenge, 'imageUrl', 'image_url', 'qrCodeUrl', 'qr_code_url', 'assetUrl', 'asset_url', 'displayRef'); const expiresAt = pick(challenge, 'expiresAt', 'expires_at'); const remaining = Status.secondsRemaining(expiresAt);
   return `<div class="detail-block"><div class="source-with-dot"><b>${esc(meta.label)}</b><span class="countdown" id="challengeCountdown">${Status.formatCountdown(remaining)}</span></div><div class="challenge-message">${esc(pick(challenge, 'instruction', 'message') || '请按平台提示完成验证。')}</div>${imageUrl ? `<img class="challenge-media" src="${esc(imageUrl)}" alt="${esc(meta.label)}">` : ''}${meta.acceptsCode ? '<input class="input challenge-code" id="challengeCode" autocomplete="one-time-code" placeholder="请输入验证码">' : ''}<div class="action-row">${meta.acceptsCode ? '<button class="btn primary" id="btnSubmitChallenge">提交验证</button>' : ''}<button class="btn danger" id="btnCancelChallenge">取消验证</button></div></div>`;
 }
-async function openDrawer(id) {
-  const source = state.sources.find(item => String(item.id) === String(id)); if (!source) return; stopValidationWork(); state.activeSourceId = String(id); state.loginStatus = null; state.challenge = null; const serial = ++state.requestSerial;
+function renderDrawerLoading(source, error = '') {
+  const title = pick(source, 'display_name', 'displayName') || platformLabel(source?.platform) || '采集源';
+  const message = error ? `详情加载失败：${error}` : '正在加载采集源详情…';
+  $('#drawerContent').innerHTML = `<div class="drawer-header"><h2>${esc(title)}</h2></div><div class="drawer-body"><div class="detail-loading" role="status">${esc(message)}</div>${error ? '<div class="action-row"><button class="btn primary" id="btnRetryDrawer">重试</button></div>' : ''}</div>`;
+  if (error && $('#btnRetryDrawer')) $('#btnRetryDrawer').onclick = () => openDrawer(source.id, true);
+}
+async function openDrawer(id, force = false) {
+  const source = state.sources.find(item => String(item.id) === String(id)); if (!source) return;
+  const sourceId = String(id);
+  if (!force && state.activeSourceId === sourceId && $('#drawerMask')?.classList.contains('open')) return;
+  stopValidationWork(); state.activeSourceId = sourceId; state.loginStatus = null; state.challenge = null; const serial = ++state.requestSerial;
+  renderDrawerLoading(source); $('#drawerMask').classList.add('open'); updateDeepLink(sourceId, $('#statusFilter')?.value || '');
   let detail = null;
   try {
     const response = await api(`/sources/${encodeURIComponent(id)}`);
     detail = Array.isArray(response) ? response[0] : response?.source || response;
-  } catch (_) { /* Keep the list record usable when detail is unavailable. */ }
-  if (serial !== state.requestSerial || state.activeSourceId !== String(id)) return;
+  } catch (error) {
+    if (serial === state.requestSerial && state.activeSourceId === sourceId) renderDrawerLoading(source, error.message);
+    return;
+  }
+  if (serial !== state.requestSerial || state.activeSourceId !== sourceId) return;
   const editingSource = detail && String(detail.id) === String(id) ? Object.assign(source, detail, { platform: Status.normalizePlatform(detail.platform || source.platform) }) : source;
   const credential = h5Credential(editingSource); state.h5AuthMode = normalizedPlatform(editingSource.platform) === 'bigplayer_h5' && credential.hasPassword ? 'account_password' : 'token';
+  renderDetail(editingSource);
   const requiresStatus = Status.isSocialLoginPlatform(editingSource.platform) || (normalizedPlatform(editingSource.platform) === 'bigplayer_h5' && h5AuthMode(editingSource) === 'account_password');
   if (requiresStatus) { try { cacheLoginStatus(editingSource, await api(`/sources/${editingSource.id}/login-status`)); if (serial !== state.requestSerial || state.activeSourceId !== String(id)) return; const challenge = challengeOf(state.loginStatus); if (challenge) state.challenge = challenge; else if (Status.loginMeta(state.loginStatus).state === 'manual_verification') { try { state.challenge = await api(`/sources/${editingSource.id}/login/challenge`); } catch (_) { /* Status remains visible while challenge retrieval retries. */ } } } catch (error) { if (serial !== state.requestSerial) return; cacheLoginStatus(editingSource, { status: Status.loginStateOf(editingSource), message: error.message }); } }
   if (serial !== state.requestSerial) return; renderDetail(editingSource); $('#drawerMask').classList.add('open'); updateDeepLink(editingSource.id, $('#statusFilter')?.value || ''); startChallengeWork(editingSource);
@@ -827,5 +841,5 @@ function updateAddButton() { const selected = state.scope?.selected?.() || {}; c
 function syncPlatformFilter() { const current = $('#platformFilter').value; const region = state.scope?.selected?.().regionCode || 'domestic'; const items = PublicOpinionScope.platformsForRegion(region); $('#platformFilter').innerHTML = '<option value="">全部平台</option>' + items.map(item => `<option value="${item.value}">${item.label}</option>`).join(''); $('#platformFilter').value = items.some(item => item.value === current) ? current : ''; }
 function bind() { $('#refreshBtn').onclick = load; $('#addBtn').onclick = openCreateDrawer; $('#addBtn').disabled = true; $('#platformFilter').onchange = renderRows; $('#statusFilter').onchange = () => { renderRows(); updateDeepLink('', $('#statusFilter').value); }; $('#rows').onclick = event => { const manage = event.target.closest('[data-manage-source]'); if (manage) return openDrawer(manage.dataset.manageSource); const sync = event.target.closest('[data-sync-source]'); if (sync) return startSync(state.sources.find(source => String(source.id) === String(sync.dataset.syncSource)), sync); }; $('#rows').onchange = event => { const checkbox = event.target.closest('[data-toggle-source]'); if (checkbox) toggleSource(state.sources.find(source => String(source.id) === String(checkbox.dataset.toggleSource)), checkbox); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('pagehide', () => { stopValidationWork(); state.syncRecoverySerial += 1; syncController.stop(false); }); }
 bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: async () => { closeDrawer(); syncPlatformFilter(); updateAddButton(); await loadSources(); openDeepLink(); } }); syncPlatformFilter(); updateAddButton(); await load(); })();
-if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, sourceItems, exactSourceParams, loadSources, openDeepLink, state });
+if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, state });
 if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { parseFacebookPageUrl, facebookCanManage, facebookReady, facebookUnavailableReason, facebookErrorMessage, facebookCapabilityDetail, facebookCapabilityAdvice, facebookStatusFields, facebookInitialSync, facebookForm, facebookFormPayload, facebookFormChanged, renderFacebookDetail, submitFacebookSource, checkFacebookSource, startSync, canSchedule, syncUnavailableReason });
