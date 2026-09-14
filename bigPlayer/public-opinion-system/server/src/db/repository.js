@@ -750,13 +750,48 @@ class Repository {
     for (const row of rows) await this.enqueueTranslationJob(row.id, { targetLanguage, version, contentFingerprint: row.fingerprint, force });
     return rows.length;
   }
-  async claimTranslationJobs({ targetLanguage = 'zh-CN', version = 'translation-v1', leaseOwner, leaseSeconds = 300, limit = 20 } = {}) {
+  async claimTranslationJobs({ targetLanguage = 'zh-CN', version = 'translation-v1', leaseOwner, leaseSeconds = 300, limit = 20, jobId, jobIds, contentIds } = {}) {
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const claimOwner = `${leaseOwner || 'translation'}:${uuid()}`;
+    const normalizeIds = (value, name) => {
+      if (!Array.isArray(value)) {
+        const normalized = String(value == null ? '' : value).trim();
+        if (!normalized) {
+          const error = new Error(`${name} must be a non-empty array`);
+          error.code = 'INVALID_INPUT';
+          throw error;
+        }
+        return [normalized];
+      }
+      const normalized = [...new Set(value.map(item => String(item == null ? '' : item).trim()).filter(Boolean))];
+      if (!normalized.length) {
+        const error = new Error(`${name} must be a non-empty array`);
+        error.code = 'INVALID_INPUT';
+        throw error;
+      }
+      return normalized;
+    };
+    const filters = ["j.target_language=?", "j.translation_version=?", "g.region_code='overseas'", 'c.is_deleted=0', "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", "(j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW()))"];
+    const filterParams = [targetLanguage, version];
+    if (jobId !== undefined && jobIds !== undefined) {
+      const error = new Error('jobId and jobIds are mutually exclusive');
+      error.code = 'INVALID_INPUT';
+      throw error;
+    }
+    if (jobId !== undefined || jobIds !== undefined) {
+      const ids = normalizeIds(jobId !== undefined ? jobId : jobIds, jobId !== undefined ? 'jobId' : 'jobIds');
+      filters.push(`j.id IN (${ids.map(() => '?').join(',')})`);
+      filterParams.push(...ids);
+    }
+    if (contentIds !== undefined) {
+      const ids = normalizeIds(contentIds, 'contentIds');
+      filters.push(`j.content_id IN (${ids.map(() => '?').join(',')})`);
+      filterParams.push(...ids);
+    }
     await this.query(`UPDATE po_translation_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_games g ON g.id=c.game_id
       SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=j.attempts+1, j.error_code=NULL, j.error_message=NULL
-      WHERE j.target_language=? AND j.translation_version=? AND g.region_code='overseas' AND c.is_deleted=0 AND (TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'') AND (j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW()))
-      ORDER BY j.created_at ASC LIMIT ?`, [claimOwner, Number(leaseSeconds), targetLanguage, version, safeLimit]);
+      WHERE ${filters.join(' AND ')}
+      ORDER BY j.created_at ASC LIMIT ?`, [claimOwner, Number(leaseSeconds), ...filterParams, safeLimit]);
     return this.query(`SELECT j.*, c.title, c.body, c.fingerprint, c.content_type, c.game_id, c.community_id, c.source_id, s.platform, g.region_code
       FROM po_translation_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id
       WHERE j.lease_owner=? AND j.status='running' AND j.target_language=? AND j.translation_version=? ORDER BY j.created_at ASC`, [claimOwner, targetLanguage, version]);
