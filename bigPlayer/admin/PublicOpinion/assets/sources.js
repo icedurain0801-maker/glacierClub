@@ -20,7 +20,7 @@ const platformLabel = platform => PLATFORMS[Status.normalizePlatform(platform)] 
 const sourceTypeLabel = source => { const platform = normalizedPlatform(source); if (platform === 'taptap') return '关键词 + 账号'; if (platform === 'bigplayer_h5') return '社区动态'; if (Status.isSocialLoginPlatform(platform)) return '账号内容'; return '平台内容'; };
 const TAPTAP_SUPER_POWER_WORLD_URL = 'https://www.taptap.cn/app/239580/topic?os=android';
 function defaultSourceName(platform, communityId) { const label = platformLabel(platform); const prefix = String(label || platform || '采集源').replace(/\s+/g, ''); const used = new Set(state.sources.filter(source => String(pick(source, 'community_id', 'communityId')) === String(communityId) && normalizedPlatform(source) === platform).map(source => String(pick(source, 'display_name', 'displayName') || '')).filter(Boolean)); for (let index = 1; index <= 999; index += 1) { const candidate = `${prefix}${String(index).padStart(3, '0')}`; if (!used.has(candidate)) return candidate; } return `${prefix}${Date.now()}`; }
-function taptapDefaultUrl(source) { return sourceCommunity(source).name === '超能世界' ? TAPTAP_SUPER_POWER_WORLD_URL : ''; }
+function taptapDefaultUrl(source) { return String(sourceCommunity(source).name || '').includes('超能世界') ? TAPTAP_SUPER_POWER_WORLD_URL : ''; }
 const authLabel = status => Status.authLabel(status);
 const stageLabel = status => ({ idle: '待同步', running: '同步中', paused: '已暂停', completed: '已完成', completed_full: '完整完成', completed_authorized_scope: '授权范围完成', partial: '部分完成', unsupported: '不支持', failed: '失败', unconfigured: '未检测', manual_verification: '待人工验证' }[status] || status || '待同步');
 
@@ -566,7 +566,7 @@ function openCreateDrawer() {
     if (!facebookCanManage(facebookSource)) return toast('当前账号仅有查看权限');
     stopValidationWork({ clearSource: true }); renderFacebookDetail(facebookSource, true); $('#drawerMask').classList.add('open'); return;
   }
-  const source = { community_id: selected.communityId, community_name: selected.communityLabel, platform, display_name: defaultSourceName(platform, selected.communityId), enabled: true, frequency_seconds: platform === 'taptap' ? 21600 : 3600, sync_mode: 'incremental', history_start: '', base_url: platform === 'taptap' ? (selected.communityLabel === '超能世界' ? TAPTAP_SUPER_POWER_WORLD_URL : '') : '' };
+  const source = { community_id: selected.communityId, community_name: selected.communityLabel, platform, display_name: defaultSourceName(platform, selected.communityId), enabled: true, frequency_seconds: platform === 'taptap' ? 21600 : 3600, sync_mode: 'incremental', history_start: '', base_url: platform === 'taptap' ? taptapDefaultUrl({ community_name: selected.communityLabel, community_id: selected.communityId, platform }) : '' };
   if (platform === 'bigplayer_h5' && selected.regionCode === 'overseas' && String(selected.communityId) === OVERSEAS_LAST_NIGHT_COMMUNITY_ID) { source.base_url = OVERSEAS_LAST_NIGHT_BASE_URL; source.start_paths = ['/']; state.h5AuthMode = 'token'; }
   const render = () => {
     const isDiscord = platform === 'discord';
