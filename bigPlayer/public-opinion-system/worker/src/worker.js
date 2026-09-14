@@ -613,8 +613,20 @@ async function runDailyQ1Collection(deps, context) {
     feedScheduler.add(runTask);
   };
   feeds.forEach(scheduleFeed);
-  const shutdownTimeoutMs = Math.max(1, Number(deps.schedulerShutdownTimeoutMs ?? 100));
-  await feedScheduler.idle(shutdownTimeoutMs); await commentScheduler.idle(shutdownTimeoutMs); await replyScheduler.idle(shutdownTimeoutMs);
+  const awaitSchedulerIdle = scheduler => {
+    const signal = deps.leaseGuard?.signal;
+    if (!signal) return scheduler.idle(remainingDeadlineMs(deps));
+    return new Promise((resolve, reject) => {
+      const onAbort = () => { signal.removeEventListener('abort', onAbort); reject(signal.reason || stableError('SYNC_RUN_LEASE_LOST', 'sync run lease was lost')); };
+      if (signal.aborted) return onAbort();
+      signal.addEventListener('abort', onAbort, { once: true });
+      scheduler.idle(remainingDeadlineMs(deps)).then(
+        () => { signal.removeEventListener('abort', onAbort); resolve(); },
+        error => { signal.removeEventListener('abort', onAbort); reject(error); }
+      );
+    });
+  };
+  await awaitSchedulerIdle(feedScheduler); await awaitSchedulerIdle(commentScheduler); await awaitSchedulerIdle(replyScheduler);
   deps.leaseGuard?.check?.();
   if (fatalError) throw fatalError;
 }
