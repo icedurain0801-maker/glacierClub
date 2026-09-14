@@ -1025,6 +1025,69 @@ test('POST /sources/:id/sync 授权失败时不启用也不入队', async () => 
   }
 });
 
+test('Discord check-auth 成功回写 source/account 授权状态后允许 bounded 入队，失败仍保持 fail-closed', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.discord;
+  const sourceId = 'discord-auth-state-route-test';
+  const accountId = 'discord-auth-state-account-test';
+  const credentialId = 'discord-auth-state-credential-test';
+  const originalHealth = connector.accountHealth;
+  const originalStartBoundedSourceBackfill = mod.repo.startBoundedSourceBackfill;
+  let healthResult = { authorized: true, configured: true, reason: null };
+  let healthCalls = 0;
+  let enqueueCalls = 0;
+  connector.accountHealth = async ({ source, account, credentialContext }) => {
+    healthCalls += 1;
+    assert.equal(source.id, sourceId);
+    assert.equal(account.id, accountId);
+    assert.ok(credentialContext);
+    return healthResult;
+  };
+  mod.repo.startBoundedSourceBackfill = async input => {
+    enqueueCalls += 1;
+    assert.deepEqual(input, { sourceId, publishedFrom: '2026-09-07T00:00:00.000Z', publishedTo: '2026-09-14T00:00:00.000Z' });
+    return { enabled: true, reused: false, run: { id: 'discord-auth-state-run', source_id: sourceId, account_id: accountId, status: 'queued', sync_mode: 'backfill', trigger_type: 'manual' } };
+  };
+  try {
+    await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status, config, default_account_id) VALUES (?,?,?,?,?,?,?,?,?)', [sourceId, gameId, 'c-test-1', 'discord', 'Discord 授权状态回归源', 1, 'unauthorized', JSON.stringify({ guildId: '123456789012345678', channelScope: 'all_accessible', channelIds: [], includeReplies: true }), accountId]);
+    await repo.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, 'c-test-1', sourceId, 'discord', 'discord-auth-state-account', 'Discord 授权状态回归账号', 1, 'unauthorized', '{}']);
+    await repo.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_cipher, status) VALUES (?,?,?,?,?,?)', [credentialId, accountId, sourceId, 'api_token', 'test-cipher', 'active']);
+
+    const checked = await api(`/sources/${sourceId}/check-auth`, { method: 'POST', body: '{}' });
+    assert.equal(checked.status, 200);
+    assert.equal(checked.body.data.authStatus, 'authorized');
+    assert.equal(healthCalls, 1);
+    let state = (await repo.query('SELECT auth_status FROM po_sources WHERE id=?', [sourceId]))[0];
+    assert.equal(state.auth_status, 'authorized');
+    state = (await repo.query('SELECT auth_status FROM po_accounts WHERE id=?', [accountId]))[0];
+    assert.equal(state.auth_status, 'authorized');
+
+    const queued = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'backfill', publishedFrom: '2026-09-07T00:00:00.000Z', publishedTo: '2026-09-14T00:00:00.000Z' }) });
+    assert.equal(queued.status, 200);
+    assert.equal(queued.body.data.runId, 'discord-auth-state-run');
+    assert.equal(enqueueCalls, 1);
+
+    healthResult = { authorized: false, configured: false, reason: 'DISCORD_TOKEN_INVALID' };
+    await repo.query('UPDATE po_sources SET auth_status=? WHERE id=?', ['unauthorized', sourceId]);
+    await repo.query('UPDATE po_accounts SET auth_status=? WHERE id=?', ['unauthorized', accountId]);
+    const rejectedCheck = await api(`/sources/${sourceId}/check-auth`, { method: 'POST', body: '{}' });
+    assert.equal(rejectedCheck.status, 200);
+    assert.equal(rejectedCheck.body.data.authStatus, 'unauthorized');
+    const healthCallsBeforeRejectedSync = healthCalls;
+    const rejected = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'backfill', publishedFrom: '2026-09-07T00:00:00.000Z', publishedTo: '2026-09-14T00:00:00.000Z' }) });
+    assert.equal(rejected.status, 409);
+    assert.equal(rejected.body.error.code, 'SOURCE_UNAUTHORIZED');
+    assert.equal(enqueueCalls, 1);
+    assert.equal(healthCalls, healthCallsBeforeRejectedSync, '稳定状态门禁拒绝时不应在 sync 阶段二次探测');
+  } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.startBoundedSourceBackfill = originalStartBoundedSourceBackfill;
+    await repo.query('DELETE FROM po_credentials WHERE id=?', [credentialId]);
+    await repo.query('DELETE FROM po_accounts WHERE id=?', [accountId]);
+    await repo.query('DELETE FROM po_sources WHERE id=?', [sourceId]);
+  }
+});
+
 test('POST /sources/:id/sync lookbackDays=7 persists and returns one DB-anchored exact window without external probes', async () => {
   const mod = require('../src/app');
   const connector = mod.connectors.bigplayer_h5;
