@@ -328,6 +328,28 @@ test('listSyncParents can refresh completed comment checkpoints for daily collec
   assert.doesNotMatch(repo.calls[0].sql, /cp\.status IN \('idle','failed'\)/);
 });
 
+test('claimTranslationJobs supports a strict job/content allowlist', async () => {
+  const repo = stubRepo(sql => sql.startsWith('UPDATE po_translation_jobs') ? { affectedRows: 1 } : []);
+  await repo.claimTranslationJobs({
+    targetLanguage: 'zh-CN', version: 'translation-v1', leaseOwner: 'translation-worker', leaseSeconds: 90, limit: 20,
+    jobId: ' job-1 ', contentIds: [' content-1 ', 'content-1', 'content-2']
+  });
+
+  const claim = repo.calls[0];
+  assert.match(claim.sql, /j\.id IN \(\?\)/);
+  assert.match(claim.sql, /j\.content_id IN \(\?,\?\)/);
+  assert.deepEqual(claim.params.slice(1), [90, 'zh-CN', 'translation-v1', 'job-1', 'content-1', 'content-2', 20]);
+});
+
+test('claimTranslationJobs rejects an explicitly empty allowlist', async () => {
+  const repo = stubRepo(() => ({ affectedRows: 1 }));
+  await assert.rejects(
+    () => repo.claimTranslationJobs({ contentIds: [] }),
+    error => error.code === 'INVALID_INPUT'
+  );
+  assert.equal(repo.calls.length, 0, '空 allowlist 不应触发数据库领取');
+});
+
 test('enqueueMissingAnalysis scopes candidates by region and community', async () => {
   const repo = stubRepo(() => []);
 
