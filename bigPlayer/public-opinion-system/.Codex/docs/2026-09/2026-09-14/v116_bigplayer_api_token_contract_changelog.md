@@ -22,6 +22,7 @@ Last Light BigPlayer 的后台凭据页面和数据库已保存 active `api_toke
 
 - `node --test server/test/connectors.test.js server/test/connectorSlice.test.js server/test/authRefreshCoordinator.test.js`：57/57 通过。
 - 新增 active account `api_token` 解密读取测试，以及无密码凭据时 Q1 401 明确未授权测试。
+- Worker 预检刷新失败映射测试：`node --test worker/test/bigplayerTokenWorkerContract.test.js`，1/1 通过；运行层同样返回 `UNAUTHORIZED`，保持 fail-closed。
 - 未改变调度频率、checkpoint、历史数据、Discord/Facebook 配置；未执行回补、删除、push 或发版。
 
 ## 运行边界
