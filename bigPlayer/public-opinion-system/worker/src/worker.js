@@ -24,6 +24,8 @@ const MANUAL_VERIFICATION_CODES = new Set([
 ]);
 
 function first(item, keys, fallback = null) { for (const key of keys) if (item?.[key] != null) return item[key]; return fallback; }
+function parseSourceAllowlist(value) { const values = Array.isArray(value) ? value : String(value || '').split(','); return [...new Set(values.map(item => String(item || '').trim()).filter(Boolean))]; }
+function requireSourceAllowlist(env = process.env) { const allowlist = parseSourceAllowlist(env.UNIFIED_SOURCE_SCHEDULER_SOURCE_ALLOWLIST || env.UNIFIED_SOURCE_SCHEDULER_ALLOWLIST); if (String(env.UNIFIED_SOURCE_SCHEDULER_MODE || '').trim().toLowerCase() === 'enabled' && !allowlist.length) { const error = new Error('UNIFIED_SOURCE_SCHEDULER_SOURCE_ALLOWLIST must include at least one source id'); error.code = 'UNIFIED_SCHEDULER_SOURCE_ALLOWLIST_REQUIRED'; throw error; } return allowlist; }
 function parseObject(value) { if (!value) return {}; if (typeof value === 'object') return value; try { return JSON.parse(value); } catch { return {}; } }
 function errorCode(error) {
   const nested = error?.cause?.code || error?.details?.cause;
@@ -947,6 +949,7 @@ function buildDeps(env = process.env) {
   const leaseOwner = `${process.pid}-${crypto.randomUUID()}`;
   const unifiedScheduler = {
     mode: schedulerMode(env),
+    sourceAllowlist: parseSourceAllowlist(env.UNIFIED_SOURCE_SCHEDULER_SOURCE_ALLOWLIST || env.UNIFIED_SOURCE_SCHEDULER_ALLOWLIST),
     // 受控生产恢复：指定 source 时禁止统一调度写入，只消费该 source 的 manual run。
     recoverySourceId: String(env.UNIFIED_SCHEDULER_RECOVERY_SOURCE_ID || env.UNIFIED_SOURCE_SCHEDULER_RECOVERY_SOURCE_ID || '').trim() || null,
     connection: repo.pool,
@@ -999,6 +1002,7 @@ async function runUnifiedSchedulerSeam(options = {}) {
   const mode = options.mode || 'off';
   if (mode !== 'shadow' && mode !== 'enabled') return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_OFF' };
   if (mode === 'enabled' && options.recoverySourceId) return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_RECOVERY_MANUAL_ONLY' };
+  const sourceAllowlist = parseSourceAllowlist(options.sourceAllowlist);
   const logger = options.logger || console;
   if (!options.connection || !options.workerId || !options.now || options.connectorCapabilities == null) {
     const error = new Error('connection, workerId, now and connectorCapabilities are required');
@@ -1024,7 +1028,8 @@ async function runUnifiedSchedulerSeam(options = {}) {
       lastProcessedBySource: options.lastProcessedBySource,
       existingEvidence: options.existingEvidence,
       leaseDurationMs: options.leaseDurationMs,
-      idFactory: options.idFactory
+      idFactory: options.idFactory,
+      sourceAllowlist
     });
   } catch (error) {
     logger.error('[worker] unified scheduler failed', error);
@@ -1046,6 +1051,9 @@ async function runBounded(items, limit, operation) {
 }
 async function runOnce(deps = buildDeps()) {
   if (typeof deps.repo.health === 'function') await deps.repo.health();
+  const sourceAllowlist = parseSourceAllowlist(deps.unifiedScheduler?.sourceAllowlist);
+  if (deps.unifiedScheduler?.mode === 'enabled' && Object.prototype.hasOwnProperty.call(deps.unifiedScheduler, 'sourceAllowlist') && !sourceAllowlist.length) throw Object.assign(new Error('UNIFIED_SOURCE_SCHEDULER_SOURCE_ALLOWLIST must include at least one source id'), { code: 'UNIFIED_SCHEDULER_SOURCE_ALLOWLIST_REQUIRED' });
+  const allowed = sourceAllowlist.length ? new Set(sourceAllowlist) : null;
   const recoverySourceId = String(deps.unifiedScheduler?.recoverySourceId || '').trim() || null;
   const allQueued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await deps.repo.listRunnableSyncRuns() : [];
   const queued = recoverySourceId
@@ -1056,24 +1064,24 @@ async function runOnce(deps = buildDeps()) {
       const triggerType = first(run, ['triggerType', 'trigger_type'], null);
       return String(sourceId) === recoverySourceId && triggerType === 'manual';
     })
-    : allQueued;
+    : (allowed ? allQueued.filter(item => allowed.has(String(item.source_id || item.sourceId || item.source?.id || item.source?.source_id || ''))) : allQueued);
   const manual = await deps.repo.listManualDueSources(); const manualRunnable = [];
   for (const source of manual) {
     // 恢复模式只消费已入队的 manual run；marker 不得降级为 legacy 入队，也不清理其他请求。
-    if (recoverySourceId) continue;
+    if (recoverySourceId || (allowed && !allowed.has(String(source.id)))) continue;
     await deps.repo.clearManualRequest(source.id);
     if (source.enabled && source.game_enabled) manualRunnable.push(source);
   }
-  const schedulerResult = await runUnifiedSchedulerSeam({ ...(deps.unifiedScheduler || {}), recoverySourceId });
+  const schedulerResult = await runUnifiedSchedulerSeam({ ...(deps.unifiedScheduler || {}), recoverySourceId, sourceAllowlist });
   const sources = recoverySourceId
     ? []
     : (unifiedSchedulerOwnsPeriodicSources(deps.unifiedScheduler, schedulerResult) ? [] : await deps.repo.listDueSources(new Date())); const work = new Map();
   for (const item of queued) {
     const queuedSource = item.source || item.sourceRecord || item.source_record || { ...item, id: first(item, ['sourceId', 'source_id'], item.id) };
     const syncRun = item.syncRun || item.sync_run || item;
-    if (queuedSource.id != null && !work.has(queuedSource.id)) work.set(queuedSource.id, { source: queuedSource, syncRun });
+    if (queuedSource.id != null && (!allowed || allowed.has(String(queuedSource.id))) && !work.has(queuedSource.id)) work.set(queuedSource.id, { source: queuedSource, syncRun });
   }
-  for (const candidate of [...manualRunnable, ...sources]) if (!work.has(candidate.id)) work.set(candidate.id, { source: candidate, syncRun: null });
+  for (const candidate of [...manualRunnable, ...sources]) if ((!allowed || allowed.has(String(candidate.id))) && !work.has(candidate.id)) work.set(candidate.id, { source: candidate, syncRun: null });
   await runBounded([...work.values()], deps.sourceConcurrency || 1, item => runSource(deps, item.source, item.syncRun));
   if (typeof deps.repo.enqueueMissingAnalysis === 'function'
     && (typeof deps.ai?.configured !== 'function' || deps.ai.configured('light'))) {
@@ -1091,14 +1099,15 @@ if (require.main === module) {
   // （dailyRunner/q1DailyJob）不受影响，它们各自构建并在结束时关闭自己的池。
   try {
     const mode = requireExplicitSchedulerMode(process.env);
+    const sourceAllowlist = requireSourceAllowlist(process.env);
     let sharedDeps = null; let inflight = Promise.resolve();
     const scheduleRun = () => { inflight = inflight.then(async () => { if (!sharedDeps) sharedDeps = buildDeps(); await runOnce(sharedDeps); }).catch(error => console.error('[worker] status=failed errorCode=', errorCode(error))); return inflight; };
     scheduleRun();
     setInterval(scheduleRun, interval);
-    console.log(`public-opinion-worker mode=${mode} scanning due sources every ${interval}ms`);
+    console.log(`public-opinion-worker mode=${mode} sourceAllowlist=${sourceAllowlist.join(',')} scanning due sources every ${interval}ms`);
   } catch (error) {
     console.error(`[worker] status=failed errorCode=${error.code || 'UNIFIED_SCHEDULER_MODE_INVALID'}`);
     process.exitCode = 1;
   }
 }
-module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, assertCanonicalCommunityScope, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, safeErrorMessage, isManualVerification, runBounded, runUnifiedSchedulerSeam, schedulerMode, requireExplicitSchedulerMode };
+module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, assertCanonicalCommunityScope, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, safeErrorMessage, isManualVerification, runBounded, runUnifiedSchedulerSeam, schedulerMode, requireExplicitSchedulerMode, parseSourceAllowlist, requireSourceAllowlist };

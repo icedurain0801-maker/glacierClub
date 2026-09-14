@@ -9,9 +9,10 @@ async function runUnifiedSourceSchedulerOnce({
   lastProcessedBySource = {},
   existingEvidence = [],
   leaseDurationMs,
-  idFactory
+  idFactory,
+  sourceAllowlist
 } = {}) {
-  const loader = createSchedulerCandidateLoader(connection);
+  const loader = createSchedulerCandidateLoader(connection, { sourceAllowlist });
 
   let candidates;
   try {

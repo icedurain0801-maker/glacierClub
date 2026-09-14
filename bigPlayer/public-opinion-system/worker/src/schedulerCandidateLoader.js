@@ -1,9 +1,11 @@
-function createSchedulerCandidateLoader(connection) {
+function createSchedulerCandidateLoader(connection, { sourceAllowlist = null } = {}) {
   if (!connection || typeof connection.query !== 'function') {
     throw new TypeError('connection.query is required');
   }
 
   async function load() {
+    const allowlist = Array.isArray(sourceAllowlist) ? [...new Set(sourceAllowlist.map(value => String(value || '').trim()).filter(Boolean))] : null;
+    const where = allowlist ? ` WHERE s.id IN (${allowlist.map(() => '?').join(',')})` : '';
     const [rows] = await connection.query(
       `SELECT
          s.id AS source_id,
@@ -33,8 +35,9 @@ function createSchedulerCandidateLoader(connection) {
        LEFT JOIN po_games g ON g.id=s.game_id
        LEFT JOIN po_communities c ON c.id=s.community_id
        LEFT JOIN po_accounts a ON a.id=s.default_account_id
+       ${where}
        ORDER BY s.id ASC`,
-      []
+      allowlist || []
     );
 
     const sources = [];

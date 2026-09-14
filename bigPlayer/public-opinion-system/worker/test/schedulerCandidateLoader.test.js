@@ -92,6 +92,15 @@ test('returns explicit empty collections for an empty result set', async () => {
   assert.deepEqual(result, { sources: [], accounts: [] });
 });
 
+test('filters scheduler candidates in SQL to the configured source allowlist', async () => {
+  const calls = [];
+  const connection = { async query(sql, params) { calls.push({ sql: compact(sql), params }); return [[row({ source_id: 'source-bigplayer' })]]; } };
+  const result = await createSchedulerCandidateLoader(connection, { sourceAllowlist: ['source-bigplayer', 'source-discord', 'source-bigplayer'] }).load();
+  assert.match(calls[0].sql, /WHERE s\.id IN \(\?,\?\)/);
+  assert.deepEqual(calls[0].params, ['source-bigplayer', 'source-discord']);
+  assert.deepEqual(result.sources.map(item => item.id), ['source-bigplayer']);
+});
+
 test('preserves missing and inconsistent default accounts for runtime rejection without fallback', async () => {
   const rows = [
     row({
