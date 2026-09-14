@@ -1160,7 +1160,7 @@ async function handler(req, res) {
         requestedBaseUrl = normalizeFacebookPageUrl(requestedBaseUrl);
       }
 
-      const frequencySeconds = Number(body.frequencySeconds ?? 3600);
+      const frequencySeconds = Number(body.frequencySeconds ?? (platform === 'taptap' ? 21600 : 3600));
       const frequencyError = validateFrequencySeconds(platform, frequencySeconds);
       if (frequencyError) return json(res, 400, errorPayload('INVALID_INPUT', frequencyError));
       const scheduleTimeError = validateScheduleTime(platform, body.scheduleTime, frequencySeconds);
@@ -1201,6 +1201,8 @@ async function handler(req, res) {
         discordConfig = discordSourceConfig(body, { historyStart: body.historyStart || null, syncMode });
       }
       if (platform === 'taptap') {
+        const urlError = validateBaseUrl(platform, requestedBaseUrl);
+        if (urlError) return json(res, 400, errorPayload('URL_OUTSIDE_ALLOWED_HOSTS', urlError));
         const invalidAcc = validateTaptapAccountIds(body.accountIds);
         if (invalidAcc) return json(res, 400, errorPayload('INVALID_INPUT', invalidAcc));
         const invalidGrp = validateTaptapGroupIds(body.groupIds);
@@ -1320,7 +1322,9 @@ async function handler(req, res) {
         if (type !== 'api_token') return json(res, 400, errorPayload('INVALID_CREDENTIALS', 'Facebook 仅支持 api_token 凭据'));
       }
 
-      const frequencySeconds = Number(body.frequencySeconds);
+      const frequencySeconds = currentSource.platform === 'taptap' && body.frequencySeconds == null
+        ? Number(currentSource.frequency_seconds)
+        : Number(body.frequencySeconds);
       const frequencyError = validateFrequencySeconds(currentSource.platform, frequencySeconds);
       if (frequencyError) return json(res, 400, errorPayload('INVALID_INPUT', frequencyError));
       const scheduleTimeError = validateScheduleTime(currentSource.platform, body.scheduleTime, frequencySeconds);
@@ -1338,7 +1342,7 @@ async function handler(req, res) {
         if (invalidGrp) return json(res, 400, errorPayload('INVALID_INPUT', invalidGrp));
         taptapAccountIds = normalizeTaptapAccountIds(body.accountIds);
         taptapGroupIds = normalizeTaptapGroupIds(body.groupIds);
-        if (!taptapAccountIds.length && !taptapGroupIds.length) return json(res, 400, errorPayload('INVALID_INPUT', 'TapTap 采集源必须配置至少一个监控账号 ID 或社区组 ID'));
+        if (body.accountIds !== undefined && body.groupIds !== undefined && !taptapAccountIds.length && !taptapGroupIds.length) return json(res, 400, errorPayload('INVALID_INPUT', 'TapTap 采集源必须配置至少一个监控账号 ID 或社区组 ID'));
       }
       if (body.enabled === true && !currentSource.enabled) {
         await communityDirectory.requireEnabled({ communityId: currentSource.community_id, gameId: currentSource.game_id, regionCode: currentSource.region_code });
@@ -1348,7 +1352,7 @@ async function handler(req, res) {
       const requestedConfigurationUrl = body.baseUrl ?? parseConfig(currentSource.config).baseUrl;
       const invalidUrl = currentSource.platform === 'bigplayer_h5'
         ? (westernSource ? validateWesternSourceUrl(requestedConfigurationUrl, { allowedHosts: westernAllowedHosts() }) : validateBaseUrl('bigplayer_h5', body.baseUrl))
-        : currentSource.platform === 'facebook' ? validateFacebookPageUrl(requestedConfigurationUrl) : null;
+        : currentSource.platform === 'facebook' ? validateFacebookPageUrl(requestedConfigurationUrl) : currentSource.platform === 'taptap' ? validateBaseUrl('taptap', requestedConfigurationUrl) : null;
       if (invalidUrl) return json(res, 400, errorPayload(currentSource.platform === 'facebook' ? 'FACEBOOK_URL_INVALID' : 'URL_OUTSIDE_ALLOWED_HOSTS', invalidUrl));
       let encryptedCredential = null; let credential = null;
       if (body.credential != null && (typeof body.credential !== 'object' || Object.keys(body.credential).length > 0)) {
