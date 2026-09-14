@@ -19,6 +19,11 @@ owner: 开发负责人
 
 ## 验证
 
-- `worker` 调度定向测试：52/52 通过。
+- `worker` 调度定向测试：53/53 通过。
 - 覆盖过期 lease 恢复槽位、Last Light 合格来源入选，以及 disabled/unauthorized/incomplete 来源拒绝。
 - 未改变频率、历史数据、checkpoint 或 Discord/Facebook 配置；未执行回补、删除、push 或发版。
+
+## 运行记录
+
+- 受控替换正式 Worker 后，Last Light BigPlayer 创建 scheduled catchup run `748175c1-4a6d-4570-b742-40cf114da8a9`，状态表恢复为 `last_scheduled_at=2026-09-14 07:00:00`、`next_scheduled_at=2026-09-14 08:00:00`。
+- 该 run 被 Worker 消费后以 `AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED` 失败结束，`discovered_count=0`、`stored_count=0`。这证明调度未遗漏该 source 且运行时凭据门禁 fail-closed；source/account 的数据库 `authorized` 标记不足以替代可用的账号密码凭据。
