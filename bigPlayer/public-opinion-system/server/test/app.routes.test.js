@@ -523,6 +523,18 @@ test('PATCH /sources/:id/configuration 原子保存 H5 配置并支持空凭据�
   assert.ok(!JSON.stringify(res.body).includes(before));
   const after = (await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', ['a-test-1', 'api_token']))[0].secret_cipher;
   assert.equal(after, before);
+  const legacyHistoryStart = '2026-08-01T00:00:00Z';
+  await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', syncMode: 'backfill', historyStart: legacyHistoryStart }), sourceId]);
+  await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ syncMode: 'backfill', historyStart: legacyHistoryStart }), 'a-test-1']);
+  const preserved = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 基础配置', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 3600, credential: {} }) });
+  assert.equal(preserved.status, 200, '基础配置保存不应要求历史回溯字段');
+  assert.equal(preserved.body.data.display_name, 'H5 基础配置');
+  const preservedSourceConfig = JSON.parse((await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config);
+  const preservedAccountMetadata = JSON.parse((await repo.query('SELECT metadata FROM po_accounts WHERE id=?', ['a-test-1']))[0].metadata);
+  assert.deepEqual({ syncMode: preservedSourceConfig.syncMode, historyStart: preservedSourceConfig.historyStart }, { syncMode: 'backfill', historyStart: legacyHistoryStart });
+  assert.deepEqual({ syncMode: preservedAccountMetadata.syncMode, historyStart: preservedAccountMetadata.historyStart }, { syncMode: 'backfill', historyStart: legacyHistoryStart });
+  await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', syncMode: 'incremental', historyStart: null }), sourceId]);
+  await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ syncMode: 'incremental', historyStart: null }), 'a-test-1']);
 });
 test('PATCH /sources/:id 非法频率返回 400', async () => {
   const res = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds: -5 }) });
@@ -1262,7 +1274,7 @@ test('POST /sources 拒绝不存在游戏、未知平台、非法频率和缺失
   assert.equal(noHistory.status, 400);
 });
 
-test('POST /sources 白名单内 baseUrl + Token 新增成功（enabled 默认 0，config 落 URL+起始路径）', async () => {
+test('POST /sources 白名单内 baseUrl + Token 新增成功（BigPlayer 默认启用，config 落 URL+起始路径）', async () => {
   const token = 'single-url-token';
   const res = await api('/sources', { method: 'POST', body: JSON.stringify({
     gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '新增社区源',
@@ -1270,7 +1282,7 @@ test('POST /sources 白名单内 baseUrl + Token 新增成功（enabled 默认 0
   }) });
   assert.equal(res.status, 201);
   assert.equal(res.body.data.display_name, '新增社区源');
-  assert.equal(res.body.data.enabled, 0, '新增源默认停用，需配凭据+授权后才启用');
+  assert.equal(res.body.data.enabled, 1, '新增 BigPlayer 源默认启用');
   assert.match(res.body.data.account.platform_account_id, /^pending:/);
   const cfg = typeof res.body.data.config === 'string' ? JSON.parse(res.body.data.config) : res.body.data.config;
   assert.equal(cfg.baseUrl, 'https://community.bigplayer.com/');
@@ -1295,7 +1307,7 @@ test('POST /sources 接管未配置 legacy H5 源并复用 source/account ID', a
   assert.equal(res.body.data.account.id, legacyAccountId);
   const sources = await repo.query('SELECT id, enabled, config FROM po_sources WHERE game_id=? AND platform=? AND display_name=?', [gameId, 'bigplayer_h5', '待接管社区源']);
   assert.equal(sources.length, 1);
-  assert.equal(sources[0].enabled, 0);
+  assert.equal(sources[0].enabled, 1);
   assert.equal(JSON.parse(sources[0].config).baseUrl, 'https://community.bigplayer.com/');
   const credentials = await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', [legacyAccountId, 'api_token']);
   assert.equal(credentials.length, 1);

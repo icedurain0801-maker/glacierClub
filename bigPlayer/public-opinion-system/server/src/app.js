@@ -1093,7 +1093,7 @@ async function handler(req, res) {
 
     // ── A4 写接口：采集源配置 / 凭据 / 授权检测 / 手动采集 / 关键词规则 ──
 
-    // 新增采集源：白名单校验 baseUrl 后落库；enabled 默认 0，需再配凭据+检测授权才启用。
+    // 新增 BigPlayer 采集源：白名单校验 baseUrl 后落库；默认启用，但不创建立即同步任务。
     if (req.method === 'POST' && resource === 'sources' && id && path[2] === 'import' && path.length === 3) {
       requireImportToken(req);
       let body;
@@ -1248,7 +1248,7 @@ async function handler(req, res) {
         scheduleTime: normalizeScheduleTime(body.scheduleTime),
         frequencySeconds, activeWindow: body.activeWindow,
         platformAccountId: body.platformAccountId ? String(body.platformAccountId).trim() : undefined,
-        accountName: body.accountName || displayName, accountType: body.accountType || 'official', accountEnabled: platform !== 'facebook',
+        accountName: body.accountName || displayName, accountType: body.accountType || 'official', sourceEnabled: platform === 'bigplayer_h5' ? body.enabled !== false : false, accountEnabled: platform !== 'facebook',
         authStatus: platform === 'facebook' ? 'unauthorized' : westernSource ? (body.apiToken ? 'configured_unverified' : 'unconfigured') : credentialType === 'account_password' ? 'pending_verification' : 'unconfigured', maskedLoginIdentifier: isSocialPlatform(platform) ? maskPhone(body.phone) : credentialType === 'account_password' ? maskLoginIdentifier(h5Account) : null,
         metadata: { syncMode, historyStart: body.historyStart || null }, credentialType, secretCipher
       };
@@ -1325,9 +1325,9 @@ async function handler(req, res) {
       if (frequencyError) return json(res, 400, errorPayload('INVALID_INPUT', frequencyError));
       const scheduleTimeError = validateScheduleTime(currentSource.platform, body.scheduleTime, frequencySeconds);
       if (scheduleTimeError) return json(res, 400, errorPayload('INVALID_INPUT', scheduleTimeError));
-      if (!SYNC_MODES.has(body.syncMode)) return json(res, 400, errorPayload('INVALID_INPUT', 'syncMode must be incremental or backfill'));
+      if (body.syncMode !== undefined && !SYNC_MODES.has(body.syncMode)) return json(res, 400, errorPayload('INVALID_INPUT', 'syncMode must be incremental or backfill'));
       if (body.syncMode === 'backfill' && !body.historyStart) return json(res, 400, errorPayload('INVALID_INPUT', '历史回溯必须填写 historyStart'));
-      if (typeof body.enabled !== 'boolean') return json(res, 400, errorPayload('INVALID_INPUT', 'enabled must be boolean'));
+      if (body.enabled !== undefined && typeof body.enabled !== 'boolean') return json(res, 400, errorPayload('INVALID_INPUT', 'enabled must be boolean'));
       let taptapAccountIds;
       let taptapGroupIds;
       if (currentSource.platform === 'taptap') {
@@ -1340,7 +1340,7 @@ async function handler(req, res) {
         taptapGroupIds = normalizeTaptapGroupIds(body.groupIds);
         if (!taptapAccountIds.length && !taptapGroupIds.length) return json(res, 400, errorPayload('INVALID_INPUT', 'TapTap 采集源必须配置至少一个监控账号 ID 或社区组 ID'));
       }
-      if (body.enabled && !currentSource.enabled) {
+      if (body.enabled === true && !currentSource.enabled) {
         await communityDirectory.requireEnabled({ communityId: currentSource.community_id, gameId: currentSource.game_id, regionCode: currentSource.region_code });
         await requireAuthorizedAccount(currentSource);
         await requireFacebookCapabilitiesReady(currentSource);
@@ -1370,7 +1370,7 @@ async function handler(req, res) {
       }
       const discordConfigPatch = currentSource.platform === 'discord' ? discordSourceConfig(body, {}) : undefined;
       const updatedBaseUrl = body.baseUrl == null ? undefined : currentSource.platform === 'facebook' ? normalizeFacebookPageUrl(body.baseUrl) : String(body.baseUrl).trim();
-      const updated = await repo.updateSourceConfiguration(id, { displayName: String(body.displayName).trim(), baseUrl: updatedBaseUrl, frequencySeconds, syncMode: body.syncMode, historyStart: body.historyStart || null, enabled: body.enabled, credential, credentialCipher: encryptedCredential, accountIds: taptapAccountIds, groupIds: taptapGroupIds, discordConfig: discordConfigPatch, scheduleTime: currentSource.platform === 'taptap' ? normalizeScheduleTime(body.scheduleTime) : undefined });
+      const updated = await repo.updateSourceConfiguration(id, { displayName: String(body.displayName).trim(), baseUrl: updatedBaseUrl, frequencySeconds, syncMode: body.syncMode, historyStart: body.historyStart, enabled: body.enabled, credential, credentialCipher: encryptedCredential, accountIds: taptapAccountIds, groupIds: taptapGroupIds, discordConfig: discordConfigPatch, scheduleTime: currentSource.platform === 'taptap' ? normalizeScheduleTime(body.scheduleTime) : undefined });
       return json(res, 200, success(await sourceWithAccount(updated.source)));
     }
 

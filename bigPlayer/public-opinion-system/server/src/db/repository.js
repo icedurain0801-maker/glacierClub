@@ -1603,7 +1603,7 @@ class Repository {
   async listManualDueSources() { return this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND s.collect_requested_at IS NOT NULL AND ${NOT_DELETED} ORDER BY s.collect_requested_at ASC`); }
   async clearManualRequest(sourceId) { await this.query('UPDATE po_sources SET collect_requested_at=NULL WHERE id=?', [sourceId]); }
 
-  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, discordConfig, frequencySeconds = 3600, activeWindow, accountName, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
+  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, discordConfig, frequencySeconds = 3600, activeWindow, accountName, sourceEnabled = false, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
     const config = { baseUrl: baseUrl || '', startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(editionScope ? { editionScope } : {}), ...(board ? { board } : {}), ...(postsApiUrl ? { postsApiUrl } : {}), ...(commentsApiUrl ? { commentsApiUrl } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}) };
     const conn = await this.pool.getConnection();
     try {
@@ -1616,7 +1616,7 @@ class Repository {
       const currentConfig = parseConfig(source.config);
       const adoptable = account && String(account.platform_account_id || '').startsWith('legacy-source:') && !String(currentConfig.baseUrl || '').trim() && source.auth_status !== 'authorized';
       if (!adoptable) { const error = new Error('source already exists'); error.code = 'SOURCE_ALREADY_EXISTS'; throw error; }
-      await conn.query('UPDATE po_sources SET source_type=?, display_name=?, enabled=0, frequency_seconds=?, config=?, active_window=?, auth_status=\'unconfigured\', auth_expire_at=NULL, updated_at=NOW() WHERE id=?', [sourceType, displayName, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null, sourceId]);
+      await conn.query('UPDATE po_sources SET source_type=?, display_name=?, enabled=?, frequency_seconds=?, config=?, active_window=?, auth_status=\'unconfigured\', auth_expire_at=NULL, updated_at=NOW() WHERE id=?', [sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null, sourceId]);
       await conn.query('UPDATE po_accounts SET account_name=?, enabled=1, auth_status=\'unconfigured\', auth_expire_at=NULL, metadata=?, updated_at=NOW() WHERE id=?', [accountName || displayName, JSON.stringify(metadata || {}), accountId]);
       if (credentialType && secretCipher) await conn.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status) VALUES (?,?,?,?,?,?,\'active\') ON DUPLICATE KEY UPDATE secret_cipher=VALUES(secret_cipher), secret_ref=\'\', status=\'active\', failure_reason=NULL, last_checked_at=NOW(), updated_at=NOW()', [uuid(), accountId, sourceId, credentialType, '', secretCipher]);
       await conn.commit();
@@ -1625,7 +1625,7 @@ class Repository {
   }
 
   // 新增采集源与默认账号使用同一事务，避免 OAuth 源创建后没有可授权账号。
-  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 3600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
+  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 3600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
     const config = {
       baseUrl: baseUrl || '',
       startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'],
@@ -1646,7 +1646,7 @@ class Repository {
         ((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND column_name IN ('default_account_id','schedule_version','schedule_effective_at'))=3
           AND EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state')) AS unified_scheduler_ready`);
       const unifiedSchedulerReady = Number(schedulerSchemaRows?.[0]?.unified_scheduler_ready) === 1;
-      await conn.query('INSERT INTO po_sources (id, game_id, community_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?,?)', [sourceId, gameId, communityId, platform, sourceType, displayName, 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
+      await conn.query('INSERT INTO po_sources (id, game_id, community_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?,?)', [sourceId, gameId, communityId, platform, sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
       if (maskedLoginIdentifier) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, masked_login_identifier, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, maskedLoginIdentifier, JSON.stringify(metadata || {})]);
       else if (communityId) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
       else await conn.query('INSERT INTO po_accounts (id, game_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
@@ -1663,11 +1663,11 @@ class Repository {
     return { source: (await this.query('SELECT * FROM po_sources WHERE id=?', [sourceId]))[0] || null, account: await this.getAccount(accountId) };
   }
 
-  // 新增采集源：config 写 { baseUrl, startPaths, board }；enabled 默认 0（需配凭据+检测授权后才启用）。
-  async createSource({ gameId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, frequencySeconds = 3600, activeWindow } = {}) {
+  // 新增采集源：config 写 { baseUrl, startPaths, board }；默认启用，不创建立即同步任务。
+  async createSource({ gameId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, frequencySeconds = 3600, activeWindow, sourceEnabled = true } = {}) {
     const id = uuid();
     const config = { baseUrl: baseUrl || '', startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(board ? { board } : {}) };
-    await this.query('INSERT INTO po_sources (id, game_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId, platform, sourceType, displayName, 0, Number(frequencySeconds) || 3600, JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
+    await this.query('INSERT INTO po_sources (id, game_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId, platform, sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds) || 3600, JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
     return (await this.query('SELECT * FROM po_sources WHERE id=?', [id]))[0] || null;
   }
 
@@ -1750,11 +1750,12 @@ class Repository {
       const [accountRows] = await conn.query('SELECT * FROM po_accounts WHERE source_id=? AND enabled=1 ORDER BY updated_at DESC, id ASC LIMIT 1 FOR UPDATE', [sourceId]);
       const account = accountRows[0];
       if (!account) { const error = new Error('default account not found'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
-      // scheduleTime（HH:mm 北京时间）：仅在 frequencySeconds=86400（每天 1 次）时有意义；显式传 null 清除，undefined 保持不变。
-      const nextConfig = { ...parseConfig(source.config), ...(baseUrl === undefined ? {} : { baseUrl }), syncMode, historyStart: historyStart || null, ...(Array.isArray(accountIds) ? { accountIds } : {}), ...(Array.isArray(groupIds) ? { groupIds } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}), ...(scheduleTime === undefined ? {} : scheduleTime ? { scheduleTime } : { scheduleTime: null }) };
+      // 基础配置省略同步策略时保留既有元数据，避免保存站点或频率误改历史回溯语义。
+      const sourceConfig = parseConfig(source.config); const accountMetadata = parseConfig(account.metadata);
+      const nextConfig = { ...sourceConfig, ...(baseUrl === undefined ? {} : { baseUrl }), ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }), ...(Array.isArray(accountIds) ? { accountIds } : {}), ...(Array.isArray(groupIds) ? { groupIds } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}), ...(scheduleTime === undefined ? {} : scheduleTime ? { scheduleTime } : { scheduleTime: null }) };
       const targetChanged = facebookTargetChanged(source, baseUrl);
-      await conn.query('UPDATE po_sources SET display_name=?, enabled=?, frequency_seconds=?, config=?, updated_at=NOW() WHERE id=?', [displayName, targetChanged ? 0 : (enabled ? 1 : 0), Number(frequencySeconds), JSON.stringify(nextConfig), sourceId]);
-      const metadata = { ...parseConfig(account.metadata), syncMode, historyStart: historyStart || null };
+      await conn.query('UPDATE po_sources SET display_name=?, enabled=?, frequency_seconds=?, config=?, updated_at=NOW() WHERE id=?', [displayName, targetChanged ? 0 : (enabled === undefined ? source.enabled : enabled ? 1 : 0), Number(frequencySeconds), JSON.stringify(nextConfig), sourceId]);
+      const metadata = { ...accountMetadata, ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }) };
       await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata), account.id]);
       if (credentialCipher) {
         await conn.query(`INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status)
