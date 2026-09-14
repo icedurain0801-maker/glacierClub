@@ -24,6 +24,8 @@ function row(overrides = {}) {
     schedule_effective_at: '2026-09-09 02:00:00.000',
     schedule_version: 4,
     active_window: '{"days":[2],"start":"01:00","end":"04:00"}',
+    last_scheduled_at: '2026-09-08 18:00:00.000',
+    next_scheduled_at: '2026-09-08 19:00:00.000',
     account_id: 'account-1',
     account_source_id: 'source-1',
     account_game_id: 'game-1',
@@ -71,7 +73,9 @@ test('loads scheduler candidates with one deterministic default-account join', a
       frequency_seconds: 3600,
       schedule_effective_at: '2026-09-09 02:00:00.000',
       schedule_version: 4,
-      active_window: '{"days":[2],"start":"01:00","end":"04:00"}'
+      active_window: '{"days":[2],"start":"01:00","end":"04:00"}',
+      last_scheduled_at: '2026-09-08 18:00:00.000',
+      next_scheduled_at: '2026-09-08 19:00:00.000'
     }],
     accounts: [{
       id: 'account-1',

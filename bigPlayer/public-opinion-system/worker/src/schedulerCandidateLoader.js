@@ -23,6 +23,8 @@ function createSchedulerCandidateLoader(connection, { sourceAllowlist = null } =
          s.schedule_effective_at,
          s.schedule_version,
          s.active_window,
+         st.last_scheduled_at,
+         st.next_scheduled_at,
          a.id AS account_id,
          a.source_id AS account_source_id,
          a.game_id AS account_game_id,
@@ -35,6 +37,7 @@ function createSchedulerCandidateLoader(connection, { sourceAllowlist = null } =
        LEFT JOIN po_games g ON g.id=s.game_id
        LEFT JOIN po_communities c ON c.id=s.community_id
        LEFT JOIN po_accounts a ON a.id=s.default_account_id
+       LEFT JOIN po_source_schedule_state st ON st.source_id=s.id
        ${where}
        ORDER BY s.id ASC`,
       allowlist || []
@@ -60,6 +63,8 @@ function createSchedulerCandidateLoader(connection, { sourceAllowlist = null } =
         schedule_version: row.schedule_version,
         active_window: row.active_window
       });
+      if (row.last_scheduled_at != null) sources[sources.length - 1].last_scheduled_at = row.last_scheduled_at;
+      if (row.next_scheduled_at != null) sources[sources.length - 1].next_scheduled_at = row.next_scheduled_at;
 
       if (row.account_id != null && !accountsById.has(row.account_id)) {
         accountsById.set(row.account_id, {

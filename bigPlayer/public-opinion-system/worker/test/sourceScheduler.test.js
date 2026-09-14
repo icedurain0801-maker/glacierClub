@@ -69,6 +69,21 @@ test('schedules domestic BigPlayer and overseas Discord through the same decisio
   assert.ok(inputs.enqueued.every(item => item.scheduledAt === '2026-01-01T19:00:00.000Z'));
 });
 
+test('admits Last Light BigPlayer after stale state recovery and advances its next slot', async () => {
+  const inputs = deps({
+    accounts: [account({ id: 'last-light-account', source_id: '081a16d2-5545-4afd-9c65-e04777e4540b', game_id: 'last-light-game', community_id: '00000000-0000-0000-0000-000000000102', platform: 'bigplayer_h5' })],
+    connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } }
+  });
+  const result = await scheduleSources({
+    sources: [source({ id: '081a16d2-5545-4afd-9c65-e04777e4540b', default_account_id: 'last-light-account', game_id: 'last-light-game', community_id: '00000000-0000-0000-0000-000000000102', region_code: 'overseas', platform: 'bigplayer_h5', schedule_effective_at: '2025-12-31T18:00:01.000Z' })],
+    now: NOW,
+    ...inputs
+  });
+  assert.equal(result.decisions[0].status, 'enqueued');
+  assert.equal(result.decisions[0].sourceId, '081a16d2-5545-4afd-9c65-e04777e4540b');
+  assert.equal(result.decisions[0].nextSlotAt, '2026-01-01T20:00:00.000Z');
+});
+
 test('scheduled BigPlayer catchup carries a bounded seven-day UTC window', async () => {
   const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
   const result = await scheduleSources({ sources: [source({ platform: 'bigplayer_h5' })], now: NOW, ...inputs });

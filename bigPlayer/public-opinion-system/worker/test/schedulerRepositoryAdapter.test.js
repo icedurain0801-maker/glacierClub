@@ -46,6 +46,24 @@ function lease(overrides = {}) {
   };
 }
 
+test('expired lease acquisition restores the schedule state slot atomically', async () => {
+  const connection = fakeConnection((call, index) => index === 0
+    ? [{ affectedRows: 1 }]
+    : [[{ lease_epoch: 8 }]]);
+  const adapter = createSchedulerRepositoryAdapter(connection);
+  await adapter.acquireLease({
+    ...lease(),
+    scheduledAt: '2026-09-08T18:00:00.000Z',
+    nextSlotAt: '2026-09-08T19:00:00.000Z'
+  });
+  assert.match(connection.calls[0].sql, /last_scheduled_at=\?, next_scheduled_at=\?/);
+  assert.deepEqual(connection.calls[0].params, [
+    'run-new', 'scheduler-a', '2026-09-08 18:04:00.000',
+    '2026-09-08 18:00:00.000', '2026-09-08 19:00:00.000',
+    'source-1', '2026-09-08 17:59:00.000'
+  ]);
+});
+
 test('scheduled enqueue inserts first and returns the winning run for a new slot', async () => {
   const connection = fakeConnection((call, index) => index === 0
     ? [{ affectedRows: 1 }]

@@ -62,18 +62,22 @@ function createSchedulerRepositoryAdapter(connection) {
     return { created, runId: winningRunId, existingRunId: created ? null : winningRunId };
   }
 
-  async function acquireLease({ sourceId, runId, ownerId, now, leaseUntil } = {}) {
+  async function acquireLease({ sourceId, runId, ownerId, now, leaseUntil, scheduledAt, nextSlotAt } = {}) {
     const nowDb = toMariaDbDateTime(now, { name: 'now' });
     const leaseUntilDb = toMariaDbDateTime(leaseUntil, { name: 'leaseUntil' });
+    const hasScheduleState = scheduledAt != null && nextSlotAt != null;
+    const scheduledAtDb = hasScheduleState ? toMariaDbDateTime(scheduledAt, { name: 'scheduledAt' }) : null;
+    const nextSlotAtDb = hasScheduleState ? toMariaDbDateTime(nextSlotAt, { name: 'nextSlotAt' }) : null;
+    const stateSet = hasScheduleState ? ', last_scheduled_at=?, next_scheduled_at=?' : '';
     const [result] = await connection.query(
       `UPDATE po_source_schedule_state s
-       SET lease_run_id=?, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=?
+       SET lease_run_id=?, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=?${stateSet}
        WHERE s.source_id=? AND (lease_until IS NULL OR lease_until<=?)
          AND NOT EXISTS (
            SELECT 1 FROM po_sync_runs r
            WHERE r.source_id=s.source_id AND r.status IN ('queued','running')
          )`,
-      [runId, ownerId, leaseUntilDb, sourceId, nowDb]
+      [runId, ownerId, leaseUntilDb, ...(hasScheduleState ? [scheduledAtDb, nextSlotAtDb] : []), sourceId, nowDb]
     );
     if (result?.affectedRows !== 1) return { acquired: false, leaseToken: null };
 

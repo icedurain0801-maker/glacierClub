@@ -49,7 +49,9 @@ function createSourceSchedulerRuntime({
           runId,
           ownerId: workerId,
           now,
-          leaseUntil
+          leaseUntil,
+          scheduledAt: intent.scheduledAt,
+          nextSlotAt: intent.nextSlotAt
         });
         if (lease?.leaseToken) attempt.leaseEpoch = lease.leaseToken.epoch;
         return lease;

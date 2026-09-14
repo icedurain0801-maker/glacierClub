@@ -36,7 +36,9 @@ async function runUnifiedSourceSchedulerOnce({
     accounts: candidates.accounts,
     connectorCapabilities,
     now,
-    lastProcessedBySource,
+    lastProcessedBySource: lastProcessedBySource && Object.keys(lastProcessedBySource).length
+      ? lastProcessedBySource
+      : Object.fromEntries(candidates.sources.map(source => [source.id, source.last_scheduled_at]).filter(([, value]) => value)),
     existingEvidence
   });
 
