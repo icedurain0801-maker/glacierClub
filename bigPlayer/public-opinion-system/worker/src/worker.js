@@ -1000,7 +1000,7 @@ async function runUnifiedSchedulerSeam(options = {}) {
   const mode = options.mode || 'off';
   if (mode !== 'shadow' && mode !== 'enabled') return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_OFF' };
   if (mode === 'enabled' && options.recoverySourceId) return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_RECOVERY_MANUAL_ONLY' };
-  const sourceAllowlist = parseSourceAllowlist(options.sourceAllowlist);
+  const sourceAllowlist = options.sourceAllowlist == null ? null : parseSourceAllowlist(options.sourceAllowlist);
   const logger = options.logger || console;
   if (!options.connection || !options.workerId || !options.now || options.connectorCapabilities == null) {
     const error = new Error('connection, workerId, now and connectorCapabilities are required');
