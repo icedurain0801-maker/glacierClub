@@ -60,6 +60,10 @@ function isAuthFailure(error) {
 }
 function isManualVerification(error) { return MANUAL_VERIFICATION_CODES.has(errorCode(error)) || ['awaiting_manual_verification', 'manual_verification'].includes(String(error?.status || error?.code || '')) || errorCode(error) === 'AUTH_REFRESH_CHALLENGE_REQUIRED'; }
 function preflightError(code, message, details = {}) { const error = new Error(message); error.code = code; error.details = details; return error; }
+function normalizeAuthRefreshFailure(error) {
+  if (error?.code !== 'AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED') return error;
+  return preflightError('UNAUTHORIZED', 'Q1 API token was rejected; reauthorization is required', { cause: error.code });
+}
 async function defaultQ1Preflight({ source, account, connector, credentialContext, ai, probe = true } = {}) {
   if (!source?.id) throw preflightError('SOURCE_NOT_CONFIGURED', 'Q1 source is required');
   if (!account?.id) throw preflightError('ACCOUNT_NOT_CONFIGURED', 'Q1 account is required');
@@ -85,7 +89,8 @@ async function runQ1Preflight(options = {}) {
     catch (error) {
       if (!retried && isAuthFailure(error) && typeof refreshAuth === 'function') {
         retried = true;
-        await refreshAuth({ source: options.source, account: options.account });
+        try { await refreshAuth({ source: options.source, account: options.account }); }
+        catch (refreshError) { throw normalizeAuthRefreshFailure(refreshError); }
         continue;
       }
       throw error;
