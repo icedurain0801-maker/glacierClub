@@ -69,6 +69,23 @@ test('schedules domestic BigPlayer and overseas Discord through the same decisio
   assert.ok(inputs.enqueued.every(item => item.scheduledAt === '2026-01-01T19:00:00.000Z'));
 });
 
+test('scheduled BigPlayer catchup carries a bounded seven-day UTC window', async () => {
+  const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+  const result = await scheduleSources({ sources: [source({ platform: 'bigplayer_h5' })], now: NOW, ...inputs });
+  const intent = inputs.enqueued[0];
+  assert.equal(result.decisions[0].status, 'enqueued');
+  assert.equal(Date.parse(intent.windowEndAt), NOW.getTime());
+  assert.equal(Date.parse(intent.windowEndAt) - Date.parse(intent.windowStartAt), 7 * 24 * 60 * 60 * 1000);
+});
+
+test('non-BigPlayer scheduled sources keep their connector-defined window', async () => {
+  const inputs = deps({ accounts: [account({ platform: 'discord' })] });
+  const result = await scheduleSources({ sources: [source({ platform: 'discord' })], now: NOW, ...inputs });
+  assert.equal(result.decisions[0].status, 'enqueued');
+  assert.equal(inputs.enqueued[0].windowStartAt, null);
+  assert.equal(inputs.enqueued[0].windowEndAt, null);
+});
+
 test('returns stable enablement and region rejection reasons', async () => {
   const inputs = deps();
   const sources = [

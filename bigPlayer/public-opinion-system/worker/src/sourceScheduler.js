@@ -76,6 +76,12 @@ function activeWindowAllows(activeWindow, now) {
 function rejected(source, reasonCode) {
   return { sourceId: source.id, status: 'rejected', reasonCode, triggerType: null, scheduledAt: null };
 }
+function boundedWindowFor(source, schedule, now) {
+  if (schedule.window) return schedule.window;
+  if (source.platform !== 'bigplayer_h5' || !['scheduled', 'scheduled_catchup'].includes(schedule.triggerType)) return null;
+  const end = now.getTime();
+  return { windowStartAt: new Date(end - 7 * 24 * 60 * 60 * 1000).toISOString(), windowEndAt: new Date(end).toISOString() };
+}
 
 function sourceEligibility(source, account, capability, now) {
   if (!source.enabled) return 'SOURCE_DISABLED';
@@ -142,6 +148,7 @@ async function scheduleSources({
       continue;
     }
 
+    const boundedWindow = boundedWindowFor(source, schedule, now);
     const intent = {
       sourceId: source.id,
       accountId: account.id,
@@ -150,8 +157,8 @@ async function scheduleSources({
       triggerType: schedule.triggerType,
       scheduledAt: schedule.dueSlotAt,
       nextSlotAt: schedule.nextSlotAt,
-      windowStartAt: schedule.window?.windowStartAt || null,
-      windowEndAt: schedule.window?.windowEndAt || null,
+      windowStartAt: boundedWindow?.windowStartAt || null,
+      windowEndAt: boundedWindow?.windowEndAt || null,
       scheduleVersion: Number(source.schedule_version || 1),
       idempotencyKey: `${source.id}:${schedule.dueSlotAt}`
     };
