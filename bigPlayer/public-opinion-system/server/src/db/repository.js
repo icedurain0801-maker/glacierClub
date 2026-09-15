@@ -1638,7 +1638,7 @@ class Repository {
   async listManualDueSources() { return this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND s.collect_requested_at IS NOT NULL AND ${NOT_DELETED} ORDER BY s.collect_requested_at ASC`); }
   async clearManualRequest(sourceId) { await this.query('UPDATE po_sources SET collect_requested_at=NULL WHERE id=?', [sourceId]); }
 
-  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, discordConfig, frequencySeconds = 3600, activeWindow, accountName, sourceEnabled = false, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
+  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, discordConfig, frequencySeconds = 21600, activeWindow, accountName, sourceEnabled = false, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
     const config = { baseUrl: baseUrl || '', startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(editionScope ? { editionScope } : {}), ...(board ? { board } : {}), ...(postsApiUrl ? { postsApiUrl } : {}), ...(commentsApiUrl ? { commentsApiUrl } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}) };
     const conn = await this.pool.getConnection();
     try {
@@ -1660,7 +1660,7 @@ class Repository {
   }
 
   // 新增采集源与默认账号使用同一事务，避免 OAuth 源创建后没有可授权账号。
-  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 3600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
+  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 21600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
     const config = {
       baseUrl: baseUrl || '',
       startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'],
@@ -1699,10 +1699,10 @@ class Repository {
   }
 
   // 新增采集源：config 写 { baseUrl, startPaths, board }；默认启用，不创建立即同步任务。
-  async createSource({ gameId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, frequencySeconds = 3600, activeWindow, sourceEnabled = true } = {}) {
+  async createSource({ gameId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, frequencySeconds = 21600, activeWindow, sourceEnabled = true } = {}) {
     const id = uuid();
     const config = { baseUrl: baseUrl || '', startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(board ? { board } : {}) };
-    await this.query('INSERT INTO po_sources (id, game_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId, platform, sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds) || 3600, JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
+    await this.query('INSERT INTO po_sources (id, game_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId, platform, sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds) || 21600, JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
     return (await this.query('SELECT * FROM po_sources WHERE id=?', [id]))[0] || null;
   }
 
