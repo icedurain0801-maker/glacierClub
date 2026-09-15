@@ -384,16 +384,15 @@ async function requireEnabledCommunityForSource(source) {
 }
 async function sourceWithAccount(source) {
   if (!source) return null;
-  let accounts = []; try { accounts = await repo.listAccounts({ sourceId: source.id }); } catch (error) { if (error.code !== 'ER_NO_SUCH_TABLE') throw error; }
+  const listAccounts = repo.listAccounts({ sourceId: source.id }).catch(error => { if (error.code === 'ER_NO_SUCH_TABLE') return []; throw error; });
+  const listCapabilities = repo.listSourceCapabilities(source.id).catch(error => { if (error.code === 'ER_NO_SUCH_TABLE') return []; throw error; });
+  const [accounts, persisted] = await Promise.all([listAccounts, listCapabilities]);
   const account = (source.default_account_id ? accounts.find(item => String(item.id) === String(source.default_account_id)) : null) || accounts[0] || null;
-  const checkpoints = account ? await repo.getSyncStatus({ accountId: account.id }) : [];
-  const credentials = account && !isFacebookSource(source) ? await repo.getAccountCredentialSummary(account.id) : [];
+  const [checkpoints, credentials] = account
+    ? await Promise.all([repo.getSyncStatus({ accountId: account.id }), account && !isFacebookSource(source) ? repo.getAccountCredentialSummary(account.id) : Promise.resolve([])])
+    : [[], []];
   const connector = connectors[source.platform]; let capabilities = {};
   let systemCredentialStatus;
-  let persisted = [];
-  try {
-    persisted = await repo.listSourceCapabilities(source.id);
-  } catch (error) { if (error.code !== 'ER_NO_SUCH_TABLE') throw error; }
   if (isFacebookSource(source)) {
     const pageRow = persisted.find(item => item.capability === 'page');
     const pageDetail = parseConfig(pageRow?.detail);
