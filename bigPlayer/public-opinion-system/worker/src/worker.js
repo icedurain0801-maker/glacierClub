@@ -468,7 +468,8 @@ async function syncStage(deps, { source, account, connector, credential, session
   const { syncScope, checkpointRoot } = stageIdentity({ scope, rootPlatformContentId, taskKind, taskKey });
   const checkpoint = await deps.repo.claimSyncCheckpoint({ accountId: account.id, syncScope, rootPlatformContentId: checkpointRoot, syncMode, taskKind, taskKey, ...checkpointWindow(deps.collectionWindow), leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds });
   if (!checkpoint) return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', skipped: true };
-  const stage = { source, account, connector, credential, activeSessionRef: sessionRef, scope, rootPlatformContentId, postPlatformId, historyStart, syncMode, syncRunId, taskKind, taskKey, keyword, feed, commentId, sortType, syncScope, checkpointRoot, checkpoint, cursor: checkpoint.cursor ?? null, capability: 'authorized_scope', effectiveUpdatedSince: updatedSince || first(checkpoint, ['last_item_at', 'lastItemAt'], first(account, ['last_incremental_sync_at', 'lastIncrementalSyncAt'])) };
+  const restartTapTapOwnedIncremental = source.platform === 'taptap' && taskKind === 'owned_content' && syncMode === 'incremental';
+  const stage = { source, account, connector, credential, activeSessionRef: sessionRef, scope, rootPlatformContentId, postPlatformId, historyStart, syncMode, syncRunId, taskKind, taskKey, keyword, feed, commentId, sortType, syncScope, checkpointRoot, checkpoint, cursor: restartTapTapOwnedIncremental ? null : (checkpoint.cursor ?? null), capability: 'authorized_scope', effectiveUpdatedSince: updatedSince || first(checkpoint, ['last_item_at', 'lastItemAt'], first(account, ['last_incremental_sync_at', 'lastIncrementalSyncAt'])) };
   let discovered = 0; let stored = 0; let completed = false; const entries = []; const replyTargets = [];
   try {
     for (let pageNo = 0; pageNo < deps.pageBudget; pageNo += 1) {
