@@ -552,18 +552,10 @@ function normalizeTaptapAccountIds(value) {
   const raw = Array.isArray(value) ? value.map(String) : String(value || '').split(/[,，\n\r]+/);
   return [...new Set(raw.map(item => item.trim()).filter(item => /^\d+$/.test(item)))];
 }
-// 平台采集频率下限（秒）：TapTap 免登采集最低 2 小时（自限流 800ms/页 + 告警滑窗语义），其他平台保持 15 分钟档下限。
-const MIN_FREQUENCY_SECONDS = { taptap: 7200 };
-const DEFAULT_MIN_FREQUENCY_SECONDS = 900;
-function minFrequencySeconds(platform) { return MIN_FREQUENCY_SECONDS[normalizePlatform(platform)] || DEFAULT_MIN_FREQUENCY_SECONDS; }
+const SOURCE_FREQUENCY_SECONDS = new Set([3600, 21600, 86400]);
+const DEFAULT_SOURCE_FREQUENCY_SECONDS = 21600;
 function validateFrequencySeconds(platform, value) {
-  const min = minFrequencySeconds(platform);
-  if (!Number.isInteger(value) || value <= 0) return 'frequencySeconds 须为正整数';
-  if (value < min) {
-    const label = min >= 3600 ? `${Math.round(min / 3600)} 小时` : `${Math.round(min / 60)} 分钟`;
-    return `frequencySeconds 不能低于 ${label}（${min} 秒），当前平台允许的最小采集频率为 ${label}`;
-  }
-  return null;
+  return SOURCE_FREQUENCY_SECONDS.has(Number(value)) ? null : 'frequencySeconds 仅支持 3600、21600 或 86400 秒';
 }
 // 每日定时时刻 HH:mm（北京时间）：frequencySeconds=86400 时生效，存 po_sources.config.schedule_time。
 function validateScheduleTime(platform, value, frequencySeconds) {
@@ -1159,7 +1151,7 @@ async function handler(req, res) {
         requestedBaseUrl = normalizeFacebookPageUrl(requestedBaseUrl);
       }
 
-      const frequencySeconds = Number(body.frequencySeconds ?? (platform === 'taptap' ? 21600 : 3600));
+      const frequencySeconds = Number(body.frequencySeconds ?? DEFAULT_SOURCE_FREQUENCY_SECONDS);
       const frequencyError = validateFrequencySeconds(platform, frequencySeconds);
       if (frequencyError) return json(res, 400, errorPayload('INVALID_INPUT', frequencyError));
       const scheduleTimeError = validateScheduleTime(platform, body.scheduleTime, frequencySeconds);
