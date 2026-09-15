@@ -123,7 +123,8 @@ function loadSourcesHarness(fetch) {
 
 test('基础配置保存不再携带启用开关或历史回溯字段', () => {
   const sourceText = fs.readFileSync(require.resolve('./sources.js'), 'utf8');
-  assert.match(sourceText, /const patch = \{ displayName: \$\('#cfgName'\)\.value\.trim\(\) \}; if \(!taptap\) patch\.frequencySeconds/);
+  assert.match(sourceText, /const patch = \{ displayName: \$\('#cfgName'\)\.value\.trim\(\), frequencySeconds: Number\(\$\('#cfgFreq'\)\.value\) \}/);
+  assert.doesNotMatch(sourceText, /if \(!taptap\) patch\.frequencySeconds/);
   assert.doesNotMatch(sourceText, /const selectedMode = \$\('#cfgSyncMode'\)/);
   assert.doesNotMatch(sourceText, /const patch = \{ displayName:.*enabled: \$\('#cfgEnabled'\)\.checked/);
 });
@@ -147,7 +148,7 @@ test('详情请求超时后主动中止并返回明确错误', async () => {
   assert.equal(calls, 1);
 });
 
-test('TapTap 仅展示网页地址并按社区填充默认 URL', () => {
+test('TapTap 仅展示网页地址和统一采集频率，并按社区填充默认 URL', () => {
   const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
   const superWorld = { platform: 'taptap', community_name: '超能世界国服版', display_name: 'TapTap001', config: {} };
   const other = { platform: 'taptap', community_name: '其他社区', display_name: 'TapTap002', config: {} };
@@ -156,7 +157,31 @@ test('TapTap 仅展示网页地址并按社区填充默认 URL', () => {
   assert.equal(api.taptapDefaultUrl(other), '');
   assert.match(panel, /id="cfgBaseUrl"/);
   assert.doesNotMatch(panel, /cfgAccountId|cfgFreq|cfgScheduleTime/);
-  assert.doesNotMatch(api.commonFields(superWorld, false), /cfgAccountId|cfgFreq|cfgScheduleTime/);
+  const fields = api.commonFields(superWorld, false);
+  assert.match(fields, /id="cfgFreq"/);
+  assert.doesNotMatch(fields, /cfgAccountId|cfgScheduleTime/);
+});
+
+test('所有采集源频率仅提供三档、默认 6 小时并正确回显', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const optionValues = html => [...html.matchAll(/<option value="(\d+)"/g)].map(match => Number(match[1]));
+  const cases = [
+    [{ platform: 'taptap', community_name: '超能世界国服版' }, 21600],
+    [{ platform: 'bigplayer_h5', community_name: 'Last Night', frequency_seconds: 3600 }, 3600]
+  ];
+  for (const [source, selected] of cases) {
+    const html = api.frequencySelect(source);
+    assert.deepEqual(optionValues(html), [3600, 21600, 86400]);
+    assert.match(html, new RegExp(`<option value="${selected}" selected>`));
+  }
+  const facebookForm = api.facebookForm({ platform: 'facebook', community_name: 'Last Night', frequency_seconds: 86400, canManage: true }, false);
+  const facebookFrequency = facebookForm.match(/<select class="input" id="cfgFreq"[^>]*>([\s\S]*?)<\/select>/)?.[1] || '';
+  assert.deepEqual(optionValues(facebookFrequency), [3600, 21600, 86400]);
+  assert.match(facebookFrequency, /<option value="86400" selected>1 天<\/option>/);
+  assert.equal(api.normalizedFrequency(900), 21600);
+  assert.equal(api.normalizedFrequency(43200), 21600);
+  const sourceText = fs.readFileSync(require.resolve('./sources.js'), 'utf8');
+  assert.match(sourceText, /SOURCE_FREQUENCIES\.find\(\(\[value\]\) => value === frequency\)\?\.\[1\] \|\| `\$\{frequency\} 秒`/);
 });
 
 test('列表启用开关仅提交来源 enabled 字段', async () => {
