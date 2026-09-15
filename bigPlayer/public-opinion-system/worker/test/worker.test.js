@@ -964,6 +964,37 @@ test('分页根阶段优先 listOwnedContents，并传递 metadata 同步边界'
   assert.equal(claims[0].taskKey, 'owned');
 });
 
+test('TapTap 增量 owned_content 从首页启动且不影响回填、其他平台和评论游标', async () => {
+  const cases = [
+    { name: 'TapTap incremental owned_content', platform: 'taptap', scope: 'posts', syncMode: 'incremental', taskKind: 'owned_content', expectedCursor: null },
+    { name: 'TapTap backfill owned_content', platform: 'taptap', scope: 'posts', syncMode: 'backfill', taskKind: 'owned_content', expectedCursor: 'deep-page' },
+    { name: 'other platform incremental owned_content', platform: 'xiaohongshu', scope: 'posts', syncMode: 'incremental', taskKind: 'owned_content', expectedCursor: 'deep-page' },
+    { name: 'TapTap incremental comments', platform: 'taptap', scope: 'comments', syncMode: 'incremental', taskKind: 'comments', expectedCursor: 'deep-page' }
+  ];
+
+  for (const item of cases) {
+    const calls = [];
+    const repo = {
+      async claimSyncCheckpoint() { return { id: `cp-${item.name}`, cursor: 'deep-page' }; },
+      async upsertContentPage() { return { contents: [], storedCount: 0 }; },
+      async releaseSyncCheckpoint() {}
+    };
+    const connector = {
+      async listOwnedContents(input) { calls.push(input); return { items: [], nextCursor: null, hasMore: false }; },
+      async listComments(input) { calls.push(input); return { items: [], nextCursor: null, hasMore: false }; }
+    };
+
+    await syncStage({ repo, leaseOwner: 'w1', leaseSeconds: 60, pageBudget: 1, pageSize: 10 }, {
+      source: { ...source, platform: item.platform }, account: { id: 'a1' }, connector,
+      scope: item.scope, rootPlatformContentId: item.scope === 'comments' ? 'post-1' : '',
+      syncMode: item.syncMode, taskKind: item.taskKind
+    });
+
+    assert.equal(calls.length, 1, item.name);
+    assert.equal(calls[0].cursor, item.expectedCursor, item.name);
+  }
+});
+
 test('关键词搜索为每条有效规则建立独立 taskKind/taskKey stage', async () => {
   const claims = []; const searches = [];
   const repo = makeRepo();
