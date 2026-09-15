@@ -1050,7 +1050,7 @@ test('createSourceWithAccount 在同一事务创建源与默认账号', async ()
     async beginTransaction() { executed.push({ sql: 'BEGIN' }); }, async commit() { executed.push({ sql: 'COMMIT' }); }, async rollback() { executed.push({ sql: 'ROLLBACK' }); }, release() {}
   };
   repo.pool = { async getConnection() { return conn; }, async query(sql) { if (sql.includes('FROM po_sources')) return [[{ id: 's1' }]]; if (sql.includes('FROM po_accounts')) return [[{ id: 'a1' }]]; return [[]]; } };
-  const result = await repo.createSourceWithAccount({ gameId: 'g1', platform: 'douyin', displayName: '官方号', repliesApiUrl: 'https://legacy.example/replies', frequencySeconds: 1800, metadata: { syncMode: 'incremental' } });
+  const result = await repo.createSourceWithAccount({ gameId: 'g1', platform: 'douyin', displayName: '官方号', repliesApiUrl: 'https://legacy.example/replies', frequencySeconds: 21600, metadata: { syncMode: 'incremental' } });
   assert.equal(result.source.id, 's1'); assert.equal(result.account.id, 'a1');
   const sourceInsert = executed.find(call => call.sql.startsWith('INSERT INTO po_sources'));
   assert.ok(sourceInsert);
@@ -1075,6 +1075,8 @@ test('createSourceWithAccount 在 migration 023 后原子回写默认账号和�
   };
   repo.pool = { async getConnection() { return conn; }, async query(sql) { if (sql.includes('FROM po_sources')) return [[{ id: 's-new' }]]; if (sql.includes('FROM po_accounts')) return [[{ id: 'a-new' }]]; return [[]]; } };
   await repo.createSourceWithAccount({ sourceId: 's-new', accountId: 'a-new', gameId: 'g1', communityId: 'c1', platform: 'bigplayer_h5', displayName: 'BigPlayer' });
+  const sourceInsert = executed.find(call => call.sql.startsWith('INSERT INTO po_sources'));
+  assert.equal(sourceInsert.params[7], 21600);
   const defaultAccount = executed.find(call => call.sql.startsWith('UPDATE po_sources SET default_account_id='));
   assert.deepEqual(defaultAccount.params, ['a-new', 's-new']);
   const scheduleState = executed.find(call => call.sql.startsWith('INSERT INTO po_source_schedule_state'));
@@ -1091,7 +1093,7 @@ test('createSourceWithAccount 账号插入失败时回滚源创建', async () =>
     async beginTransaction() { executed.push({ sql: 'BEGIN' }); }, async commit() { executed.push({ sql: 'COMMIT' }); }, async rollback() { executed.push({ sql: 'ROLLBACK' }); }, release() {}
   };
   repo.pool = { async getConnection() { return conn; } };
-  await assert.rejects(() => repo.createSourceWithAccount({ gameId: 'g1', platform: 'douyin', displayName: '官方号', frequencySeconds: 1800 }), /account insert failed/);
+  await assert.rejects(() => repo.createSourceWithAccount({ gameId: 'g1', platform: 'douyin', displayName: '官方号', frequencySeconds: 21600 }), /account insert failed/);
   assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
   assert.ok(!executed.some(call => call.sql === 'COMMIT'));
 });
