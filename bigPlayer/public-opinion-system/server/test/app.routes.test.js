@@ -28,7 +28,7 @@ test.before(async () => {
   repo = new Repository();
   // 建库 + 灌入最小 schema（复用迁移脚本不现实——这里是测试库，直接建两张要用的表即可）。
   await repo.query('CREATE TABLE IF NOT EXISTS po_games (id VARCHAR(64) PRIMARY KEY, name VARCHAR(120), kind VARCHAR(20) DEFAULT \'owned\', enabled TINYINT DEFAULT 1, dingtalk_webhook_ref VARCHAR(120), created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
-  await repo.query('CREATE TABLE IF NOT EXISTS po_sources (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), community_id VARCHAR(64) NULL, platform VARCHAR(40), source_type VARCHAR(20) DEFAULT \'owned_community\', display_name VARCHAR(120), enabled TINYINT DEFAULT 0, frequency_seconds INT DEFAULT 1800, config TEXT NULL, active_window TEXT NULL, auth_status VARCHAR(20) DEFAULT \'unconfigured\', auth_expire_at DATETIME NULL, collect_requested_at DATETIME NULL, last_success_at DATETIME NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
+  await repo.query('CREATE TABLE IF NOT EXISTS po_sources (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), community_id VARCHAR(64) NULL, platform VARCHAR(40), source_type VARCHAR(20) DEFAULT \'owned_community\', display_name VARCHAR(120), enabled TINYINT DEFAULT 0, frequency_seconds INT DEFAULT 21600, config TEXT NULL, active_window TEXT NULL, auth_status VARCHAR(20) DEFAULT \'unconfigured\', auth_expire_at DATETIME NULL, collect_requested_at DATETIME NULL, last_success_at DATETIME NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   await repo.query('CREATE TABLE IF NOT EXISTS po_communities (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64) NOT NULL, name VARCHAR(160) NOT NULL, status VARCHAR(20) DEFAULT \'enabled\', sort_order INT DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY po_communities_test_game_name_uk (game_id, name))');
   await repo.query('ALTER TABLE po_games ADD COLUMN IF NOT EXISTS region_code VARCHAR(20) NOT NULL DEFAULT \'domestic\'');
   await repo.query('ALTER TABLE po_sources ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
@@ -468,12 +468,17 @@ test('sync status hides historical replies checkpoints', async () => {
 
 test('PATCH /sources/:id 更新采集频率 preserves historical reply config but does not expose it', async () => {
   const before = (await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config;
-  const res = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds: 900 }) });
-  assert.equal(res.status, 200);
-  assert.equal(res.body.data.frequency_seconds, 900);
-  const belowFloor = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds: 600 }) });
-  assert.equal(belowFloor.status, 400);
-  assert.equal(belowFloor.body.error.code, 'INVALID_INPUT');
+  let res;
+  for (const frequencySeconds of [3600, 21600, 86400]) {
+    res = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds }) });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.frequency_seconds, frequencySeconds);
+  }
+  for (const frequencySeconds of [900, 1800, 7200, 43200]) {
+    const rejected = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds }) });
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.body.error.code, 'INVALID_INPUT');
+  }
   const responseConfig = typeof res.body.data.config === 'string' ? JSON.parse(res.body.data.config) : res.body.data.config;
   assert.equal(responseConfig.repliesApiUrl, undefined);
   const after = (await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config;
@@ -517,9 +522,10 @@ test('legacy PATCH repliesApiUrl is accepted and ignored while posts/comments re
 
 test('PATCH /sources/:id/configuration 原子保存 H5 配置并支持空凭据保留', async () => {
   const before = (await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', ['a-test-1', 'api_token']))[0].secret_cipher;
-  const res = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 原子配置', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 900, syncMode: 'incremental', historyStart: null, enabled: false, credential: {} }) });
+  const res = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 原子配置', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 21600, syncMode: 'incremental', historyStart: null, enabled: false, credential: {} }) });
   assert.equal(res.status, 200);
   assert.equal(res.body.data.display_name, 'H5 原子配置');
+  assert.equal(res.body.data.frequency_seconds, 21600);
   assert.ok(!JSON.stringify(res.body).includes(before));
   const after = (await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', ['a-test-1', 'api_token']))[0].secret_cipher;
   assert.equal(after, before);
@@ -891,7 +897,7 @@ test('BigPlayer source and account configuration APIs reject legacy backfill sta
   const beforeAccount = (await repo.query('SELECT metadata FROM po_accounts WHERE id=?', ['a-test-1']))[0];
   const attempts = [
     ['/sources', { gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: uniqueSourceId, syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' }],
-    [`/sources/${sourceId}/configuration`, { displayName: 'blocked', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 900, syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z', enabled: false, credential: {} }],
+    [`/sources/${sourceId}/configuration`, { displayName: 'blocked', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 21600, syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z', enabled: false, credential: {} }],
     [`/sources/${sourceId}`, { syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' }],
     ['/accounts', { sourceId, platform: 'bigplayer_h5', platformAccountId: uniqueAccountId, accountName: 'blocked', metadata: { syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' } }],
     ['/accounts/a-test-1', { metadata: { syncMode: 'backfill', historyStart: '2026-01-01T00:00:00Z' } }]
@@ -1266,7 +1272,7 @@ test('PUT /keyword-rules 拒绝空组 / 重复词 / 非法阈值', async () => {
 // ── 采集源 CRUD：新增（白名单校验）/ 软删除 ──
 
 test('POST /sources 创建抖音源并原子生成待验证默认账号与加密凭据', async () => {
-  const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'douyin', displayName: '测试抖音官方号', frequencySeconds: 1800, syncMode: 'backfill', historyStart: '2026-08-01T00:00', phone: '13800138000', password: 'test-password', confirmPassword: 'test-password' }) });
+  const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'douyin', displayName: '测试抖音官方号', frequencySeconds: 21600, syncMode: 'backfill', historyStart: '2026-08-01T00:00', phone: '13800138000', password: 'test-password', confirmPassword: 'test-password' }) });
   assert.equal(res.status, 201);
   assert.equal(res.body.data.platform, 'douyin');
   assert.ok(res.body.data.account, '响应应包含默认账号');
@@ -1292,7 +1298,7 @@ test('POST /sources Discord 缺少加密密钥时返回明确 503 且不写入�
     communityId: 'c-test-1',
     platform: 'discord',
     displayName,
-    frequencySeconds: 1800,
+    frequencySeconds: 21600,
     guildId: '123456789012345678',
     channelIds: ['223456789012345678'],
     apiToken: token
@@ -1346,6 +1352,7 @@ test('POST /sources 白名单内 baseUrl + Token 新增成功（BigPlayer 默认
   assert.equal(res.status, 201);
   assert.equal(res.body.data.display_name, '新增社区源');
   assert.equal(res.body.data.enabled, 1, '新增 BigPlayer 源默认启用');
+  assert.equal(res.body.data.frequency_seconds, 21600, '新增采集源默认 6 小时');
   assert.match(res.body.data.account.platform_account_id, /^pending:/);
   const cfg = typeof res.body.data.config === 'string' ? JSON.parse(res.body.data.config) : res.body.data.config;
   assert.equal(cfg.baseUrl, 'https://community.bigplayer.com/');
