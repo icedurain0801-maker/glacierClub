@@ -87,6 +87,7 @@ function loadSourcesHarness(fetch) {
     console,
     URL: class TestURL extends URL { constructor(input, base = 'http://127.0.0.1') { super(input, base); } },
     URLSearchParams,
+    AbortController,
     setTimeout,
     clearTimeout,
     setInterval,
@@ -125,6 +126,25 @@ test('基础配置保存不再携带启用开关或历史回溯字段', () => {
   assert.match(sourceText, /const patch = \{ displayName: \$\('#cfgName'\)\.value\.trim\(\) \}; if \(!taptap\) patch\.frequencySeconds/);
   assert.doesNotMatch(sourceText, /const selectedMode = \$\('#cfgSyncMode'\)/);
   assert.doesNotMatch(sourceText, /const patch = \{ displayName:.*enabled: \$\('#cfgEnabled'\)\.checked/);
+});
+
+test('详情抽屉请求具备单击去重与超时兜底', () => {
+  const sourceText = fs.readFileSync(require.resolve('./sources.js'), 'utf8');
+  assert.match(sourceText, /DETAIL_REQUEST_TIMEOUT_MS = 8000/);
+  assert.match(sourceText, /controller\.abort\(\)/);
+  assert.match(sourceText, /state\.activeSourceId === sourceId && \$\('#drawerMask'\)\?\.classList\.contains\('open'\)/);
+  assert.match(sourceText, /详情加载超时，请稍后重试/);
+  assert.match(sourceText, /drawer-loading-body.*100dvh.*align-items:center;justify-content:center/);
+});
+
+test('详情请求超时后主动中止并返回明确错误', async () => {
+  let calls = 0;
+  const { api } = loadSourcesHarness((_url, options = {}) => new Promise((_resolve, reject) => {
+    calls += 1;
+    options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+  }));
+  await assert.rejects(api.fetchSourceDetail('slow-source', 5), error => error.code === 'DETAIL_LOAD_TIMEOUT' && /详情加载超时/.test(error.message));
+  assert.equal(calls, 1);
 });
 
 test('TapTap 仅展示网页地址并按社区填充默认 URL', () => {
@@ -251,6 +271,7 @@ test('管理首击立即打开加载态，详情慢响应回填且失败显示�
   assert.equal(await duplicate, undefined);
   detail.resolve(source);
   await opening;
+  assert.equal(calls, 1);
   assert.match(elements.get('#drawerContent').innerHTML, /慢详情源/);
 
   await api.openDrawer(failedSource.id);
