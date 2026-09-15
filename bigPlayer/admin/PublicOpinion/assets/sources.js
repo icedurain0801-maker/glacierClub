@@ -4,7 +4,8 @@ const OVERSEAS_LAST_NIGHT_BASE_URL = 'https://club-en.q1.com/?env=web&gameId=217
 const FACEBOOK_DEFAULT_URL = 'https://www.facebook.com/LastLightSurvival';
 const FACEBOOK_ALL_HISTORY_START = '1970-01-01T00:00:00.000Z';
 const FACEBOOK_CAPABILITIES = [['page', '主页身份'], ['pageManagement', 'Page 管理授权'], ['moderate', 'MODERATE 能力'], ['posts', '帖子列表与分页'], ['comments', '评论列表与分页'], ['replies', '回复列表与分页']];
-const FACEBOOK_FREQUENCIES = [[900, '15 分钟'], [1800, '30 分钟'], [3600, '60 分钟'], [7200, '2 小时'], [86400, '每天 1 次']];
+const SOURCE_FREQUENCIES = [[3600, '1 小时'], [21600, '6 小时'], [86400, '1 天']];
+const DEFAULT_SOURCE_FREQUENCY_SECONDS = 21600;
 const isOverseasLastNight = source => String(source?.community_id || source?.communityId) === OVERSEAS_LAST_NIGHT_COMMUNITY_ID;
 const Status = window.SourceStatus;
 const SyncProgress = window.SourceSyncProgress;
@@ -175,7 +176,7 @@ function facebookStatusFields(source, creating) {
 function facebookForm(source, creating) {
   const writable = facebookCanManage(source); const ready = facebookReady(source); const selected = state.scope?.selected?.() || {};
   const scopeLabel = [pick(source, 'region_name', 'regionName') || selected.regionLabel || '境外', pick(source, 'community_name', 'communityName') || selected.communityLabel || 'Last Night'].join(' / ');
-  const initial = facebookInitialSync(source); const frequency = Number(pick(source, 'frequency_seconds', 'frequencySeconds') || 3600);
+  const initial = facebookInitialSync(source); const frequency = normalizedFrequency(pick(source, 'frequency_seconds', 'frequencySeconds'));
   const nextRun = pick(source, 'next_scheduled_at', 'nextScheduledAt');
   return `<form id="facebookSourceForm" class="facebook-source-form" novalidate><div class="drawer-body">
     ${!writable ? '<div class="notice">当前账号仅有查看权限，可查看脱敏配置和检测结果。</div>' : ''}
@@ -196,7 +197,7 @@ function facebookForm(source, creating) {
     <section class="detail-block"><h3 class="detail-label">历史与调度</h3>
       <div class="field"><label for="cfgFacebookInitialSync">首次同步</label><select class="input" id="cfgFacebookInitialSync" ${writable ? '' : 'disabled'}>${[['all', '回溯授权范围内全部历史'], ['since', '从指定日期开始'], ['incremental', '仅从现在开始增量']].map(([value, label]) => `<option value="${value}" ${value === initial ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
       <div class="field" id="facebookHistoryField" ${initial === 'since' ? '' : 'hidden'}><label for="cfgHistoryStart">历史起始日期<span class="required">*</span></label><input class="input" id="cfgHistoryStart" type="date" max="${facebookToday()}" value="${initial === 'since' ? esc(facebookDateOf(historyStartOf(source))) : ''}" ${writable && initial === 'since' ? '' : 'disabled'}><div class="subline">以北京时间零点为起点，不得晚于今天。</div></div>
-      <div class="field"><label for="cfgFreq">采集频率</label><select class="input" id="cfgFreq" ${writable ? '' : 'disabled'}>${FACEBOOK_FREQUENCIES.map(([value, label]) => `<option value="${value}" ${value === frequency ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
+      <div class="field"><label for="cfgFreq">采集频率</label><select class="input" id="cfgFreq" ${writable ? '' : 'disabled'}>${SOURCE_FREQUENCIES.map(([value, label]) => `<option value="${value}" ${value === frequency ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
       <div class="field"><label>调度时区</label><input class="input" value="北京时间（Asia/Shanghai）" readonly></div>
       <div class="field"><label>每日锚点</label><input class="input" value="02:00" readonly></div>
       <div class="field"><label for="facebookNextRun">下次采集</label><input class="input" id="facebookNextRun" value="${esc(source.enabled && ready && nextRun ? formatTime(nextRun) : source.enabled && ready ? '服务端未返回' : '授权并启用后计算')}" readonly></div>
@@ -246,7 +247,7 @@ function facebookFormPayload(source, creating) {
   const initial = $('#cfgFacebookInitialSync').value; const date = $('#cfgHistoryStart').value;
   if (!['all', 'since', 'incremental'].includes(initial)) return facebookFormError('请选择有效的首次同步模式', '#cfgFacebookInitialSync');
   if (initial === 'since' && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(new Date(date).getTime()) || new Date(date).toISOString().slice(0, 10) !== date || date > facebookToday())) return facebookFormError('请选择不晚于当前北京时间日期的有效历史起始日期', '#cfgHistoryStart');
-  const frequencySeconds = Number($('#cfgFreq').value); if (!FACEBOOK_FREQUENCIES.some(([value]) => value === frequencySeconds)) return facebookFormError('请选择有效的采集频率', '#cfgFreq');
+  const frequencySeconds = Number($('#cfgFreq').value); if (!SOURCE_FREQUENCIES.some(([value]) => value === frequencySeconds)) return facebookFormError('请选择有效的采集频率', '#cfgFreq');
   const changed = parsed.url !== facebookUrlOf(source);
   const payload = { displayName, baseUrl: parsed.url, frequencySeconds, syncMode: initial === 'incremental' ? 'incremental' : 'backfill', historyStart: initial === 'all' ? FACEBOOK_ALL_HISTORY_START : initial === 'since' ? `${date}T00:00:00+08:00` : '' };
   if (creating) Object.assign(payload, { communityId: pick(source, 'community_id', 'communityId'), platform: 'facebook' });
@@ -425,10 +426,10 @@ async function toggleSource(source, checkbox) {
 function renderFacebookRow(source) {
   const identity = accountIdentity(source); const reason = syncUnavailableReason(source); const syncing = String(state.syncingSourceId) === String(source.id);
   const lastSync = pick(identity.account, 'last_incremental_sync_at', 'lastIncrementalSyncAt', 'last_full_sync_at', 'lastFullSyncAt') || pick(source, 'last_success_at', 'lastSuccessAt', 'last_run_at', 'lastRunAt');
-  const missing = facebookMissingCapabilities(source); const frequency = Number(pick(source, 'frequency_seconds', 'frequencySeconds') || 3600);
+  const missing = facebookMissingCapabilities(source); const frequency = Number(pick(source, 'frequency_seconds', 'frequencySeconds') || DEFAULT_SOURCE_FREQUENCY_SECONDS);
   const errorCode = checkpointsOf(source).find?.(item => pick(item, 'error_code', 'errorCode'));
   const error = source._facebookCheck?.error || (errorCode ? facebookErrorMessage(pick(errorCode, 'error_code', 'errorCode')) : '');
-  return `<tr><td data-label="采集源 / 账号"><div class="source-name">${esc(pick(source, 'display_name', 'displayName') || 'Facebook')}<span class="source-type">官方主页</span></div><div class="subline facebook-source-url">${esc(facebookUrlOf(source) || '主页地址待配置')}</div><div class="subline">Page ID：${esc(facebookPageId(source) || '待识别')}</div></td><td data-label="归属范围">境外 / ${esc(pick(source, 'community_name', 'communityName') || 'Last Night')}</td><td data-label="平台">Facebook</td><td data-label="授权状态"><span class="pill ${facebookReady(source) ? 'authorized' : 'unconfigured'}">${esc(facebookAuthLabel(source))}</span><div class="subline">部署级官方凭据：${esc(facebookSystemCredentialLabel(source))}</div><div class="subline">${esc(missing.length ? `未通过：${missing.join('、')}` : '六项能力已通过')}</div><div class="subline">最近检测：平台未返回</div></td><td data-label="同步进度">${renderStageStack(source)}</td><td data-label="同步策略">${esc(facebookInitialSyncLabel(source))}<div class="subline">${sourceEnableToggle(source, !facebookCanManage(source) || (!source.enabled && !facebookReady(source)), !facebookCanManage(source) ? '当前账号仅有查看权限' : !source.enabled && !facebookReady(source) ? '部署级凭据与六项能力通过后才能启用' : '')} · ${esc(FACEBOOK_FREQUENCIES.find(([value]) => value === frequency)?.[1] || `${frequency} 秒`)}</div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(reason || '开始同步并自动启用采集源')}" ${reason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : '开始同步'}</button><button class="row-action" data-manage-source="${esc(source.id)}">${facebookCanManage(source) ? '管理' : '查看'}</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
+  return `<tr><td data-label="采集源 / 账号"><div class="source-name">${esc(pick(source, 'display_name', 'displayName') || 'Facebook')}<span class="source-type">官方主页</span></div><div class="subline facebook-source-url">${esc(facebookUrlOf(source) || '主页地址待配置')}</div><div class="subline">Page ID：${esc(facebookPageId(source) || '待识别')}</div></td><td data-label="归属范围">境外 / ${esc(pick(source, 'community_name', 'communityName') || 'Last Night')}</td><td data-label="平台">Facebook</td><td data-label="授权状态"><span class="pill ${facebookReady(source) ? 'authorized' : 'unconfigured'}">${esc(facebookAuthLabel(source))}</span><div class="subline">部署级官方凭据：${esc(facebookSystemCredentialLabel(source))}</div><div class="subline">${esc(missing.length ? `未通过：${missing.join('、')}` : '六项能力已通过')}</div><div class="subline">最近检测：平台未返回</div></td><td data-label="同步进度">${renderStageStack(source)}</td><td data-label="同步策略">${esc(facebookInitialSyncLabel(source))}<div class="subline">${sourceEnableToggle(source, !facebookCanManage(source) || (!source.enabled && !facebookReady(source)), !facebookCanManage(source) ? '当前账号仅有查看权限' : !source.enabled && !facebookReady(source) ? '部署级凭据与六项能力通过后才能启用' : '')} · ${esc(SOURCE_FREQUENCIES.find(([value]) => value === frequency)?.[1] || `${frequency} 秒`)}</div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(reason || '开始同步并自动启用采集源')}" ${reason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : '开始同步'}</button><button class="row-action" data-manage-source="${esc(source.id)}">${facebookCanManage(source) ? '管理' : '查看'}</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
 }
 function renderRows() {
   const scope = state.scope?.query?.() || new URLSearchParams();
@@ -478,7 +479,7 @@ function bindDiscordChannelScope() {
   document.querySelectorAll('[data-discord-channel-scope]').forEach(button => { button.onclick = () => apply(button.dataset.discordChannelScope); });
 }
 function bindH5CredentialMode(source, creating) {
-  const switchMode = mode => { state.h5AuthMode = mode; const baseUrl = $('#cfgBaseUrl')?.value || ''; const name = $('#cfgName')?.value || ''; const frequency = $('#cfgFreq')?.value || ''; source.base_url = baseUrl; source.display_name = name; source.frequency_seconds = Number(frequency || 3600); renderDetail(source); };
+  const switchMode = mode => { state.h5AuthMode = mode; const baseUrl = $('#cfgBaseUrl')?.value || ''; const name = $('#cfgName')?.value || ''; const frequency = $('#cfgFreq')?.value || ''; source.base_url = baseUrl; source.display_name = name; source.frequency_seconds = Number(frequency || DEFAULT_SOURCE_FREQUENCY_SECONDS); renderDetail(source); };
   if ($('#h5AuthToken')) $('#h5AuthToken').onclick = () => switchMode('token');
   if ($('#h5AuthPassword')) $('#h5AuthPassword').onclick = () => switchMode('account_password');
 }
@@ -525,49 +526,33 @@ function platformPanel(source, creating = false) {
   }
   return `<div class="detail-block"><div class="detail-label">平台账号</div><div class="field"><label>账号标识</label><input class="input" id="cfgAccountId" value="${esc(identity.id)}"></div><div class="notice">平台权限待审核 / 连接器未接入</div></div>`;
 }
-// 采集频率档位：TapTap 免登采集有 800ms/页自限流 + 聚合告警滑窗语义，最低 2 小时、默认 6 小时；其他平台保持原档位。
-const TAPTAP_FREQ_OPTIONS = [[7200, '2 小时'], [21600, '6 小时（推荐）'], [43200, '12 小时'], [86400, '每天 1 次']];
-const DEFAULT_FREQ_OPTIONS = [[900, '15 分钟'], [1800, '30 分钟'], [3600, '60 分钟'], [7200, '2 小时'], [86400, '1 天']];
 function isTaptapSource(source) { return normalizedPlatform(source) === 'taptap'; }
-function scheduleTimeOf(source) { return configOf(source).scheduleTime || '03:00'; }
-function scheduleTimeField(source) {
-  const freq = Number(source.frequency_seconds || source.frequencySeconds || 0);
-  const hidden = freq !== 86400 ? ' style="display:none"' : '';
-  return `<div class="field" id="scheduleTimeField"${hidden}><label>每日执行时刻（北京时间）</label><input class="input" id="cfgScheduleTime" type="time" value="${esc(scheduleTimeOf(source))}"><div class="subline" id="scheduleTimeHint"${hidden}>每天只抓取 1 次，聚合告警最多延迟 24 小时；默认 03:00 与大玩家日报任务错峰。</div></div>`;
-}
-function bindFrequencyControls(source) {
-  const freq = $('#cfgFreq'); if (!freq || !isTaptapSource(source)) return;
-  const toggle = () => { const daily = Number(freq.value) === 86400; if ($('#scheduleTimeField')) $('#scheduleTimeField').style.display = daily ? '' : 'none'; if ($('#scheduleTimeHint')) $('#scheduleTimeHint').style.display = daily ? '' : 'none'; };
-  freq.addEventListener('change', toggle); toggle();
-}
+function normalizedFrequency(value) { const frequency = Number(value); return SOURCE_FREQUENCIES.some(([allowed]) => allowed === frequency) ? frequency : DEFAULT_SOURCE_FREQUENCY_SECONDS; }
 function frequencySelect(source) {
-  const taptap = isTaptapSource(source);
-  const options = taptap ? TAPTAP_FREQ_OPTIONS : DEFAULT_FREQ_OPTIONS;
-  const current = Number(source.frequency_seconds || source.frequencySeconds || (taptap ? 21600 : 3600));
-  const inList = options.some(([value]) => value === current);
-  return `<select class="input" id="cfgFreq">${options.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}${!inList && current > 0 ? `<option value="${current}">当前 ${current} 秒（建议调整为 2 小时以上）</option>` : ''}</select>`;
+  const current = normalizedFrequency(source.frequency_seconds || source.frequencySeconds);
+  return `<select class="input" id="cfgFreq">${SOURCE_FREQUENCIES.map(([value, label]) => `<option value="${value}" ${value === current ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
 }
 function commonFields(source, creating) {
   const platform = normalizedPlatform(source);
   const selected = state.scope?.selected?.() || {};
-  if (platform === 'taptap') return `${creating ? `<input type="hidden" id="cfgCommunity" value="${esc(selected.communityId)}"><input type="hidden" id="cfgPlatform" value="${esc(platform)}">` : ''}<input type="hidden" id="cfgName" value="${esc(source.display_name || source.displayName || defaultSourceName(platform, source.community_id || source.communityId))}">`;
-  return `<div class="detail-block"><div class="detail-label">基础配置</div>${creating ? `<div class="field"><label>归属范围</label><input class="input" value="${esc([selected.regionLabel, selected.communityLabel].join(' / '))}" readonly></div><input type="hidden" id="cfgCommunity" value="${esc(selected.communityId)}"><input type="hidden" id="cfgPlatform" value="${esc(platform)}"><div class="field"><label>平台</label><input class="input" value="${esc(platformLabel(platform))}" readonly></div>` : ''}<div class="field"><label>采集源名称<span class="required">*</span></label><input class="input" id="cfgName" value="${esc(source.display_name || source.displayName || '')}"></div><div class="field"><label>${isTaptapSource(source) ? '抓取频率' : '采集频率'}</label>${frequencySelect(source)}</div>${isTaptapSource(source) ? scheduleTimeField(source) : ''}</div>`;
+  if (platform === 'taptap') return `${creating ? `<input type="hidden" id="cfgCommunity" value="${esc(selected.communityId)}"><input type="hidden" id="cfgPlatform" value="${esc(platform)}">` : ''}<input type="hidden" id="cfgName" value="${esc(source.display_name || source.displayName || defaultSourceName(platform, source.community_id || source.communityId))}"><div class="detail-block"><div class="detail-label">基础配置</div><div class="field"><label>采集频率</label>${frequencySelect(source)}</div></div>`;
+  return `<div class="detail-block"><div class="detail-label">基础配置</div>${creating ? `<div class="field"><label>归属范围</label><input class="input" value="${esc([selected.regionLabel, selected.communityLabel].join(' / '))}" readonly></div><input type="hidden" id="cfgCommunity" value="${esc(selected.communityId)}"><input type="hidden" id="cfgPlatform" value="${esc(platform)}"><div class="field"><label>平台</label><input class="input" value="${esc(platformLabel(platform))}" readonly></div>` : ''}<div class="field"><label>采集源名称<span class="required">*</span></label><input class="input" id="cfgName" value="${esc(source.display_name || source.displayName || '')}"></div><div class="field"><label>采集频率</label>${frequencySelect(source)}</div></div>`;
 }
 function syncControls(source) { const available = ACTIONABLE.has(normalizedPlatform(source)); const running = STAGES.some(([scope]) => stageState(source, scope) === 'running'); const paused = STAGES.some(([scope]) => stageState(source, scope) === 'paused'); const reason = syncUnavailableReason(source); const syncAllowed = !reason; return `<div class="detail-block"><div class="detail-label">同步控制</div><div class="action-row"><button class="btn primary" id="btnRunSync" title="${esc(reason || '提交任务并自动启用采集源')}" ${syncAllowed ? '' : 'disabled'}>${esc(syncActionLabel(source, true))}</button><button class="btn" id="btnPauseSync" ${syncAllowed && available && running ? '' : 'disabled'}>暂停</button><button class="btn" id="btnResumeSync" ${syncAllowed && available && paused ? '' : 'disabled'}>继续</button><button class="btn danger" id="btnResetSync" ${syncAllowed && canSchedule(source) ? '' : 'disabled'}>授权范围全量回溯</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : '<div class="subline">开始同步后将自动启用该采集源，并进入周期调度。</div>'}</div>`; }
 
-  function setCommonValues(source) { if ($('#cfgFreq')) $('#cfgFreq').value = String(source.frequency_seconds || source.frequencySeconds || (isTaptapSource(source) ? 21600 : 3600)); if ($('#cfgScheduleTime')) $('#cfgScheduleTime').value = scheduleTimeOf(source); if ($('#cfgSyncMode')) $('#cfgSyncMode').value = sourceMode(source); if ($('#cfgHistoryStart')) $('#cfgHistoryStart').value = historyStartOf(source); bindFrequencyControls(source); }
+  function setCommonValues(source) { if ($('#cfgFreq')) $('#cfgFreq').value = String(normalizedFrequency(source.frequency_seconds || source.frequencySeconds)); if ($('#cfgSyncMode')) $('#cfgSyncMode').value = sourceMode(source); if ($('#cfgHistoryStart')) $('#cfgHistoryStart').value = historyStartOf(source); }
 function openCreateDrawer() {
   const selected = state.scope?.selected?.() || {};
   const platform = Status.normalizePlatform($('[data-po-platform-select]')?.value || $('#platformFilter')?.value || selected.platform || 'bigplayer_h5');
   if (platform !== 'taptap' && !selected.communityId) return toast('新增采集源前请选择具体社区');
   if (platform !== 'taptap' && selected.communityStatus !== 'enabled') return toast(selected.communityStatus === 'disabled' ? `社区「${selected.communityLabel}」已停用，不能新增采集源` : '请选择已启用社区');
   if (platform === 'facebook') {
-    const facebookSource = { community_id: selected.communityId, region_code: selected.regionCode, platform, display_name: 'Last Night Facebook', enabled: false, frequency_seconds: 3600, config: { baseUrl: FACEBOOK_DEFAULT_URL, syncMode: 'backfill', historyStart: FACEBOOK_ALL_HISTORY_START }, canManage: selected.canManage, canEdit: selected.canEdit, canWrite: selected.canWrite };
+    const facebookSource = { community_id: selected.communityId, region_code: selected.regionCode, platform, display_name: 'Last Night Facebook', enabled: false, frequency_seconds: DEFAULT_SOURCE_FREQUENCY_SECONDS, config: { baseUrl: FACEBOOK_DEFAULT_URL, syncMode: 'backfill', historyStart: FACEBOOK_ALL_HISTORY_START }, canManage: selected.canManage, canEdit: selected.canEdit, canWrite: selected.canWrite };
     if (!facebookScopeAllowed(facebookSource)) return toast('Facebook 采集源仅支持境外 Last Night 社区');
     if (!facebookCanManage(facebookSource)) return toast('当前账号仅有查看权限');
     stopValidationWork({ clearSource: true }); renderFacebookDetail(facebookSource, true); $('#drawerMask').classList.add('open'); return;
   }
-  const source = { community_id: selected.communityId, community_name: selected.communityLabel, platform, display_name: defaultSourceName(platform, selected.communityId), enabled: true, frequency_seconds: platform === 'taptap' ? 21600 : 3600, sync_mode: 'incremental', history_start: '', base_url: platform === 'taptap' ? taptapDefaultUrl({ community_name: selected.communityLabel, community_id: selected.communityId, platform }) : '' };
+  const source = { community_id: selected.communityId, community_name: selected.communityLabel, platform, display_name: defaultSourceName(platform, selected.communityId), enabled: true, frequency_seconds: DEFAULT_SOURCE_FREQUENCY_SECONDS, sync_mode: 'incremental', history_start: '', base_url: platform === 'taptap' ? taptapDefaultUrl({ community_name: selected.communityLabel, community_id: selected.communityId, platform }) : '' };
   if (platform === 'bigplayer_h5' && selected.regionCode === 'overseas' && String(selected.communityId) === OVERSEAS_LAST_NIGHT_COMMUNITY_ID) { source.base_url = OVERSEAS_LAST_NIGHT_BASE_URL; source.start_paths = ['/']; state.h5AuthMode = 'token'; }
   const render = () => {
     const isDiscord = platform === 'discord';
@@ -578,9 +563,9 @@ function openCreateDrawer() {
 }
 function validateSocialCredentials(required) { const phone = $('#cfgPhone')?.value.trim() || ''; const password = $('#cfgPassword')?.value || ''; const confirmation = $('#cfgPasswordConfirm')?.value || ''; if (required && !/^1[3-9]\d{9}$/.test(phone)) return { error: '请填写有效的 +86 中国大陆手机号' }; if (required && !password) return { error: '请填写登录密码' }; if (password !== confirmation) return { error: '两次输入的密码不一致' }; return { phone: required ? phone : '', password }; }
 async function createSource() {
-  if (state.creating) return; const selected = state.scope?.selected?.() || {}; const platform = Status.normalizePlatform($('#cfgPlatform').value); const selectedScope = state.scope?.selected?.() || {}; const payload = { communityId: $('#cfgCommunity').value || selectedScope.communityId, platform, displayName: $('#cfgName').value.trim(), enabled: true, syncMode: $('#cfgSyncMode')?.value || 'incremental', historyStart: $('#cfgHistoryStart')?.value || '' }; if (platform !== 'taptap') payload.frequencySeconds = Number($('#cfgFreq').value);
+  if (state.creating) return; const selected = state.scope?.selected?.() || {}; const platform = Status.normalizePlatform($('#cfgPlatform').value); const selectedScope = state.scope?.selected?.() || {}; const payload = { communityId: $('#cfgCommunity').value || selectedScope.communityId, platform, displayName: $('#cfgName').value.trim(), enabled: true, frequencySeconds: Number($('#cfgFreq').value), syncMode: $('#cfgSyncMode')?.value || 'incremental', historyStart: $('#cfgHistoryStart')?.value || '' };
   if (!payload.communityId) return toast('请选择具体且已启用的社区');
-  if (selected.communityStatus && selected.communityStatus !== 'enabled') return toast(`社区「${selected.communityLabel}」已停用，不能新增采集源`); if (!payload.displayName) return toast('请填写采集源名称'); if (platform !== 'taptap' && (!Number.isInteger(payload.frequencySeconds) || payload.frequencySeconds <= 0)) return toast('请选择有效的采集频率');
+  if (selected.communityStatus && selected.communityStatus !== 'enabled') return toast(`社区「${selected.communityLabel}」已停用，不能新增采集源`); if (!payload.displayName) return toast('请填写采集源名称'); if (!SOURCE_FREQUENCIES.some(([value]) => value === payload.frequencySeconds)) return toast('请选择有效的采集频率');
   if (platform === 'bigplayer_h5') {
   const sourceIsOverseas = isOverseasLastNight({ community_id: payload.communityId, platform });
     payload.baseUrl = sourceIsOverseas ? OVERSEAS_LAST_NIGHT_BASE_URL : $('#cfgBaseUrl').value.trim(); if (!payload.baseUrl) return toast('请填写站点地址');
@@ -665,9 +650,9 @@ function renderDetail(source) {
 async function saveSource(source) {
   if (normalizedPlatform(source) === 'facebook') return submitFacebookSource(source, false);
   const taptap = normalizedPlatform(source) === 'taptap';
-  const patch = { displayName: $('#cfgName').value.trim() }; if (!taptap) patch.frequencySeconds = Number($('#cfgFreq').value);
+  const patch = { displayName: $('#cfgName').value.trim(), frequencySeconds: Number($('#cfgFreq').value) };
   let credential;
-  if (!patch.displayName) patch.displayName = source.display_name || source.displayName || 'TapTap采集源'; if (!taptap && (!Number.isInteger(patch.frequencySeconds) || patch.frequencySeconds <= 0)) return toast('请选择有效的采集频率');
+  if (!patch.displayName) patch.displayName = source.display_name || source.displayName || 'TapTap采集源'; if (!SOURCE_FREQUENCIES.some(([value]) => value === patch.frequencySeconds)) return toast('请选择有效的采集频率');
   if (normalizedPlatform(source) === 'bigplayer_h5') {
     patch.baseUrl = isOverseasLastNight(source) ? OVERSEAS_LAST_NIGHT_BASE_URL : $('#cfgBaseUrl').value.trim(); if (!patch.baseUrl) return toast('请填写站点地址');
     const sourceIsOverseas = isOverseasLastNight(source);
@@ -857,5 +842,5 @@ function updateAddButton() { const selected = state.scope?.selected?.() || {}; c
 function syncPlatformFilter() { const current = $('#platformFilter').value; const region = state.scope?.selected?.().regionCode || 'domestic'; const items = PublicOpinionScope.platformsForRegion(region); $('#platformFilter').innerHTML = '<option value="">全部平台</option>' + items.map(item => `<option value="${item.value}">${item.label}</option>`).join(''); $('#platformFilter').value = items.some(item => item.value === current) ? current : ''; }
 function bind() { $('#refreshBtn').onclick = load; $('#addBtn').onclick = openCreateDrawer; $('#addBtn').disabled = true; $('#platformFilter').onchange = renderRows; $('#statusFilter').onchange = () => { renderRows(); updateDeepLink('', $('#statusFilter').value); }; $('#rows').onclick = event => { const manage = event.target.closest('[data-manage-source]'); if (manage) return openDrawer(manage.dataset.manageSource); const sync = event.target.closest('[data-sync-source]'); if (sync) return startSync(state.sources.find(source => String(source.id) === String(sync.dataset.syncSource)), sync); }; $('#rows').onchange = event => { const checkbox = event.target.closest('[data-toggle-source]'); if (checkbox) toggleSource(state.sources.find(source => String(source.id) === String(checkbox.dataset.toggleSource)), checkbox); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('pagehide', () => { stopValidationWork(); state.syncRecoverySerial += 1; syncController.stop(false); }); }
 bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: async () => { closeDrawer(); syncPlatformFilter(); updateAddButton(); await loadSources(); openDeepLink(); } }); syncPlatformFilter(); updateAddButton(); await load(); })();
-    if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, fetchSourceDetail, platformPanel, commonFields, taptapDefaultUrl, state });
+    if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, fetchSourceDetail, platformPanel, commonFields, frequencySelect, normalizedFrequency, taptapDefaultUrl, state });
 if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { parseFacebookPageUrl, facebookCanManage, facebookReady, facebookUnavailableReason, facebookErrorMessage, facebookCapabilityDetail, facebookCapabilityAdvice, facebookStatusFields, facebookInitialSync, facebookForm, facebookFormPayload, facebookFormChanged, renderFacebookDetail, submitFacebookSource, checkFacebookSource, startSync, canSchedule, syncUnavailableReason });
