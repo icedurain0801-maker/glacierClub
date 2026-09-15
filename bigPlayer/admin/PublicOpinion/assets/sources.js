@@ -19,6 +19,7 @@ const normalizedPlatform = source => Status.normalizePlatform(source?.platform);
 const platformLabel = platform => PLATFORMS[Status.normalizePlatform(platform)] || platform || '-';
 const sourceTypeLabel = source => { const platform = normalizedPlatform(source); if (platform === 'taptap') return '关键词 + 账号'; if (platform === 'bigplayer_h5') return '社区动态'; if (Status.isSocialLoginPlatform(platform)) return '账号内容'; return '平台内容'; };
 const TAPTAP_SUPER_POWER_WORLD_URL = 'https://www.taptap.cn/app/239580/topic?os=android';
+const DETAIL_REQUEST_TIMEOUT_MS = 8000;
 function defaultSourceName(platform, communityId) { const label = platformLabel(platform); const prefix = String(label || platform || '采集源').replace(/\s+/g, ''); const used = new Set(state.sources.filter(source => String(pick(source, 'community_id', 'communityId')) === String(communityId) && normalizedPlatform(source) === platform).map(source => String(pick(source, 'display_name', 'displayName') || '')).filter(Boolean)); for (let index = 1; index <= 999; index += 1) { const candidate = `${prefix}${String(index).padStart(3, '0')}`; if (!used.has(candidate)) return candidate; } return `${prefix}${Date.now()}`; }
 function taptapDefaultUrl(source) { return String(sourceCommunity(source).name || '').includes('超能世界') ? TAPTAP_SUPER_POWER_WORLD_URL : ''; }
 const authLabel = status => Status.authLabel(status);
@@ -27,7 +28,7 @@ const stageLabel = status => ({ idle: '待同步', running: '同步中', paused:
 async function api(path, options = {}) {
   let response;
   try { response = await fetch(`${API}${path}`, { headers: { 'content-type': 'application/json' }, ...options }); }
-  catch (_) { throw new Error(`无法连接舆情服务 ${API}，请检查后端服务和跨域配置`); }
+  catch (error) { if (error?.name === 'AbortError') throw error; throw new Error(`无法连接舆情服务 ${API}，请检查后端服务和跨域配置`); }
   let body = {};
   try {
     const text = await response.text();
@@ -620,8 +621,17 @@ function renderChallenge() {
 function renderDrawerLoading(source, error = '') {
   const title = pick(source, 'display_name', 'displayName') || platformLabel(source?.platform) || '采集源';
   const message = error ? `详情加载失败：${error}` : '正在加载采集源详情…';
-  $('#drawerContent').innerHTML = `<div class="drawer-header"><h2>${esc(title)}</h2></div><div class="drawer-body"><div class="detail-loading" role="status">${esc(message)}</div>${error ? '<div class="action-row"><button class="btn primary" id="btnRetryDrawer">重试</button></div>' : ''}</div>`;
+  $('#drawerContent').innerHTML = `<div class="drawer-header"><h2>${esc(title)}</h2></div><div class="drawer-body drawer-loading-body" style="min-height:calc(100vh - 96px);min-height:calc(100dvh - 96px);display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="detail-loading" role="status">${esc(message)}</div>${error ? '<div class="action-row"><button class="btn primary" id="btnRetryDrawer">重试</button></div>' : ''}</div>`;
   if (error && $('#btnRetryDrawer')) $('#btnRetryDrawer').onclick = () => openDrawer(source.id, true);
+}
+async function fetchSourceDetail(id, timeoutMs = DETAIL_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try { return await api(`/sources/${encodeURIComponent(id)}`, { signal: controller.signal }); }
+  catch (error) {
+    if (error?.name === 'AbortError') { const timeoutError = new Error('详情加载超时，请稍后重试'); timeoutError.code = 'DETAIL_LOAD_TIMEOUT'; throw timeoutError; }
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 async function openDrawer(id, force = false) {
   const source = state.sources.find(item => String(item.id) === String(id)); if (!source) return;
@@ -631,7 +641,7 @@ async function openDrawer(id, force = false) {
   renderDrawerLoading(source); $('#drawerMask').classList.add('open'); updateDeepLink(sourceId, $('#statusFilter')?.value || '');
   let detail = null;
   try {
-    const response = await api(`/sources/${encodeURIComponent(id)}`);
+    const response = await fetchSourceDetail(id);
     detail = Array.isArray(response) ? response[0] : response?.source || response;
   } catch (error) {
     if (serial === state.requestSerial && state.activeSourceId === sourceId) renderDrawerLoading(source, error.message);
@@ -641,9 +651,7 @@ async function openDrawer(id, force = false) {
   const editingSource = detail && String(detail.id) === String(id) ? Object.assign(source, detail, { platform: Status.normalizePlatform(detail.platform || source.platform) }) : source;
   const credential = h5Credential(editingSource); state.h5AuthMode = normalizedPlatform(editingSource.platform) === 'bigplayer_h5' && credential.hasPassword ? 'account_password' : 'token';
   renderDetail(editingSource);
-  const requiresStatus = Status.isSocialLoginPlatform(editingSource.platform) || (normalizedPlatform(editingSource.platform) === 'bigplayer_h5' && h5AuthMode(editingSource) === 'account_password');
-  if (requiresStatus) { try { cacheLoginStatus(editingSource, await api(`/sources/${editingSource.id}/login-status`)); if (serial !== state.requestSerial || state.activeSourceId !== String(id)) return; const challenge = challengeOf(state.loginStatus); if (challenge) state.challenge = challenge; else if (Status.loginMeta(state.loginStatus).state === 'manual_verification') { try { state.challenge = await api(`/sources/${editingSource.id}/login/challenge`); } catch (_) { /* Status remains visible while challenge retrieval retries. */ } } } catch (error) { if (serial !== state.requestSerial) return; cacheLoginStatus(editingSource, { status: Status.loginStateOf(editingSource), message: error.message }); } }
-  if (serial !== state.requestSerial) return; renderDetail(editingSource); $('#drawerMask').classList.add('open'); updateDeepLink(editingSource.id, $('#statusFilter')?.value || ''); startChallengeWork(editingSource);
+  $('#drawerMask').classList.add('open'); updateDeepLink(editingSource.id, $('#statusFilter')?.value || '');
 }
 function renderDetail(source) {
   if (normalizedPlatform(source) === 'facebook') return renderFacebookDetail(source);
@@ -849,5 +857,5 @@ function updateAddButton() { const selected = state.scope?.selected?.() || {}; c
 function syncPlatformFilter() { const current = $('#platformFilter').value; const region = state.scope?.selected?.().regionCode || 'domestic'; const items = PublicOpinionScope.platformsForRegion(region); $('#platformFilter').innerHTML = '<option value="">全部平台</option>' + items.map(item => `<option value="${item.value}">${item.label}</option>`).join(''); $('#platformFilter').value = items.some(item => item.value === current) ? current : ''; }
 function bind() { $('#refreshBtn').onclick = load; $('#addBtn').onclick = openCreateDrawer; $('#addBtn').disabled = true; $('#platformFilter').onchange = renderRows; $('#statusFilter').onchange = () => { renderRows(); updateDeepLink('', $('#statusFilter').value); }; $('#rows').onclick = event => { const manage = event.target.closest('[data-manage-source]'); if (manage) return openDrawer(manage.dataset.manageSource); const sync = event.target.closest('[data-sync-source]'); if (sync) return startSync(state.sources.find(source => String(source.id) === String(sync.dataset.syncSource)), sync); }; $('#rows').onchange = event => { const checkbox = event.target.closest('[data-toggle-source]'); if (checkbox) toggleSource(state.sources.find(source => String(source.id) === String(checkbox.dataset.toggleSource)), checkbox); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('pagehide', () => { stopValidationWork(); state.syncRecoverySerial += 1; syncController.stop(false); }); }
 bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: async () => { closeDrawer(); syncPlatformFilter(); updateAddButton(); await loadSources(); openDeepLink(); } }); syncPlatformFilter(); updateAddButton(); await load(); })();
-    if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, platformPanel, commonFields, taptapDefaultUrl, state });
+    if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, fetchSourceDetail, platformPanel, commonFields, taptapDefaultUrl, state });
 if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { parseFacebookPageUrl, facebookCanManage, facebookReady, facebookUnavailableReason, facebookErrorMessage, facebookCapabilityDetail, facebookCapabilityAdvice, facebookStatusFields, facebookInitialSync, facebookForm, facebookFormPayload, facebookFormChanged, renderFacebookDetail, submitFacebookSource, checkFacebookSource, startSync, canSchedule, syncUnavailableReason });
