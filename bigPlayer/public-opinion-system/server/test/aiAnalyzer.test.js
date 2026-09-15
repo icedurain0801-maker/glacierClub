@@ -100,7 +100,7 @@ test('相同内容命中缓存不重复调用', async () => {
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'attention', n: 0.5, t: [], m: 'x' }]),
     async (calls) => {
-      const item = { title: 'dup', body: '重复内容' };
+      const item = { title: 'dup', body: '重复内容', communityId: 'c1' };
       await ai.analyzeBatch([item]);
       await ai.analyzeBatch([{ ...item }]); // 同指纹
       assert.equal(calls.length, 1); // 第二次走缓存
@@ -230,7 +230,7 @@ test('缓存按 profile、model、version 隔离并在同批去重', async () =>
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'attention', n: 0.5, t: [], m: 'x' }]),
     async (calls) => {
-      const item = { title: 'dup', body: '重复内容' };
+      const item = { title: 'dup', body: '重复内容', communityId: 'c1' };
       const light = await ai.analyzeBatch([item, { ...item }]);
       assert.equal(calls.length, 1);
       assert.strictEqual(light[0], light[1]);

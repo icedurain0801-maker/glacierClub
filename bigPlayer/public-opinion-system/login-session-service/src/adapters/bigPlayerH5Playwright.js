@@ -59,13 +59,19 @@ class BigPlayerH5PlaywrightAutomation {
       }
       if (!loginFrame) throw new ServiceError('LOGIN_FRAME_NOT_FOUND', 'BigPlayer login frame was not found', 502);
       await loginFrame.locator('input[name="account"]').first().click();
-      await loginFrame.locator('input[name="account"]').first().type(resolvedCredentials.account, { delay: 15 });
+      await this.fillInput(loginFrame.locator('input[name="account"]').first(), resolvedCredentials.account);
       await loginFrame.locator('input[name="password"]').first().click();
-      await loginFrame.locator('input[name="password"]').first().type(resolvedCredentials.password, { delay: 15 });
+      await this.fillInput(loginFrame.locator('input[name="password"]').first(), resolvedCredentials.password);
       await loginFrame.locator('button.submit-btn').first().click();
       await page.waitForTimeout(1000);
       return await this.finishOrChallenge({ page, loginFrame, close });
     } catch (error) { await close(); throw error; }
+  }
+
+  async fillInput(locator, value) {
+    if (typeof locator.fill === 'function') return locator.fill(value);
+    if (typeof locator.type === 'function') return locator.type(value, { delay: 15 });
+    throw new ServiceError('AUTOMATION_PROTOCOL_INVALID', 'Login input does not support fill or type', 502);
   }
 
   async finishOrChallenge({ page, loginFrame, close }) {
@@ -139,7 +145,7 @@ class BigPlayerH5PlaywrightAutomation {
     const handle = this.handleFor(challenge, adapterChallengeRef);
     try {
       await handle.loginFrame.locator('#verifyImageCode').first().click();
-      await handle.loginFrame.locator('#verifyImageCode').first().type(answer, { delay: 15 });
+      await this.fillInput(handle.loginFrame.locator('#verifyImageCode').first(), answer);
       await handle.loginFrame.locator('button').first().click();
       await handle.page.waitForTimeout(1000);
       const token = await this.readToken(handle.page);

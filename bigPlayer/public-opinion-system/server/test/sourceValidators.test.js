@@ -2,10 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   isSocialPlatform,
+  SOURCE_PLATFORMS,
   maskPhone,
+  normalizeFacebookPageUrl,
   normalizePlatform,
   socialSecret,
   validateEndpoint,
+  validateFacebookPageUrl,
   validateSocialCredential
 } = require('../src/services/sourceValidators');
 
@@ -14,6 +17,30 @@ test('normalizes legacy xhs platform and identifies social platforms', () => {
   assert.equal(normalizePlatform('douyin'), 'douyin');
   assert.equal(isSocialPlatform('xhs'), true);
   assert.equal(isSocialPlatform('bigplayer_h5'), false);
+});
+
+test('accepts Discord as a source platform without treating it as a social login platform', () => {
+  assert.equal(SOURCE_PLATFORMS.has('discord'), true);
+  assert.equal(isSocialPlatform('discord'), false);
+});
+
+test('accepts Facebook only as a source write platform without treating it as a social login platform', () => {
+  assert.equal(SOURCE_PLATFORMS.has('facebook'), true);
+  assert.equal(isSocialPlatform('facebook'), false);
+});
+
+test('normalizes only single-handle official Facebook Page URLs', () => {
+  assert.equal(validateFacebookPageUrl('https://facebook.com/LastLightSurvival/?utm_source=test&fbclid=secret'), null);
+  assert.equal(normalizeFacebookPageUrl('https://facebook.com/LastLightSurvival/?utm_source=test&fbclid=secret'), 'https://www.facebook.com/LastLightSurvival');
+  for (const value of [
+    'http://www.facebook.com/LastLightSurvival',
+    'https://user:pass@www.facebook.com/LastLightSurvival',
+    'https://www.facebook.com/LastLightSurvival#token',
+    'https://www.facebook.com.evil.test/LastLightSurvival',
+    'https://www.facebook.com/groups/123',
+    'https://www.facebook.com/profile.php?id=123',
+    'https://www.facebook.com/LastLightSurvival?access_token=secret'
+  ]) assert.ok(validateFacebookPageUrl(value), value);
 });
 
 test('validates and masks mainland mobile credentials without changing password', () => {

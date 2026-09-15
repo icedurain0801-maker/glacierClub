@@ -223,7 +223,7 @@ test('BigPlayer automation opens the H5 login entry and accepts login1.q1.com', 
 
   const result = await automation.login({ credentialRef: 'credential-ref', sourceId: 'source-h5', accountId: 'account-h5' });
   assert.deepEqual(result, { kind: 'success', apiToken: 'top-level-token' });
-  assert.deepEqual(calls.clicks, ['我的', '去登录', 'button.submit-btn']);
+  assert.deepEqual(calls.clicks, ['我的', '去登录', 'input[name="account"]', 'input[name="password"]', 'button.submit-btn']);
   assert.deepEqual(calls.fills, [
     ['input[name="account"]', 'private-account'],
     ['input[name="password"]', 'private-password']

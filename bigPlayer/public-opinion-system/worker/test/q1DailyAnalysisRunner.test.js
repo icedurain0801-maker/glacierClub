@@ -6,6 +6,39 @@ test('Q1 analysis runner parses options without exposing credentials', () => {
   assert.deepEqual(parseArgs(['node', 'runner', '--source-id', 's1', '--batch-size', '20']), { sourceId: 's1', batchSize: '20' });
 });
 
+test('Q1 analysis runner rejects a claimed job from another canonical community', async () => {
+  const claimCalls = [];
+  const repo = {
+    async claimAnalysisJobs(input) { claimCalls.push(input); return [{ id: 'j2', game_id: 'g1', community_id: 'community-b' }]; }
+  };
+  const ai = { configured: () => true, selectProfile: profile => ({ name: profile, version: 'v1', model: 'm' }) };
+  const runner = new Q1AnalysisRunner({
+    repo, ai, sourceId: 's1', scope: { gameId: 'g1', communityId: 'community-a' },
+    publishedFrom: '2026-08-19T00:00:00+08:00', publishedTo: '2026-08-20T00:00:00+08:00'
+  });
+  await assert.rejects(() => runner.processBatch('light'), error => error.code === 'ANALYSIS_SCOPE_MISMATCH');
+  assert.equal(claimCalls[0].communityId, 'community-a');
+  assert.equal(claimCalls[0].gameId, 'g1');
+  assert.equal(claimCalls[0].allowDisabledSource, false);
+});
+
+test('Q1 manual analysis uses an auditable exact-scope claim for a disabled source', async () => {
+  const claimCalls = [];
+  const sourceId = '5c21f78d-5f67-4467-963d-dcdeb5e26cab';
+  const repo = { async claimAnalysisJobs(input) { claimCalls.push(input); return []; } };
+  const ai = { configured: () => true, selectProfile: profile => ({ name: profile, version: 'v1', model: 'm' }) };
+  const runner = new Q1AnalysisRunner({
+    repo, ai, sourceId, contentIds: ['content-1'], businessDate: '2026-09-09', manualClaim: true,
+    publishedFrom: '2026-09-08T16:00:00.000Z', publishedTo: '2026-09-09T16:00:00.000Z'
+  });
+
+  assert.equal(await runner.processBatch('deep'), 0);
+  assert.equal(claimCalls[0].allowDisabledSource, true);
+  assert.equal(claimCalls[0].businessDate, '2026-09-09');
+  assert.match(claimCalls[0].leaseOwner, new RegExp(`^q1-daily:\\d+:${sourceId}:2026-09-09$`));
+  assert.deepEqual(claimCalls[0].contentIds, ['content-1']);
+});
+
 test('Q1 analysis runner processes all scoped jobs independently', async () => {
   const jobs = [{ id: 'j1', content_id: 'c1', fingerprint: 'fp1', content_fingerprint: 'fp1', title: 't', body: 'b', game_id: 'g1', game_name: 'game', community_id: 'cmt', platform: 'q1', region_code: 'domestic', matched_keywords: '[]', trigger_reason: 'all_content', lease_owner: 'q1' }];
   const finished = [];

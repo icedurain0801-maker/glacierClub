@@ -18,8 +18,8 @@ function fakeDing(sent = true) {
   const calls = [];
   return { enabled: true, webhook: 'https://d', calls, async notify(a) { calls.push(a); if (!sent) throw new Error('DINGTALK_HTTP_500'); } };
 }
-const game = { id: 'g1', name: '冰川游戏' };
-const content = { id: 'c1', title: '游戏崩溃了', body: '进不去', source_url: 'https://x/1' };
+const game = { id: 'g1', name: '冰川游戏', community_id: 'community-1' };
+const content = { id: 'c1', game_id: 'g1', community_id: 'community-1', title: '游戏崩溃了', body: '进不去', source_url: 'https://x/1' };
 
 test('immediate 口径达 urgent 单条直报并推钉钉', async () => {
   const repo = fakeRepo(); const ding = fakeDing();
@@ -73,6 +73,20 @@ test('冷却期内复用已存在告警，只追加内容不新建', async () =>
   assert.equal(repo.calls.insertAlert.length, 0);
   assert.deepEqual(repo.calls.linkAlertContent[0], ['old-1', 'c1']);
   assert.equal(ding.calls.length, 0); // 不重复推
+});
+
+test('告警聚合、去重和恢复严格按 community 隔离', async () => {
+  const repo = fakeRepo({ windowHits: 3, openAlert: { id: 'old-1', ding_talk_status: 'sent' } });
+  const engine = new AlertEngine(repo, fakeDing(), {});
+  const hit = { hitGroups: [{ groupName: '差评组', severity: 'attention', triggerMode: 'aggregate', windowSeconds: 1800, thresholdCount: 3, keywords: ['差评'] }] };
+  const out = await engine.process({ game, content, hit, analysis: { severity: 'attention' } });
+  assert.equal(out[0].reused, true);
+  assert.equal(repo.calls.countWindowHits[0].communityId, 'community-1');
+  assert.equal(repo.calls.findOpenAlert[0].communityId, 'community-1');
+  await assert.rejects(
+    () => engine.process({ game, content: { ...content, community_id: 'community-2' }, hit, analysis: { severity: 'attention' } }),
+    error => error.code === 'ALERT_SCOPE_MISMATCH'
+  );
 });
 
 test('钉钉推送失败回写 failed 但仍落库', async () => {

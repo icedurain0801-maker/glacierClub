@@ -19,12 +19,25 @@ class AlertEngine {
     this.repo = repo;
     this.dingTalk = dingTalk;
     this.cooldownSeconds = Number(env.PO_ALERT_COOLDOWN_SECONDS || 900); // 同类告警冷却，默认 15min
+    // 告警内容发布时间窗：仅对 published_at 距当前 ≤ N 小时的内容触发告警，历史/backfill 内容不再误报。
+    const maxAgeRaw = env.ALERT_CONTENT_MAX_AGE_HOURS;
+    const maxAgeHours = maxAgeRaw == null || String(maxAgeRaw).trim() === '' ? 72 : Number(maxAgeRaw);
+    // 配置非法（非数字/NaN/Infinity/空串）时回退默认 72h，避免阈值变 NaN 导致全量不告警（fail-closed）。
+    this.contentMaxAgeSeconds = Math.max(0, Number.isFinite(maxAgeHours) ? maxAgeHours : 72) * 3600;
+  }
+
+  // 内容是否在告警时间窗内（无 published_at 视为在窗内，保守不丢告警）。
+  isContentFresh(content) {
+    const publishedAt = Date.parse(content.published_at || content.publishedAt || '');
+    if (Number.isNaN(publishedAt)) return true;
+    return (Date.now() - publishedAt) / 1000 <= this.contentMaxAgeSeconds;
   }
 
   // 决策单条内容是否触发告警。返回命中的告警口径列表（可能空）。
   //  hit: ruleEngine.matchRules 的产出（含 hitGroups/triggerModes/ruleSeverity）
   //  analysis: aiAnalyzer 的产出（含 sentiment/severity/negativeScore）
   async process({ game, content, hit, analysis }) {
+    if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（关键词口径）
     if (!hit || !hit.hitGroups?.length) return [];
     const created = [];
     for (const group of hit.hitGroups) {
@@ -35,9 +48,10 @@ class AlertEngine {
   }
 
   async processAiUrgent({ game, content, analysis }) {
+    if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（AI urgent 口径）
     if (analysis?.severity !== 'urgent') return [];
     const alertType = 'ai_urgent';
-    const communityId = content.community_id || content.communityId;
+    const communityId = this.assertScope(game, content);
     const open = await this.repo.findOpenAlert({ gameId: game.id, communityId, alertType, cooldownSeconds: this.cooldownSeconds });
     if (open) { await this.repo.linkAlertContent(open.id, content.id); return [{ alertId: open.id, reused: true, dingStatus: open.ding_talk_status }]; }
     const title = `【${game.name}】AI 识别紧急舆情`;
@@ -55,7 +69,7 @@ class AlertEngine {
     // 最终严重度取"规则组严重度"与"AI 严重度"的较高者——规则是保底，AI 可升级。
     const severity = SEVERITY_RANK[analysis?.severity] > SEVERITY_RANK[group.severity] ? analysis.severity : group.severity;
     const alertType = group.triggerMode === 'immediate' ? 'immediate' : 'aggregate';
-    const communityId = content.community_id || content.communityId;
+    const communityId = this.assertScope(game, content);
 
     if (alertType === 'immediate') {
       // 即时口径：仅当最终严重度达 urgent 才单条直报（attention 级留给聚合口径累积）。
@@ -87,6 +101,20 @@ class AlertEngine {
     const dingStatus = await this.pushDingTalk(game, { title, triggerDetail }).catch(() => 'failed');
     await this.repo.updateDingStatus(alert.id, dingStatus);
     return { alertId: alert.id, reused: false, severity, alertType, dingStatus };
+  }
+
+  assertScope(game, content) {
+    const gameCommunityId = game?.community_id || game?.communityId;
+    const contentCommunityId = content?.community_id || content?.communityId;
+    const contentGameId = content?.game_id || content?.gameId;
+    if (!game?.id || !gameCommunityId || !contentCommunityId
+      || (contentGameId && String(contentGameId) !== String(game.id))
+      || String(gameCommunityId) !== String(contentCommunityId)) {
+      const error = new Error('alert canonical game/community scope is missing or inconsistent');
+      error.code = 'ALERT_SCOPE_MISMATCH';
+      throw error;
+    }
+    return String(contentCommunityId);
   }
 
   // 推钉钉：分群预留——game.dingtalk_webhook_ref 存在时可路由到分群（B 扩展），

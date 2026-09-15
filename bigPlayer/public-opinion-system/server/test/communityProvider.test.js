@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { CommunityProvider } = require('../src/services/communityProvider');
+const { CommunityDirectory, CommunityProvider } = require('../src/services/communityProvider');
 
 const validCommunity = {
   id: ' community-1 ',
@@ -115,4 +115,33 @@ test('community provider caches results and coalesces concurrent requests', asyn
   const refreshed = await subject.getCommunities();
   assert.equal(calls, 2);
   assert.equal(refreshed[0].id, 'community-2');
+});
+
+test('community directory falls back to an enabled canonical mirror when provider is unavailable', async () => {
+  const calls = [];
+  const directory = new CommunityDirectory({
+    provider: { async getCommunities() { const error = new Error('provider unavailable'); error.code = 'COMMUNITY_PROVIDER_NOT_CONFIGURED'; throw error; } },
+    repo: {
+      async getCommunityForGame(communityId, gameId, options) {
+        calls.push({ communityId, gameId, options });
+        return { id: communityId, game_id: gameId, region_code: 'overseas', status: 'enabled', name: 'Last Light' };
+      }
+    }
+  });
+
+  const community = await directory.requireEnabled({ communityId: 'community-last-light', gameId: 'game-last-light', regionCode: 'overseas' });
+
+  assert.equal(community.name, 'Last Light');
+  assert.deepEqual(calls, [{ communityId: 'community-last-light', gameId: 'game-last-light', options: { enabledOnly: true } }]);
+});
+
+test('community directory fallback still rejects missing or region-mismatched mirror records', async () => {
+  const provider = { async getCommunities() { const error = new Error('provider unavailable'); error.code = 'COMMUNITY_PROVIDER_TIMEOUT'; throw error; } };
+  for (const mirrored of [null, { id: 'community-last-light', game_id: 'game-last-light', region_code: 'domestic', status: 'enabled' }]) {
+    const directory = new CommunityDirectory({ provider, repo: { async getCommunityForGame() { return mirrored; } } });
+    await assert.rejects(
+      () => directory.requireEnabled({ communityId: 'community-last-light', gameId: 'game-last-light', regionCode: 'overseas' }),
+      error => error.code === 'COMMUNITY_NOT_FOUND'
+    );
+  }
 });

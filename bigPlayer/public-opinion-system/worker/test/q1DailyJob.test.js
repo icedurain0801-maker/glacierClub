@@ -26,18 +26,34 @@ test('builds a fixed sanitized daily report with analysis counters', () => {
   const report = buildDailyReport({
     sourceId: 'source-1',
     window: { businessDate: '2026-08-24', publishedFrom: 'from', publishedTo: 'to' },
-    summary: { posts: 2, comments: 3, replies: 1, import: { inserted: 4, changed: 2, analysisEligibleIds: ['a', 'b'] } },
+    summary: { posts: 2, rawPosts: 5, uniquePosts: 2, comments: 3, replies: 1, import: { items: 6, inserted: 4, changed: 2, analysisEligibleIds: ['a', 'b'] } },
     analysis: { total: 2, completed: 2, pending: 0, running: 0, retryable: 0, failed: 0 }
   });
   assert.deepEqual(report, {
-    sourceId: 'source-1', businessDate: '2026-08-24', publishedFrom: 'from', publishedTo: 'to',
-    posts: 2, commentsReplies: 4, inserted: 4, changed: 2, analysisTotal: 2, analysisCompleted: 2,
-    analysisPending: 0, analysisRunning: 0, analysisRetryable: 0, analysisFailed: 0, complete: true, status: 'completed'
+    sourceId: 'source-1', regionCode: null, externalCommunity: null, internalGameId: null, internalCommunityId: null,
+    businessDate: '2026-08-24', publishedFrom: 'from', publishedTo: 'to',
+    posts: 2, rawPosts: 5, uniquePosts: 2, commentsReplies: 4, comments: 3, replies: 1,
+    databaseTotal: 6, inserted: 4, changed: 2, unchanged: 0, failedBatches: 0, failedItems: 0, analysisEligibleTotal: 2,
+    analysisTotal: 2, analysisCompleted: 2, analysisPending: 0, analysisRunning: 0, analysisRetryable: 0, analysisFailed: 0, complete: true, status: 'completed'
   });
   assert.doesNotMatch(JSON.stringify(report), /token|cookie|password|api[_ -]?key|secret/i);
 });
 
-test('runs collection and scoped analysis once, persists report, and prevents duplicate rerun', async () => {
+test('daily report exposes external and canonical audit scope', () => {
+  const report = buildDailyReport({
+    sourceId: 's1',
+    window: { businessDate: '2026-08-24' },
+    scope: { regionCode: 'overseas', externalCommunity: 'western', gameId: 'canonical-game', communityId: 'community-a' }
+  });
+  assert.deepEqual({
+    regionCode: report.regionCode,
+    externalCommunity: report.externalCommunity,
+    internalGameId: report.internalGameId,
+    internalCommunityId: report.internalCommunityId
+  }, { regionCode: 'overseas', externalCommunity: 'western', internalGameId: 'canonical-game', internalCommunityId: 'community-a' });
+});
+
+test('runs manual collection with an isolated analysis claim, persists report, and prevents duplicate rerun', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'q1-daily-test-'));
   const outDir = path.join(root, 'run');
   const lockDir = path.join(root, 'locks');
@@ -50,13 +66,13 @@ test('runs collection and scoped analysis once, persists report, and prevents du
     await fs.writeFile(path.join(outDir, 'summary.json'), JSON.stringify({ status: 'collection_completed', window: '2026-08-24', posts: 2, comments: 3, replies: 1, import: { inserted: 4, changed: 1, analysisEligibleIds: ['a', 'b'] } }));
   };
   class FakeAnalysisRunner {
-    constructor(options) { analyses += 1; assert.deepEqual(options.contentIds, ['a', 'b']); }
+    constructor(options) { analyses += 1; assert.deepEqual(options.contentIds, ['a', 'b']); assert.equal(options.manualClaim, true); assert.equal(options.businessDate, '2026-08-24'); }
     async run() { return { status: 'completed', total: 2, completed: 2, pending: 0, running: 0, retryable: 0, failed: 0 }; }
   }
   const productionFactory = async () => ({ source: { id: 'source-1', platform: 'bigplayer_h5' }, account: { id: 'account-1' }, connector: {}, credentialContext: {}, ai: { configured: () => true }, preflight: async () => ({ probed: true }), close: async () => {} });
-  const first = await runQ1Daily({ sourceId: 'source-1', outDir, now: new Date('2026-08-25T01:00:00+08:00'), crawler, analysisRunner: FakeAnalysisRunner, runnerOptions: { lockDir, productionFactory } });
+  const first = await runQ1Daily({ sourceId: 'source-1', outDir, now: new Date('2026-08-25T01:00:00+08:00'), crawler, analysisRunner: FakeAnalysisRunner, triggerType: 'manual', runnerOptions: { lockDir, productionFactory } });
   assert.equal(first.report.complete, true);
-  const second = await runQ1Daily({ sourceId: 'source-1', outDir, now: new Date('2026-08-25T01:00:00+08:00'), crawler, analysisRunner: FakeAnalysisRunner, runnerOptions: { lockDir, productionFactory } });
+  const second = await runQ1Daily({ sourceId: 'source-1', outDir, now: new Date('2026-08-25T01:00:00+08:00'), crawler, analysisRunner: FakeAnalysisRunner, triggerType: 'manual', runnerOptions: { lockDir, productionFactory } });
   assert.equal(second.skipped, true);
   assert.equal(collections, 1);
   assert.equal(analyses, 1);
@@ -96,6 +112,36 @@ test('continues analysis when importer reports import_partial with eligible ids'
 });
 test('sanitizes sensitive values in failure text', () => {
   assert.equal(sanitizeMessage('authorization: abc token=xyz cookie=def'), 'authorization: [redacted] token=[redacted] cookie=[redacted]');
+});
+
+test('writes phase evidence with stable counts and redacts errors', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'q1-daily-evidence-'));
+  const outDir = path.join(root, 'run'); const lockDir = path.join(root, 'locks'); const events = [];
+  const crawler = async () => {
+    await fs.mkdir(outDir, { recursive: true });
+    await fs.writeFile(path.join(outDir, 'summary.json'), JSON.stringify({ status: 'collection_completed', window: '2026-08-24', posts: 2, comments: 3, replies: 1, import: { inserted: 4, analysisEligibleIds: ['a', 'b'] } }));
+  };
+  const productionFactory = async () => ({ source: { id: 'source-1', platform: 'bigplayer_h5' }, account: { id: 'account-1' }, connector: {}, credentialContext: {}, ai: { configured: () => true }, preflight: async () => ({ probed: true }), close: async () => {} });
+  class FakeAnalysisRunner { async run() { return { status: 'completed', total: 2, completed: 2, pending: 0, running: 0, retryable: 0, failed: 0 }; } }
+  await runQ1Daily({ sourceId: 'source-1', outDir, now: new Date('2026-08-25T01:00:00+08:00'), crawler, analysisRunner: FakeAnalysisRunner, log: value => events.push(value), runnerOptions: { lockDir, productionFactory } });
+  const phases = events.map(value => JSON.parse(value).phase);
+  for (const phase of ['target', 'preflight', 'fetch', 'import', 'analysis', 'completion']) assert.ok(phases.includes(phase), phase);
+  assert.ok(events.some(value => JSON.parse(value).phase === 'import' && JSON.parse(value).counts.analysisEligibleTotal === 2));
+  assert.ok(events.some(value => JSON.parse(value).phase === 'completion' && JSON.parse(value).counts.analysisTotal === 2));
+  assert.doesNotMatch(events.join('\n'), /token-secret|password-secret|authorization-secret/i);
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('does not replace an existing successful report with a failure report', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'q1-daily-report-'));
+  const outDir = path.join(root, 'run'); const lockDir = path.join(root, 'locks');
+  await fs.mkdir(outDir, { recursive: true });
+  const success = { status: 'completed', complete: true, businessDate: '2026-08-24' };
+  await fs.writeFile(path.join(outDir, 'daily-report.json'), JSON.stringify(success));
+  const productionFactory = async () => ({ source: { id: 'source-1' }, account: { id: 'account-1' }, connector: {}, credentialContext: {}, ai: { configured: () => true }, close: async () => {} });
+  await assert.rejects(() => runQ1Daily({ sourceId: 'source-1', outDir, now: new Date('2026-08-25T01:00:00+08:00'), runnerOptions: { lockDir, productionFactory, preflight: async () => { const error = new Error('failed'); error.code = 'FAILED'; throw error; } } }));
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(outDir, 'daily-report.json'), 'utf8')), success);
+  await fs.rm(root, { recursive: true, force: true });
 });
 
 test('sanitizes JSON and query-string sensitive values in failure text', () => {

@@ -45,6 +45,13 @@ test('大小写/空白归一化匹配英文关键词', () => {
   assert.deepEqual(r.matchedKeywords, ['bug']);
 });
 
+test('不同社区规则集不会跨 community 命中', () => {
+  const communityA = [{ keyword: 'alpha-only', group_name: 'A组', severity: 'urgent', trigger_mode: 'immediate' }];
+  const communityB = [{ keyword: 'beta-only', group_name: 'B组', severity: 'urgent', trigger_mode: 'immediate' }];
+  assert.deepEqual(matchRules({ body: 'alpha-only' }, communityA).matchedKeywords, ['A组']);
+  assert.deepEqual(matchRules({ body: 'alpha-only' }, communityB).matchedKeywords, []);
+});
+
 test('higherSeverity 排序正确', () => {
   assert.equal(higherSeverity('normal', 'attention'), 'attention');
   assert.equal(higherSeverity('urgent', 'attention'), 'urgent');

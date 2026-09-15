@@ -36,6 +36,14 @@ function momentText(moment) {
   return parts.filter(Boolean).join('\n').trim();
 }
 
+function momentMedia(moment) {
+  // TapTap moment 图片位于 topic.pictures（original.url / url 等结构），字段名做防御性兼容。
+  const pictures = moment?.topic?.pictures ?? moment?.pictures;
+  if (!Array.isArray(pictures)) return [];
+  const urls = pictures.map(pic => pic?.original?.url || pic?.orig_url || pic?.url || pic?.origin_url).filter(url => typeof url === 'string' && url.trim() !== '');
+  return [...new Set(urls)];
+}
+
 function taptapItem(moment) {
   const id = momentId(moment);
   if (!id) throw new ConnectorError('MALFORMED_RESPONSE', 'TapTap moment id is required');
@@ -58,7 +66,7 @@ function taptapItem(moment) {
       views: Number(stat.pv_total || 0),
       favorites: Number(stat.favorites || 0)
     },
-    media: []
+    media: momentMedia(moment)
   });
   return { ...normalized, platformAuthorId: user.id == null ? null : String(user.id) };
 }

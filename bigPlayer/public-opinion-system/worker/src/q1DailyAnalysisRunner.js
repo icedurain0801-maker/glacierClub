@@ -86,8 +86,8 @@ async function analyzeWithFallback(ai, items, profile) {
 }
 
 class Q1AnalysisRunner {
-  constructor({ repo = new Repository(), ai = new AiAnalyzer(), alertEngine = new AlertEngine(), sourceId, contentIds = null, publishedFrom, publishedTo, batchSize = 100, parallel = 4, deepBatchSize = 10, deepParallel = 4, maxAttempts = 2, retryBaseMs = 1000, pollMs = 1000, timeoutMs = 2 * 60 * 60 * 1000, deepNegativeThreshold = 0.8, deepConfidenceThreshold = 0.55, log = console.log } = {}) {
-    this.repo = repo; this.ai = ai; this.alertEngine = alertEngine; this.sourceId = sourceId; this.contentIds = Array.isArray(contentIds) ? [...new Set(contentIds.map(String).filter(Boolean))] : null; this.publishedFrom = publishedFrom; this.publishedTo = publishedTo; this.batchSize = Math.min(Math.max(Number(batchSize) || 100, 1), 500); this.deepBatchSize = Math.min(Math.max(Number(deepBatchSize) || 10, 1), 100); this.parallel = Math.min(Math.max(Number(parallel) || 4, 1), 16); this.deepParallel = Math.min(Math.max(Number(deepParallel) || 4, 1), 16); this.maxAttempts = Math.max(Number(maxAttempts) || 2, 1); this.retryBaseMs = Math.max(Number(retryBaseMs) || 1000, 100); this.pollMs = Math.max(Number(pollMs) || 1000, 100); this.timeoutMs = Math.max(Number(timeoutMs) || 7200000, 1000); this.deepNegativeThreshold = Number(deepNegativeThreshold); this.deepConfidenceThreshold = Number(deepConfidenceThreshold); this.log = log;
+  constructor({ repo = new Repository(), ai = new AiAnalyzer(), alertEngine = new AlertEngine(), sourceId, contentIds = null, publishedFrom, publishedTo, businessDate, scope = {}, manualClaim = false, claimOwner, batchSize = 100, parallel = 4, deepBatchSize = 10, deepParallel = 4, maxAttempts = 2, retryBaseMs = 1000, pollMs = 1000, timeoutMs = 2 * 60 * 60 * 1000, deepNegativeThreshold = 0.8, deepConfidenceThreshold = 0.55, log = console.log } = {}) {
+    this.repo = repo; this.ai = ai; this.alertEngine = alertEngine; this.sourceId = sourceId; this.scope = scope || {}; this.contentIds = Array.isArray(contentIds) ? [...new Set(contentIds.map(String).filter(Boolean))] : null; this.publishedFrom = publishedFrom; this.publishedTo = publishedTo; this.businessDate = businessDate; this.manualClaim = manualClaim === true; this.claimOwner = claimOwner || (this.manualClaim ? `q1-daily:${process.pid}:${sourceId}:${businessDate}` : `q1-daily:${process.pid}`); this.batchSize = Math.min(Math.max(Number(batchSize) || 100, 1), 500); this.deepBatchSize = Math.min(Math.max(Number(deepBatchSize) || 10, 1), 100); this.parallel = Math.min(Math.max(Number(parallel) || 4, 1), 16); this.deepParallel = Math.min(Math.max(Number(deepParallel) || 4, 1), 16); this.maxAttempts = Math.max(Number(maxAttempts) || 2, 1); this.retryBaseMs = Math.max(Number(retryBaseMs) || 1000, 100); this.pollMs = Math.max(Number(pollMs) || 1000, 100); this.timeoutMs = Math.max(Number(timeoutMs) || 7200000, 1000); this.deepNegativeThreshold = Number(deepNegativeThreshold); this.deepConfidenceThreshold = Number(deepConfidenceThreshold); this.log = log;
   }
   async enqueueMissing(profile) {
     const spec = this.ai.selectProfile(profile); let total = 0;
@@ -98,7 +98,8 @@ class Q1AnalysisRunner {
   }
   async processBatch(profile) {
     const spec = this.ai.selectProfile(profile);
-    const jobs = await this.repo.claimAnalysisJobs({ profile, version: spec.version, leaseOwner: `q1-daily:${process.pid}`, leaseSeconds: 900, limit: profile === 'deep' ? this.deepBatchSize : this.batchSize, sourceId: this.sourceId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo });
+    const jobs = await this.repo.claimAnalysisJobs({ profile, version: spec.version, leaseOwner: this.claimOwner, leaseSeconds: 900, limit: profile === 'deep' ? this.deepBatchSize : this.batchSize, sourceId: this.sourceId, gameId: this.scope.gameId, communityId: this.scope.communityId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo, businessDate: this.businessDate, allowDisabledSource: this.manualClaim });
+    if (jobs.some(job => (this.scope.gameId && String(job.game_id) !== String(this.scope.gameId)) || (this.scope.communityId && String(job.community_id) !== String(this.scope.communityId)))) throw Object.assign(new Error('analysis job escaped canonical scope'), { code: 'ANALYSIS_SCOPE_MISMATCH' });
     if (!jobs.length) return 0;
     const keys = jobs.map(job => cacheKey(this.ai, job, profile));
     const cached = new Map((await this.repo.getAnalysisCache(keys)).map(row => [row.cache_key, row]));
@@ -124,7 +125,7 @@ class Q1AnalysisRunner {
       }
       return jobs.length;
     } catch (error) {
-      await Promise.all(jobs.map(job => { const attempts = Number(job.attempts || 1); const status = attempts >= this.maxAttempts ? 'failed' : 'retryable'; const retryAt = status === 'retryable' ? new Date(Date.now() + this.retryBaseMs * 2 ** Math.max(0, attempts - 1)) : null; return this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status, errorCode: errorCode(error), errorMessage: error.message, retryAt }); }));
+      await Promise.all(jobs.map(job => { const attempts = Number(job.attempts || 1); const status = attempts >= this.maxAttempts ? 'failed' : 'retryable'; const retryAt = status === 'retryable' ? new Date(Date.now() + this.retryBaseMs * 2 ** Math.max(0, attempts - 1)) : null; return this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status, errorCode: errorCode(error), errorMessage: sanitizeMessage(error.message), retryAt }); }));
       this.log(`[q1-analysis] ${profile} batch failed: ${error.message}`);
       return 0;
     }
@@ -132,8 +133,9 @@ class Q1AnalysisRunner {
   async counts(profile) { return this.repo.countAnalysisJobs({ profile, version: this.ai.selectProfile(profile).version, sourceId: this.sourceId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo }); }
   async run() {
     if (!this.sourceId || !this.publishedFrom || !this.publishedTo) throw new Error('sourceId and published window are required');
+    if ((this.scope.gameId && !this.scope.communityId) || (this.scope.communityId && !this.scope.gameId)) throw Object.assign(new Error('canonical game and community scope must be supplied together'), { code: 'ANALYSIS_SCOPE_REQUIRED' });
     if (!this.ai.configured('light')) throw new Error('AI_ANALYSIS_NOT_CONFIGURED');
-    const deadline = Date.now() + this.timeoutMs; const report = { sourceId: this.sourceId, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo, discovered: 0, completed: 0, failed: 0, passes: [] };
+    const deadline = Date.now() + this.timeoutMs; const report = { sourceId: this.sourceId, regionCode: this.scope.regionCode || null, externalCommunity: this.scope.externalCommunity || null, internalGameId: this.scope.gameId || null, internalCommunityId: this.scope.communityId || null, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo, discovered: 0, completed: 0, failed: 0, passes: [] };
     const profiles = ['light'];
     if (this.ai.configured('deep')) profiles.push('deep');
     for (const profile of profiles) {

@@ -23,6 +23,75 @@ class FakeResponse:
 
 
 class FeedPaginationTests(unittest.TestCase):
+    def test_q1_client_allows_exact_english_host_over_https(self):
+        client = q1_crawler.Q1Client(
+            "https://club-en.q1.com?env=web&gameId=game&gameVersion=1",
+            "token", q1_crawler.DEFAULT_ALLOWED_HOSTS,
+        )
+        self.assertEqual(client.host, "club-en.q1.com")
+
+    def test_q1_client_rejects_unapproved_or_unsafe_base_urls(self):
+        urls = (
+            "https://club-en.q1.com.evil.test?env=web&gameId=game&gameVersion=1",
+            "https://127.0.0.1?env=web&gameId=game&gameVersion=1",
+            "http://club-en.q1.com?env=web&gameId=game&gameVersion=1",
+            "https://club-en.q1.com:8443?env=web&gameId=game&gameVersion=1",
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                with self.assertRaises(q1_crawler.CrawlError):
+                    q1_crawler.Q1Client(url, "token", q1_crawler.DEFAULT_ALLOWED_HOSTS)
+
+    def test_q1_client_rejects_private_reserved_and_local_ip_hosts(self):
+        urls = (
+            "https://10.0.0.1?env=web&gameId=game&gameVersion=1",
+            "https://192.168.1.1?env=web&gameId=game&gameVersion=1",
+            "https://169.254.0.1?env=web&gameId=game&gameVersion=1",
+            "https://192.0.2.1?env=web&gameId=game&gameVersion=1",
+            "https://127.0.0.1?env=web&gameId=game&gameVersion=1",
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                with self.assertRaises(q1_crawler.CrawlError):
+                    q1_crawler.Q1Client(url, "token", ("10.0.0.1", "192.168.1.1", "169.254.0.1", "192.0.2.1", "127.0.0.1"))
+
+    def test_q1_client_rejects_ipv6_loopback_link_local_ula_and_reserved_hosts(self):
+        urls = (
+            "https://[::1]?env=web&gameId=game&gameVersion=1",
+            "https://[fe80::1]?env=web&gameId=game&gameVersion=1",
+            "https://[fd00::1]?env=web&gameId=game&gameVersion=1",
+            "https://[2001:db8::1]?env=web&gameId=game&gameVersion=1",
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                with self.assertRaises(q1_crawler.CrawlError):
+                    q1_crawler.Q1Client(url, "token", ("::1", "fe80::1", "fd00::1", "2001:db8::1"))
+
+        class RedirectResponse:
+            def geturl(self):
+                return "https://club-en.q1.com.evil.test/redirected"
+
+            def read(self):
+                return b'{"code": 0, "data": {}}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        original_urlopen = q1_crawler.request.urlopen
+        q1_crawler.request.urlopen = lambda *_args, **_kwargs: RedirectResponse()
+        try:
+            client = q1_crawler.Q1Client(
+                "https://club.q1.com?env=web&gameId=game&gameVersion=1",
+                "token", q1_crawler.DEFAULT_ALLOWED_HOSTS,
+            )
+            with self.assertRaises(q1_crawler.CrawlError):
+                client.get("/api/club/v1/auth/user/context", capability="context")
+        finally:
+            q1_crawler.request.urlopen = original_urlopen
+
     def test_short_page_continues_until_boundary(self):
         pages = [
             {"data": {"items": [{"id": "2", "createTime": "2026-08-26T01:00:00+08:00"}], "hasMore": True, "nextOffset": 1, "total": 2}},
@@ -129,7 +198,40 @@ class FeedPaginationTests(unittest.TestCase):
         finally:
             _time.sleep = original_sleep
             q1_crawler.import_batch = original
-    def test_time_shards_overlap_and_cover_window(self):
+    def test_fetch_feed_shards_deduplicates_overlapping_posts(self):
+        calls = []
+        posts = [
+            [{"externalId": "p1", "publishedAt": "2026-08-26T01:00:00+08:00"}],
+            [{"externalId": "p1", "publishedAt": "2026-08-26T01:00:00+08:00"}, {"externalId": "p2", "publishedAt": "2026-08-26T05:00:00+08:00"}],
+        ]
+        original = q1_crawler.fetch_feed_posts
+        q1_crawler.fetch_feed_posts = lambda *args, **kwargs: calls.append(args[1:3]) or posts.pop(0)
+        try:
+            since = q1_crawler.parse_window_datetime("2026-08-26T00:00:00+08:00")
+            until = q1_crawler.parse_window_datetime("2026-08-26T08:00:00+08:00")
+            result, count = q1_crawler.fetch_feed_shards(
+                object(), {"endpointKind": "merged", "pageKind": "home", "tabName": "all"},
+                since, until, 20, 5, lambda *_: None, [])
+        finally:
+            q1_crawler.fetch_feed_posts = original
+        self.assertEqual(count, 2)
+        self.assertEqual([item["externalId"] for item in result], ["p1", "p2"])
+        self.assertEqual(len(calls), 2)
+
+    def test_import_captured_content_reports_failed_batch_counts(self):
+        args = type("Args", (), {"import_api_url": "http://import", "source_id": "s", "account_id": None,
+                                  "import_token": "secret", "import_batch_size": 1, "import_timeout": 5,
+                                  "since": None, "until": None})()
+        original = q1_crawler.import_batch
+        q1_crawler.import_batch = lambda *args, **kwargs: {"inserted": 1, "changed": 0, "unchanged": 0, "batches": 1, "analysisEligibleIds": ["ok"]}
+        try:
+            result = q1_crawler.import_captured_content(args, [{"externalId": "p"}], [], [], lambda *_: None)
+        finally:
+            q1_crawler.import_batch = original
+        self.assertEqual(result["failedBatches"], 0)
+        self.assertEqual(result["failedItems"], 0)
+        self.assertEqual(result["analysisEligibleIds"], ["ok"])
+
         since = q1_crawler.parse_window_datetime("2026-08-26T00:00:00+08:00")
         until = q1_crawler.parse_window_datetime("2026-08-27T00:00:00+08:00")
         shards = q1_crawler.build_time_shards(since, until, hours=4, overlap_minutes=10)

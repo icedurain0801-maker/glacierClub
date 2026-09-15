@@ -25,6 +25,36 @@ function legacyScheduledGate({ mode = process.env.UNIFIED_SOURCE_SCHEDULER_MODE,
   return { status: 'skipped', reasonCode: UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS };
 }
 
+const ACTIVE_DAILY_ANALYSIS_SCOPES = new Set();
+const CLAIM_LOCK_RETRY_MAX_ATTEMPTS = 3;
+const CLAIM_LOCK_RETRY_BASE_MS = 100;
+
+function analysisScopeKey(window) {
+  return `${new Date(window.publishedFrom).toISOString()}:${new Date(window.publishedTo).toISOString()}`;
+}
+
+function isDailyAnalysisScopeActive(scope = {}) {
+  if (!scope.publishedFrom || !scope.publishedTo) return false;
+  return ACTIVE_DAILY_ANALYSIS_SCOPES.has(analysisScopeKey(scope));
+}
+
+function registerDailyAnalysisScope(window) {
+  const key = analysisScopeKey(window);
+  ACTIVE_DAILY_ANALYSIS_SCOPES.add(key);
+  return () => ACTIVE_DAILY_ANALYSIS_SCOPES.delete(key);
+}
+
+function isClaimLockError(error) {
+  return ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT', 'LOCK_DEADLOCK', 'LOCK_TIMEOUT'].includes(error?.code || error?.cause?.code);
+}
+
+function stableClaimLockError(error) {
+  const wrapped = new Error('analysis job claim could not obtain a database lock');
+  wrapped.code = 'ANALYSIS_CLAIM_LOCK_CONFLICT';
+  wrapped.cause = error;
+  return wrapped;
+}
+
 function clockNow(deps) { return typeof deps?.clock === 'function' ? deps.clock() : Date.now(); }
 function sanitizeCounts(counts = {}) {
   return Object.fromEntries(COUNT_FIELDS.filter(key => Number.isFinite(Number(counts[key]))).map(key => [key, Number(counts[key])]));
@@ -97,12 +127,12 @@ function enqueueOnlyDeps(deps, window) {
   };
 }
 
-async function runAnalysisPump(deps, window, { timeoutMs, idleMs, keepAlive = true } = {}) {
+async function runAnalysisPump(deps, window, { timeoutMs, idleMs, keepAlive = true, sourceId } = {}) {
   const startedAt = clockNow(deps);
   const configuredTimeout = Number(timeoutMs || process.env.DAILY_ANALYSIS_TIMEOUT_MS || 2 * 60 * 60 * 1000);
   const limitMs = Math.max(1000, Math.min(configuredTimeout, deps.deadlineAt == null ? configuredTimeout : Math.max(1000, deps.deadlineAt - clockNow(deps))));
   const waitMs = Math.max(1, Number(idleMs || process.env.DAILY_ANALYSIS_IDLE_MS || 1000));
-  const scope = { publishedFrom: window.publishedFrom, publishedTo: window.publishedTo };
+  const scope = { publishedFrom: window.publishedFrom, publishedTo: window.publishedTo, ...(sourceId ? { sourceId } : {}) };
   let analyzed = 0; let alerted = 0; let stopClaiming = false; let collectionComplete = !keepAlive; let inFlight = null;
   const stop = () => { stopClaiming = true; };
   const complete = () => { collectionComplete = true; };
@@ -131,13 +161,29 @@ async function runAnalysisPump(deps, window, { timeoutMs, idleMs, keepAlive = tr
         await sleep(waitMs);
         continue;
       }
-      inFlight = processPersistentAnalysisJobs(pumpDeps, null, [], scope);
-      const result = await inFlight; inFlight = null;
-      analyzed += Number(result?.analyzed || 0); alerted += Number(result?.alerted || 0);
-      if (!result?.analyzed) await sleep(waitMs);
+      try {
+        let result;
+        for (let attempt = 0; ; attempt += 1) {
+          try {
+            inFlight = processPersistentAnalysisJobs(pumpDeps, null, [], scope);
+            result = await inFlight;
+            break;
+          } catch (error) {
+            if (!isClaimLockError(error) || attempt + 1 >= CLAIM_LOCK_RETRY_MAX_ATTEMPTS) throw (isClaimLockError(error) ? stableClaimLockError(error) : error);
+            await sleep(CLAIM_LOCK_RETRY_BASE_MS * 2 ** attempt);
+          } finally {
+            inFlight = null;
+          }
+        }
+        analyzed += Number(result?.analyzed || 0); alerted += Number(result?.alerted || 0);
+        if (!result?.analyzed) await sleep(waitMs);
+      } catch (error) {
+        if (error.code !== 'ANALYSIS_CLAIM_LOCK_CONFLICT') throw error;
+        await sleep(waitMs);
+      }
     }
     if (inFlight) await inFlight;
-    return { analyzed, alerted, stopped: stopClaiming, completed: collectionComplete && !stopClaiming };
+    return { sourceId: sourceId || null, analyzed, alerted, stopped: stopClaiming, completed: collectionComplete && !stopClaiming };
   })();
   pump.catch(() => {});
   return { stop, complete, done: pump };
@@ -221,6 +267,7 @@ async function runDaily(deps, {
   if (gate) return gate;
   deps = deps || buildDeps();
   const window = previousBeijingDay(now);
+  let releaseDailyAnalysisScope = null;
   const lockName = `po-daily-${window.businessDate}`;
   let locked = false;
   try {
@@ -249,6 +296,7 @@ async function runDaily(deps, {
     if (dryRun) return { ...summary, dryRun: true };
 
     const dailyStartedAt = clockNow(deps);
+    releaseDailyAnalysisScope = registerDailyAnalysisScope(window);
     const scopedDeps = {
       ...deps,
       businessDate: window.businessDate,
@@ -276,17 +324,22 @@ async function runDaily(deps, {
         analysis: { analyzed: 0, alerted: 0, stopped: true, completed: false, skipped: true }
       };
     }
-    const pump = await runAnalysisPump(scopedDeps, window, { keepAlive: true });
+    const pumps = new Map(preflight.ready.map(({ source }) => [source.id, null]));
+    for (const { source } of preflight.ready) pumps.set(source.id, await runAnalysisPump(scopedDeps, window, { keepAlive: true, sourceId: source.id }));
     const collectionDeps = enqueueOnlyDeps(scopedDeps, window);
     const stopProgressWatchdog = startProgressWatchdog(scopedDeps, preflight.ready);
-    let collectionError = null;
+    const collectionErrors = [];
     try {
       emitProgress(scopedDeps, { phase: 'collecting', sourceCounts: { ready: preflight.ready.length, skipped: preflight.skipped.length } });
-      await runBounded(preflight.ready, deps.sourceConcurrency || 1, async ({ source }) => runSource(collectionDeps, source));
-    } catch (error) {
-      collectionError = error;
-      pump.stop();
-      emitProgress(scopedDeps, { phase: 'collecting', code: error.code || 'COLLECTION_FAILED' });
+      await runBounded(preflight.ready, deps.sourceConcurrency || 1, async ({ source }) => {
+        try {
+          await runSource(collectionDeps, source);
+        } catch (error) {
+          collectionErrors.push({ sourceId: source.id, error });
+          pumps.get(source.id)?.stop();
+          emitProgress(scopedDeps, { phase: 'collecting', code: error.code || 'COLLECTION_FAILED', sources: [{ sourceId: source.id, status: 'failed' }] });
+        }
+      });
     } finally {
       stopProgressWatchdog();
     }
@@ -296,18 +349,21 @@ async function runDaily(deps, {
     for (const { source, commentsSupported } of preflight.ready) {
       const run = await deps.repo.getLatestSyncRunForSource(source.id, {});
       latestRuns.push({ sourceId: source.id, platform: source.platform, commentsSupported, status: run?.status || 'unknown', errorCode: run?.error_code || null, discovered: Number(run?.discovered_count || 0), stored: Number(run?.stored_count || 0), fetched: Number(run?.fetched_count || 0), inserted: Number(run?.inserted_count || 0), changed: Number(run?.changed_count || 0), comments: Number(run?.comment_count || 0) });
+      const pump = pumps.get(source.id);
+      if (SUCCESS_SYNC_STATUSES.has(latestRuns.at(-1).status) && commentsSupported) pump?.complete();
+      else pump?.stop();
     }
     const incomplete = latestRuns.filter(item => !SUCCESS_SYNC_STATUSES.has(item.status) || !item.commentsSupported);
-    const collectionStatus = incomplete.length || collectionError ? 'collection_failed' : 'collection_completed';
-    if (collectionStatus === 'collection_completed') pump.complete();
-    else pump.stop();
+    const collectionStatus = incomplete.length || collectionErrors.length ? 'collection_failed' : 'collection_completed';
     emitProgress(scopedDeps, { phase: 'draining_analysis', collectionStatus, sources: latestRuns });
-    const pumpResult = await pump.done;
+    const pumpResults = await Promise.all([...pumps.values()].map(pump => pump.done));
+    const pumpResult = pumpResults.reduce((total, result) => ({ analyzed: total.analyzed + Number(result?.analyzed || 0), alerted: total.alerted + Number(result?.alerted || 0), stopped: total.stopped || Boolean(result?.stopped), completed: total.completed && Boolean(result?.completed) }), { analyzed: 0, alerted: 0, stopped: false, completed: true });
     const analysis = { ...pumpResult, skipped: false };
     const contents = collectionStatus === 'collection_failed' ? null : await deps.repo.countContentsByType(window);
-    emitProgress(scopedDeps, { phase: 'completed', collectionStatus, sourceCounts: { total: latestRuns.length, failed: incomplete.length }, jobCounts: { analyzed: pumpResult.analyzed, alerted: pumpResult.alerted } });
+    emitProgress(scopedDeps, { phase: 'completed', collectionStatus, sourceCounts: { total: latestRuns.length, failed: incomplete.length + collectionErrors.length }, jobCounts: { analyzed: pumpResult.analyzed, alerted: pumpResult.alerted } });
     return { ...summary, dryRun: false, collectionStatus, sources: latestRuns, incompleteSources: incomplete, contents, analysis };
   } finally {
+    if (typeof releaseDailyAnalysisScope === 'function') releaseDailyAnalysisScope();
     if (locked) await deps.repo.releaseAdvisoryLock(lockName);
   }
 }
@@ -335,4 +391,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { activeCount, analyzeWindow, enqueueWindow, enqueueOnlyDeps, runAnalysisPump, preflightSources, runDaily, legacyScheduledGate };
+module.exports = { activeCount, analyzeWindow, enqueueWindow, enqueueOnlyDeps, runAnalysisPump, preflightSources, runDaily, legacyScheduledGate, isDailyAnalysisScopeActive, registerDailyAnalysisScope, isClaimLockError, stableClaimLockError };

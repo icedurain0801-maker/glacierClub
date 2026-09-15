@@ -29,34 +29,40 @@ test('syncCommunityMirror upserts rows, disables absent rows, and commits', asyn
     { id: 'game-2', region_code: 'overseas' }
   ]);
   const items = [
-    { id: 'community-1', gameId: 'game-1', name: 'Domestic', status: 'enabled', sortOrder: 1, regionCode: 'domestic' },
-    { id: 'community-2', gameId: 'game-2', name: 'Overseas', status: 'disabled', sortOrder: 9, regionCode: null }
+    { id: 'community-1', gameId: 'game-1', name: 'Domestic', status: 'enabled', sortOrder: 1, regionCode: 'domestic' }
   ];
 
   const result = await repo.syncCommunityMirror(items);
 
-  assert.deepEqual(result, { synchronized: 2 });
+  assert.deepEqual(result, { synchronized: 1 });
   assert.equal(executed[0].sql, 'BEGIN');
   const gameLookup = executed.find(call => call.sql.startsWith('SELECT id, region_code FROM po_games'));
-  assert.match(gameLookup.sql, /WHERE id IN \(\?,\?\) FOR UPDATE/);
-  assert.deepEqual(gameLookup.params, ['game-1', 'game-2']);
+  assert.match(gameLookup.sql, /WHERE id IN \(\?\) FOR UPDATE/);
+  assert.deepEqual(gameLookup.params, ['game-1']);
 
   const upserts = executed.filter(call => call.sql.startsWith('INSERT INTO po_communities'));
-  assert.equal(upserts.length, 2);
+  assert.equal(upserts.length, 1);
   assert.match(upserts[0].sql, /ON DUPLICATE KEY UPDATE/);
   assert.deepEqual(upserts.map(call => call.params), [
-    ['community-1', 'game-1', 'Domestic', 'enabled', 1],
-    ['community-2', 'game-2', 'Overseas', 'disabled', 9]
+    ['community-1', 'game-1', 'Domestic', 'enabled', 1]
   ]);
+  assert.match(upserts[0].sql, /managed_by/);
+  assert.match(upserts[0].sql, /community_provider/);
 
-  const disable = executed.find(call => call.sql.startsWith("UPDATE po_communities SET status='disabled'"));
-  assert.match(disable.sql, /WHERE id NOT IN \(\?,\?\) AND status<>'disabled'/);
-  assert.deepEqual(disable.params, ['community-1', 'community-2']);
+  const disable = executed.find(call => call.sql.startsWith("UPDATE po_communities c JOIN po_games"));
+  assert.match(disable.sql, /WHERE g\.region_code=\?/);
+  assert.deepEqual(disable.params, ['domestic', 'community-1']);
   assert.equal(executed.at(-1).sql, 'COMMIT');
   assert.equal(executed.some(call => call.sql === 'ROLLBACK'), false);
   assert.equal(released(), true);
 });
 
+test('syncCommunityMirror leaves local rows unchanged for an empty provider response', async () => {
+  const { repo, executed, released } = repositoryWithTransaction([]);
+  assert.deepEqual(await repo.syncCommunityMirror([]), { synchronized: 0 });
+  assert.deepEqual(executed.map(call => call.sql), ['BEGIN', 'COMMIT']);
+  assert.equal(released(), true);
+});
 test('syncCommunityMirror rolls back for unknown game', async () => {
   const { repo, executed, released } = repositoryWithTransaction([{ id: 'game-1', region_code: 'domestic' }]);
 

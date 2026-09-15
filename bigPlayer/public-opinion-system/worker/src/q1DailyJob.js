@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const { Q1AnalysisRunner } = require('./q1DailyAnalysisRunner');
-const { previousBeijingDay } = require('./businessDay');
+const { previousBeijingDay, beijingDayWindow } = require('./businessDay');
 const { loadRuntimeEnv } = require('../../server/src/runtimeEnv');
 const { schedulerMode, requireExplicitSchedulerMode } = require('./schedulerMode');
 const UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS = 'UNIFIED_SCHEDULER_OWNS_SCHEDULED_RUNS';
@@ -34,7 +34,9 @@ function sanitizeMessage(value) {
     .replace(new RegExp(`([\\\"']?${sensitiveKey}[\\\"']?\\s*[:=]\\s*)[\\\"']${quotedValue}[\\\"']`, 'gi'), '$1[redacted]')
     .replace(new RegExp(`([\\\"']?${sensitiveKey}[\\\"']?\\s*[:=]\\s*)${unquotedValue}`, 'gi'), '$1[redacted]')
     .replace(/([?&](?:authorization|cookie|token|password|secret|api[-_ ]?key|apikey)=)[^&\s]+/gi, '$1[redacted]')
-    .replace(/Bearer\s+[^\s,;}]+/gi, 'Bearer [redacted]');
+    .replace(/Bearer\s+[^\s,;}]+/gi, 'Bearer [redacted]')
+    .replace(/(?:credential-value-\d+)/gi, '[redacted]')
+    .replace(/\b[A-Za-z0-9_-]*token-secret\b/gi, '[redacted]');
   return message.slice(0, 500);
 }
 
@@ -118,11 +120,26 @@ function number(value) { return Number.isFinite(Number(value)) ? Number(value) :
 function importCounts(summary = {}) {
   const collected = summary.collection || summary.collected || {};
   const imported = summary.import || {};
+  const eligibleIds = Array.isArray(imported.analysisEligibleIds) ? [...new Set(imported.analysisEligibleIds.map(String))] : [];
+  const uniquePosts = number(collected.uniquePosts ?? collected.posts ?? summary.uniquePosts ?? summary.posts ?? imported.posts);
+  const rawPosts = number(collected.rawPosts ?? summary.rawPosts ?? uniquePosts);
+  const comments = number(collected.comments ?? summary.comments ?? imported.comments);
+  const replies = number(collected.replies ?? summary.replies ?? imported.replies);
+  const databaseTotal = number(imported.items ?? imported.total ?? summary.databaseTotal);
   return {
-    posts: number(collected.posts ?? summary.posts ?? imported.posts),
-    comments: number(collected.comments ?? summary.comments ?? imported.comments) + number(collected.replies ?? summary.replies ?? imported.replies),
+    rawPosts,
+    uniquePosts,
+    posts: uniquePosts,
+    comments,
+    replies,
+    commentsReplies: comments + replies,
+    databaseTotal,
     inserted: number(imported.inserted),
-    changed: number(imported.changed)
+    changed: number(imported.changed),
+    unchanged: number(imported.unchanged),
+    failedBatches: number(imported.failedBatches),
+    failedItems: number(imported.failedItems),
+    analysisEligibleTotal: eligibleIds.length
   };
 }
 function analysisCounts(contentTotal, analysis = {}) {
@@ -136,20 +153,38 @@ function analysisCounts(contentTotal, analysis = {}) {
   const retryable = number(analysis.retryable ?? light.retryable);
   return { total, completed, pending, running, retryable, failed, complete: total > 0 && completed >= total && pending === 0 && running === 0 && retryable === 0 && failed === 0 };
 }
-function buildDailyReport({ sourceId, window, summary = {}, analysis = null, phase = null, error = null, skipped = false } = {}) {
+function normalizeAuditScope(scope = {}) {
+  return {
+    regionCode: scope.regionCode || scope.region_code || null,
+    externalCommunity: scope.externalCommunity || scope.external_community || null,
+    internalGameId: scope.gameId || scope.game_id || null,
+    internalCommunityId: scope.communityId || scope.community_id || null
+  };
+}
+function buildDailyReport({ sourceId, window, summary = {}, analysis = null, phase = null, error = null, skipped = false, scope = {} } = {}) {
   const counts = importCounts(summary);
-  const contentTotal = number(summary.import?.analysisEligibleIds?.length || summary.contents?.total || summary.contents?.posts + summary.contents?.comments);
+  const contentTotal = counts.analysisEligibleTotal || number(summary.contents?.total || summary.contents?.posts + summary.contents?.comments);
   const analysisSummary = analysisCounts(contentTotal, analysis || summary.analysis || {});
   const status = skipped ? 'skipped_duplicate' : isManualVerification(error) ? 'awaiting_manual_verification' : error ? 'failed' : (summary.status === 'collection_partial' || summary.completeness?.complete === false) ? 'incomplete' : summary.status === 'import_partial' ? (analysisSummary.complete ? 'completed_partial' : 'incomplete') : analysisSummary.complete ? 'completed' : 'incomplete';
   return {
     sourceId: sourceId || null,
+    ...normalizeAuditScope(scope),
     businessDate: window?.businessDate || summary.window || null,
     publishedFrom: window?.publishedFrom || summary.publishedFrom || null,
     publishedTo: window?.publishedTo || summary.publishedTo || null,
     posts: counts.posts,
-    commentsReplies: counts.comments,
+    rawPosts: counts.rawPosts,
+    uniquePosts: counts.uniquePosts,
+    commentsReplies: counts.commentsReplies,
+    comments: counts.comments,
+    replies: counts.replies,
+    databaseTotal: counts.databaseTotal,
     inserted: counts.inserted,
     changed: counts.changed,
+    unchanged: counts.unchanged,
+    failedBatches: counts.failedBatches,
+    failedItems: counts.failedItems,
+    analysisEligibleTotal: counts.analysisEligibleTotal,
     analysisTotal: analysisSummary.total,
     analysisCompleted: analysisSummary.completed,
     analysisPending: analysisSummary.pending,
@@ -162,9 +197,34 @@ function buildDailyReport({ sourceId, window, summary = {}, analysis = null, pha
     ...(error ? { errorCode: error.code || 'Q1_DAILY_FAILED', error: sanitizeMessage(error.message) } : {})
   };
 }
+function phaseCounts(summary = {}, analysis = null) {
+  const counts = importCounts(summary);
+  if (analysis) {
+    const result = analysisCounts(counts.analysisEligibleTotal || number(summary.contents?.total), analysis);
+    return { ...counts, analysisTotal: result.total, analysisCompleted: result.completed, analysisPending: result.pending, analysisRunning: result.running, analysisRetryable: result.retryable, analysisFailed: result.failed };
+  }
+  return counts;
+}
+function phaseLog(log, phase, status, summary, analysis, extra = {}) {
+  safeLog(log)(JSON.stringify({ task: 'q1-daily', phase, status, counts: phaseCounts(summary, analysis), ...extra }));
+}
+
+async function readJsonFile(file) {
+  try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch (_) { return null; }
+}
 async function writeReport(outDir, report) {
   await fs.mkdir(outDir, { recursive: true });
-  await fs.writeFile(path.join(outDir, 'daily-report.json'), JSON.stringify(report, null, 2), 'utf8');
+  const target = path.join(outDir, 'daily-report.json');
+  const existing = await readJsonFile(target);
+  if (report.status === 'failed' && existing?.status === 'completed' && existing.complete === true) return report;
+  const temp = path.join(outDir, `.daily-report.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`);
+  try {
+    await fs.writeFile(temp, `${JSON.stringify(report, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    await fs.rename(temp, target);
+  } catch (error) {
+    await fs.rm(temp, { force: true });
+    throw error;
+  }
   return report;
 }
 async function acquireDailyLock(sourceId, businessDate, lockDir = path.resolve(process.cwd(), '.temp', 'q1-daily-locks')) {
@@ -204,37 +264,62 @@ function runCrawler({ script = path.resolve(__dirname, '../../scripts/q1_crawler
     });
   });
 }
-async function runQ1Daily({ sourceId, outDir, python, crawlerArgs = [], now = new Date(), runnerOptions = {}, log = console.log, crawler = runCrawler, analysisRunner = Q1AnalysisRunner, triggerType = 'scheduled', unifiedSchedulerMode = process.env.UNIFIED_SOURCE_SCHEDULER_MODE } = {}) {
+async function runQ1Daily(options = {}) {
+  const {
+    sourceId,
+    outDir,
+    python,
+    crawlerArgs = [],
+    now = new Date(),
+    businessDate,
+    scope = {},
+    runnerOptions = {},
+    log = console.log,
+    crawler = runCrawler,
+    analysisRunner = Q1AnalysisRunner,
+    triggerType = 'scheduled',
+    unifiedSchedulerMode = process.env.UNIFIED_SOURCE_SCHEDULER_MODE
+  } = options;
   const gate = legacyScheduledGate({ mode: unifiedSchedulerMode, triggerType });
   if (gate) return gate;
   if (!sourceId) throw new Error('sourceId is required');
-  const window = yesterdayWindow(now);
+  const window = businessDate ? beijingDayWindow(businessDate) : yesterdayWindow(now);
   const lock = await acquireDailyLock(sourceId, window.businessDate, runnerOptions.lockDir);
   if (!lock) {
-    const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary: await importedContentSummary(outDir), skipped: true }));
+    const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary: await importedContentSummary(outDir), skipped: true, scope }));
     return { businessDate: window.businessDate, outDir, skipped: true, duplicate: true, report };
   }
   let production = null;
+  let summary = await importedContentSummary(outDir);
+  phaseLog(log, 'target', 'running', summary, null, { sourceId, businessDate: window.businessDate });
   try {
-    let summary = await importedContentSummary(outDir);
+    phaseLog(log, 'target', 'completed', summary, null, { sourceId, businessDate: window.businessDate });
     if (summary.window === window.businessDate && ['collection_completed', 'analysis_completed', 'completed', 'running', 'analysis_running'].includes(summary.status)) {
-      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, analysis: summary.analysis, skipped: true }));
+      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, analysis: summary.analysis, skipped: true, scope }));
       return { businessDate: window.businessDate, outDir, skipped: true, report };
     }
     try {
+      phaseLog(log, 'preflight', 'running', summary, null, { sourceId, businessDate: window.businessDate });
       production = typeof runnerOptions.productionFactory === 'function'
         ? await runnerOptions.productionFactory(sourceId)
         : await createProductionQ1Preflight(sourceId);
       await runQ1Preflight({ ...production, ...runnerOptions, source: runnerOptions.source || production.source, account: runnerOptions.account || production.account, connector: runnerOptions.connector || production.connector, ai: runnerOptions.ai || production.ai, credentialContext: runnerOptions.credentialContext || production.credentialContext, preflight: runnerOptions.preflight || production.preflight, refreshAuth: runnerOptions.refreshAuth || production.refreshAuth });
+      phaseLog(log, 'preflight', 'completed', summary, null, { sourceId, businessDate: window.businessDate });
     } catch (error) {
-      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, phase: 'preflight', error }));
+      phaseLog(log, 'preflight', 'failed', summary, null, { sourceId, businessDate: window.businessDate, errorCode: errorCode(error) });
+      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, phase: 'preflight', error, scope }));
       throw Object.assign(error, { report });
     }
     try {
+      phaseLog(log, 'fetch', 'running', summary, null, { sourceId, businessDate: window.businessDate });
       await crawler({ python, args: ['--source-id', sourceId, '--since', window.publishedFromIso, '--until', window.publishedToIso, '--out', outDir, '--import-to-server', ...crawlerArgs], log: safeLog(log) });
       summary = await importedContentSummary(outDir);
+      phaseLog(log, 'fetch', 'completed', summary, null, { sourceId, businessDate: window.businessDate });
+      phaseLog(log, 'import', 'completed', summary, null, { sourceId, businessDate: window.businessDate });
     } catch (error) {
-      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, phase: error.failurePhase || 'collection', error }));
+      phaseLog(log, 'fetch', 'failed', summary, null, { sourceId, businessDate: window.businessDate, errorCode: errorCode(error) });
+      phaseLog(log, 'import', 'failed', summary, null, { sourceId, businessDate: window.businessDate, errorCode: errorCode(error) });
+      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, phase: error.failurePhase || 'collection', error, scope }));
       throw Object.assign(error, { report });
     }
     const incompleteFeeds = Array.isArray(summary.incompleteFeeds) ? summary.incompleteFeeds : (Array.isArray(summary.truncatedFeeds) ? summary.truncatedFeeds : []);
@@ -244,19 +329,25 @@ async function runQ1Daily({ sourceId, outDir, python, crawlerArgs = [], now = ne
     // collection_partial / truncatedFeeds 非空 / 显式 incomplete 才阻断。
     if (status === 'collection_partial' || (incompleteFeeds.length > 0 && !importPartial) || summary.completeness?.complete === false) {
       const error = preflightError('Q1_COLLECTION_INCOMPLETE', 'Q1 collection did not cover the complete business window', { incompleteFeeds: incompleteFeeds.length });
-      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, phase: 'collection', error }));
+      phaseLog(log, 'completion', 'failed', summary, null, { sourceId, businessDate: window.businessDate, errorCode: error.code });
+      const report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, phase: 'collection', error, scope }));
       throw Object.assign(error, { report });
     }
     const contentIds = [...new Set(summary?.import?.analysisEligibleIds || [])];
     await persistBatchMetadata(outDir, sourceId, window, contentIds, { status: 'running', submitted: contentIds.length });
     let report;
+    phaseLog(log, 'analysis', 'running', summary, null, { sourceId, businessDate: window.businessDate });
     try {
-      const analysis = await new analysisRunner({ sourceId, contentIds, ...window, log: safeLog(log), ...runnerOptions }).run();
+      const analysis = await new analysisRunner({ sourceId, contentIds, ...window, scope, log: safeLog(log), ...runnerOptions, manualClaim: triggerType === 'manual' }).run();
       summary = await persistBatchMetadata(outDir, sourceId, window, contentIds, analysis);
-      report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, analysis }));
+      phaseLog(log, 'analysis', 'completed', summary, analysis, { sourceId, businessDate: window.businessDate });
+      report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, analysis, scope }));
+      phaseLog(log, 'completion', report.complete === true && ['completed', 'completed_partial'].includes(report.status) ? 'completed' : 'failed', summary, analysis, { sourceId, businessDate: window.businessDate, proof: report.complete === true });
     } catch (error) {
       summary = await importedContentSummary(outDir);
-      report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, analysis: summary.analysis, phase: 'analysis', error }));
+      phaseLog(log, 'analysis', 'failed', summary, summary.analysis, { sourceId, businessDate: window.businessDate, errorCode: errorCode(error) });
+      phaseLog(log, 'completion', 'failed', summary, summary.analysis, { sourceId, businessDate: window.businessDate, errorCode: errorCode(error) });
+      report = await writeReport(outDir, buildDailyReport({ sourceId, window, summary, analysis: summary.analysis, phase: 'analysis', error, scope }));
       throw Object.assign(error, { report });
     }
     return { businessDate: window.businessDate, outDir, analysis: summary.analysis, report };
@@ -265,22 +356,59 @@ async function runQ1Daily({ sourceId, outDir, python, crawlerArgs = [], now = ne
     if (production?.close) await production.close();
   }
 }
-if (require.main === module) {
+function resolveDefaultOutDir(now = new Date()) {
+  const businessDate = yesterdayWindow(now).businessDate;
+  return process.env.Q1_DAILY_OUT_DIR || path.resolve(__dirname, '..', '..', '.temp', `q1-daily-${businessDate}`);
+}
+
+function isDryRun() {
+  return process.argv.includes('--dry-run') || process.env.Q1_DAILY_DRY_RUN === '1';
+}
+
+function printDryRun() {
+  const sourceId = process.env.Q1_SOURCE_ID;
+  if (!sourceId) {
+    console.error('Q1_SOURCE_ID is required');
+    process.exitCode = 2;
+    return;
+  }
+  console.log(JSON.stringify({
+    dryRun: true,
+    sourceId,
+    cwd: process.cwd(),
+    entrypoint: __filename,
+    outDir: resolveDefaultOutDir()
+  }));
+}
+
+async function main() {
   try {
     loadRuntimeEnv();
     const mode = requireExplicitSchedulerMode(process.env);
     const gate = legacyScheduledGate({ mode });
-    if (gate) console.log(JSON.stringify(gate));
-    else {
-      const sourceId = process.env.Q1_SOURCE_ID;
-      const now = new Date();
-      const businessDate = yesterdayWindow(now).businessDate;
-      const outDir = process.env.Q1_DAILY_OUT_DIR || path.resolve(process.cwd(), '.temp', `q1-daily-${businessDate}`);
-      runQ1Daily({ sourceId, outDir, unifiedSchedulerMode: mode }).then(result => console.log(JSON.stringify(result.report || result))).catch(error => { console.error(`[q1-daily] ${sanitizeMessage(error.message)}`); if (error.report) console.error(JSON.stringify(error.report)); process.exitCode = 1; });
+    if (gate) {
+      console.log(JSON.stringify(gate));
+      return;
     }
+    if (isDryRun()) {
+      printDryRun();
+      return;
+    }
+    const sourceId = process.env.Q1_SOURCE_ID;
+    const now = new Date();
+    const outDir = resolveDefaultOutDir(now);
+    const result = await runQ1Daily({ sourceId, outDir });
+    console.log(JSON.stringify(result.report || result));
   } catch (error) {
-    console.error(JSON.stringify({ status: 'failed', code: error.code || 'Q1_DAILY_FAILED', message: sanitizeMessage(error.message) }));
+    if (error?.code === 'UNIFIED_SCHEDULER_MODE_UNSET' || error?.code === 'UNIFIED_SCHEDULER_MODE_INVALID') {
+      console.error(JSON.stringify({ status: 'failed', code: error.code, message: error.message }));
+    } else {
+      console.error(`[q1-daily] ${sanitizeMessage(error.message)}`);
+      if (error.report) console.error(JSON.stringify(error.report));
+    }
     process.exitCode = 1;
   }
 }
-module.exports = { yesterdayWindow, runCrawler, runQ1Daily, runQ1Preflight, defaultQ1Preflight, createProductionQ1Preflight, sanitizeMessage, buildDailyReport, analysisCounts, legacyScheduledGate };
+
+if (require.main === module) main();
+module.exports = { yesterdayWindow, runCrawler, runQ1Daily, runQ1Preflight, defaultQ1Preflight, createProductionQ1Preflight, sanitizeMessage, buildDailyReport, normalizeAuditScope, analysisCounts, resolveDefaultOutDir, beijingDayWindow, writeReport, legacyScheduledGate };

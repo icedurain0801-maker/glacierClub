@@ -1,6 +1,6 @@
 ---
 date: 2026-09-11
-status: in_progress
+status: production_recovery_executing
 scope: bigplayer-production-recovery-and-weekly-backfill
 owner: 项目经理
 ---
@@ -18,17 +18,34 @@ owner: 项目经理
 
 | 状态 | 事项 | 验收 | 负责人 |
 |---|---|---|---|
-| in_progress | 生产准入与恢复实施 | 2 项 P1 已修复且最终独立复审 PASS；串行提交后执行 migration `023`、可信 Worker、调度 mode 与凭据核验 | 开发负责人 / 运维 |
+| done | 固定窗口与调度 mode 代码验收 | 独立回归 Worker `139/139`、Server `90/90`、语法 `6/6`、diff check 通过；P0/P1/P2 `0` | 测试负责人 |
+| done | 境内受控生产执行 | 单条近7天 run 已执行，但 `completed_authorized_scope` 且 fetched/stored/inserted 全 `0`；source 已恢复 disabled | 测试负责人 |
+| in_progress | 境内上游空响应取证 | 对比 source 配置、真实上游 HTTP 请求/响应、时间参数与社区映射，解释 completed=0 的根因 | 测试负责人 |
+| in_progress | 境内 Worker 消费至入库链路修复 | 上游 24 feeds/窗口内容非空但 run=0；定位并修复消费、窗口、connector、upsert、统计任一丢失点 | 开发负责人 |
 | done | 近 7 天边界透传修复 | `listPosts → listQ1Posts → listFeedContents`、comments/replies 完整透传；缺失或无法证明完整遍历即 fail-closed | 开发负责人 |
 | done | Worker mode 与非法窗口 fail-closed 收尾 | 独立盲测 `137/137 PASS`；P0/P1/P2 `0` | 开发负责人 / 测试负责人 |
 | pending | 受控近 7 天补齐 | 每个准入来源仅覆盖 7 天窗口；重复运行无重复内容/分析 | 开发负责人 |
 | pending | 定频运行与页面验收 | 任务按来源频率触发；DB 与抓取内容管理页面有新增且可追溯 | 测试负责人 |
+| in_progress | 受控恢复门禁修复 | schema 等价约束误判、Worker 启动自动 `scheduled_catchup` 必须修复；仅指定 manual 可运行 | 开发负责人 |
+| in_progress | 境内固定窗口遗留参数隔离 | exact manual 必须忽略 source legacy `historyStart`，仅使用本次 UTC 近7天窗口 | 开发负责人 |
 
 ## 禁止项
 
 - 不抓取 7 天以前内容，不做无限制全量回溯。
 - 不通过删库、重置检查点或改频率制造重抓。
 - 凭据失败、来源停用、schema/Worker 未准入时必须 fail-closed，不得伪报恢复。
+
+## 执行口径（2026-09-11）
+
+用户确认不再以本地测试或 API 空态作为完成标准。境外 source 的首条近 7 天 manual run 已完成但为 `0` 条，不能作为业务恢复。当前改为用户页面对应的境内 source `5c21f78d-5f67-4467-963d-dcdeb5e26cab`：仅该 source 受控启用并创建**一条** UTC 近 7 天 manual run。成功则保留启用、验证 DB/页面并按原频率运行；失败则停止进程、回传实际错误并恢复 disabled。不得触及其他 source 或 7 天前内容。
+
+## 恢复异常
+
+migration `023` 已登记。启动 Worker 后，schema readiness 将逻辑等价的 `po_sync_runs_trigger_slot_chk` 误判为未就绪，手动入口返回 `UNIFIED_SCHEDULER_SCHEMA_NOT_READY`。同时 Worker 意外创建一条境外 `scheduled_catchup`（run `5e772917-1dbe-40f4-a2f6-ceee6c61e931`），已写入 `901` 条；API/Worker 已停止。决策：不改生产 DB constraint，修 Repository 等价校验；受控恢复模式必须禁止自动 `scheduled_catchup`，只允许指定 source manual run。对该 run 仅做窗口和幂等的只读核对，禁止删数据或扩大抓取。
+
+境内受控 run `e7b8bae9-568a-4b96-9156-20a4ce60f8bc` 已创建但为 `PARTIAL_SYNC / COLLECTION_BOUNDARY_UNVERIFIED`，零写入。原因是 source 遗留 `historyStart=2026-08-11...` 与本次固定 UTC 近7天窗口冲突。source 已恢复 disabled，API/Worker 已停止。最小修复是 exact manual 路径剔除 legacy `historyStart`，不能通过修改来源配置、频率或扩大窗口绕过。
+
+后续 run `10268a17-feae-4d06-a091-abe636c73979` 已受控执行并以 `completed_authorized_scope` 结束，但发现/存储/入库计数均为 `0`，验收失败。上游只读取证确认 `24` feeds、窗口内多组非空内容和详情 HTTP `200`，因此不得以“上游无数据”结案；必须定位 Worker run 消费、窗口透传、connector 到 upsert/统计的内部丢失点。记录：`.tests/2026-09/2026-09-11/v107_bigplayer_upstream_empty_diagnosis.md`。
 
 ## 开发变更记录
 

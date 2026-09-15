@@ -170,6 +170,25 @@ test('analyzeWindow passes yesterday bounds to every claim and never consumes ou
   assert.equal(finishes[0].input.leaseOwner, 'scoped-claim');
 });
 
+test('analysis pump retries transient claim locks without failing the source stage', async () => {
+  const claims = [];
+  const repo = {
+    async enqueueMissingAnalysis() { return 0; },
+    async enqueueAnalysisJob() {},
+    async countAnalysisJobs({ profile }) { return profile === 'light' && claims.length === 0 ? { pending: 1 } : {}; },
+    async claimAnalysisJobs(input) {
+      claims.push(input.profile);
+      const lightAttempts = claims.filter(profile => profile === 'light').length;
+      if (input.profile === 'light' && lightAttempts < 3) throw Object.assign(new Error('lock wait'), { code: 'ER_LOCK_WAIT_TIMEOUT' });
+      return [];
+    },
+    async loadKeywordRules() {}, async finishAnalysisJob() {}
+  };
+  const result = await analyzeWindow({ repo, ai: ai(), leaseOwner: 'daily' }, window, { timeoutMs: 1000, idleMs: 1 });
+  assert.equal(claims.filter(profile => profile === 'light').length, 3);
+  assert.equal(result.analyzed, 0);
+});
+
 test('runDaily completes collection then drains jobs enqueued at the end within the exact window', async () => {
   const { deps, state } = dailyDeps();
   deps.connectors.test.collect = async () => {
@@ -206,6 +225,61 @@ test('runDaily stops new claims after partial collection and preserves source co
   assert.equal(state.jobs[0].status, 'pending');
 });
 
+test('runDaily isolates analysis pumps so a partial source does not block a successful source', async () => {
+  const sourceA = { id: 'source-a', game_id: 'game-a', platform: 'test' };
+  const sourceB = { id: 'source-b', game_id: 'game-b', platform: 'test' };
+  const jobs = [
+    { id: 'job-a', source_id: 'source-a', profile: 'light', status: 'pending' },
+    { id: 'job-b', source_id: 'source-b', profile: 'light', status: 'pending' }
+  ];
+  const finished = [];
+  const statuses = new Map([['source-a', 'partial'], ['source-b', 'completed']]);
+  const base = dailyDeps();
+  const deps = { ...base.deps, sourceConcurrency: 2, repo: {
+    ...base.deps.repo,
+    async listEnabledSources() { return [sourceA, sourceB]; },
+    async getDefaultAccount() { return { id: 'account' }; },
+    async getLatestSyncRunForSource(sourceId) { const status = statuses.get(sourceId); return { status, discovered_count: 1, stored_count: status === 'completed' ? 1 : 0 }; },
+    async enqueueMissingAnalysis() { return 0; },
+    async countAnalysisJobs(input) {
+      const pending = jobs.filter(job => job.source_id === input.sourceId && job.profile === input.profile && job.status === 'pending').length;
+      return pending ? { pending } : { completed: 1 };
+    },
+    async claimAnalysisJobs(input) {
+      const job = jobs.find(item => item.source_id === input.sourceId && item.profile === input.profile && item.status === 'pending');
+      if (!job) return [];
+      job.status = 'running';
+      return [{ ...job, content_id: job.id, title: 'title', body: 'body', fingerprint: job.id, attempts: 1, matched_keywords: '[]', lease_owner: 'daily' }];
+    },
+    async getAnalysisCache() { return []; }, async insertAnalysis() {}, async upsertAnalysisCache() {},
+    async finishAnalysisJob(id) { jobs.find(job => job.id === id).status = 'completed'; finished.push(id); },
+    async loadKeywordRules() { return []; }, async enqueueAnalysisJob() {}, async countContentsByType() { return {}; }
+  }, connectors: {
+    test: { async installationHealth() { return { installed: true, configured: true }; }, async healthCheck() { return { configured: true }; }, async collect() { return []; }, hasSourceCapability() { return true; } }
+  } };
+  deps.connectors.test.collect = async ({ source }) => { if (source.id === 'source-a') throw Object.assign(new Error('partial source'), { code: 'SOURCE_PARTIAL' }); return []; };
+
+  const result = await runDaily(deps, { now: new Date('2026-08-12T02:00:00.000Z') });
+
+  assert.equal(result.collectionStatus, 'collection_failed');
+  assert.ok(finished.includes('job-b'));
+  assert.equal(result.analysis.analyzed, 2);
+  assert.equal(result.analysis.completed, false);
+});
+
+test('runDaily ignores an unrelated source failure when a successful source has analysis work', async () => {
+  const { deps, state, source } = dailyDeps();
+  const unrelated = { id: 'source-failed', game_id: 'game-failed', platform: 'test' };
+  deps.repo.listEnabledSources = async () => [source, unrelated];
+  deps.repo.getLatestSyncRunForSource = async sourceId => ({ status: sourceId === source.id ? 'completed' : 'failed', discovered_count: 1, stored_count: 1 });
+  deps.connectors.test.collect = async ({ source: item }) => { if (item.id === unrelated.id) throw Object.assign(new Error('unrelated failure'), { code: 'SOURCE_FAILED' }); state.jobs.push({ id: 'success-job', profile: 'light', status: 'pending', source_id: source.id }); return []; };
+
+  const result = await runDaily(deps, { now: new Date('2026-08-12T02:00:00.000Z') });
+
+  assert.equal(result.collectionStatus, 'collection_failed');
+  assert.equal(result.analysis.analyzed, 1);
+  assert.equal(state.jobs[0].status, 'completed');
+});
 test('runDaily progress uses approved phases, timing metadata, scoped counts, and redacts content and credentials', async () => {
   const events = [];
   const { deps, state } = dailyDeps({ emitter(payload) { events.push(JSON.parse(payload)); } });
@@ -227,6 +301,7 @@ test('runDaily progress uses approved phases, timing metadata, scoped counts, an
   assert.deepEqual(events[0].sourceCounts, { ready: 1, skipped: 0, total: 1 });
   assert.deepEqual(events.at(-1).jobCounts, { analyzed: 1, alerted: 0 });
 });
+
 
 test('preflightSources preserves manual verification as a resumable authorization state', async () => {
   const source = { id: 'manual', game_id: 'g1', platform: 'locked' };

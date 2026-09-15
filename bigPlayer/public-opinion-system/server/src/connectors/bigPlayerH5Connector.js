@@ -11,6 +11,17 @@ function capabilityStatusFromError(error) {
 const Q1_ALLOWED_HOSTS = new Set(['club.q1.com', 'club-en.q1.com']);
 const Q1_MAX_BOUNDED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function hostOf(url) { try { return new URL(url).host; } catch { return ''; } }
+function q1SafeUrl(url) {
+  try {
+    const parsed = new URL(String(url));
+    return parsed.protocol === 'https:'
+      && (!parsed.port || parsed.port === '443')
+      && !parsed.username
+      && !parsed.password
+      && !parsed.hash
+      && Q1_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch { return false; }
+}
 function safeHttpUrl(value) {
   try {
     const parsed = new URL(String(value));
@@ -213,6 +224,9 @@ function q1HasTextContent(content) {
     }
     if (Array.isArray(value)) { value.forEach(visit); return; }
     if (!q1PlainObject(value)) return;
+    // Q1 type=1 blocks are media regardless of how their data is encoded. In
+    // particular, relative paths and data URIs must not make an image-only
+    // detail look like usable post text.
     if (Number(value.type) === 1) return;
     for (const [key, child] of Object.entries(value)) {
       if (['text', 'value', 'content', 'data', 'desc', 'description', 'title', 'children', 'blocks'].includes(key)) visit(child);
@@ -232,7 +246,8 @@ function q1MergeNonNull(base, patch) {
 }
 function q1SensitiveKey(key) {
   const normalized = String(key).replace(/[^a-z0-9]/gi, '').toLowerCase();
-  return /token|password|secret|cookie/i.test(key) || Q1_SENSITIVE_RAW_KEYS.has(normalized);
+  return /token|password|secret|cookie/i.test(key)
+    || Q1_SENSITIVE_RAW_KEYS.has(normalized);
 }
 function q1StripSensitive(value) {
   if (Array.isArray(value)) return value.map(q1StripSensitive);
@@ -252,6 +267,8 @@ function q1SafeRawPost(item) {
 }
 function q1EnrichedPost(listItem, detailItem) {
   const merged = q1MergeNonNull(listItem, detailItem);
+  // Feed identity and collection-window time come from the list response. A
+  // detail response may be stale or refer to a later edit timestamp.
   merged.id = listItem.id;
   merged.createTime = listItem.createTime;
   merged.content = detailItem.content;
@@ -484,6 +501,8 @@ async function q1ConcurrentMap(items, concurrency, mapper, signal) {
   };
   const worker = async () => {
     while (!fatalError) {
+      // An in-flight mapper may preserve a more useful ConnectorPageError
+      // chain than the raw signal reason, so let it win the fatal-error race.
       if (poolSignal.aborted) return;
       const index = nextIndex;
       if (index >= items.length) return;
@@ -567,7 +586,8 @@ class BigPlayerH5Connector extends BaseConnector {
     const context = q1Context(source);
     const url = new URL(path, context.baseUrl);
     for (const [key, value] of Object.entries(params)) if (value != null && value !== '') url.searchParams.set(key, String(value));
-    if (!this.hostAllowed(url.toString())) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'H5 API URL is outside allowed hosts');
+    if (!q1SafeUrl(url.toString())) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'Q1 API URL must use an approved HTTPS origin');
+    if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
     let response;
     try {
       response = await this.fetchImpl(url, {
@@ -576,7 +596,7 @@ class BigPlayerH5Connector extends BaseConnector {
         signal: combinedSignal(signal, this.timeoutMs)
       });
     } catch (error) { throw new ConnectorPageError(this.platform, capability, page, signal?.aborted ? abortedError(signal) : error); }
-    if (response.url && !this.hostAllowed(response.url)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'H5 API redirected outside allowed hosts'));
+    if (response.url && !q1SafeUrl(response.url)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'Q1 API redirected outside approved HTTPS origins'));
     if (!response.ok && (response.status === 401 || response.status === 403) && this.authRefreshCoordinator && !authRefreshRetried) {
       const refreshAccount = requestContext.account || source.account || (source.account_id ? { id: source.account_id, platform: source.platform } : null);
       const refreshCredentialContext = requestContext.credentialContext || this.credentialContext;
@@ -621,7 +641,7 @@ class BigPlayerH5Connector extends BaseConnector {
       if (listItem?.id == null || String(listItem.id).trim() === '') throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 post id is required');
       let payload;
       try {
-        payload = await this.requestQ1('/api/club/v1/auth/post/', requestSource, apiToken, { postId: String(listItem.id), source: 0 }, page, 'posts', false, detailSignal, requestContext);
+        payload = await this.requestQ1('/api/club/v1/auth/post/', requestSource, apiToken, { postId: String(listItem?.id), source: 0 }, page, 'posts', false, detailSignal, requestContext);
       } catch (error) {
         const cancellation = q1CancellationCause(error, detailSignal);
         if (cancellation) throw cancellation;
@@ -630,7 +650,7 @@ class BigPlayerH5Connector extends BaseConnector {
       if (detailSignal.aborted) throw abortedError(detailSignal);
       const detailItem = payload?.data;
       const detailId = detailItem?.id ?? detailItem?.postId;
-      if (!q1PlainObject(detailItem) || detailId == null || String(detailId) !== String(listItem.id) || !q1HasTextContent(detailItem.content)) {
+      if (!q1PlainObject(detailItem) || detailId == null || String(detailId) !== String(listItem?.id) || !q1HasTextContent(detailItem.content)) {
         return q1FallbackPost(listItem, 'DETAIL_RESPONSE_INVALID');
       }
       return q1EnrichedPost(listItem, detailItem);

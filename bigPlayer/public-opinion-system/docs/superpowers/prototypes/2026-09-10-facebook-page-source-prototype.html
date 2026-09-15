@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Facebook 采集源单列表单原型</title>
+  <style>
+    :root {
+      --blue: #1677ff;
+      --blue-soft: #eaf4ff;
+      --green: #389e0d;
+      --green-soft: #f6ffed;
+      --red: #cf1322;
+      --red-soft: #fff1f0;
+      --amber: #ad6800;
+      --amber-soft: #fffbe6;
+      --ink: #172b4d;
+      --text: #52627a;
+      --muted: #7f8da1;
+      --line: #e4e9f0;
+      --bg: #f4f6f9;
+      --white: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background: var(--bg);
+      font: 13px/1.55 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    button, input, select { font: inherit; letter-spacing: 0; }
+    button { cursor: pointer; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 220px 1fr; }
+    .sidebar {
+      padding: 22px 14px;
+      background: #26384f;
+      color: #dce6f2;
+    }
+    .brand { padding: 0 12px 20px; font-size: 17px; font-weight: 700; }
+    .nav-label { padding: 18px 12px 8px; color: #93a4b8; font-size: 11px; }
+    .nav-item { display: block; width: 100%; padding: 10px 12px; border: 0; background: transparent; color: #dce6f2; text-align: left; }
+    .nav-item.active { background: #33506f; color: #fff; }
+    .workspace { min-width: 0; }
+    .command {
+      min-height: 94px;
+      padding: 20px 26px;
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+    .eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; }
+    h1 { margin: 4px 0; font-size: 23px; }
+    .command p { margin: 0; color: var(--muted); }
+    .scope { display: flex; gap: 8px; }
+    .select, .input {
+      width: 100%;
+      height: 36px;
+      border: 1px solid #d6dee9;
+      border-radius: 4px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: var(--white);
+    }
+    .select:focus, .input:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(22,119,255,.12);
+    }
+    .input[disabled] { color: #8793a3; background: #f7f8fa; }
+    .list-shell { margin: 18px 26px; border: 1px solid var(--line); background: var(--white); }
+    .list-head, .filterbar {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .list-head h2 { margin: 0; font-size: 15px; }
+    .filterbar { justify-content: flex-start; }
+    .filterbar .select { width: 160px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 11px 12px; background: #fafbfd; color: #5d6c82; text-align: left; white-space: nowrap; }
+    td { padding: 34px 12px; color: var(--muted); text-align: center; }
+    .dock {
+      position: fixed;
+      right: 24px;
+      bottom: 20px;
+      display: flex;
+      gap: 8px;
+      padding: 6px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.96);
+      box-shadow: 0 8px 24px rgba(23,43,77,.14);
+    }
+    .btn {
+      min-height: 36px;
+      border: 1px solid #d6dee9;
+      border-radius: 4px;
+      padding: 0 14px;
+      color: var(--text);
+      background: var(--white);
+    }
+    .btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+    .btn.primary { border-color: var(--blue); color: #fff; background: var(--blue); }
+    .btn.primary:hover:not(:disabled) { color: #fff; background: #4096ff; }
+    .btn:disabled { cursor: not-allowed; opacity: .45; }
+    .mask {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: flex-end;
+      background: rgba(15, 28, 45, .52);
+    }
+    .mask.hidden { display: none; }
+    .drawer {
+      width: min(640px, 100vw);
+      height: 100vh;
+      overflow: auto;
+      background: var(--white);
+      box-shadow: -10px 0 32px rgba(15,28,45,.18);
+    }
+    .drawer-head {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .drawer-head h2 { margin: 0 0 5px; font-size: 19px; }
+    .drawer-head p { margin: 0; color: var(--muted); }
+    .close {
+      width: 34px;
+      height: 34px;
+      flex: none;
+      border: 0;
+      border-radius: 50%;
+      color: #66768c;
+      background: #f1f3f6;
+      font-size: 21px;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      margin-top: 10px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      color: var(--amber);
+      background: var(--amber-soft);
+      font-size: 11px;
+    }
+    .status.ok { color: var(--green); background: var(--green-soft); }
+    .status.error { color: var(--red); background: var(--red-soft); }
+    .form { padding: 0 24px 92px; }
+    .section { padding: 22px 0; border-bottom: 1px solid var(--line); }
+    .section:last-of-type { border-bottom: 0; }
+    .section h3 { margin: 0 0 15px; color: #29466d; font-size: 14px; }
+    .field { display: block; margin: 0 0 15px; color: var(--text); }
+    .field:last-child { margin-bottom: 0; }
+    .field-name { display: block; margin-bottom: 6px; font-size: 12px; }
+    .required { color: var(--red); }
+    .hint, .error-text { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .error-text { color: var(--red); }
+    .input.invalid { border-color: var(--red); }
+    .toggle-row {
+      min-height: 38px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      color: var(--text);
+    }
+    .switch { position: relative; width: 38px; height: 20px; flex: none; }
+    .switch input { position: absolute; opacity: 0; }
+    .track { position: absolute; inset: 0; border-radius: 10px; background: #cfd7e2; }
+    .track::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      transition: left .16s ease;
+    }
+    .switch input:checked + .track { background: var(--blue); }
+    .switch input:checked + .track::after { left: 21px; }
+    .switch input:disabled + .track { opacity: .5; }
+    .capabilities { border: 1px solid var(--line); }
+    .cap-row {
+      min-height: 40px;
+      padding: 8px 11px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .cap-row:last-child { border-bottom: 0; }
+    .cap-state { color: var(--muted); font-size: 11px; }
+    .cap-state.ok { color: var(--green); }
+    .notice {
+      margin-top: 12px;
+      padding: 10px 12px;
+      color: #75530a;
+      background: var(--amber-soft);
+      border: 1px solid #ffe58f;
+    }
+    .drawer-foot {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      z-index: 3;
+      width: min(640px, 100vw);
+      padding: 14px 24px;
+      border-top: 1px solid var(--line);
+      background: var(--white);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .toast {
+      position: fixed;
+      right: 28px;
+      bottom: 84px;
+      z-index: 20;
+      max-width: min(380px, calc(100vw - 40px));
+      padding: 10px 14px;
+      color: #fff;
+      background: var(--ink);
+      box-shadow: 0 8px 22px rgba(23,43,77,.22);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: .18s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 760px) {
+      .app { display: block; }
+      .sidebar { display: none; }
+      .command { padding: 16px; display: block; }
+      .scope { margin-top: 12px; }
+      .list-shell { margin: 14px; overflow: auto; }
+      .drawer-head, .form, .drawer-foot { padding-left: 18px; padding-right: 18px; }
+      table { min-width: 760px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">冰川后台管理系统</div>
+      <div class="nav-label">舆情管理</div>
+      <button class="nav-item">舆情概览</button>
+      <button class="nav-item">内容管理</button>
+      <button class="nav-item active">抓取账号管理</button>
+      <button class="nav-item">风险告警管理</button>
+      <button class="nav-item">优质内容管理</button>
+    </aside>
+    <main class="workspace">
+      <header class="command">
+        <div>
+          <div class="eyebrow">PUBLIC OPINION / SOURCES</div>
+          <h1>采集源</h1>
+          <p>集中管理平台授权、采集范围与同步状态。</p>
+        </div>
+        <div class="scope">
+          <select class="select" aria-label="地区"><option>境外</option></select>
+          <select class="select" aria-label="社区"><option>Last Light</option></select>
+        </div>
+      </header>
+      <section class="list-shell">
+        <div class="list-head"><h2>采集源列表</h2><span>共 0 个账号源</span></div>
+        <div class="filterbar">
+          <select class="select"><option>Facebook</option></select>
+          <select class="select"><option>全部平台</option></select>
+          <select class="select"><option>全部状态</option></select>
+        </div>
+        <table>
+          <thead><tr><th>采集源 / 账号</th><th>地区 / 社区</th><th>平台</th><th>授权</th><th>帖子 / 评论</th><th>同步策略</th><th>最近同步</th><th>操作</th></tr></thead>
+          <tbody><tr><td colspan="8">暂无符合条件的采集源</td></tr></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+  <div class="dock">
+    <button class="btn primary" id="openDrawer">新增采集源</button>
+    <button class="btn">刷新</button>
+  </div>
+
+  <div class="mask" id="mask">
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <header class="drawer-head">
+        <div>
+          <h2 id="drawerTitle">新增 Facebook 采集源</h2>
+          <p>采集范围以系统官方凭据和目标 Page 实际能力为准。</p>
+          <span class="status" id="headerStatus">新建后待检测</span>
+        </div>
+        <button class="close" id="closeDrawer" title="关闭" aria-label="关闭">×</button>
+      </header>
+      <form class="form" id="sourceForm" novalidate>
+        <section class="section">
+          <h3>基础信息</h3>
+          <label class="field">
+            <span class="field-name">归属范围</span>
+            <input class="input" value="境外 / Last Light" disabled>
+          </label>
+          <label class="field">
+            <span class="field-name">平台</span>
+            <input class="input" value="Facebook" disabled>
+          </label>
+          <label class="field">
+            <span class="field-name">采集源名称 <span class="required">*</span></span>
+            <input class="input" id="sourceName" value="Last Light Facebook" maxlength="100">
+            <span class="error-text" id="nameError"></span>
+          </label>
+          <label class="field">
+            <span class="field-name">采集地址 <span class="required">*</span></span>
+            <input class="input" id="sourceUrl" type="url" value="https://www.facebook.com/LastLightSurvival">
+            <span class="hint">可修改；仅允许 Facebook 官方主页 HTTPS 地址。</span>
+            <span class="error-text" id="urlError"></span>
+          </label>
+          <label class="field">
+            <span class="field-name">Facebook Page ID</span>
+            <input class="input" id="pageId" value="能力检测后自动识别" disabled>
+          </label>
+          <div class="toggle-row">
+            <span>启用状态</span>
+            <label class="switch" title="主页及固定能力检测通过后可启用">
+              <input id="enabled" type="checkbox" disabled>
+              <span class="track"></span>
+            </label>
+          </div>
+          <span class="hint" id="enableHint">主页及固定能力检测通过后可启用。</span>
+        </section>
+
+        <section class="section">
+          <h3>采集范围</h3>
+          <div class="toggle-row"><span>主页帖子</span><label class="switch"><input type="checkbox" checked disabled><span class="track"></span></label></div>
+          <div class="toggle-row"><span>帖子评论</span><label class="switch"><input type="checkbox" checked disabled><span class="track"></span></label></div>
+          <div class="toggle-row"><span>评论回复</span><label class="switch"><input type="checkbox" checked disabled><span class="track"></span></label></div>
+          <div class="toggle-row"><span>附件与媒体元数据</span><label class="switch"><input type="checkbox" checked><span class="track"></span></label></div>
+          <div class="toggle-row"><span>互动统计</span><label class="switch"><input type="checkbox" checked><span class="track"></span></label></div>
+        </section>
+
+        <section class="section">
+          <h3>官方采集能力</h3>
+          <label class="field">
+            <span class="field-name">采集方式</span>
+            <input class="input" value="系统受控官方凭据（管理员无需填写）" disabled>
+          </label>
+          <label class="field">
+            <span class="field-name">检测状态</span>
+            <input class="input" id="capabilityStatus" value="待检测" disabled>
+          </label>
+          <div class="capabilities" aria-label="能力检测结果">
+            <div class="cap-row"><span>主页身份</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>帖子列表与分页</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>评论列表与分页</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>回复列表与分页</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>媒体字段</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>互动统计</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>部署级官方凭据</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>Page 管理授权</span><span class="cap-state">未检测</span></div>
+            <div class="cap-row"><span>MODERATE 能力</span><span class="cap-state">未检测</span></div>
+          </div>
+          <div class="notice">管理员无需填写 Token。采集范围以系统官方凭据和目标 Page 实际能力为准；完整评论与回复需要 Page 管理授权及 MODERATE 能力。</div>
+          <button class="btn" id="checkCapability" type="button">检测主页与采集能力</button>
+        </section>
+
+        <section class="section">
+          <h3>历史与调度</h3>
+          <label class="field">
+            <span class="field-name">首次同步</span>
+            <select class="select" id="initialSync">
+              <option value="all">回溯能力范围内的全部历史</option>
+              <option value="since">从指定日期开始</option>
+              <option value="incremental">仅从现在开始增量</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">历史起始日期</span>
+            <input class="input" id="historyStart" type="date" disabled>
+            <span class="error-text" id="historyError"></span>
+          </label>
+          <label class="field">
+            <span class="field-name">采集频率</span>
+            <select class="select" id="frequency">
+              <option>15 分钟</option>
+              <option>30 分钟</option>
+              <option selected>60 分钟</option>
+              <option>2 小时</option>
+              <option>每天 1 次</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">调度时区</span>
+            <input class="input" value="北京时间（Asia/Shanghai）" disabled>
+          </label>
+          <label class="field">
+            <span class="field-name">每日锚点</span>
+            <input class="input" value="02:00" disabled>
+          </label>
+          <label class="field">
+            <span class="field-name">下次采集</span>
+            <input class="input" id="nextRun" value="检测并启用后计算" disabled>
+          </label>
+        </section>
+      </form>
+      <footer class="drawer-foot">
+        <button class="btn" id="cancel" type="button">取消</button>
+        <button class="btn primary" id="save" type="button">保存并检测能力</button>
+      </footer>
+    </aside>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    (() => {
+      const $ = selector => document.querySelector(selector);
+      const mask = $("#mask");
+      const form = $("#sourceForm");
+      const name = $("#sourceName");
+      const url = $("#sourceUrl");
+      const pageId = $("#pageId");
+      const capabilityStatus = $("#capabilityStatus");
+      const enabled = $("#enabled");
+      const headerStatus = $("#headerStatus");
+      const initialSync = $("#initialSync");
+      const historyStart = $("#historyStart");
+      const nextRun = $("#nextRun");
+      const capStates = [...document.querySelectorAll(".cap-state")];
+      let verified = false;
+      let toastTimer;
+
+      const showToast = message => {
+        const toast = $("#toast");
+        toast.textContent = message;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
+      };
+
+      const setError = (input, error, message) => {
+        input.classList.toggle("invalid", Boolean(message));
+        error.textContent = message || "";
+      };
+
+      const validateName = () => {
+        const value = name.value.trim();
+        const message = !value ? "请输入采集源名称" : value.length > 100 ? "采集源名称最多 100 字" : "";
+        setError(name, $("#nameError"), message);
+        return !message;
+      };
+
+      const validateUrl = () => {
+        let message = "";
+        try {
+          const parsed = new URL(url.value.trim());
+          const host = parsed.hostname.toLowerCase();
+          if (parsed.protocol !== "https:") message = "采集地址必须使用 HTTPS";
+          else if (!["facebook.com", "www.facebook.com", "m.facebook.com"].includes(host)) message = "请输入 Facebook 官方主页地址";
+          else if (parsed.username || parsed.password || parsed.hash) message = "采集地址不能包含账号、密码或 fragment";
+          else if (parsed.pathname.split("/").filter(Boolean).length !== 1) message = "请输入主页首页地址，不要填写帖子详情地址";
+        } catch (_) {
+          message = "请输入有效的 Facebook 主页地址";
+        }
+        setError(url, $("#urlError"), message);
+        return !message;
+      };
+
+      const validateHistory = () => {
+        const required = initialSync.value === "since";
+        const message = required && !historyStart.value ? "请选择历史起始日期" : "";
+        setError(historyStart, $("#historyError"), message);
+        return !message;
+      };
+
+      const resetVerification = () => {
+        if (!verified) return;
+        verified = false;
+        pageId.value = "能力检测后自动识别";
+        capabilityStatus.value = "待重新检测";
+        enabled.checked = false;
+        enabled.disabled = true;
+        nextRun.value = "检测并启用后计算";
+        headerStatus.textContent = "配置已变更，待重新检测";
+        headerStatus.className = "status";
+        capStates.forEach(item => { item.textContent = "未检测"; item.className = "cap-state"; });
+      };
+
+      const runCheck = () => {
+        const valid = validateName() && validateUrl() && validateHistory();
+        if (!valid) {
+          capabilityStatus.value = "检测未通过";
+          headerStatus.textContent = "请处理必填项";
+          headerStatus.className = "status error";
+          form.querySelector(".invalid")?.focus();
+          return false;
+        }
+        const slug = new URL(url.value.trim()).pathname.split("/").filter(Boolean)[0];
+        pageId.value = "PAGE-" + slug.toUpperCase();
+        capabilityStatus.value = "采集能力可用";
+        enabled.disabled = false;
+        verified = true;
+        headerStatus.textContent = "主页与固定能力已通过";
+        headerStatus.className = "status ok";
+        const results = ["可用", "可用", "可用", "可用", "可用", "可用", "已配置", "已授权", "已具备"];
+        capStates.forEach((item, index) => { item.textContent = results[index]; item.className = "cap-state ok"; });
+        showToast("原型检测完成：管理员无需配置 Token");
+        return true;
+      };
+
+      initialSync.addEventListener("change", () => {
+        historyStart.disabled = initialSync.value !== "since";
+        if (historyStart.disabled) {
+          historyStart.value = "";
+          setError(historyStart, $("#historyError"), "");
+        }
+      });
+      url.addEventListener("input", resetVerification);
+      name.addEventListener("blur", validateName);
+      url.addEventListener("blur", validateUrl);
+      $("#checkCapability").addEventListener("click", runCheck);
+      $("#save").addEventListener("click", () => {
+        if (!verified && !runCheck()) return;
+        if (enabled.checked) nextRun.value = "2026-09-10 07:00（示意）";
+        showToast(enabled.checked ? "已保存并启用（原型）" : "已保存，来源保持停用（原型）");
+      });
+      $("#openDrawer").addEventListener("click", () => mask.classList.remove("hidden"));
+      const close = () => mask.classList.add("hidden");
+      $("#closeDrawer").addEventListener("click", close);
+      $("#cancel").addEventListener("click", close);
+      mask.addEventListener("click", event => { if (event.target === mask) close(); });
+      document.addEventListener("keydown", event => { if (event.key === "Escape") close(); });
+    })();
+  </script>
+</body>
+</html>

@@ -160,11 +160,11 @@ class AiAnalyzer {
       const severity = typeof o.v === 'string' ? o.v.toLowerCase() : '';
       const negativeScore = Number(o.n);
       const confidence = Number(o.c);
+      // 核心字段（sentiment/severity/negative_score/confidence）严格校验；
+      // 其余字段格式漂移时降级取默认值，避免整批失败（诊断见 .Codex/docs/2026-08/2026-08-31/ai-stability-diagnosis.md）。
       if (!SENTIMENTS.has(sentiment) || !SEVERITIES.has(severity)
         || !Number.isFinite(negativeScore) || negativeScore < 0 || negativeScore > 1
-        || !Number.isFinite(confidence) || confidence < 0 || confidence > 1
-        || typeof o.d !== 'boolean' || typeof o.r !== 'string'
-        || !Array.isArray(o.t) || typeof o.m !== 'string') {
+        || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
         throw new Error('AI_ANALYSIS_INVALID_RESPONSE');
       }
       const qualityScore = Number(o.q);
@@ -174,10 +174,10 @@ class AiAnalyzer {
         severity,
         negativeScore,
         confidence,
-        needsDeep: o.d,
-        reason: truncate(o.r, 120),
-        topics: o.t.slice(0, 3).map(String),
-        summary: truncate(o.m, 60),
+        needsDeep: o.d === true,
+        reason: typeof o.r === 'string' ? truncate(o.r, 120) : '',
+        topics: Array.isArray(o.t) ? o.t.slice(0, 3).map(String) : [],
+        summary: typeof o.m === 'string' ? truncate(o.m, 60) : '',
         qualityScore: hasQualityScore ? qualityScore : 0,
         recommendHome: o.h === true,
         recommendPin: o.p === true,

@@ -19,7 +19,8 @@ owner: 项目经理
 | done | 最小代码修复：失败后按来源频率节流，禁止每分钟重试风暴；补齐统一调度接线和迁移准入合同 | 开发与独立回归均通过 | 开发负责人 |
 | blocked_external | 受控生产迁移 023、Worker 可信候选镜像重载、两个来源凭据复核 | 外部操作前置，不得作为代码已修复或真实采集恢复 | 运维 / 发布负责人 |
 | done | 独立回归与状态收口 | 定向 `82/82`、Server `338/338`、Worker `183/183`，缺陷 `0` | 测试负责人 / 项目经理 |
-| blocked | 生产准入与受控真实同步 | 多项生产门禁失败，未启动任何同步；详见 `v096_bigplayer_production_sync_admission_blocked.md` | 开发负责人 |
+| blocked_external | 生产准入与受控真实同步 | 两地均 `NOT_ADMITTED`，未启动同步；待手动入口、迁移、Worker、来源和凭据门禁 | 开发负责人 / 运维 |
+| done | 手动同步 schema 合同修复 | 独立盲测 Server/API/migration `19/19`、Worker scheduler/fallback `12/12`、语法 `4/4`、diff check 均通过；缺陷 `0` | 开发负责人 / 测试负责人 |
 
 ## 约束
 
