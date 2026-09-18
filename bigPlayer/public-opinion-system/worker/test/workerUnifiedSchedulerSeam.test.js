@@ -1,11 +1,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { buildDeps, runOnce, runUnifiedSchedulerSeam } = require('../src/worker');
+const { buildDeps, heartbeatWorkerId, runOnce, runUnifiedSchedulerSeam } = require('../src/worker');
 
 const NOW = new Date('2026-09-09T02:00:00.000Z');
 
-function schedulerSchemaConnection({ ready = true, missingColumn = false, missingUniqueIndex = false, error = null } = {}) {
+function schedulerSchemaConnection({ ready = true, missingColumn = false, missingUniqueIndex = false, missingRuntimeMigration = false, missingWorkerLease = false, missingHeartbeat = false, error = null } = {}) {
   return {
     async query(sql) {
       if (error) throw error;
@@ -14,10 +14,18 @@ function schedulerSchemaConnection({ ready = true, missingColumn = false, missin
       assert.match(sql, /information_schema\.statistics/i);
       assert.match(sql, /po_source_schedule_state/i);
       assert.match(sql, /po_sync_runs_source_schedule_uk/i);
+      assert.match(sql, /025_worker_scan_leases\.sql/i);
+      assert.match(sql, /026_scheduler_runtime_schema_reconciliation\.sql/i);
+      assert.match(sql, /po_worker_leases/i);
+      assert.match(sql, /po_worker_heartbeats/i);
       return [[{
-        migration_applied: ready ? 1 : 0,
+        required_migration_count: ready ? (missingRuntimeMigration ? 2 : 3) : 0,
         schedule_state_table: ready ? 1 : 0,
-        required_column_count: ready ? (missingColumn ? 20 : 21) : 0,
+        required_column_count: ready ? (missingColumn ? 21 : 22) : 0,
+        worker_lease_table: ready && !missingWorkerLease ? 1 : 0,
+        worker_lease_column_count: ready && !missingWorkerLease ? 4 : 0,
+        worker_heartbeat_table: ready && !missingHeartbeat ? 1 : 0,
+        worker_heartbeat_column_count: ready && !missingHeartbeat ? 9 : 0,
         schedule_slot_unique_columns: ready && !missingUniqueIndex ? 2 : 0,
         schedule_slot_columns: ready && !missingUniqueIndex ? 'source_id,scheduled_at' : null
       }]];
@@ -32,6 +40,7 @@ test('buildDeps wires the explicit scheduler mode, repository pool and real conn
     DB_USER: 'unused',
     DB_PASSWORD: 'unused',
     DB_NAME: 'unused',
+    WORKER_ID: 'service-slot-a',
     UNIFIED_SOURCE_SCHEDULER_MODE: 'enabled',
     UNIFIED_SCHEDULER_RECOVERY_SOURCE_ID: 'recovery-source',
     BIGPLAYER_H5_ENABLED: 'true',
@@ -41,6 +50,8 @@ test('buildDeps wires the explicit scheduler mode, repository pool and real conn
     assert.equal(deps.unifiedScheduler.mode, 'enabled');
     assert.equal(deps.unifiedScheduler.recoverySourceId, 'recovery-source');
     assert.strictEqual(deps.unifiedScheduler.connection, deps.repo.pool);
+    assert.equal(deps.workerId, 'worker:service-slot-a');
+    assert.notEqual(deps.workerId, deps.leaseOwner);
     assert.equal(typeof deps.unifiedScheduler.workerId, 'string');
     assert.equal(typeof deps.unifiedScheduler.now, 'function');
     assert.deepEqual(deps.unifiedScheduler.connectorCapabilities.bigplayer_h5, {
@@ -51,6 +62,34 @@ test('buildDeps wires the explicit scheduler mode, repository pool and real conn
   } finally {
     await deps.repo.pool.end();
   }
+});
+
+test('heartbeat worker identity is stable per host and bounded to the database column', () => {
+  assert.equal(heartbeatWorkerId({}, 'worker-host-01'), 'worker:worker-host-01');
+  assert.equal(heartbeatWorkerId({ WORKER_ID: 'slot-b' }, 'ignored-host'), 'worker:slot-b');
+  assert.equal(heartbeatWorkerId({ WORKER_ID: 'x'.repeat(200) }, 'ignored-host').length, 160);
+});
+
+test('runOnce heartbeats with workerId while keeping leaseOwner independent', async () => {
+  const heartbeats = [];
+  await runOnce({
+    workerId: 'worker:host-a',
+    leaseOwner: '4321-00000000-0000-4000-8000-000000000000',
+    repo: {
+      async upsertWorkerHeartbeat(input) { heartbeats.push(input); },
+      async health() {},
+      async listRunnableSyncRuns() { return []; },
+      async listManualDueSources() { return []; },
+      async listDueSources() { return []; }
+    },
+    ai: { configured() { return false; } },
+    sourceConcurrency: 1
+  });
+
+  assert.deepEqual(heartbeats.map(item => [item.workerId, item.scanStatus]), [
+    ['worker:host-a', 'running'],
+    ['worker:host-a', 'completed']
+  ]);
 });
 
 test('default off mode does not call the unified scheduler job', async () => {
@@ -177,6 +216,41 @@ test('migration 023 admission rejects a missing runtime column', async () => {
 
   assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' });
   assert.equal(called, 0);
+});
+
+test('scheduler admission rejects a missing runtime migration', async () => {
+  let called = 0;
+  const result = await runUnifiedSchedulerSeam({
+    mode: 'enabled',
+    connection: schedulerSchemaConnection({ missingRuntimeMigration: true }),
+    workerId: 'worker-a',
+    now: NOW,
+    connectorCapabilities: {},
+    runJob: async () => { called += 1; }
+  });
+
+  assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' });
+  assert.equal(called, 0);
+});
+
+test('scheduler admission rejects missing worker lease and heartbeat contracts', async () => {
+  for (const connection of [
+    schedulerSchemaConnection({ missingWorkerLease: true }),
+    schedulerSchemaConnection({ missingHeartbeat: true })
+  ]) {
+    let called = 0;
+    const result = await runUnifiedSchedulerSeam({
+      mode: 'enabled',
+      connection,
+      workerId: 'worker-a',
+      now: NOW,
+      connectorCapabilities: {},
+      runJob: async () => { called += 1; }
+    });
+
+    assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' });
+    assert.equal(called, 0);
+  }
 });
 
 test('migration 023 admission rejects a missing source-slot unique index', async () => {

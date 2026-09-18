@@ -1,0 +1,28 @@
+<service>
+  <id>PublicOpinionWorker</id>
+  <name>PublicOpinionWorker</name>
+  <description>Public Opinion unified scheduler worker</description>
+  <executable>%NODE_EXE%</executable>
+  <arguments>"%APP_ROOT%\worker\src\worker.js"</arguments>
+  <workingdirectory>%APP_ROOT%\worker</workingdirectory>
+  <env name="WORKER_MODE" value="enabled" />
+  <env name="BUILD_SHA" value="%BUILD_SHA%" />
+  <env name="UNIFIED_SOURCE_SCHEDULER_MODE" value="enabled" />
+  <env name="WORKER_INTERVAL_MS" value="60000" />
+  <env name="PUBLIC_OPINION_SERVICE_MODE" value="1" />
+  <env name="PUBLIC_OPINION_ENV_FILE" value="%PUBLIC_OPINION_ENV_FILE%" />
+  <env name="Q1_DAILY_OUT_ROOT" value="%Q1_DAILY_OUT_ROOT%" />
+  <env name="Q1_DAILY_LOCK_ROOT" value="%Q1_DAILY_OUT_ROOT%\locks" />
+  <env name="WORKER_STATE_ROOT" value="%Q1_DAILY_OUT_ROOT%\state" />
+  <env name="NODE_PATH" value="" />
+  <env name="NODE_OPTIONS" value="" />
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <serviceaccount><domain>NT AUTHORITY</domain><user>LocalService</user></serviceaccount>
+  <stoptimeout>60 sec</stoptimeout>
+  <logpath>%SERVICE_LOG_ROOT%\PublicOpinionWorker</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>14</keepFiles></log>
+</service>

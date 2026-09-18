@@ -1,7 +1,10 @@
 const { loadRuntimeEnv } = require('../../server/src/runtimeEnv');
 loadRuntimeEnv();
+if (require.main === module) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '1';
 
 const crypto = require('node:crypto');
+const os = require('node:os');
+const { createScanRunner } = require('./scanRunner');
 const { Repository } = require('../../server/src/db/repository');
 const { BigPlayerH5Connector } = require('../../server/src/connectors/bigPlayerH5Connector');
 const { buildExternalConnectors } = require('../../server/src/connectors/externalConnectors');
@@ -26,14 +29,35 @@ const MANUAL_VERIFICATION_CODES = new Set([
 function first(item, keys, fallback = null) { for (const key of keys) if (item?.[key] != null) return item[key]; return fallback; }
 function parseSourceAllowlist(value) { const values = Array.isArray(value) ? value : String(value || '').split(','); return [...new Set(values.map(item => String(item || '').trim()).filter(Boolean))]; }
 function parseObject(value) { if (!value) return {}; if (typeof value === 'object') return value; try { return JSON.parse(value); } catch { return {}; } }
+function heartbeatWorkerId(env = process.env, hostname = os.hostname()) {
+  const logicalId = String(env.WORKER_ID || hostname || 'unknown-host').trim().slice(0, 153) || 'unknown-host';
+  return `worker:${logicalId}`;
+}
 function errorCode(error) {
   const nested = error?.cause?.code || error?.details?.cause;
-  return nested === 'SYNC_RUN_LEASE_LOST' || nested === 'DAILY_RUN_TIMEOUT' || nested === 'SYNC_PAGE_TIMEOUT' || nested === 'SYNC_DISCOVERY_TIMEOUT'
+  return error?.code === 'CONNECTOR_PAGE_FAILED' && nested
+    ? nested
+    : nested === 'SYNC_RUN_LEASE_LOST' || nested === 'DAILY_RUN_TIMEOUT' || nested === 'SYNC_PAGE_TIMEOUT' || nested === 'SYNC_DISCOVERY_TIMEOUT'
     ? nested
     : error?.code || nested || 'SYNC_STAGE_FAILED';
 }
 function safeErrorMessage(error, fallback = 'operation failed') {
-  return sanitizeMessage(String(error?.message || fallback).slice(0, 500));
+  const message = String(error?.message || fallback);
+  const nested = error?.details?.cause ?? error?.cause?.code ?? error?.cause?.message;
+  const suffix = nested && !message.includes(String(nested)) ? ` [cause:${nested}]` : '';
+  return sanitizeMessage(`${message}${suffix}`).slice(0, 500);
+}
+function rateLimitRetry(error, syncRun, now = Date.now()) {
+  if (errorCode(error) !== 'RATE_LIMITED') return { nextRetryAt: null, auditSuffix: '' };
+  const candidates = [error?.retryAfterMs, error?.details?.retryAfterMs, error?.cause?.retryAfterMs, error?.cause?.details?.retryAfterMs];
+  let retryAfterMs = candidates.map(Number).find(value => Number.isFinite(value) && value >= 0);
+  if (retryAfterMs == null) {
+    const attempts = Math.max(1, Number(syncRun?.attempts) || 1);
+    retryAfterMs = 60_000 * (2 ** Math.min(attempts - 1, 6));
+  }
+  retryAfterMs = Math.min(60 * 60 * 1000, Math.max(1000, Math.ceil(retryAfterMs)));
+  const nextRetryAt = new Date(now + retryAfterMs).toISOString();
+  return { nextRetryAt, auditSuffix: ` [retry_after_ms:${retryAfterMs} next_eligible_at:${nextRetryAt}]` };
 }
 function isSessionExpired(error) { return errorCode(error) === 'SESSION_EXPIRED'; }
 function facebookAuthFailureStatus(error) {
@@ -58,7 +82,7 @@ async function callSessionClient(client, methods, binding) {
 async function getSessionRef(client, source, account) { return callSessionClient(client, ['getSessionRef', 'getValidSession', 'getSession'], sessionBinding(source, account)); }
 async function refreshSessionRef(client, source, account) { return callSessionClient(client, ['refreshSession', 'relogin', 'refresh', 'login'], sessionBinding(source, account)); }
 
-function normalizePlatformItem(raw, { scope, rootPlatformContentId = '', parentPlatformContentId = '' } = {}) {
+function normalizePlatformItem(raw, { scope, platform = '', rootPlatformContentId = '', parentPlatformContentId = '' } = {}) {
   const externalId = first(raw, ['externalId', 'external_id', 'id', 'item_id', 'aweme_id', 'cid']);
   if (externalId == null) { const error = new Error('platform item id is required'); error.code = 'MALFORMED_RESPONSE'; throw error; }
   const author = first(raw, ['author', 'user'], {}) || {};
@@ -72,13 +96,16 @@ function normalizePlatformItem(raw, { scope, rootPlatformContentId = '', parentP
   const rootId = scope === 'posts' ? '' : String(rootPlatformContentId || first(raw, ['rootPlatformContentId', 'root_platform_content_id', 'post_id', 'postId'], '') || '');
   const parentId = scope === 'posts' ? null : (first(raw, ['platformParentId', 'platform_parent_id', 'parent_id', 'reply_to_id'], parentPlatformContentId || null) == null ? null : String(first(raw, ['platformParentId', 'platform_parent_id', 'parent_id', 'reply_to_id'], parentPlatformContentId || null)));
   const depth = scope === 'posts' ? 0 : Math.max(1, Number(first(raw, ['contentDepth', 'content_depth', 'depth'], parentId ? 2 : 1)) || 1);
+  const originalType = raw.rawPayload?.type;
+  const retainedType = platform === 'bigplayer_h5' && scope === 'posts' && [0, 1, '0', '1'].includes(originalType)
+    ? { type: originalType } : null;
   return {
     ...normalized,
     platformAuthorId: first(raw, ['platformAuthorId', 'platform_author_id', 'author_id', 'uid', 'open_id'], first(author, ['id', 'uid', 'open_id'])),
     platformParentId: parentId,
     rootPlatformContentId: rootId,
     contentDepth: depth,
-    isDeleted: Boolean(first(raw, ['isDeleted', 'is_deleted', 'deleted', 'tombstone'], false)), rawPayload: null
+    isDeleted: Boolean(first(raw, ['isDeleted', 'is_deleted', 'deleted', 'tombstone'], false)), rawPayload: retainedType
   };
 }
 
@@ -312,7 +339,7 @@ async function runLegacySource(deps, source, connector, run) {
   try {
     const rawItems = await connector.collect({ source }); const entries = [];
     for (const raw of rawItems) { const content = await deps.repo.insertContent(source, raw); if (content) entries.push({ content, raw, change: 'inserted' }); }
-    const downstream = await processDownstream(deps, source, entries);
+    const downstream = await enqueueDailyAnalysis(deps, source, entries);
     await deps.repo.finishRun(run.id, { status: 'success', discoveredCount: rawItems.length, storedCount: entries.length, analyzedCount: downstream.analyzed, alertedCount: downstream.alerted }); await deps.repo.markSourceRun(source.id, { status: 'success' });
   } catch (error) { await deps.repo.finishRun(run.id, { status: 'failed', errorCode: errorCode(error) || 'COLLECTION_FAILED', errorMessage: safeErrorMessage(error) }); await deps.repo.markSourceRun(source.id, { status: 'failed', errorCode: errorCode(error), errorMessage: safeErrorMessage(error) }); }
 }
@@ -414,7 +441,7 @@ async function syncStagePage(deps, stage) {
   const requestCursor = stage.cursor;
   const { source, account, connector, credential, scope, rootPlatformContentId, postPlatformId, historyStart, taskKind, taskKey, keyword, feed, commentId, sortType } = stage;
   const collectionWindow = deps.collectionWindow || {};
-  const input = { source, account, credentialContext: deps.credentialContext, sessionRef: stage.activeSessionRef, signal: deps.leaseGuard?.signal, cursor: requestCursor, limit: deps.pageSize, historyStart, updatedSince: stage.effectiveUpdatedSince, publishedFrom: collectionWindow.publishedFrom, publishedTo: collectionWindow.publishedTo, dailyBounded: Boolean(collectionWindow.dailyBounded), keyword, postId: rootPlatformContentId, rootContentId: rootPlatformContentId, commentId, parentCommentId: commentId, sortType, taskKind, taskKey, feed, ...(feed || {}) };
+  const input = { source, account, credentialContext: deps.credentialContext, sessionRef: stage.activeSessionRef, signal: deps.leaseGuard?.signal, cursor: requestCursor, segmentId: stage.syncRunId, limit: deps.pageSize, historyStart, updatedSince: stage.effectiveUpdatedSince, publishedFrom: collectionWindow.publishedFrom, publishedTo: collectionWindow.publishedTo, dailyBounded: Boolean(collectionWindow.dailyBounded), keyword, postId: rootPlatformContentId, rootContentId: rootPlatformContentId, commentId, parentCommentId: commentId, sortType, taskKind, taskKey, feed, ...(feed || {}) };
   let page;
   try {
     page = await invokePageWithTimeout(connector, scope, input, taskKind, deps);
@@ -437,7 +464,7 @@ async function syncStagePage(deps, stage) {
     if (targetCommentId) replyTargets.push({ postId: String(rootPlatformContentId || postPlatformId), commentId: targetCommentId, sortType: 0 });
   }
   const sourceItems = scope === 'comments' ? flattenCommentTree(page.items, { rootPlatformContentId: rootPlatformContentId || postPlatformId }) : page.items;
-  const normalized = sourceItems.map(raw => normalizePlatformItem(taskKind === 'facebook_reply' ? { ...raw, platformParentId: commentId, contentDepth: 2 } : raw, { scope, rootPlatformContentId: scope === 'comments' ? (rootPlatformContentId || postPlatformId) : '', parentPlatformContentId: taskKind === 'facebook_reply' ? commentId : null }));
+  const normalized = sourceItems.map(raw => normalizePlatformItem(taskKind === 'facebook_reply' ? { ...raw, platformParentId: commentId, contentDepth: 2 } : raw, { scope, platform: source.platform, rootPlatformContentId: scope === 'comments' ? (rootPlatformContentId || postPlatformId) : '', parentPlatformContentId: taskKind === 'facebook_reply' ? commentId : null }));
   const upsertInput = { account, source, syncScope: stage.syncScope, rootPlatformContentId: stage.checkpointRoot, items: normalized, nextCursor: page.nextCursor, hasMore: page.hasMore, syncMode: stage.syncMode, syncRunId: stage.syncRunId, taskKind, taskKey, feed, checkpointId: stage.checkpoint.id, leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds, lastItemAt: page.platformWatermark || null };
   // A fetch that finishes at or after the daily deadline must not advance its checkpoint.
   assertDeadline(deps);
@@ -454,6 +481,15 @@ async function syncStagePage(deps, stage) {
     }
   }
   stage.cursor = page.nextCursor;
+  const boundaryReason = deps.collectionWindow?.dailyBounded && page.raw?.paginationDiagnostics?.incomplete
+    ? page.raw.paginationDiagnostics.code
+    : null;
+  if (boundaryReason) {
+    const error = new Error(`bounded collection segment incomplete: ${boundaryReason}`);
+    error.code = 'COLLECTION_BOUNDARY_INCOMPLETE';
+    error.details = { reason: boundaryReason };
+    throw error;
+  }
   return { discovered: normalized.length, stored: Number(committed.storedCount || entries.filter(entry => entry.change !== 'unchanged').length), entries, capability: page.capability || stage.capability, completed: !page.hasMore, replyTargets, requestCursor, nextCursor: page.nextCursor };
 }
 
@@ -462,10 +498,25 @@ function checkpointWindow(collectionWindow = {}) {
   return { windowStart: new Date(collectionWindow.publishedFrom).toISOString(), windowEnd: new Date(collectionWindow.publishedTo).toISOString() };
 }
 
+function terminalQ1Boundary(existing) {
+  if (existing?.status !== 'failed' || existing?.error_code !== 'COLLECTION_BOUNDARY_INCOMPLETE' || !String(existing?.error_message || '').includes('provider_offset_ceiling')) return null;
+  try {
+    const cursor = JSON.parse(String(existing.cursor || ''));
+    return Number(cursor?.offsetId) >= 10000 ? 'provider_offset_ceiling' : null;
+  } catch { return null; }
+}
+
 async function syncStage(deps, { source, account, connector, credential, sessionRef = null, scope, rootPlatformContentId = '', syncMode, syncRunId = null, postPlatformId = '', historyStart = null, updatedSince = null, taskKind, taskKey, keyword = null, feed = null, commentId = null, sortType = 0, onPageCommitted = null }) {
   taskKind ||= scope === 'posts' ? 'owned_content' : scope;
   taskKey ||= rootPlatformContentId || (scope === 'posts' ? 'owned' : 'root');
   const { syncScope, checkpointRoot } = stageIdentity({ scope, rootPlatformContentId, taskKind, taskKey });
+  const identity = { accountId: account.id, taskKind, taskKey, syncScope, rootPlatformContentId: checkpointRoot, ...checkpointWindow(deps.collectionWindow) };
+  if (source.platform === 'bigplayer_h5' && deps.collectionWindow?.dailyBounded && typeof deps.repo.getSyncCheckpoint === 'function') {
+    const existing = await deps.repo.getSyncCheckpoint(identity);
+    if (existing?.status === 'completed') return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: true, replyTargets: [] };
+    const boundaryIncomplete = terminalQ1Boundary(existing);
+    if (boundaryIncomplete) return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: false, skipped: true, replyTargets: [], taskKind, taskKey, boundaryIncomplete };
+  }
   const checkpoint = await deps.repo.claimSyncCheckpoint({ accountId: account.id, syncScope, rootPlatformContentId: checkpointRoot, syncMode, taskKind, taskKey, ...checkpointWindow(deps.collectionWindow), leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds });
   if (!checkpoint) return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', skipped: true };
   const restartTapTapOwnedIncremental = source.platform === 'taptap' && taskKind === 'owned_content' && syncMode === 'incremental';
@@ -479,7 +530,7 @@ async function syncStage(deps, { source, account, connector, credential, session
       if (result.completed) { completed = true; break; }
       if (pageNo === deps.pageBudget - 1) await deps.repo.releaseSyncCheckpoint(checkpoint.id, { status: 'idle', cursor: stage.cursor, leaseOwner: deps.leaseOwner });
     }
-    return { discovered, stored, entries, capability: stage.capability, completed, replyTargets };
+    return { discovered, stored, entries, capability: stage.capability, completed, replyTargets, taskKind, taskKey, cursor: stage.cursor };
   } catch (error) {
     const code = errorCode(error); const unsupported = code === 'CAPABILITY_UNSUPPORTED'; const manual = isManualVerification(error);
     await deps.repo.releaseSyncCheckpoint(checkpoint.id, { status: manual ? 'awaiting_manual_verification' : unsupported ? 'unsupported' : 'failed', cursor: stage.cursor, itemsFetched: discovered, errorCode: code, errorMessage: safeErrorMessage(error), taskKind, taskKey, leaseOwner: deps.leaseOwner });
@@ -530,10 +581,12 @@ async function drainAndCloseCommitLane(commitLane) {
 }
 function createFinishOnce(deps, source, run, syncRun) {
   let finished = null;
-  return (status, counts, { errorCode: code = null, errorMessage = null, sourceStatus = status, sourceErrorMessage = errorMessage } = {}) => {
+  return (status, counts, { errorCode: code = null, errorMessage = null, sourceStatus = status, sourceErrorMessage = errorMessage, nextRetryAt = null, defer = false } = {}) => {
     if (finished) return finished;
     finished = (async () => {
-      const finishedSyncRun = await deps.repo.finishSyncRun(syncRun.id, { status, discoveredCount: counts.discovered, storedCount: counts.stored, errorCode: code, errorMessage, leaseOwner: deps.leaseOwner });
+      const finishedSyncRun = defer
+        ? await deps.repo.deferSyncRun(syncRun.id, { errorCode: code, errorMessage, nextRetryAt, leaseOwner: deps.leaseOwner, leaseEpoch: syncRun.lease_epoch })
+        : await deps.repo.finishSyncRun(syncRun.id, { status, discoveredCount: counts.discovered, storedCount: counts.stored, errorCode: code, errorMessage, nextRetryAt, leaseOwner: deps.leaseOwner, leaseEpoch: syncRun.lease_epoch });
       if (finishedSyncRun === null) return;
       await deps.repo.finishRun(run.id, { status: status === 'completed_authorized_scope' || status === 'completed_full' ? 'success' : status, discoveredCount: counts.discovered, storedCount: counts.stored, analyzedCount: counts.analyzed, alertedCount: counts.alerted, errorCode: code, errorMessage });
       await deps.repo.markSourceRun(source.id, { status: sourceStatus, errorCode: code, errorMessage: sourceErrorMessage });
@@ -545,8 +598,10 @@ function createFinishOnce(deps, source, run, syncRun) {
 async function finishPagedFailure(deps, source, run, syncRun, counts, error, commitLane = null, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
   await drainAndCloseCommitLane(commitLane);
   const code = errorCode(error); const manual = isManualVerification(error); const timedOut = code === 'DAILY_RUN_TIMEOUT'; const status = manual ? 'awaiting_manual_verification' : timedOut ? 'partial' : 'failed';
-  const message = safeErrorMessage(error);
-  await finishOnce(status, counts, { errorCode: code, errorMessage: message, sourceStatus: timedOut ? 'partial' : 'failed', sourceErrorMessage: manual ? `awaiting_manual_verification: ${message}` : message });
+  const retry = rateLimitRetry(error, syncRun);
+  const message = `${safeErrorMessage(error)}${retry.auditSuffix}`.slice(0, 500);
+  const deferDiscordRateLimit = source.platform === 'discord' && code === 'RATE_LIMITED' && retry.nextRetryAt;
+  await finishOnce(status, counts, { errorCode: code, errorMessage: message, nextRetryAt: retry.nextRetryAt, defer: deferDiscordRateLimit, sourceStatus: timedOut ? 'partial' : 'failed', sourceErrorMessage: manual ? `awaiting_manual_verification: ${message}` : message });
   if (manual && typeof deps.repo.updateSourceAuth === 'function') await deps.repo.updateSourceAuth(source.id, { authStatus: 'awaiting_manual_verification' });
 }
 
@@ -637,7 +692,10 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
   const metadata = parseObject(account.metadata); const syncMode = syncModeOf(source, account, syncRun);
   const collectionWindow = deps.collectionWindow || {};
   const dailyBounded = Boolean(collectionWindow.dailyBounded);
-  const historyStart = dailyBounded ? null : (metadata.historyStart || metadata.history_start || null);
+  // Legacy account metadata must never turn scheduled/incremental runs into unbounded history scans.
+  // Only an explicit backfill run may carry historyStart, and BigPlayer backfill is bounded upstream.
+  const scheduledIncremental = ['scheduled', 'scheduled_catchup'].includes(String(syncRun?.trigger_type || syncRun?.triggerType || '')) && syncMode === 'incremental';
+  const historyStart = dailyBounded || scheduledIncremental || syncMode !== 'backfill' ? null : (metadata.historyStart || metadata.history_start || null);
   const publishedFromMs = collectionWindow.publishedFrom == null ? -Infinity : new Date(collectionWindow.publishedFrom).getTime();
   const publishedToMs = collectionWindow.publishedTo == null ? Infinity : new Date(collectionWindow.publishedTo).getTime();
   const isInCollectionWindow = entry => {
@@ -654,18 +712,30 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
   const counts = { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }; let incomplete = false; let committedPages = 0; const diagnostics = []; const capabilities = []; const replyTargets = new Map();
   const record = async (result, trackCompletion = true) => {
     counts.discovered += result.discovered; counts.stored += result.stored; capabilities.push(result.capability);
-    const downstream = dailyBounded ? await enqueueDailyAnalysis(sourceDeps, source, result.entries, analysisScope) : await processDownstream(sourceDeps, source, result.entries, analysisScope); counts.analyzed += downstream.analyzed; counts.alerted += downstream.alerted;
+    const downstream = await enqueueDailyAnalysis(sourceDeps, source, result.entries, analysisScope); counts.analyzed += downstream.analyzed; counts.alerted += downstream.alerted;
     for (const target of result.replyTargets || []) replyTargets.set(`${target.postId}:${target.commentId}:${target.sortType || 0}`, target);
     if (trackCompletion && (result.unsupported || (!result.completed && !result.skipped) || (dailyBounded && result.skipped))) incomplete = true;
+    if (trackCompletion && !result.completed && !result.skipped && !result.unsupported) diagnostics.push({ scope: result.taskKind || 'unknown', rootId: result.taskKey || null, code: 'SYNC_PAGE_BUDGET_EXHAUSTED', message: `page budget exhausted at cursor ${String(result.cursor || '')}` });
     return result;
   };
   const recordPage = result => { committedPages += 1; return record(result, false); };
   const recordStageResult = result => {
     if (result.unsupported || (!result.completed && !result.skipped) || (dailyBounded && result.skipped)) incomplete = true;
+    if (result.boundaryIncomplete) diagnostics.push({ scope: result.taskKind || 'unknown', rootId: result.taskKey || null, code: 'COLLECTION_BOUNDARY_INCOMPLETE', message: result.boundaryIncomplete });
+    if (!result.completed && !result.skipped && !result.unsupported) diagnostics.push({ scope: result.taskKind || 'unknown', rootId: result.taskKey || null, code: 'SYNC_PAGE_BUDGET_EXHAUSTED', message: `page budget exhausted at cursor ${String(result.cursor || '')}` });
     return result;
   };
   const failStage = (scope, rootId, error) => { incomplete = true; diagnostics.push({ scope, rootId, code: errorCode(error), message: safeErrorMessage(error) }); };
   const immediateCommentPosts = new Set();
+  // Discord applies rate limits across the token. Stop this run's dependent dispatch as
+  // soon as one comments/replies request is throttled; the outer failure path persists
+  // the provider delay and leaves every uncommitted checkpoint at its safe cursor.
+  let discordRateLimit = null;
+  const captureDiscordRateLimit = error => {
+    if (source.platform !== 'discord' || errorCode(error) !== 'RATE_LIMITED') return false;
+    discordRateLimit ||= error;
+    return true;
+  };
   let gate = null;
   let credential = null;
   const syncCommentsForPosts = async entries => {
@@ -750,21 +820,30 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
         seenPosts.add(postId);
         return true;
       });
-      const commentConcurrency = dailyBounded
+      const commentConcurrency = source.platform === 'discord'
+        ? 1
+        : dailyBounded
         ? Math.max(1, Number(sourceDeps.dailyCommentFetchConcurrency ?? process.env.DAILY_COMMENT_FETCH_CONCURRENCY ?? 4))
         : Number(process.env.SYNC_COMMENT_CONCURRENCY || 8);
       await runBounded(pendingCommentParents.slice(0, commentParentLimit), commentConcurrency, async parent => {
+        if (discordRateLimit) return;
         const postId = String(parent.post_platform_id || parent.root_platform_content_id || '').trim();
         try {
           assertDeadline(deps);
           const result = await syncStage({ ...sourceDeps, pageBudget: Math.min(deps.pageBudget, commentPageBudget) }, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'comments', rootPlatformContentId: postId, postPlatformId: postId, syncMode, syncRunId: syncRun.id, historyStart, ...(facebookPageAccounting ? { onPageCommitted: recordPage } : {}) });
           if (facebookPageAccounting) recordStageResult(result); else await record(result);
-        } catch (error) { if (isManualVerification(error) || (source.platform === 'facebook' && facebookAuthFailureStatus(error))) throw error; failStage('comments', postId, error); }
+        } catch (error) {
+          if (captureDiscordRateLimit(error)) return;
+          if (isManualVerification(error) || (source.platform === 'facebook' && facebookAuthFailureStatus(error))) throw error;
+          failStage('comments', postId, error);
+        }
       });
+      if (discordRateLimit) throw discordRateLimit;
       const replyConcurrency = dailyBounded
         ? Math.max(1, Number(sourceDeps.dailyReplyFetchConcurrency ?? process.env.DAILY_REPLY_FETCH_CONCURRENCY ?? 4))
         : Math.max(1, Number(process.env.SYNC_REPLY_CONCURRENCY || process.env.SYNC_COMMENT_CONCURRENCY || 4));
-      await runBounded([...replyTargets.values()], replyConcurrency, async target => {
+      await runBounded([...replyTargets.values()], source.platform === 'discord' ? 1 : replyConcurrency, async target => {
+        if (discordRateLimit) return;
         assertDeadline(deps);
         const facebookReply = source.platform === 'facebook';
         const replyTaskKind = facebookReply ? 'facebook_reply' : 'q1_reply';
@@ -773,8 +852,13 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
           const result = await syncStage({ ...sourceDeps, pageBudget: Math.min(deps.pageBudget, commentPageBudget) }, { source, account, connector, credential, sessionRef: gate.sessionRef, scope: 'comments', rootPlatformContentId: target.postId, postPlatformId: target.postId, commentId: target.commentId, sortType: target.sortType || 0, syncMode, syncRunId: syncRun.id, historyStart, taskKind: replyTaskKind, taskKey: replyTaskKey, ...(facebookReply ? { onPageCommitted: recordPage } : {}) });
           if (facebookReply) recordStageResult(result); else await record(result);
         }
-        catch (error) { if (isManualVerification(error) || (source.platform === 'facebook' && facebookAuthFailureStatus(error))) throw error; failStage(replyTaskKind, replyTaskKey, error); }
+        catch (error) {
+          if (captureDiscordRateLimit(error)) return;
+          if (isManualVerification(error) || (source.platform === 'facebook' && facebookAuthFailureStatus(error))) throw error;
+          failStage(replyTaskKind, replyTaskKey, error);
+        }
       });
+      if (discordRateLimit) throw discordRateLimit;
     }
     await drainAndCloseCommitLane(commitLane);
     const allFull = capabilities.length > 0 && capabilities.every(value => value === 'full');
@@ -879,7 +963,7 @@ function createLeaseGuard(deps, syncRun) {
     if (lost || typeof deps.repo.renewSyncRunLease !== 'function') return;
     renewing = renewing.then(async () => {
       check();
-      const ok = await deps.repo.renewSyncRunLease(syncRun.id, deps.leaseOwner, deps.leaseSeconds);
+      const ok = await deps.repo.renewSyncRunLease(syncRun.id, deps.leaseOwner, deps.leaseSeconds, syncRun.lease_epoch);
       if (!ok) return fail();
       deadline = now() + leaseMs;
     }).catch(fail);
@@ -947,6 +1031,7 @@ function buildDeps(env = process.env) {
   const repo = new Repository(env); const credentialContext = new CredentialContext({ repo }); const oauthService = new DouyinOAuthService(env); const loginSessionClient = new LoginSessionClient(env); const authRefreshCoordinator = new AuthRefreshCoordinator({ repo, loginSessionClient });
   const connectors = { bigplayer_h5: new BigPlayerH5Connector(env, { credentialContext, authRefreshCoordinator }), ...buildExternalConnectors(env, { credentialContext, douyinOAuthService: oauthService, loginSessionClient }) }; const ai = new AiAnalyzer(); const notifier = new DingTalkNotifier();
   const leaseOwner = `${process.pid}-${crypto.randomUUID()}`;
+  const workerId = heartbeatWorkerId(env);
   const unifiedScheduler = {
     mode: schedulerMode(env),
     // 受控生产恢复：指定 source 时禁止统一调度写入，只消费该 source 的 manual run。
@@ -956,15 +1041,19 @@ function buildDeps(env = process.env) {
     now: () => new Date(),
     connectorCapabilities: schedulerConnectorCapabilities(connectors)
   };
-  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), leaseOwner, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), leaseHeartbeatMs: Number(env.SYNC_LEASE_HEARTBEAT_MS || 0), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), unifiedScheduler };
+  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), leaseOwner, workerId, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), leaseHeartbeatMs: Number(env.SYNC_LEASE_HEARTBEAT_MS || 0), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), unifiedScheduler };
 }
 async function unifiedSchedulerSchemaReady(connection) {
   const [rows] = await connection.query(
     `SELECT
-       EXISTS (
-         SELECT 1 FROM po_schema_migrations
-         WHERE version='023_unified_source_scheduling.sql'
-       ) AS migration_applied,
+       (
+         SELECT COUNT(*) FROM po_schema_migrations
+         WHERE version IN (
+           '023_unified_source_scheduling.sql',
+           '025_worker_scan_leases.sql',
+           '026_scheduler_runtime_schema_reconciliation.sql'
+         )
+       ) AS required_migration_count,
        EXISTS (
          SELECT 1 FROM information_schema.tables
          WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state'
@@ -973,10 +1062,41 @@ async function unifiedSchedulerSchemaReady(connection) {
          SELECT COUNT(*) FROM information_schema.columns
          WHERE table_schema=DATABASE() AND (
            (table_name='po_sources' AND column_name IN ('default_account_id','schedule_version','schedule_effective_at'))
-           OR (table_name='po_sync_runs' AND column_name IN ('source_id','trigger_type','scheduled_at','window_start','window_end','schedule_version'))
+           OR (table_name='po_sync_runs' AND column_name IN ('source_id','trigger_type','scheduled_at','window_start','window_end','schedule_version','lease_epoch'))
            OR (table_name='po_source_schedule_state' AND column_name IN ('source_id','schedule_version','effective_at','last_scheduled_at','next_scheduled_at','last_scan_at','lease_run_id','lease_owner','lease_epoch','lease_until','last_status','last_reason_code'))
          )
        ) AS required_column_count,
+       EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema=DATABASE() AND table_name='po_worker_leases'
+       ) AS worker_lease_table,
+       (
+         SELECT COUNT(*) FROM information_schema.columns
+         WHERE table_schema=DATABASE() AND table_name='po_worker_leases' AND (
+           (column_name='lease_key' AND column_type='varchar(80)' AND is_nullable='NO')
+           OR (column_name='owner_id' AND column_type='varchar(160)' AND is_nullable='YES')
+           OR (column_name='epoch' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='0')
+           OR (column_name='lease_until' AND column_type='datetime(3)' AND is_nullable='YES')
+         )
+       ) AS worker_lease_column_count,
+       EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema=DATABASE() AND table_name='po_worker_heartbeats'
+       ) AS worker_heartbeat_table,
+       (
+         SELECT COUNT(*) FROM information_schema.columns
+         WHERE table_schema=DATABASE() AND table_name='po_worker_heartbeats' AND (
+           (column_name='worker_id' AND column_type='varchar(160)' AND is_nullable='NO')
+           OR (column_name='build_sha' AND column_type='varchar(80)' AND is_nullable='YES')
+           OR (column_name='mode' AND column_type='varchar(30)' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='enabled')
+           OR (column_name='last_seen_at' AND column_type='datetime(3)' AND is_nullable='NO')
+           OR (column_name='scan_started_at' AND column_type='datetime(3)' AND is_nullable='YES')
+           OR (column_name='scan_finished_at' AND column_type='datetime(3)' AND is_nullable='YES')
+           OR (column_name='scan_status' AND column_type='varchar(30)' AND is_nullable='YES')
+           OR (column_name='scan_error' AND column_type='varchar(500)' AND is_nullable='YES')
+           OR (column_name='current_scan' AND column_type='varchar(255)' AND is_nullable='YES')
+         )
+       ) AS worker_heartbeat_column_count,
        (
          SELECT COUNT(*) FROM information_schema.statistics
          WHERE table_schema=DATABASE() AND table_name='po_sync_runs'
@@ -991,9 +1111,13 @@ async function unifiedSchedulerSchemaReady(connection) {
     []
   );
   const schema = rows?.[0] || {};
-  return Number(schema.migration_applied || 0) === 1
+  return Number(schema.required_migration_count || 0) === 3
     && Number(schema.schedule_state_table || 0) === 1
-    && Number(schema.required_column_count || 0) === 21
+    && Number(schema.required_column_count || 0) === 22
+    && Number(schema.worker_lease_table || 0) === 1
+    && Number(schema.worker_lease_column_count || 0) === 4
+    && Number(schema.worker_heartbeat_table || 0) === 1
+    && Number(schema.worker_heartbeat_column_count || 0) === 9
     && Number(schema.schedule_slot_unique_columns || 0) === 2
     && schema.schedule_slot_columns === 'source_id,scheduled_at';
 }
@@ -1045,11 +1169,32 @@ function unifiedSchedulerOwnsPeriodicSources(options, result) {
   ]).has(result?.reasonCode);
 }
 async function runBounded(items, limit, operation) {
-  let next = 0; const worker = async () => { while (next < items.length) { const index = next; next += 1; await operation(items[index]); } };
+  let next = 0; const worker = async () => { while (next < items.length) { const index = next; next += 1; try { await operation(items[index]); } catch (error) { console.error(`[worker] source isolated errorCode=${errorCode(error)} message=${safeErrorMessage(error)}`); } } };
   await Promise.all(Array.from({ length: Math.min(Math.max(1, Number(limit) || 1), items.length) }, worker));
 }
 async function runOnce(deps = buildDeps()) {
+  const { createWorkerScanLease, recoverExpiredRuns } = require('./workerScanLease');
+  const scanLease = deps.scanLease || (deps.repo.pool && typeof deps.repo.query === 'function' ? createWorkerScanLease(deps.repo.query.bind(deps.repo)) : null);
+  const scanToken = scanLease ? await scanLease.acquire(deps.leaseOwner || `worker-${process.pid}`) : null;
+  if (scanLease && !scanToken) return { skipped: true, reasonCode: 'WORKER_SCAN_ACTIVE' };
+  let scanLeaseLost = false;
+  let renewingScan = false;
+  const scanTimer = scanLease ? setInterval(async () => {
+    if (renewingScan || scanLeaseLost) return;
+    renewingScan = true;
+    try { if (!await scanLease.renew(scanToken)) scanLeaseLost = true; }
+    catch { scanLeaseLost = true; }
+    finally { renewingScan = false; }
+  }, 30000) : null;
+  scanTimer?.unref?.();
+  const heartbeat = async patch => {
+    if (typeof deps.repo?.upsertWorkerHeartbeat !== 'function') return;
+    try { await deps.repo.upsertWorkerHeartbeat({ workerId: deps.workerId || heartbeatWorkerId(), buildSha: process.env.BUILD_SHA || null, mode: process.env.WORKER_MODE || 'enabled', ...patch }); } catch (error) { console.error(`[worker] heartbeat failed errorCode=${errorCode(error)}`); }
+  };
+  await heartbeat({ scanStartedAt: new Date(), scanFinishedAt: null, scanStatus: 'running', scanError: null, currentScan: 'runOnce' });
+  try {
   if (typeof deps.repo.health === 'function') await deps.repo.health();
+  if (deps.repo.pool && typeof deps.repo.query === 'function') await recoverExpiredRuns(deps.repo.query.bind(deps.repo));
   const recoverySourceId = String(deps.unifiedScheduler?.recoverySourceId || '').trim() || null;
   const allQueued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await deps.repo.listRunnableSyncRuns() : [];
   const queued = recoverySourceId
@@ -1078,14 +1223,28 @@ async function runOnce(deps = buildDeps()) {
     if (queuedSource.id != null && !work.has(queuedSource.id)) work.set(queuedSource.id, { source: queuedSource, syncRun });
   }
   for (const candidate of [...manualRunnable, ...sources]) if (!work.has(candidate.id)) work.set(candidate.id, { source: candidate, syncRun: null });
-  await runBounded([...work.values()], deps.sourceConcurrency || 1, item => runSource(deps, item.source, item.syncRun));
+  await runBounded([...work.values()], deps.sourceConcurrency || 1, item => {
+    if (scanLeaseLost) throw stableError('WORKER_SCAN_LEASE_LOST', 'worker scan lease was lost');
+    return runSource(deps, item.source, item.syncRun);
+  });
   if (typeof deps.repo.enqueueMissingAnalysis === 'function'
     && (typeof deps.ai?.configured !== 'function' || deps.ai.configured('light'))) {
     const spec = profileSpec(deps.ai, 'light');
     await deps.repo.enqueueMissingAnalysis({ profile: 'light', version: spec.version, limit: deps.analysisJobBatchSize || 100 });
-    await processAnalysisBacklog(deps);
+    // Collection only queues jobs; the independent analysis worker consumes them.
   }
-  return { queued: queued.length, manual: manual.length, scanned: sources.length };
+  const result = { queued: queued.length, manual: manual.length, scanned: sources.length };
+  await heartbeat({ scanFinishedAt: new Date(), scanStatus: 'completed', scanError: null, currentScan: null });
+  return result;
+  } catch (error) {
+    await heartbeat({ scanFinishedAt: new Date(), scanStatus: 'failed', scanError: safeErrorMessage(error), currentScan: null });
+    throw error;
+  } finally {
+    if (scanTimer) clearInterval(scanTimer);
+    // Never retain this token across DB failures or scans. A recovery scan
+    // always performs a fresh DB-clock CAS and receives a new epoch.
+    if (scanLease && !scanLeaseLost) { try { await scanLease.release(scanToken); } catch {} }
+  }
 }
 const interval = Number(process.env.WORKER_INTERVAL_MS || 60000);
 if (require.main === module) {
@@ -1095,14 +1254,17 @@ if (require.main === module) {
   // （dailyRunner/q1DailyJob）不受影响，它们各自构建并在结束时关闭自己的池。
   try {
     const mode = requireExplicitSchedulerMode(process.env);
-    let sharedDeps = null; let inflight = Promise.resolve();
-    const scheduleRun = () => { inflight = inflight.then(async () => { if (!sharedDeps) sharedDeps = buildDeps(); await runOnce(sharedDeps); }).catch(error => console.error('[worker] status=failed errorCode=', errorCode(error))); return inflight; };
+    let sharedDeps = null;
+    const scheduleRun = createScanRunner(async () => { try { if (!sharedDeps) sharedDeps = buildDeps(); console.log(JSON.stringify({ task: 'unified-worker', phase: 'scan_started', mode, at: new Date().toISOString() })); const result = await runOnce(sharedDeps); console.log(JSON.stringify({ task: 'unified-worker', phase: 'scan_completed', mode, at: new Date().toISOString(), ...result })); } catch (error) { console.error('[worker] status=failed errorCode=', errorCode(error)); } });
     scheduleRun();
-    setInterval(scheduleRun, interval);
+    const timer = setInterval(scheduleRun, interval);
+    const shutdown = async signal => { console.log(`[worker] stopping signal=${signal}`); clearInterval(timer); try { await sharedDeps?.repo?.pool?.end?.(); } catch (error) { console.error(`[worker] shutdown failed: ${errorCode(error)}`); } };
+    process.once('SIGINT', () => shutdown('SIGINT').finally(() => process.exit(0)));
+    process.once('SIGTERM', () => shutdown('SIGTERM').finally(() => process.exit(0)));
     console.log(`public-opinion-worker mode=${mode} scanning all eligible sources every ${interval}ms`);
   } catch (error) {
     console.error(`[worker] status=failed errorCode=${error.code || 'UNIFIED_SCHEDULER_MODE_INVALID'}`);
     process.exitCode = 1;
   }
 }
-module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, assertCanonicalCommunityScope, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, errorCode, safeErrorMessage, isManualVerification, runBounded, runUnifiedSchedulerSeam, schedulerMode, requireExplicitSchedulerMode, parseSourceAllowlist };
+module.exports = { runOnce, runSource, runPagedSource, syncStage, syncStagePage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, processDownstream, processPersistentAnalysisJobs, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, assertCanonicalCommunityScope, SEVERITY_RANK, normalizePlatformItem, checkAuthorization, profileSpec, buildDeps, heartbeatWorkerId, errorCode, safeErrorMessage, rateLimitRetry, isManualVerification, runBounded, runUnifiedSchedulerSeam, schedulerMode, requireExplicitSchedulerMode, parseSourceAllowlist };

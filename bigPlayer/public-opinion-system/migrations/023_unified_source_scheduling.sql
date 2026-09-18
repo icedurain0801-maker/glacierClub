@@ -491,6 +491,10 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- Source-level scheduling state and lease fencing.
 -- --------------------------------------------------------------------------
 
+SET @sql := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='lease_epoch')=0,
+  'ALTER TABLE po_sync_runs ADD COLUMN lease_epoch BIGINT UNSIGNED NOT NULL DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS po_source_schedule_state (
   source_id CHAR(36) NOT NULL,
   schedule_version BIGINT UNSIGNED NOT NULL DEFAULT 1,
@@ -510,6 +514,23 @@ CREATE TABLE IF NOT EXISTS po_source_schedule_state (
   KEY po_source_schedule_state_next_idx (next_scheduled_at, source_id),
   KEY po_source_schedule_state_lease_idx (lease_until, source_id),
   CONSTRAINT po_source_schedule_state_source_fk FOREIGN KEY (source_id) REFERENCES po_sources(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Persistent worker liveness and scan diagnostics. UTC_TIMESTAMP(3) is the
+-- sole database clock so host clock drift cannot suppress overdue alerts.
+CREATE TABLE IF NOT EXISTS po_worker_heartbeats (
+  worker_id VARCHAR(160) NOT NULL,
+  build_sha VARCHAR(80) NULL,
+  mode VARCHAR(30) NOT NULL DEFAULT 'enabled',
+  last_seen_at DATETIME(3) NOT NULL,
+  scan_started_at DATETIME(3) NULL,
+  scan_finished_at DATETIME(3) NULL,
+  scan_status VARCHAR(30) NULL,
+  scan_error VARCHAR(500) NULL,
+  current_scan VARCHAR(255) NULL,
+  PRIMARY KEY (worker_id),
+  KEY po_worker_heartbeats_seen_idx (last_seen_at),
+  KEY po_worker_heartbeats_scan_idx (scan_started_at, scan_finished_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO po_source_schedule_state (

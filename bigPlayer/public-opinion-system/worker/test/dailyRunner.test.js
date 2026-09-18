@@ -8,6 +8,12 @@ const window = {
   publishedTo: new Date('2026-08-11T16:00:00.000Z')
 };
 
+test('daily run fails closed before claims when the analysis gate is busy', async () => {
+  const { deps, state } = dailyDeps({ repo: { async acquireAdvisoryLock(name) { return name !== 'po-analysis-consumer'; } } });
+  await assert.rejects(runDaily(deps, { now: new Date('2026-08-12T02:00:00.000Z') }), { code: 'ANALYSIS_SCOPE_BUSY' });
+  assert.equal(state.claims.length, 0);
+});
+
 test('enabled unified mode yields scheduled daily runs without touching dependencies', async () => {
   let dependencyCalls = 0;
   const deps = { repo: { async health() { dependencyCalls += 1; } } };

@@ -31,37 +31,52 @@ async function runBacklogIteration(deps, processFn = processAnalysisBacklog, { s
   if (activeScope && isDailyAnalysisScopeActive(activeScope)) return { skipped: true, reason: 'daily_scope_active' };
   if (backlogRunning) return { skipped: true, reason: 'already_running' };
   backlogRunning = true;
-  try { return await processFn(deps); } finally { backlogRunning = false; }
+  let locked = false;
+  try {
+    if (typeof deps.repo?.acquireAdvisoryLock !== 'function') return { skipped: true, reason: 'analysis_gate_unavailable' };
+    locked = await deps.repo.acquireAdvisoryLock('po-analysis-consumer', 0);
+    if (!locked) return { skipped: true, reason: 'analysis_scope_active' };
+    return await processFn(deps);
+  } finally {
+    try { if (locked) await deps.repo.releaseAdvisoryLock('po-analysis-consumer'); }
+    finally { backlogRunning = false; }
+  }
 }
 
-async function runAnalysisLoop(deps, { sleepFn = sleep, exitFn = code => process.exit(code) } = {}) {
+async function runAnalysisLoop(deps, { sleepFn = sleep, signal, processFn = processAnalysisBacklog, log = console.log } = {}) {
   const idleMs = Math.max(100, Number(process.env.AI_ANALYSIS_WORKER_IDLE_MS || 1000));
-  for (;;) {
-    const [row] = await deps.repo.query(
-      "SELECT COUNT(*) AS pending_count FROM po_analysis_jobs WHERE analysis_profile='light' AND analysis_version=? AND status IN ('pending','running','retryable')",
-      [deps.ai.profiles.light.version]
-    );
-    const remaining = Number(row?.pending_count || 0);
-    if (!remaining) {
-      console.log('analysis backlog completed');
-      return exitFn(0);
-    }
+  let nextMetricsAt = 0;
+  while (!signal?.aborted) {
     let result;
     try {
-      result = await runBacklogIteration(deps);
+      result = await runBacklogIteration(deps, processFn);
     } catch (error) {
       console.error(new Date().toISOString(), 'backlog iteration failed:', error?.code || 'ANALYSIS_ITERATION_FAILED');
       await sleepFn(idleMs);
       continue;
     }
-    console.log(new Date().toISOString(), `remaining=${remaining}`, `analyzed=${result?.analyzed || 0}`);
-    if (typeof deps.repo.cleanupInvalidQualityCandidates === 'function') await maybeCleanupQualityCandidates(deps.repo);
+    log(JSON.stringify({ task: 'analysis-worker', at: new Date().toISOString(), analyzed: result?.analyzed || 0, skipped: Boolean(result?.skipped) }));
+    if (Date.now() >= nextMetricsAt && typeof deps.repo.countAnalysisJobs === 'function') {
+      nextMetricsAt = Date.now() + 60000;
+      try { log(JSON.stringify({ task: 'analysis-queue', at: new Date().toISOString(), ...await deps.repo.countAnalysisJobs({ profile: 'light', version: deps.ai.profiles.light.version }) })); }
+      catch (error) { console.error('[analysis-worker] metrics failed:', error?.code || 'ANALYSIS_METRICS_FAILED'); }
+    }
     await sleepFn(result?.analyzed ? 100 : idleMs);
   }
 }
 
 async function main() {
-  return runAnalysisLoop(buildDeps());
+  const deps = buildDeps();
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
+  try { return await runAnalysisLoop(deps, { signal: controller.signal }); }
+  finally {
+    process.removeListener('SIGINT', stop);
+    process.removeListener('SIGTERM', stop);
+    await deps.repo.pool.end();
+  }
 }
 
 if (require.main === module) {

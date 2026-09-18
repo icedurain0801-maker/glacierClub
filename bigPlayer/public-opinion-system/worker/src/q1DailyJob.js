@@ -227,7 +227,7 @@ async function writeReport(outDir, report) {
   }
   return report;
 }
-async function acquireDailyLock(sourceId, businessDate, lockDir = path.resolve(process.cwd(), '.temp', 'q1-daily-locks')) {
+async function acquireDailyLock(sourceId, businessDate, lockDir = process.env.Q1_DAILY_LOCK_ROOT || path.resolve(process.cwd(), '.temp', 'q1-daily-locks')) {
   await fs.mkdir(lockDir, { recursive: true });
   const file = path.join(lockDir, `${String(sourceId).replace(/[^a-zA-Z0-9_-]/g, '_')}-${businessDate}.lock`);
   try {
@@ -358,7 +358,9 @@ async function runQ1Daily(options = {}) {
 }
 function resolveDefaultOutDir(now = new Date()) {
   const businessDate = yesterdayWindow(now).businessDate;
-  return process.env.Q1_DAILY_OUT_DIR || path.resolve(__dirname, '..', '..', '.temp', `q1-daily-${businessDate}`);
+  return process.env.Q1_DAILY_OUT_DIR
+    || (process.env.Q1_DAILY_OUT_ROOT && path.join(process.env.Q1_DAILY_OUT_ROOT, `q1-daily-${businessDate}`))
+    || path.resolve(__dirname, '..', '..', '.temp', `q1-daily-${businessDate}`);
 }
 
 function isDryRun() {
@@ -411,4 +413,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { yesterdayWindow, runCrawler, runQ1Daily, runQ1Preflight, defaultQ1Preflight, createProductionQ1Preflight, sanitizeMessage, buildDailyReport, normalizeAuditScope, analysisCounts, resolveDefaultOutDir, beijingDayWindow, writeReport, legacyScheduledGate };
+module.exports = { yesterdayWindow, runCrawler, runQ1Daily, runQ1Preflight, defaultQ1Preflight, createProductionQ1Preflight, sanitizeMessage, buildDailyReport, normalizeAuditScope, analysisCounts, resolveDefaultOutDir, acquireDailyLock, beijingDayWindow, writeReport, legacyScheduledGate };

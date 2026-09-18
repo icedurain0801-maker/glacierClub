@@ -65,3 +65,21 @@ test('missing credential fails closed before any Discord request', async () => {
   await assert.rejects(() => connector.listOwnedContents({ source: source({ channelIds: [CHANNEL_A] }), account }), error => error.code === 'CREDENTIAL_NOT_FOUND');
   assert.equal(calls, 0);
 });
+
+test('429 exposes a bounded retry delay from body or Retry-After header without response content', async () => {
+  const bodyConnector = new DiscordConnector(ENV, { credentialContext, fetchImpl: async () => ({
+    ok: false, status: 429, headers: { get: () => '99' }, json: async () => ({ retry_after: 12.5, message: 'provider detail must not persist' })
+  }) });
+  await assert.rejects(
+    () => bodyConnector.listOwnedContents({ source: source({ channelIds: [CHANNEL_A] }), account }),
+    error => error.cause?.code === 'RATE_LIMITED' && error.retryAfterMs === 12500 && !error.message.includes('provider detail')
+  );
+
+  const headerConnector = new DiscordConnector(ENV, { credentialContext, fetchImpl: async () => ({
+    ok: false, status: 429, headers: { get: name => name.toLowerCase() === 'retry-after' ? '7' : null }, json: async () => { throw new Error('not json'); }
+  }) });
+  await assert.rejects(
+    () => headerConnector.listOwnedContents({ source: source({ channelIds: [CHANNEL_A] }), account }),
+    error => error.cause?.code === 'RATE_LIMITED' && error.retryAfterMs === 7000
+  );
+});

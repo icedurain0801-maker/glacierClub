@@ -17,7 +17,10 @@ const { DouyinOAuthService } = require('./services/douyinOAuthService');
 const { LoginSessionClient } = require('./services/loginSessionClient');
 const { AuthRefreshCoordinator } = require('./services/authRefreshCoordinator');
 const { CommunityProvider, CommunityDirectory } = require('./services/communityProvider');
+const { normalizeSiteUrls, normalizeUrl } = require('./services/bigplayerSiteConfig');
 const { SOURCE_PLATFORMS, OVERSEAS_LAST_NIGHT_GAME_ID, OVERSEAS_LAST_NIGHT_COMMUNITY_ID, isSocialPlatform, isWesternOverseasSource, WESTERN_EDITION_SCOPE, maskPhone, normalizeFacebookPageUrl, normalizePlatform, socialSecret, validateEndpoint, validateFacebookPageUrl, validateSocialCredential, validateWesternSourceUrl } = require('./services/sourceValidators');
+const { normalizeRiskFilters } = require('../../shared/riskModes');
+const { createSupervisor } = require('./runtimeSupervisor');
 
 const port = Number(process.env.PORT || 4320);
 const repo = new Repository();
@@ -72,7 +75,7 @@ function errorPayload(code, message, details = {}) { return { error: { code, mes
 const OVERVIEW_QUERY_KEYS = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform', 'period', 'from', 'to', 'fresh']); // fresh=1 旁路缓存
 const OVERVIEW_CACHE_TTL_MS = 90 * 1000; // /overview 进程内缓存 TTL
 const overviewCache = new Map(); // Map<cacheKey, { data, expiresAt }>；过期条目在被覆盖/命中检查时淘汰
-const OVERVIEW_PERIODS = new Set(['today', 'yesterday', 'week']);
+const OVERVIEW_PERIODS = new Set(['today', 'yesterday', '7d', '30d']);
 const ISO_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
 function overviewPeriodRange(period, now = new Date()) {
   const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -80,9 +83,11 @@ function overviewPeriodRange(period, now = new Date()) {
   const beijingNow = new Date(end.getTime() + BEIJING_OFFSET_MS);
   const midnightUtc = Date.UTC(beijingNow.getUTCFullYear(), beijingNow.getUTCMonth(), beijingNow.getUTCDate());
   const todayStart = new Date(midnightUtc - BEIJING_OFFSET_MS);
-  if (period === 'today') return { from: todayStart.toISOString(), to: end.toISOString() };
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  if (period === 'today') return { from: todayStart.toISOString(), to: tomorrowStart.toISOString() };
   if (period === 'yesterday') return { from: new Date(todayStart.getTime() - 24 * 60 * 60 * 1000).toISOString(), to: todayStart.toISOString() };
-  if (period === 'week') return { from: new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(), to: end.toISOString() };
+  if (period === '7d') return { from: new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(), to: end.toISOString() };
+  if (period === '30d') return { from: new Date(todayStart.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString(), to: end.toISOString() };
   return null;
 }
 function parseOverviewQuery(url) {
@@ -90,13 +95,20 @@ function parseOverviewQuery(url) {
   const query = Object.fromEntries(url.searchParams);
   if (query.platform) query.platform = parseReadPlatform(query.platform);
   const { period, from, to } = query;
-  if (period && !OVERVIEW_PERIODS.has(period)) { const error = new Error('period must be today, yesterday, or week'); error.code = 'INVALID_INPUT'; throw error; }
+  if (period && !OVERVIEW_PERIODS.has(period)) { const error = new Error('period must be today, yesterday, 7d, or 30d'); error.code = 'INVALID_INPUT'; throw error; }
   if (period && (from || to)) { const error = new Error('period cannot be combined with from or to'); error.code = 'INVALID_INPUT'; throw error; }
-  if (period) return { ...query, ...overviewPeriodRange(period) };
+  if (period) {
+    const range = overviewPeriodRange(period);
+    return { ...query, from: parsePublishedBoundary(range.from, 'from'), to: parsePublishedBoundary(range.to, 'to') };
+  }
+  if (!from && !to) {
+    const range = overviewPeriodRange('today');
+    return { ...query, period: 'today', from: parsePublishedBoundary(range.from, 'from'), to: parsePublishedBoundary(range.to, 'to') };
+  }
   for (const [key, value] of [['from', from], ['to', to]]) if (value && (!ISO_DATE_TIME_PATTERN.test(value) || Number.isNaN(Date.parse(value)))) { const error = new Error(`${key} must be an ISO date-time`); error.code = 'INVALID_INPUT'; throw error; }
   if (from && to && Date.parse(from) >= Date.parse(to)) { const error = new Error('from must be earlier than to'); error.code = 'INVALID_INPUT'; throw error; }
   if (from && to && Date.parse(to) - Date.parse(from) > 31 * 24 * 60 * 60 * 1000) { const error = new Error('overview time range cannot exceed 31 days'); error.code = 'INVALID_INPUT'; throw error; }
-  return query;
+  return { ...query, from: from ? parsePublishedBoundary(from, 'from') : from, to: to ? parsePublishedBoundary(to, 'to') : to };
 }
 async function readBody(req) { let body = ''; for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body, 'utf8') > Number(process.env.PUBLIC_OPINION_IMPORT_MAX_BODY_BYTES || 5242880)) { const error = new Error('request body is too large'); error.code = 'REQUEST_TOO_LARGE'; throw error; } } return body ? JSON.parse(body) : {}; }
 function isPlainObject(value) { if (!value || typeof value !== 'object' || Array.isArray(value)) return false; const prototype = Object.getPrototypeOf(value); return prototype === Object.prototype || prototype === null; }
@@ -890,7 +902,7 @@ async function handler(req, res) {
       return json(res, 200, success(await repo.listAccounts({ ...Object.fromEntries(url.searchParams), ...scope })));
     }
     if (req.method === 'GET' && resource === 'analysis' && id === 'progress' && path.length === 2) {
-      const allowed = new Set(['scope', 'regionCode', 'gameId', 'communityId', 'sourceId', 'accountId', 'contentType', 'sentiment', 'severity', 'analysisStatus', 'analysisLevel', 'keyword', 'postId', 'publishedFrom', 'publishedTo']);
+      const allowed = new Set(['scope', 'regionCode', 'gameId', 'communityId', 'sourceId', 'accountId', 'contentType', 'riskMode', 'sentiment', 'severity', 'analysisStatus', 'analysisLevel', 'keyword', 'postId', 'publishedFrom', 'publishedTo']);
       for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
       const scope = url.searchParams.get('scope') || 'filters';
       if (!['filters', 'q1-latest'].includes(scope)) return json(res, 400, errorPayload('INVALID_INPUT', 'scope must be filters or q1-latest'));
@@ -903,6 +915,7 @@ async function handler(req, res) {
         filters = { sourceId: batch.sourceId, publishedFrom: batch.publishedFrom, publishedTo: batch.publishedTo };
         businessDate = batch.window || null; batchStatus = batch.status || 'available';
       }
+      filters = normalizeRiskFilters(filters);
       const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
       for (const key of ['publishedFrom', 'publishedTo']) if (filters[key]) { try { filters[key] = parsePublishedBoundary(filters[key], key); } catch (error) { return json(res, 400, errorPayload(error.code, error.message)); } }
       if (filters.publishedFrom && filters.publishedTo && filters.publishedFrom >= filters.publishedTo) return json(res, 400, errorPayload('INVALID_INPUT', 'publishedFrom must be earlier than publishedTo'));
@@ -930,6 +943,7 @@ async function handler(req, res) {
           }
         }
         const data = await repo.getOverview(query);
+        data.window = { publishedFrom: query.from ? new Date(`${query.from.replace(' ', 'T')}Z`).toISOString() : null, publishedTo: query.to ? new Date(`${query.to.replace(' ', 'T')}Z`).toISOString() : null };
         overviewCache.set(cacheKey, { data, expiresAt: Date.now() + OVERVIEW_CACHE_TTL_MS });
         return json(res, 200, success(data), { 'x-cache': 'no' });
       } catch (error) {
@@ -963,10 +977,11 @@ async function handler(req, res) {
     }
     if (req.method === 'GET' && resource === 'contents' && id === 'stats' && path.length === 2) {
       const scope = await resolveRequestScope(url);
-      const filters = { ...Object.fromEntries(url.searchParams), ...scope };
-      const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform', 'accountId', 'contentType', 'sentiment', 'analysisStatus', 'analysisLevel', 'keyword', 'postId', 'publishedFrom', 'publishedTo']);
+      let filters = { ...Object.fromEntries(url.searchParams), ...scope };
+      const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform', 'accountId', 'contentType', 'riskMode', 'sentiment', 'severity', 'analysisStatus', 'analysisLevel', 'keyword', 'postId', 'publishedFrom', 'publishedTo']);
       for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
       if (filters.platform) filters.platform = parsePlatform(filters.platform);
+      filters = normalizeRiskFilters(filters);
       const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
       for (const key of ['publishedFrom', 'publishedTo']) if (filters[key]) { try { filters[key] = parsePublishedBoundary(filters[key], key); } catch (error) { return json(res, 400, errorPayload(error.code, error.message)); } }
       if (filters.publishedFrom && filters.publishedTo && filters.publishedFrom >= filters.publishedTo) return json(res, 400, errorPayload('INVALID_INPUT', 'publishedFrom must be earlier than publishedTo'));
@@ -1010,10 +1025,11 @@ async function handler(req, res) {
     }
     if (req.method === 'GET' && resource === 'contents') {
       const scope = await resolveRequestScope(url);
-      const filters = { ...Object.fromEntries(url.searchParams), ...scope };
+      let filters = { ...Object.fromEntries(url.searchParams), ...scope };
       // limit 作为 pageSize 的别名（前端 assets/content.js 等兼容写法），未显式传 pageSize 时生效
       if (filters.limit != null && filters.pageSize == null) { filters.pageSize = filters.limit; }
       if (filters.platform) filters.platform = parsePlatform(filters.platform);
+      filters = normalizeRiskFilters(filters);
       const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
       for (const key of ['publishedFrom', 'publishedTo']) if (filters[key]) { try { filters[key] = parsePublishedBoundary(filters[key], key); } catch (error) { return json(res, 400, errorPayload(error.code, error.message)); } }
       if (filters.publishedFrom && filters.publishedTo && filters.publishedFrom >= filters.publishedTo) return json(res, 400, errorPayload('INVALID_INPUT', 'publishedFrom must be earlier than publishedTo'));
@@ -1264,15 +1280,20 @@ async function handler(req, res) {
       const currentSource = await sourceById(id);
       if (!currentSource) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
       assertWesternSourceRecord(currentSource);
-      const ok = await repo.softDeleteSource(id);
-      return ok ? json(res, 200, success({ deleted: true, id })) : json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      try {
+        const result = await repo.softDeleteSource(id);
+        return result ? json(res, 200, success({ ...result, id })) : json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      } catch (error) {
+        if (error.code === 'SOURCE_RUN_ACTIVE') return json(res, 409, errorPayload(error.code, error.message));
+        throw error;
+      }
     }
 
     // H5 专用配置单请求：源、账号元数据和可选凭据在同一事务内提交。
     // TapTap 免登源复用该端点更新基础字段与监控账号 ID（accountIds），不接受凭据。
     if (req.method === 'PATCH' && resource === 'sources' && id && path[2] === 'configuration' && path.length === 3) {
       const body = await readBody(req);
-      const allowed = new Set(['displayName', 'baseUrl', 'frequencySeconds', 'syncMode', 'historyStart', 'enabled', 'credential', 'accountIds', 'groupIds', 'scheduleTime', 'guildId', 'channelIds', 'channelScope', 'includeThreads', 'includeReplies', 'historySyncEnabled', 'anonymizeAuthors', 'retentionDays']);
+      const allowed = new Set(['displayName', 'baseUrl', 'siteUrls', 'frequencySeconds', 'syncMode', 'historyStart', 'enabled', 'credential', 'accountIds', 'groupIds', 'scheduleTime', 'guildId', 'channelIds', 'channelScope', 'includeThreads', 'includeReplies', 'historySyncEnabled', 'anonymizeAuthors', 'retentionDays']);
       for (const key of Object.keys(body || {})) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported field: ${key}`));
       const currentSource = await sourceById(id);
       if (!currentSource) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
@@ -1291,6 +1312,19 @@ async function handler(req, res) {
       }
       for (const [key, message] of [['displayName', 'displayName is required']]) if (!String(body[key] ?? '').trim()) return json(res, 400, errorPayload('INVALID_INPUT', message));
       const westernSource = isWesternSourceRecord(currentSource);
+      let normalizedSites;
+      if (body.siteUrls !== undefined) {
+        if (currentSource.platform !== 'bigplayer_h5') return json(res, 400, errorPayload('INVALID_INPUT', 'siteUrls is only supported for BigPlayer H5 sources'));
+        const siteOptions = { allowedHosts: westernSource ? westernAllowedHosts() : connectors.bigplayer_h5.allowedHosts };
+        try {
+          normalizedSites = normalizeSiteUrls({ siteUrls: body.siteUrls }, siteOptions);
+          if (body.baseUrl !== undefined && normalizeUrl(body.baseUrl, siteOptions) !== normalizedSites.baseUrl) {
+            return json(res, 400, errorPayload('SITE_URL_BASE_MISMATCH', 'baseUrl must match the first siteUrls entry'));
+          }
+        } catch (error) {
+          return json(res, 400, errorPayload(error.code || 'INVALID_INPUT', error.message));
+        }
+      }
       if (westernSource) {
         if (body.enabled) {
           const configured = (await sourceWithAccount(currentSource)).account?.credential_configured;
@@ -1340,7 +1374,7 @@ async function handler(req, res) {
         await requireAuthorizedAccount(currentSource);
         await requireFacebookCapabilitiesReady(currentSource);
       }
-      const requestedConfigurationUrl = body.baseUrl ?? parseConfig(currentSource.config).baseUrl;
+      const requestedConfigurationUrl = normalizedSites?.baseUrl ?? body.baseUrl ?? parseConfig(currentSource.config).baseUrl;
       const invalidUrl = currentSource.platform === 'bigplayer_h5'
         ? (westernSource ? validateWesternSourceUrl(requestedConfigurationUrl, { allowedHosts: westernAllowedHosts() }) : validateBaseUrl('bigplayer_h5', body.baseUrl))
         : currentSource.platform === 'facebook' ? validateFacebookPageUrl(requestedConfigurationUrl) : currentSource.platform === 'taptap' ? validateBaseUrl('taptap', requestedConfigurationUrl) : null;
@@ -1364,8 +1398,8 @@ async function handler(req, res) {
         catch (error) { if (['CREDENTIAL_ENC_KEY_MISSING', 'CREDENTIAL_ENC_KEY_INVALID'].includes(error.code)) return json(res, 500, errorPayload(error.code, '凭据加密密钥未正确配置（CREDENTIAL_ENC_KEY），已拒绝写入')); throw error; }
       }
       const discordConfigPatch = currentSource.platform === 'discord' ? discordSourceConfig(body, {}) : undefined;
-      const updatedBaseUrl = body.baseUrl == null ? undefined : currentSource.platform === 'facebook' ? normalizeFacebookPageUrl(body.baseUrl) : String(body.baseUrl).trim();
-      const updated = await repo.updateSourceConfiguration(id, { displayName: String(body.displayName).trim(), baseUrl: updatedBaseUrl, frequencySeconds, syncMode: body.syncMode, historyStart: body.historyStart, enabled: body.enabled, credential, credentialCipher: encryptedCredential, accountIds: taptapAccountIds, groupIds: taptapGroupIds, discordConfig: discordConfigPatch, scheduleTime: currentSource.platform === 'taptap' ? normalizeScheduleTime(body.scheduleTime) : undefined });
+      const updatedBaseUrl = normalizedSites?.baseUrl ?? (body.baseUrl == null ? undefined : currentSource.platform === 'facebook' ? normalizeFacebookPageUrl(body.baseUrl) : String(body.baseUrl).trim());
+      const updated = await repo.updateSourceConfiguration(id, { displayName: String(body.displayName).trim(), baseUrl: updatedBaseUrl, siteUrls: normalizedSites?.siteUrls, frequencySeconds, syncMode: body.syncMode, historyStart: body.historyStart, enabled: body.enabled, credential, credentialCipher: encryptedCredential, accountIds: taptapAccountIds, groupIds: taptapGroupIds, discordConfig: discordConfigPatch, scheduleTime: currentSource.platform === 'taptap' ? normalizeScheduleTime(body.scheduleTime) : undefined });
       return json(res, 200, success(await sourceWithAccount(updated.source)));
     }
 
@@ -1536,7 +1570,15 @@ async function handler(req, res) {
       assertWesternSourceRecord(source);
       rejectUnconfiguredCredential(await sourceWithCredentialState(source));
       const connector = connectors[source.platform]; const account = await defaultAccountForSource(source); const installation = connector ? await connector.installationHealth(source) : { installed: false, capabilities: [] }; const health = account && connector ? await connectorAccountHealth(connector, source, account) : { authorized: false }; const capabilities = {};
-      const detected = health?.capabilities || (account && connector && typeof connector.detectCapabilities === 'function' ? await connector.detectCapabilities({ source: { ...source, id: account.id, account_id: account.id }, account, credentialContext }) : {});
+      // BigPlayer 能力检测必须来自真实探测，禁止复用 installation/accountHealth 返回的静态 capabilities。
+      // 其他平台保留各自既有能力合同（例如 Facebook 的部署级能力详情）。
+      const detected = source.platform === 'bigplayer_h5'
+        ? (account && connector && typeof connector.detectCapabilities === 'function'
+          ? await connector.detectCapabilities({ source: { ...source, id: account.id, account_id: account.id }, account, credentialContext })
+          : {})
+        : (health?.capabilities || (account && connector && typeof connector.detectCapabilities === 'function'
+          ? await connector.detectCapabilities({ source: { ...source, id: account.id, account_id: account.id }, account, credentialContext })
+          : {}));
       await persistFacebookPageIdentity(source, account, { capabilities: detected });
       const facebook = isFacebookSource(source) ? facebookCapabilityResponse({ ...installation, ...health, capabilities: detected }) : null;
       if (facebook && account) { await repo.updateSourceAuth(source.id, { authStatus: health.authorized ? 'authorized' : 'unauthorized' }); await repo.updateAccount(account.id, { authStatus: health.authorized ? 'authorized' : 'unauthorized', enabled: Boolean(health.authorized) }); }
@@ -1862,9 +1904,12 @@ async function startServer({ listenPort = port, repository = repo, httpServer = 
   return httpServer;
 }
 if (require.main === module) {
-  startServer().catch(error => {
-    console.error(error.code || error.name || 'STARTUP_ERROR', error.message);
-    process.exitCode = 1;
+  const supervisor = createSupervisor({
+    start: () => startServer(),
+    stop: async () => { try { await server.close(); } catch {} try { await repo.pool?.end?.(); } catch {} }
   });
+  supervisor.start();
+  process.once('SIGINT', () => supervisor.stop().finally(() => process.exit(0)));
+  process.once('SIGTERM', () => supervisor.stop().finally(() => process.exit(0)));
 }
 module.exports = { server, startServer, handler, connectors, ai, dingTalk, repo, communityProvider, communityDirectory, credentialContext, douyinOAuth, loginSessionClient, authRefreshCoordinator };

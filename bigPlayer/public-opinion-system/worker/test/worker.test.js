@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runSource, runOnce, checkAuthorization, syncStage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, normalizePlatformItem, processDownstream, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, SEVERITY_RANK, buildDeps } = require('../src/worker');
+const { runSource, runOnce, checkAuthorization, syncStage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, normalizePlatformItem, processDownstream, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, SEVERITY_RANK, buildDeps, safeErrorMessage, rateLimitRetry } = require('../src/worker');
 const { BigPlayerH5Connector } = require('../../server/src/connectors/bigPlayerH5Connector');
+const { ConnectorPageError } = require('../../server/src/connectors/baseConnector');
 
 // 全注入依赖，避免真实 DB/网络。repo 记录关键落库调用。
 function makeRepo(over = {}) {
@@ -22,6 +23,101 @@ const okConnector = (items) => ({ async healthCheck() { return { platform: 'p', 
 const unauthConnector = () => ({ async healthCheck() { return { platform: 'p', configured: false, reason: 'credentials required' }; }, async collect() { throw new Error('should not collect'); } });
 const raw = (id, title, body) => ({ externalId: id, title, body, authorName: 'u', fingerprint: `fp-${id}`, sourceUrl: `https://x/${id}` });
 const source = { id: 's1', account_id: 'a1', game_id: 'g1', community_id: 'c1', region_code: 'domestic', platform: 'bigplayer_h5', display_name: '大玩家', game_name: '冰川游戏', community_name: '国服版' };
+
+test('safeErrorMessage preserves nested connector cause code without exposing credentials', () => {
+  const httpError = new ConnectorPageError('discord', 'comments', 2, Object.assign(new Error('Discord API request failed with status 403'), { code: 'PERMISSION_DENIED' }));
+  assert.equal(safeErrorMessage(httpError), 'discord comments page 2 failed [cause:PERMISSION_DENIED]');
+  const networkError = new ConnectorPageError('discord', 'authorization', 1, new Error('fetch failed: token=secret-value'));
+  assert.match(safeErrorMessage(networkError), /^discord authorization page 1 failed \[cause:fetch failed: token=\[redacted\]/);
+  assert.doesNotMatch(safeErrorMessage(networkError), /secret-value/);
+});
+
+test('Discord rate limit persists next eligible evidence and keeps the last safe checkpoint cursor', async () => {
+  const checkpointCursor = JSON.stringify({ version: 1, channelIndex: 0, before: '1524340652974800997' });
+  const releases = []; const deferred = [];
+  const discordSource = { ...source, id: 'discord-rate-source', platform: 'discord', region_code: 'overseas' };
+  const account = { id: 'discord-rate-account', source_id: discordSource.id, game_id: discordSource.game_id, metadata: {} };
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return account; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'discord-rate-run', sync_mode: 'backfill', trigger_type: 'manual', attempts: 1, lease_owner: 'discord-worker:claim', lease_epoch: 2 }; },
+    async deferSyncRun(id, patch) { deferred.push({ id, ...patch }); return { id, status: 'queued' }; },
+    async claimSyncCheckpoint() { return { id: 'discord-rate-checkpoint', cursor: checkpointCursor }; },
+    async releaseSyncCheckpoint(id, patch) { releases.push({ id, ...patch }); },
+    async listSyncParents() { return []; }
+  });
+  const cause = Object.assign(new Error('Discord API request failed with status 429'), { code: 'RATE_LIMITED', details: { retryAfterMs: 12_500 } });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    hasSourceCapability() { return false; },
+    async listOwnedContents(input) {
+      assert.equal(input.cursor, checkpointCursor);
+      const error = new ConnectorPageError('discord', 'owned_content', 2, cause);
+      error.retryAfterMs = 12_500;
+      throw error;
+    }
+  };
+  await runSource({ repo, connectors: { discord: connector }, credentialContext: { async load() { return { apiToken: 'hidden' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'discord-worker', leaseSeconds: 60, pageBudget: 1, pageSize: 100 }, discordSource, { id: 'discord-rate-run', account_id: account.id, sync_mode: 'backfill' });
+
+  assert.equal(releases.at(-1).cursor, checkpointCursor);
+  assert.equal(releases.at(-1).errorCode, 'RATE_LIMITED');
+  assert.equal(deferred.at(-1).errorCode, 'RATE_LIMITED');
+  assert.match(deferred.at(-1).errorMessage, /retry_after_ms:12500/);
+  assert.match(deferred.at(-1).errorMessage, /next_eligible_at:/);
+  const delay = new Date(deferred.at(-1).nextRetryAt).getTime() - Date.now();
+  assert.ok(delay > 10_000 && delay <= 12_500);
+});
+
+test('Discord comments 429 stops later comments and reply dispatch for the same run', async () => {
+  const releases = []; const deferred = []; const commentCalls = [];
+  const discordSource = { ...source, id: 'discord-comment-rate-source', platform: 'discord', region_code: 'overseas' };
+  const account = { id: 'discord-comment-rate-account', source_id: discordSource.id, game_id: discordSource.game_id, metadata: {} };
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return account; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'discord-comment-rate-run', sync_mode: 'backfill', attempts: 1, lease_owner: 'discord-worker:claim', lease_epoch: 2 }; },
+    async deferSyncRun(id, patch) { deferred.push({ id, ...patch }); return { id, status: 'queued' }; },
+    async claimSyncCheckpoint(input) { return { id: `discord-comment-cp-${input.taskKey}`, cursor: input.taskKey === 'owned' ? null : `safe-${input.taskKey}` }; },
+    async releaseSyncCheckpoint(id, patch) { releases.push({ id, ...patch }); },
+    async upsertContentPage(input) {
+      return { contents: input.items.map(item => ({ content: { id: `content-${item.externalId}`, content_type: input.syncScope === 'posts' ? 'post' : 'comment' }, change: 'inserted' })), storedCount: input.items.length };
+    },
+    async listSyncParents() { return []; }
+  });
+  const cause = Object.assign(new Error('Discord API request failed with status 429'), { code: 'RATE_LIMITED', details: { retryAfterMs: 5_000 } });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    hasSourceCapability(scope) { return scope === 'comments'; },
+    async listOwnedContents() {
+      return {
+        items: [raw('discord-post-1', 'one', 'body'), raw('discord-post-2', 'two', 'body')].map(item => ({ ...item, publishedAt: '2026-09-18T00:00:00Z' })),
+        nextCursor: null, hasMore: false, capability: 'authorized_scope'
+      };
+    },
+    async listComments(input) {
+      commentCalls.push(input.postId);
+      const error = new ConnectorPageError('discord', 'comments', 1, cause);
+      error.retryAfterMs = 5_000;
+      throw error;
+    }
+  };
+  await runSource({ repo, connectors: { discord: connector }, credentialContext: { async load() { return { apiToken: 'hidden' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'discord-worker', leaseSeconds: 60, pageBudget: 1, pageSize: 100 }, discordSource, { id: 'discord-comment-rate-run', account_id: account.id, sync_mode: 'backfill' });
+
+  assert.deepEqual(commentCalls, ['discord-post-1']);
+  assert.equal(releases.at(-1).cursor, 'safe-discord-post-1');
+  assert.equal(releases.at(-1).errorCode, 'RATE_LIMITED');
+  assert.equal(deferred.at(-1).errorCode, 'RATE_LIMITED');
+  assert.ok(deferred.at(-1).nextRetryAt);
+});
+
+test('rate limit retry uses bounded provider delay and bounded exponential fallback', () => {
+  const now = Date.parse('2026-09-18T05:00:00.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 0 }, { attempts: 1 }, now).nextRetryAt, '2026-09-18T05:00:01.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 99 * 60 * 60 * 1000 }, { attempts: 1 }, now).nextRetryAt, '2026-09-18T06:00:00.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED' }, { attempts: 3 }, now).nextRetryAt, '2026-09-18T05:04:00.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED' }, { attempts: 99 }, now).nextRetryAt, '2026-09-18T06:00:00.000Z');
+  assert.equal(rateLimitRetry({ code: 'MALFORMED_RESPONSE' }, { attempts: 99 }, now).nextRetryAt, null);
+});
 
 test('buildDeps wires the production H5 connector to the auth refresh coordinator', () => {
   const deps = buildDeps();
@@ -722,6 +818,34 @@ test('daily Q1 passes exact window identity and resumes only the same date', asy
   assert.equal(claims.at(-1).windowStart, '2026-09-05T16:00:00.000Z');
 });
 
+test('bounded Q1 segment persists the ceiling cursor before failing partial', async () => {
+  let checkpointCursor = null; const releases = []; const calls = [];
+  const repo = {
+    async claimSyncCheckpoint() { return { id: 'cp-segment', cursor: checkpointCursor }; },
+    async upsertContentPage(input) { checkpointCursor = input.nextCursor; return { contents: [], storedCount: 0 }; },
+    async releaseSyncCheckpoint(id, patch) { checkpointCursor = patch.cursor; releases.push({ id, ...patch }); }
+  };
+  const connector = {
+    async listFeedContents(input) {
+      calls.push({ cursor: input.cursor, segmentId: input.segmentId });
+      return {
+        items: [],
+        nextCursor: `cursor-${input.segmentId}`,
+        hasMore: true,
+        raw: { paginationDiagnostics: { incomplete: true, code: 'provider_pagination_budget_exhausted' } }
+      };
+    }
+  };
+  const stage = syncRunId => syncStage({ repo, leaseOwner: 'w1', leaseSeconds: 60, pageBudget: 1, pageSize: 50, collectionWindow: { dailyBounded: true, publishedFrom: new Date('2026-09-10T00:00:00Z'), publishedTo: new Date('2026-09-11T00:00:00Z') } }, {
+    source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'backfill', syncRunId, taskKind: 'q1_feed', taskKey: 'home', feed: { feedKey: 'home' }
+  });
+  await assert.rejects(() => stage('run-1'), error => error.code === 'COLLECTION_BOUNDARY_INCOMPLETE');
+  await assert.rejects(() => stage('run-2'), error => error.code === 'COLLECTION_BOUNDARY_INCOMPLETE');
+  assert.deepEqual(calls, [{ cursor: null, segmentId: 'run-1' }, { cursor: 'cursor-run-1', segmentId: 'run-2' }]);
+  assert.equal(releases[0].cursor, 'cursor-run-1');
+  assert.equal(releases[1].cursor, 'cursor-run-2');
+});
+
 test('daily required feed claim conflict cannot false-complete an empty authorized scope', async () => {
   const repo = makeRepo();
   Object.assign(repo, {
@@ -884,24 +1008,26 @@ test('未命中关键词的内容不送 AI（token 护栏）', async () => {
   assert.equal(repo.state.finished.at(-1).status, 'success');
 });
 
-test('命中关键词的内容进入 AI 与告警，matched_keywords 用组名', async () => {
+test('命中关键词的内容只入队，采集不调用AI与告警', async () => {
   const repo = makeRepo({ rules: [{ keyword: '崩溃', group_name: '闪退组', severity: 'urgent', trigger_mode: 'immediate', window_seconds: 600, threshold_count: 1 }] });
   const connectors = { bigplayer_h5: okConnector([raw('1', '游戏崩溃', '进不去'), raw('2', '正常内容', '好玩')]) };
+  const queued = [];
+  repo.enqueueAnalysisJob = async (id, input) => queued.push({ id, ...input });
   const ai = { calls: 0, lastBatch: null, async analyzeBatch(items) { this.calls += 1; this.lastBatch = items; return items.map(() => ({ sentiment: 'negative', severity: 'urgent', negativeScore: 0.9, topics: ['闪退'], summary: '崩溃' })); } };
   const alertCalls = [];
   const alertEngine = { async process(a) { alertCalls.push(a); return [{ reused: false, alertId: 'al-1' }]; } };
   await runSource({ repo, connectors, ai, alertEngine }, source);
-  assert.equal(ai.calls, 1);
-  assert.equal(ai.lastBatch.length, 1); // 只有命中的 1 条进 AI
-  assert.equal(repo.state.analyses.length, 1);
-  assert.deepEqual(repo.state.analyses[0].matchedKeywords, ['闪退组']);
-  assert.equal(repo.state.analyses[0].triggerReason, 'keyword_match');
-  assert.equal(alertCalls.length, 1);
+  assert.equal(ai.calls, 0);
+  assert.equal(queued.length, 2);
+  assert.equal(repo.state.analyses.length, 0);
+  assert.deepEqual(queued[0].matchedKeywords, ['闪退组']);
+  assert.equal(queued[0].triggerReason, 'keyword_match');
+  assert.equal(alertCalls.length, 0);
   const fin = repo.state.finished.at(-1);
   assert.equal(fin.status, 'success');
   assert.equal(fin.storedCount, 2);
-  assert.equal(fin.analyzedCount, 1);
-  assert.equal(fin.alertedCount, 1);
+  assert.equal(fin.analyzedCount, 0);
+  assert.equal(fin.alertedCount, 0);
 });
 
 test('缺少连接器时 CONNECTOR_NOT_FOUND', async () => {
@@ -915,6 +1041,8 @@ test('runOnce 优先处理手动请求并清空标记', async () => {
   const cleared = [];
   const repo = makeRepo();
   repo.listManualDueSources = async () => [manualSource];
+  const queued = [];
+  repo.enqueueAnalysisJob = async (id, input) => queued.push({ id, ...input });
   repo.clearManualRequest = async id => cleared.push(id);
   repo.listDueSources = async () => [];
   const connectors = { bigplayer_h5: okConnector([raw('m1', '游戏崩溃', '进不去')]) };
@@ -925,7 +1053,8 @@ test('runOnce 优先处理手动请求并清空标记', async () => {
   assert.deepEqual(cleared, ['s-manual']); // 标记被清空
   assert.equal(result.manual, 1);
   assert.equal(result.scanned, 0);
-  assert.equal(repo.state.analyses.length, 1); // 手动源实际跑了 pipeline
+  assert.equal(repo.state.analyses.length, 0); // Analysis is consumed independently.
+  assert.equal(queued.length, 1);
 });
 
 test('runOnce 停用的手动源只清标记不采集', async () => {
@@ -1062,6 +1191,48 @@ test('不支持的子阶段记为 partial 而不是空数据成功', async () =>
   await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return { apiToken: 'token' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'w', leaseSeconds: 10, pageBudget: 1, pageSize: 10 }, source);
   assert.equal(repo.state.syncFinished.status, 'partial');
   assert.equal(repo.state.finished.at(-1).status, 'partial');
+});
+
+test('Q1 ceiling feed is skipped while a healthy feed still accumulates and leaves the run partial', async () => {
+  const repo = makeRepo();
+  const calls = { claims: [], pages: 0, stored: 0 };
+  Object.assign(repo, {
+    async claimSyncRun() { return { id: 'sr-boundary', sync_mode: 'backfill', lease_owner: 'w:claimed', lease_epoch: 1 }; },
+    async finishSyncRun(id, patch) { repo.state.syncFinished = { id, ...patch }; },
+    async getDefaultAccount() { return { id: 'a1', source_id: 's1', game_id: 'g1', metadata: {} }; },
+    async getSyncCheckpoint(input) {
+      if (input.taskKey === 'ceiling-feed') return { status: 'failed', error_code: 'COLLECTION_BOUNDARY_INCOMPLETE', error_message: 'bounded collection segment incomplete: provider_offset_ceiling', cursor: JSON.stringify({ offsetId: 10000 }) };
+      return null;
+    },
+    async claimSyncCheckpoint(input) { calls.claims.push(input.taskKey); return { id: `cp-${input.taskKey}`, cursor: null }; },
+    async upsertContentPage(input) { calls.stored += input.items.length; return { contents: input.items.map(item => ({ id: `c-${item.externalId}`, content_type: 'post', published_at: item.publishedAt })), storedCount: input.items.length }; },
+    async releaseSyncCheckpoint() {},
+    async loadKeywordRules() { return []; }
+  });
+  const feeds = [
+    { feedKey: 'ceiling-feed', boardId: '2', pageKind: 'home', endpointKind: 'merged', sectionId: '0' },
+    { feedKey: 'healthy-feed', boardId: '2', pageKind: 'home', endpointKind: 'merged', sectionId: '1' }
+  ];
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    async discoverFeeds() { return feeds; },
+    async listFeedContents({ feed }) {
+      assert.equal(feed.feedKey, 'healthy-feed');
+      calls.pages += 1;
+      return { items: [{ externalId: 'healthy-1', title: 'healthy', body: 'body', authorName: 'u', fingerprint: 'fp-healthy', sourceUrl: 'https://x/healthy-1', publishedAt: '2026-09-10T12:00:00Z' }], nextCursor: null, hasMore: false, capability: 'authorized_scope', raw: { paginationDiagnostics: {} } };
+    }
+  };
+  const deps = { repo, leaseOwner: 'w', leaseSeconds: 10, pageBudget: 1, pageSize: 10, credentialContext: { async load() { return { apiToken: 'token' }; } }, collectionWindow: { dailyBounded: true, publishedFrom: '2026-09-10T00:00:00Z', publishedTo: '2026-09-11T00:00:00Z' } };
+  const ceiling = await syncStage(deps, { source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'backfill', taskKind: 'q1_feed', taskKey: 'ceiling-feed', feed: feeds[0] });
+  const healthy = await syncStage(deps, { source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'backfill', taskKind: 'q1_feed', taskKey: 'healthy-feed', feed: feeds[1] });
+  assert.deepEqual(calls.claims, ['healthy-feed']);
+  assert.equal(calls.pages, 1);
+  assert.equal(calls.stored, 1);
+  assert.equal(ceiling.skipped, true);
+  assert.equal(ceiling.boundaryIncomplete, 'provider_offset_ceiling');
+  assert.equal(healthy.discovered, 1);
+  assert.equal(healthy.stored, 1);
+  assert.equal(Boolean(ceiling.boundaryIncomplete), true, 'recordStageResult must keep the enclosing source partial');
 });
 
 test('人工验证使 run 和 source 明确进入待验证状态', async () => {

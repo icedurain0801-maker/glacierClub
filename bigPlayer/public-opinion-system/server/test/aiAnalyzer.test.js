@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { AiAnalyzer, truncate, fingerprintOf } = require('../src/integrations/aiAnalyzer');
 
 const ENV = { AI_ANALYSIS_ENABLED: 'true', AI_ANALYSIS_URL: 'https://ai.example.com/v1/chat/completions', AI_ANALYSIS_TOKEN: 'k', AI_ANALYSIS_MODEL: 'test-model' };
@@ -353,4 +354,53 @@ test('truncate/fingerprint 工具', () => {
   assert.equal(truncate('abcdef', 3), 'abc');
   assert.equal(fingerprintOf({ title: 't', body: 'b' }), fingerprintOf({ title: 't', body: 'b' }));
   assert.equal(fingerprintOf({ fingerprint: 'FIXED' }), 'FIXED');
+});
+
+test('light/deep severity 提示词按 urgent→attention→normal 互斥单选且不按情感兜底', () => {
+  const ai = new AiAnalyzer(ENV);
+  for (const profile of [ai.profiles.light, ai.profiles.deep]) {
+    const system = ai.buildMessages([{ title: '标题', body: '正文' }], profile)[0].content;
+    assert.match(system, /severity 必须互斥单选/);
+    assert.match(system, /urgent→attention→normal/);
+    assert.match(system, /urgent（负面待处理）仅用于存在明确需立即处理的风险/);
+    assert.match(system, /不满足 urgent 时，attention（关注级）/);
+    assert.match(system, /其余为 normal（正常）/);
+    assert.match(system, /不得依据 sentiment 或 negative_score 猜测等级/);
+    assert.match(system, /一般负向表达不得自动判为 attention/);
+  }
+});
+
+test('severity 新提示词 schema 使旧缓存失效但不改变历史 analysisVersion', () => {
+  const ai = new AiAnalyzer({ ...ENV, AI_ANALYSIS_VERSION: 'existing-version' });
+  for (const profile of [ai.profiles.light, ai.profiles.deep]) {
+    const payload = {
+      promptSchemaVersion: 'sentiment-quality-context-severity-exclusive-v3',
+      regionCode: 'legacy-unassigned', gameId: 'legacy-unassigned',
+      communityId: 'legacy-unassigned', platform: 'legacy-unassigned',
+      fingerprint: 'same-content', profile: profile.name, model: profile.model, version: 'existing-version'
+    };
+    const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+    const key = ai.cacheKey('same-content', profile);
+    assert.equal(key, hash(payload));
+    assert.notEqual(key, hash({ ...payload, promptSchemaVersion: 'sentiment-quality-context-v2' }));
+    assert.equal(profile.version, 'existing-version');
+  }
+});
+
+test('severity 非法或多选枚举 fail-closed，不按 negative 情感兜底', () => {
+  const ai = new AiAnalyzer(ENV);
+  const bodyFor = v => ({ choices: [{ message: { content: JSON.stringify([
+    { i: 0, s: 'negative', v, n: 0.9, c: 0.8 }
+  ]) } }] });
+  for (const value of [null, undefined, '', 'high', 'urgent,attention', ['urgent', 'attention'], 1]) {
+    assert.throws(() => ai.parseResponse(bodyFor(value), 1), /AI_ANALYSIS_INVALID_RESPONSE/);
+  }
+  for (const severity of ['urgent', 'attention', 'normal']) {
+    const [result] = ai.parseResponse(bodyFor(severity), 1);
+    assert.equal(result.severity, severity);
+    assert.equal(result.sentiment, 'negative');
+  }
+  assert.equal(ai.cache.size, 0);
+  assert.equal(ai.callState.light.calls, 0);
+  assert.equal(ai.callState.deep.calls, 0);
 });

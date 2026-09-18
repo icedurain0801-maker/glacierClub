@@ -1,3 +1,5 @@
+const crypto = require('node:crypto');
+const { setTimeout: delay } = require('node:timers/promises');
 const { BaseConnector, ConnectorError, ConnectorPageError, ConnectorPageResult, normalizeRawContent, validatePagination } = require('./baseConnector');
 
 // TapTap 网页端（www.taptap.cn）免登接口采集连接器。
@@ -9,6 +11,32 @@ const DEFAULT_BASE_URL = 'https://www.taptap.cn';
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const MAX_ACCOUNT_IDS = 20;
 const MAX_GROUP_IDS = 20;
+
+function invalidJsonContract(response, body) {
+  const text = String(body ?? '');
+  const contentType = String(response?.headers?.get?.('content-type') || '').split(';', 1)[0].trim().toLowerCase();
+  return {
+    status: Number(response?.status) || null,
+    contentType: contentType || null,
+    bodyBytes: Buffer.byteLength(text, 'utf8'),
+    isHtml: contentType === 'text/html' || /^\s*(?:<!doctype\s+html|<html\b)/i.test(text),
+    bodySha256: crypto.createHash('sha256').update(text).digest('hex')
+  };
+}
+
+function invalidJsonPageError(response, body, capability, page) {
+  const responseContract = invalidJsonContract(response, body);
+  const cause = new ConnectorError('MALFORMED_RESPONSE', 'TapTap API returned invalid JSON', { responseContract });
+  const error = new ConnectorPageError('taptap', capability, page, cause);
+  error.details.responseContract = responseContract;
+  error.message += ` [response_contract:${JSON.stringify(responseContract)}]`;
+  return error;
+}
+
+async function waitWithSignal(ms, signal, capability, page) {
+  try { await delay(ms, undefined, signal ? { signal } : undefined); }
+  catch (error) { throw new ConnectorPageError('taptap', capability, page, error); }
+}
 
 function parseSourceConfig(source) {
   const raw = source && source.config;
@@ -146,6 +174,7 @@ class TapTapConnector extends BaseConnector {
     this.xUa = env.TAPTAP_X_UA || DEFAULT_X_UA;
     this.maxPages = Number(env.TAPTAP_MAX_PAGES || 50);
     this.delayMs = Number(env.TAPTAP_DELAY_MS || 800);
+    this.challengeRetryMs = Number(env.TAPTAP_CHALLENGE_RETRY_MS || 1200);
     this.timeoutMs = Number(env.TAPTAP_TIMEOUT_MS || 15000);
     this.pageLimit = Number(env.TAPTAP_PAGE_LIMIT || 20);
     this.fetchImpl = fetchImpl;
@@ -173,36 +202,53 @@ class TapTapConnector extends BaseConnector {
     return { platform: health.platform, configured: health.configured, reason: health.reason };
   }
 
-  async webapiv2(path, params = {}, { capability = 'posts', page = 1 } = {}) {
+  async webapiv2(path, params = {}, { capability = 'posts', page = 1, signal } = {}) {
     // path 形如 'feed/v7/by-user'，拼接 /webapiv2/ 前缀。
     const endpoint = new URL(`/webapiv2/${path.replace(/^\//, '')}`, this.baseUrl);
     for (const [key, value] of Object.entries(params)) if (value != null && value !== '') endpoint.searchParams.set(key, String(value));
     endpoint.searchParams.set('X-UA', this.xUa);
-    let response;
-    try {
-      response = await this.fetchImpl(endpoint, {
-        redirect: 'manual',
-        headers: { accept: 'application/json', 'user-agent': BROWSER_UA },
-        signal: AbortSignal.timeout(this.timeoutMs)
-      });
-    } catch (error) {
-      throw new ConnectorPageError(this.platform, capability, page, error);
+    const headers = {
+      accept: 'application/json, text/plain, */*',
+      'accept-language': 'zh-CN,zh;q=0.9',
+      referer: `${this.baseUrl}/`,
+      'user-agent': BROWSER_UA
+    };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let response;
+      try {
+        const requestSignal = signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(this.timeoutMs)])
+          : AbortSignal.timeout(this.timeoutMs);
+        response = await this.fetchImpl(endpoint, {
+          redirect: 'manual',
+          headers,
+          signal: requestSignal
+        });
+      } catch (error) {
+        throw new ConnectorPageError(this.platform, capability, page, error);
+      }
+      if (!response.ok) {
+        const code = response.status === 403 ? 'PERMISSION_DENIED' : response.status === 429 ? 'RATE_LIMITED' : `TAPTAP_HTTP_${response.status}`;
+        throw new ConnectorPageError(this.platform, capability, page, new ConnectorError(code, `TapTap API request failed with status ${response.status}`));
+      }
+      const body = await response.text();
+      let payload;
+      try { payload = JSON.parse(body); } catch {
+        const error = invalidJsonPageError(response, body, capability, page);
+        if (attempt === 0 && error.details.responseContract.isHtml) {
+          if (this.challengeRetryMs > 0) await waitWithSignal(this.challengeRetryMs, signal, capability, page);
+          continue;
+        }
+        throw error;
+      }
+      if (payload?.success === false) {
+        throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('TAPTAP_API_ERROR', payload?.data?.msg || 'TapTap API rejected the request'));
+      }
+      return payload;
     }
-    if (!response.ok) {
-      const code = response.status === 403 ? 'PERMISSION_DENIED' : response.status === 429 ? 'RATE_LIMITED' : `TAPTAP_HTTP_${response.status}`;
-      throw new ConnectorPageError(this.platform, capability, page, new ConnectorError(code, `TapTap API request failed with status ${response.status}`));
-    }
-    let payload;
-    try { payload = await response.json(); } catch {
-      throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('MALFORMED_RESPONSE', 'TapTap API returned invalid JSON'));
-    }
-    if (payload?.success === false) {
-      throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('TAPTAP_API_ERROR', payload?.data?.msg || 'TapTap API rejected the request'));
-    }
-    return payload;
   }
 
-  async listOwnedContents({ source, cursor, limit } = {}) {
+  async listOwnedContents({ source, cursor, limit, signal } = {}) {
     const installation = await this.installationHealth();
     if (!installation.installed) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', installation.reason || 'TapTap connector is not installed');
     const { accountIds, groupIds } = parseSourceConfig(source);
@@ -219,10 +265,10 @@ class TapTapConnector extends BaseConnector {
     const target = targets[targetIndex];
     // by-group 接口 limit 上限为 10（实测 20 即 400 max 校验失败），组目标强制钳制。
     const pageSize = Math.min(limit == null ? this.pageLimit : Number(limit), target.kind === 'group' ? 10 : this.pageLimit);
-    if (this.delayMs && current.from > 0) await new Promise(resolve => setTimeout(resolve, this.delayMs));
+    if (this.delayMs && current.from > 0) await waitWithSignal(this.delayMs, signal, 'owned_content', Math.floor(current.from / pageSize) + 1);
     const payload = target.kind === 'group'
-      ? await this.webapiv2('feed/v7/by-group', { group_id: target.id, from: current.from, limit: pageSize }, { capability: 'owned_content', page: Math.floor(current.from / pageSize) + 1 })
-      : await this.webapiv2('feed/v7/by-user', { user_id: target.id, from: current.from, limit: pageSize }, { capability: 'owned_content', page: Math.floor(current.from / pageSize) + 1 });
+      ? await this.webapiv2('feed/v7/by-group', { group_id: target.id, from: current.from, limit: pageSize }, { capability: 'owned_content', page: Math.floor(current.from / pageSize) + 1, signal })
+      : await this.webapiv2('feed/v7/by-user', { user_id: target.id, from: current.from, limit: pageSize }, { capability: 'owned_content', page: Math.floor(current.from / pageSize) + 1, signal });
     const list = Array.isArray(payload?.data?.list) ? payload.data.list : [];
     const items = list.map(entry => entry?.moment).filter(Boolean).map(taptapItem);
     const hasMoreThisTarget = list.length >= pageSize;
@@ -238,15 +284,15 @@ class TapTapConnector extends BaseConnector {
     return validatePagination({ cursor, limit, page });
   }
 
-  async searchContents({ keyword, cursor, limit } = {}) {
+  async searchContents({ keyword, cursor, limit, signal } = {}) {
     const installation = await this.installationHealth();
     if (!installation.installed) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', installation.reason || 'TapTap connector is not installed');
     const kw = String(keyword || '').trim();
     if (!kw) throw new ConnectorError('KEYWORD_REQUIRED', 'TapTap keyword search requires a keyword');
     const pageSize = limit == null ? this.pageLimit : Number(limit);
     const current = decodeCursor(cursor);
-    if (this.delayMs && current.from > 0) await new Promise(resolve => setTimeout(resolve, this.delayMs));
-    const payload = await this.webapiv2('search/v4/agg-search', { kw, types: 'community', from: current.from, limit: pageSize }, { capability: 'keyword_search', page: Math.floor(current.from / pageSize) + 1 });
+    if (this.delayMs && current.from > 0) await waitWithSignal(this.delayMs, signal, 'keyword_search', Math.floor(current.from / pageSize) + 1);
+    const payload = await this.webapiv2('search/v4/agg-search', { kw, types: 'community', from: current.from, limit: pageSize }, { capability: 'keyword_search', page: Math.floor(current.from / pageSize) + 1, signal });
     const groups = Array.isArray(payload?.data?.list) ? payload.data.list : [];
     const entries = groups.flatMap(group => Array.isArray(group?.list) ? group.list : []);
     const moments = entries.map(entry => entry?.moment).filter(Boolean);
@@ -256,7 +302,7 @@ class TapTapConnector extends BaseConnector {
     return validatePagination({ cursor, limit, page: new ConnectorPageResult({ items, nextCursor: hasMore ? JSON.stringify({ version: 1, from: current.from + entries.length }) : null, hasMore, capability: 'keyword_search', raw: payload }) });
   }
 
-  async listComments({ postId, cursor, limit } = {}) {
+  async listComments({ postId, cursor, limit, signal } = {}) {
     const installation = await this.installationHealth();
     if (!installation.installed) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', installation.reason || 'TapTap connector is not installed');
     const id = postId == null || String(postId).trim() === '' ? null : String(postId).trim();
@@ -264,16 +310,16 @@ class TapTapConnector extends BaseConnector {
     // 评论接口 limit 上限为 10（moment-comment 实测 50 即 400 max 校验失败），统一钳制。
     const pageSize = Math.min(limit == null ? this.pageLimit : Number(limit), 10);
     const current = decodeCursor(cursor);
-    if (this.delayMs && current.from > 0) await new Promise(resolve => setTimeout(resolve, this.delayMs));
+    if (this.delayMs && current.from > 0) await waitWithSignal(this.delayMs, signal, 'comments', Math.floor(current.from / pageSize) + 1);
     // 先取 moment 详情判断评论线程归属：评测类挂 review（review-comment/by-review），
     // 普通动态挂 moment 本身（moment-comment/by-moment）。
-    const detail = await this.webapiv2('moment-mini/v1/multi-get', { ids: id }, { capability: 'comments', page: current.from + 1 });
+    const detail = await this.webapiv2('moment-mini/v1/multi-get', { ids: id }, { capability: 'comments', page: current.from + 1, signal });
     const moment = Array.isArray(detail?.data?.list) ? detail.data.list[0] : null;
     const reviewId = moment?.review?.id;
     const momentUrl = `${this.baseUrl}/moment/${id}`;
     if (reviewId == null) {
       // 普通动态：moment-comment/by-moment（sort=rank, order=desc）。
-      const payload = await this.webapiv2('moment-comment/v1/by-moment', { moment_id: id, sort: 'rank', order: 'desc', from: current.from, limit: pageSize }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1 });
+      const payload = await this.webapiv2('moment-comment/v1/by-moment', { moment_id: id, sort: 'rank', order: 'desc', from: current.from, limit: pageSize }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1, signal });
       const list = Array.isArray(payload?.data?.list) ? payload.data.list : [];
       const total = Number(payload?.data?.total || 0);
       const items = list.map(entry => taptapMomentComment(entry, { rootContentId: id, momentUrl }));
@@ -286,7 +332,7 @@ class TapTapConnector extends BaseConnector {
       return validatePagination({ cursor, limit, page: new ConnectorPageResult({ items, nextCursor: hasMore ? JSON.stringify({ version: 1, from: current.from + items.length }) : null, hasMore, capability: 'comments', raw: payload }) });
     }
     // 评测类动态：review-comment/by-review 一次返回一级+二级（reply_to_user 标记层级）。
-    const payload = await this.webapiv2('review-comment/v1/by-review', { review_id: reviewId, from: current.from, limit: pageSize, order: 'asc', show_top: 'true' }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1 });
+    const payload = await this.webapiv2('review-comment/v1/by-review', { review_id: reviewId, from: current.from, limit: pageSize, order: 'asc', show_top: 'true' }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1, signal });
     const list = Array.isArray(payload?.data?.list) ? payload.data.list : [];
     const total = Number(payload?.data?.total || 0);
     const items = list.map(entry => taptapComment(entry, { rootContentId: id, momentUrl }));

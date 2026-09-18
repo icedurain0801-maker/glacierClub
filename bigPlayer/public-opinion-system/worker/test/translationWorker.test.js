@@ -1,9 +1,39 @@
 const test = require('node:test');
+test('daily budget exhaustion remains retryable beyond the error attempt ceiling', async () => {
+  const { processJob } = require('../src/translationWorker');
+  let patch;
+  const outcome = await processJob({ translator: { async translate() { throw Object.assign(new Error('budget'), { code: 'AI_TRANSLATION_DAILY_LIMIT_REACHED' }); } }, repo: { async finishTranslationJob(id, value) { patch = value; return true; } }, maxAttempts: 3 }, { id: 'budget-job', lease_owner: 'owner', attempts: 9 });
+  require('node:assert/strict').equal(outcome, 'retryable');
+  require('node:assert/strict').equal(patch.retryAt.getUTCHours(), 0);
+  require('node:assert/strict').equal(patch.decrementAttempts, true);
+});
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { buildDeps, processJob, runOnce, runControlled, normalizeControlledAllowlist } = require('../src/translationWorker');
 const workerPackage = require('../package.json');
+
+test('offline priority state machine never enters bulk until the next terminal iteration', async () => {
+  const { runLoop } = require('../src/translationWorker');
+  const previous = process.env.TRANSLATION_PRIORITY_JOB_ID;
+  process.env.TRANSLATION_PRIORITY_JOB_ID = 'priority-test';
+  try {
+    for (const status of ['retryable', 'completed', 'failed']) {
+      const claims = []; let sleeps = 0; let backfills = 0;
+      await assert.rejects(runLoop({ translator: { configured() { return true; }, dailyCallLimit: 5000 }, version: 'v1', batchSize: 1, backfillBatchSize: 1, repo: {
+        async enqueueMissingTranslations() { backfills += 1; },
+        async claimTranslationJobs(input) { claims.push(input); return []; },
+        async getTranslationJob() { return { status }; }
+      } }, { sleepFn: async () => { if (++sleeps === 2) throw Object.assign(new Error('test stop'), { code: 'TEST_STOP' }); } }), { code: 'TEST_STOP' });
+      assert.deepEqual(claims[0].jobIds, ['priority-test']);
+      if (status === 'retryable') { assert.deepEqual(claims[1].jobIds, ['priority-test']); assert.equal(backfills, 0); }
+      else { assert.equal(claims[1].jobIds, undefined); assert.equal(backfills, 1); }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TRANSLATION_PRIORITY_JOB_ID;
+    else process.env.TRANSLATION_PRIORITY_JOB_ID = previous;
+  }
+});
 
 const job = { id: 'j1', content_id: 'c1', target_language: 'zh-CN', translation_version: 'translation-v1', content_fingerprint: 'fp1', lease_owner: 'lease-1', attempts: 1, title: 'Hello', body: 'World' };
 

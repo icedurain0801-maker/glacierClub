@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const SENTIMENTS = new Set(['positive', 'neutral', 'negative']);
 const SEVERITIES = new Set(['normal', 'attention', 'urgent']);
 const PROFILES = new Set(['light', 'deep']);
-const PROMPT_SCHEMA_VERSION = 'sentiment-quality-context-v2';
+const PROMPT_SCHEMA_VERSION = 'sentiment-quality-context-severity-exclusive-v3';
 
 function truncate(text, max) { const s = String(text || '').replace(/\s+/g, ' ').trim(); return s.length > max ? s.slice(0, max) : s; }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -124,7 +124,8 @@ class AiAnalyzer {
       plat: it.platform || 'legacy-unassigned'
     }));
     const user = `分析以下${items.length}条游戏相关内容：\n${JSON.stringify(payload)}`;
-    return [{ role: 'system', content: system }, { role: 'user', content: user }];
+    const severityRules = 'severity 必须互斥单选，按 urgent→attention→normal 顺序判断：urgent（负面待处理）仅用于存在明确需立即处理的风险；不满足 urgent 时，attention（关注级）仅用于值得关注但不需立即处理的风险；其余为 normal（正常）。每条内容只能选择一个等级，不得叠加等级，不得依据 sentiment 或 negative_score 猜测等级，一般负向表达不得自动判为 attention。';
+    return [{ role: 'system', content: `${system}${severityRules}` }, { role: 'user', content: user }];
   }
 
   parseResponse(body, count, profile = this.profiles.light, messages = []) {

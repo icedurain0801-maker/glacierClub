@@ -162,6 +162,48 @@ test('TapTap 仅展示网页地址和统一采集频率，并按社区填充默�
   assert.doesNotMatch(fields, /cfgAccountId|cfgScheduleTime/);
 });
 
+test('TapTap 验证列对标准值和展示别名均保留只读工作区', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  for (const platform of ['taptap', 'TapTap', 'tap_tap']) {
+    const panel = api.validationPanel({ platform, auth_status: 'authorized', base_url: 'https://www.taptap.cn/app/239580/topic' });
+    assert.match(panel, /TapTap 采集验证工作区/, platform);
+    assert.match(panel, /暂无进行中的验证挑战/, platform);
+    assert.match(panel, /不会自动发起授权或同步/, platform);
+    assert.doesNotMatch(panel, /Token 授权无需登录会话验证/, platform);
+  }
+});
+
+test('BigPlayer H5 站点配置使用独立 URL 行，不再渲染 textarea', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const panel = api.platformPanel({ platform: 'bigplayer_h5', config: { siteUrls: ['https://A.example.com/', 'https://b.example.com/path'] } });
+  assert.doesNotMatch(panel, /<textarea|cfgSiteUrls/);
+  assert.match(panel, /id="cfgSiteUrlList"/);
+  assert.match(panel, /data-site-url type="url"/);
+  assert.match(panel, /data-remove-site-url/);
+  assert.match(panel, /id="btnAddSiteUrl"/);
+});
+
+test('BigPlayer H5 URL 行规范化、逐行校验并保留首项作为 baseUrl', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const valid = api.validateSiteUrlRows(['https://A.example.com/', 'https://b.example.com/path']);
+  assert.deepEqual(Array.from(valid.urls), ['https://a.example.com/', 'https://b.example.com/path']);
+  assert.equal(api.sourceSiteUrls({ config: { siteUrls: valid.urls } })[0], 'https://a.example.com/');
+
+  const invalid = api.validateSiteUrlRows(['', 'https://a.example.com/', 'https://A.example.com/']);
+  assert.equal(invalid.error, '请检查站点地址');
+  assert.equal(invalid.errors[0], '请输入站点地址');
+  assert.equal(invalid.errors[1], '');
+  assert.equal(invalid.errors[2], '站点地址不能重复');
+});
+
+test('BigPlayer H5 URL 行模板保留单行删除保护', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  assert.match(api.siteUrlRowsMarkup(['https://a.example.com/']), /data-remove-site-url[^>]*disabled/);
+  const multiple = api.siteUrlRowsMarkup(['https://a.example.com/', 'https://b.example.com/']);
+  assert.equal((multiple.match(/data-remove-site-url/g) || []).length, 2);
+  assert.doesNotMatch(multiple, /data-remove-site-url[^>]*disabled/);
+});
+
 test('所有采集源频率仅提供三档、默认 6 小时并正确回显', () => {
   const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
   const optionValues = html => [...html.matchAll(/<option value="(\d+)"/g)].map(match => Number(match[1]));

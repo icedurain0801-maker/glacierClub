@@ -9,7 +9,7 @@ const DEFAULT_SOURCE_FREQUENCY_SECONDS = 21600;
 const isOverseasLastNight = source => String(source?.community_id || source?.communityId) === OVERSEAS_LAST_NIGHT_COMMUNITY_ID;
 const Status = window.SourceStatus;
 const SyncProgress = window.SourceSyncProgress;
-const state = { sources: [], scope: null, sourcesLoading: true, sourcesError: '', creating: false, syncingSourceId: '', activeSourceId: '', loginStatus: null, challenge: null, timer: null, poller: null, toastTimer: null, requestSerial: 0, sourcesRequestSerial: 0, syncRecoverySerial: 0, authSerial: 0, syncSerial: 0, h5AuthMode: 'token' };
+const state = { sources: [], scope: null, sourcesLoading: true, sourcesError: '', creating: false, syncingSourceId: '', deletingSourceId: '', activeSourceId: '', loginStatus: null, challenge: null, timer: null, poller: null, toastTimer: null, requestSerial: 0, sourcesRequestSerial: 0, syncRecoverySerial: 0, authSerial: 0, syncSerial: 0, h5AuthMode: 'token' };
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const pick = (object, ...keys) => keys.map(key => object?.[key]).find(value => value !== undefined && value !== null);
@@ -17,6 +17,7 @@ const PLATFORMS = Object.fromEntries(PublicOpinionScope.platforms.map(item => [i
 const ACTIONABLE = new Set(['bigplayer_h5', 'taptap', 'douyin', 'xiaohongshu', 'discord', 'facebook']);
 const STAGES = [['posts', '帖子'], ['comments', '评论（含评论内回复）']];
 const normalizedPlatform = source => Status.normalizePlatform(source?.platform);
+const isTapTapPlatform = source => ['taptap', 'tap_tap'].includes(String(normalizedPlatform(source)).trim().toLowerCase());
 const platformLabel = platform => PLATFORMS[Status.normalizePlatform(platform)] || platform || '-';
 const sourceTypeLabel = source => { const platform = normalizedPlatform(source); if (platform === 'taptap') return '关键词 + 账号'; if (platform === 'bigplayer_h5') return '社区动态'; if (Status.isSocialLoginPlatform(platform)) return '账号内容'; return '平台内容'; };
 const TAPTAP_SUPER_POWER_WORLD_URL = 'https://www.taptap.cn/app/239580/topic?os=android';
@@ -27,6 +28,9 @@ const authLabel = status => Status.authLabel(status);
 const stageLabel = status => ({ idle: '待同步', running: '同步中', paused: '已暂停', completed: '已完成', completed_full: '完整完成', completed_authorized_scope: '授权范围完成', partial: '部分完成', unsupported: '不支持', failed: '失败', unconfigured: '未检测', manual_verification: '待人工验证' }[status] || status || '待同步');
 
 async function api(path, options = {}) {
+  return state.scope && PublicOpinionScope.withScope ? PublicOpinionScope.withScope(path, options, rawApi) : rawApi(path, options);
+}
+async function rawApi(path, options = {}) {
   let response;
   try { response = await fetch(`${API}${path}`, { headers: { 'content-type': 'application/json' }, ...options }); }
   catch (error) { if (error?.name === 'AbortError') throw error; throw new Error(`无法连接舆情服务 ${API}，请检查后端服务和跨域配置`); }
@@ -355,6 +359,24 @@ function syncModeLabel(mode) { return mode === 'backfill' ? '授权范围回溯'
 function credentialConfigured(source) { const summary = h5Credential(source); const explicit = Status.explicitCredentialState?.(source); const explicitObjects = [source?.account, source?.platform_account, source?.platformAccount, source].filter(Boolean); const summaryObjects = [source?.credentialSummary, source?.credential_summary].filter(Boolean); const summaryFlag = [...summaryObjects, ...explicitObjects].map(item => pick(item, 'hasCredential', 'has_credential', 'credentialConfigured', 'credential_configured', 'hasToken', 'has_token')).find(value => typeof value === 'boolean'); return Boolean(explicit === false ? false : explicit ?? summaryFlag ?? summary.hasCredential ?? summary.hasToken); }
 function isCredentialMask(value) { const normalized = String(value || '').trim(); return Boolean(normalized) && /^[*•]+$/.test(normalized); }
 function configValue(source, ...keys) { return pick(configOf(source), ...keys) || pick(source, ...keys) || ''; }
+function sourceSiteUrls(source) { const configured = configOf(source).siteUrls || source?.siteUrls; if (Array.isArray(configured) && configured.length) return configured.map(site => typeof site === 'string' ? site : site?.url).filter(Boolean); const legacy = configValue(source, 'baseUrl', 'base_url'); return legacy ? [legacy] : []; }
+function parseSiteUrls(value) { const urls = String(value || '').split(/[\n,，]+/).map(item => item.trim()).filter(Boolean); const normalized = []; const seen = new Set(); for (const url of urls) { let parsed; try { parsed = new URL(url); } catch { return { error: `站点地址不是合法 URL：${url}` }; } if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.hash) return { error: `站点地址必须是安全的 http(s) 链接：${url}` }; parsed.hostname = parsed.hostname.toLowerCase(); parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/'; const canonical = parsed.toString(); if (seen.has(canonical)) return { error: `站点地址重复：${canonical}` }; seen.add(canonical); normalized.push(canonical); } return normalized.length ? { urls: normalized } : { error: '请至少填写一个站点地址' }; }
+function siteUrlRowsMarkup(urls) { const values = Array.isArray(urls) && urls.length ? urls : ['']; return values.map((value, index) => `<div class="site-url-row" data-site-url-row><span class="site-url-index">${index + 1}</span><div class="site-url-input-wrap"><input class="input" data-site-url type="url" inputmode="url" autocomplete="url" value="${esc(value)}" placeholder="https://community.example.com/"><div class="site-url-error" data-site-url-error hidden></div></div><button class="btn site-url-remove" type="button" data-remove-site-url aria-label="删除第 ${index + 1} 个站点" title="删除此站点" ${values.length === 1 ? 'disabled' : ''}>删除</button></div>`).join(''); }
+function readSiteUrlRows() { return [...document.querySelectorAll('[data-site-url]')].map(input => input.value.trim()); }
+function setSiteUrlErrors(errors = []) { [...document.querySelectorAll('[data-site-url-row]')].forEach((row, index) => { const input = row.querySelector('[data-site-url]'); const error = row.querySelector('[data-site-url-error]'); const message = errors[index] || ''; input.setCustomValidity(message); input.classList.toggle('has-error', Boolean(message)); error.hidden = !message; error.textContent = message; }); }
+function validateSiteUrlRows(values = readSiteUrlRows()) {
+  const normalized = []; const seen = new Set(); const errors = values.map(() => '');
+  values.forEach((value, index) => {
+    if (!value) { errors[index] = '请输入站点地址'; return; }
+    let parsed; try { parsed = new URL(value); } catch (_) { errors[index] = '请输入合法 URL'; return; }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.hash) { errors[index] = '仅支持不含账号、密码或片段的 http(s) URL'; return; }
+    parsed.hostname = parsed.hostname.toLowerCase(); parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/'; const canonical = parsed.toString();
+    if (seen.has(canonical)) { errors[index] = '站点地址不能重复'; return; }
+    seen.add(canonical); normalized.push(canonical);
+  });
+  setSiteUrlErrors(errors);
+  return errors.some(Boolean) ? { error: '请检查站点地址', errors } : { urls: normalized };
+}
 function challengeOf(value) { return pick(value, 'challenge', 'currentChallenge', 'current_challenge') || (pick(value, 'challengeId', 'challenge_id') || pick(value, 'type', 'challengeType', 'challenge_type') ? value : null); }
 function cacheLoginStatus(source, value) { state.loginStatus = value || {}; source.loginStatus = state.loginStatus; }
 
@@ -429,7 +451,7 @@ function renderFacebookRow(source) {
   const missing = facebookMissingCapabilities(source); const frequency = Number(pick(source, 'frequency_seconds', 'frequencySeconds') || DEFAULT_SOURCE_FREQUENCY_SECONDS);
   const errorCode = checkpointsOf(source).find?.(item => pick(item, 'error_code', 'errorCode'));
   const error = source._facebookCheck?.error || (errorCode ? facebookErrorMessage(pick(errorCode, 'error_code', 'errorCode')) : '');
-  return `<tr><td data-label="采集源 / 账号"><div class="source-name">${esc(pick(source, 'display_name', 'displayName') || 'Facebook')}<span class="source-type">官方主页</span></div><div class="subline facebook-source-url">${esc(facebookUrlOf(source) || '主页地址待配置')}</div><div class="subline">Page ID：${esc(facebookPageId(source) || '待识别')}</div></td><td data-label="归属范围">境外 / ${esc(pick(source, 'community_name', 'communityName') || 'Last Night')}</td><td data-label="平台">Facebook</td><td data-label="授权状态"><span class="pill ${facebookReady(source) ? 'authorized' : 'unconfigured'}">${esc(facebookAuthLabel(source))}</span><div class="subline">部署级官方凭据：${esc(facebookSystemCredentialLabel(source))}</div><div class="subline">${esc(missing.length ? `未通过：${missing.join('、')}` : '六项能力已通过')}</div><div class="subline">最近检测：平台未返回</div></td><td data-label="同步进度">${renderStageStack(source)}</td><td data-label="同步策略">${esc(facebookInitialSyncLabel(source))}<div class="subline">${sourceEnableToggle(source, !facebookCanManage(source) || (!source.enabled && !facebookReady(source)), !facebookCanManage(source) ? '当前账号仅有查看权限' : !source.enabled && !facebookReady(source) ? '部署级凭据与六项能力通过后才能启用' : '')} · ${esc(SOURCE_FREQUENCIES.find(([value]) => value === frequency)?.[1] || `${frequency} 秒`)}</div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(reason || '开始同步并自动启用采集源')}" ${reason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : '开始同步'}</button><button class="row-action" data-manage-source="${esc(source.id)}">${facebookCanManage(source) ? '管理' : '查看'}</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
+  return `<tr><td data-label="采集源 / 账号"><div class="source-name">${esc(pick(source, 'display_name', 'displayName') || 'Facebook')}<span class="source-type">官方主页</span></div><div class="subline facebook-source-url">${esc(facebookUrlOf(source) || '主页地址待配置')}</div><div class="subline">Page ID：${esc(facebookPageId(source) || '待识别')}</div></td><td data-label="归属范围">境外 / ${esc(pick(source, 'community_name', 'communityName') || 'Last Night')}</td><td data-label="平台">Facebook</td><td data-label="授权状态"><span class="pill ${facebookReady(source) ? 'authorized' : 'unconfigured'}">${esc(facebookAuthLabel(source))}</span><div class="subline">部署级官方凭据：${esc(facebookSystemCredentialLabel(source))}</div><div class="subline">${esc(missing.length ? `未通过：${missing.join('、')}` : '六项能力已通过')}</div><div class="subline">最近检测：平台未返回</div></td><td data-label="同步进度">${renderStageStack(source)}</td><td data-label="同步策略">${esc(facebookInitialSyncLabel(source))}<div class="subline">${sourceEnableToggle(source, !facebookCanManage(source) || (!source.enabled && !facebookReady(source)), !facebookCanManage(source) ? '当前账号仅有查看权限' : !source.enabled && !facebookReady(source) ? '部署级凭据与六项能力通过后才能启用' : '')} · ${esc(SOURCE_FREQUENCIES.find(([value]) => value === frequency)?.[1] || `${frequency} 秒`)}</div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(reason || '开始同步并自动启用采集源')}" ${reason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : '开始同步'}</button><button class="row-action" data-manage-source="${esc(source.id)}">${facebookCanManage(source) ? '管理' : '查看'}</button><button class="row-action danger" data-delete-source="${esc(source.id)}">删除</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
 }
 function renderRows() {
   const scope = state.scope?.query?.() || new URLSearchParams();
@@ -449,7 +471,7 @@ function renderRows() {
     const lastSync = pick(identity.account, 'last_incremental_sync_at', 'lastIncrementalSyncAt', 'last_full_sync_at', 'lastFullSyncAt') || pick(source, 'last_success_at', 'lastSuccessAt', 'last_run_at', 'lastRunAt');
     const syncReason = syncUnavailableReason(source); const syncing = String(state.syncingSourceId) === String(source.id);
     const regionCode = pick(source, 'region_code', 'regionCode'); const regionName = pick(source, 'region_name', 'regionName') || (regionCode === 'domestic' ? '境内' : regionCode === 'overseas' ? '境外' : regionCode) || state.scope?.selected?.().regionLabel;
-    return `<tr><td data-label="采集源 / 账号"><div class="source-with-dot">${Status.needsAttention(source) ? '<span class="attention-dot" title="需要处理"></span>' : ''}<div><div class="source-name">${esc(source.display_name || source.displayName || platformLabel(source.platform))}<span class="source-type">${esc(sourceTypeLabel(source))}</span></div><div class="subline">${esc(sourceCollectionSummary(source))}${identity.id && !String(identity.id).startsWith('pending:') && normalizedPlatform(source) !== 'taptap' ? ` · ${esc(identity.id)}` : ''}</div></div></div></td><td data-label="归属范围">${esc([regionName, pick(source, 'community_name', 'communityName') || sourceCommunity(source).name].filter(Boolean).join(' / '))}</td><td data-label="平台">${esc(platformLabel(source.platform))}</td><td data-label="授权状态"><span class="pill ${social ? login.tone : esc(auth)}">${esc(social ? login.label : authDisplayLabel(source))}</span></td><td data-label="同步进度">${renderStageStack(source)}</td><td data-label="同步策略">${esc(syncModeLabel(sourceMode(source)))}<div class="subline">${sourceEnableToggle(source, !ACTIONABLE.has(normalizedPlatform(source)) || (!source.enabled && !canSchedule(source)))} </div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline" title="${esc(error)}">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(syncReason || `${syncActionLabel(source)}并自动启用采集源`)}" ${syncReason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : esc(syncActionLabel(source))}</button><button class="row-action" data-manage-source="${esc(source.id)}">管理</button></div>${syncReason ? `<div class="subline action-reason">${esc(syncReason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
+    return `<tr><td data-label="采集源 / 账号"><div class="source-with-dot">${Status.needsAttention(source) ? '<span class="attention-dot" title="需要处理"></span>' : ''}<div><div class="source-name">${esc(source.display_name || source.displayName || platformLabel(source.platform))}<span class="source-type">${esc(sourceTypeLabel(source))}</span></div><div class="subline">${esc(sourceCollectionSummary(source))}${identity.id && !String(identity.id).startsWith('pending:') && normalizedPlatform(source) !== 'taptap' ? ` · ${esc(identity.id)}` : ''}</div></div></div></td><td data-label="归属范围">${esc([regionName, pick(source, 'community_name', 'communityName') || sourceCommunity(source).name].filter(Boolean).join(' / '))}</td><td data-label="平台">${esc(platformLabel(source.platform))}</td><td data-label="授权状态"><span class="pill ${social ? login.tone : esc(auth)}">${esc(social ? login.label : authDisplayLabel(source))}</span></td><td data-label="同步进度">${renderStageStack(source)}</td><td data-label="同步策略">${esc(syncModeLabel(sourceMode(source)))}<div class="subline">${sourceEnableToggle(source, !ACTIONABLE.has(normalizedPlatform(source)) || (!source.enabled && !canSchedule(source)))} </div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline" title="${esc(error)}">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(syncReason || `${syncActionLabel(source)}并自动启用采集源`)}" ${syncReason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : esc(syncActionLabel(source))}</button><button class="row-action" data-manage-source="${esc(source.id)}">管理</button><button class="row-action danger" data-delete-source="${esc(source.id)}">删除</button></div>${syncReason ? `<div class="subline action-reason">${esc(syncReason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
   }).join('') : '<tr><td colspan="8" class="empty">暂无符合条件的采集源</td></tr>';
   bindSyncPanelActions();
 }
@@ -485,7 +507,7 @@ function bindH5CredentialMode(source, creating) {
 }
 function platformPanel(source, creating = false) {
   const platform = normalizedPlatform(source); const configured = credentialConfigured(source); const identity = accountIdentity(source);
-  if (platform === 'bigplayer_h5') return `<div class="detail-block"><div class="detail-label">大玩家 H5 站点</div><div class="field"><label>站点地址<span class="required">*</span></label><input class="input" id="cfgBaseUrl" type="url" value="${esc(isOverseasLastNight(source) ? OVERSEAS_LAST_NIGHT_BASE_URL : configValue(source, 'baseUrl', 'base_url'))}" placeholder="https://community.example.com/" ${isOverseasLastNight(source) ? 'readonly' : ''}></div>${isOverseasLastNight(source) ? '<div class="field"><label>起始路径</label><input class="input" value="/" readonly></div><div class="sensitive-note">欧美版可在凭据、授权和帖子同步能力检测通过后启用；若保存时被拒绝，将显示后端门禁原因。</div>' : ''}${h5CredentialFields(source, creating)}${creating ? '' : '<div class="action-row" style="margin-top:12px"><button class="btn" id="btnCheckAuth">检测授权</button><button class="btn" id="btnCheckCapabilities">检测能力</button></div>'}</div>${capabilityPanel(source)}`;
+  if (platform === 'bigplayer_h5') { const siteUrls = isOverseasLastNight(source) ? [OVERSEAS_LAST_NIGHT_BASE_URL] : sourceSiteUrls(source); return `<div class="detail-block"><div class="detail-label">大玩家 H5 站点</div><div class="field site-url-field"><label for="cfgSiteUrlList">站点地址<span class="required">*</span></label><div class="site-url-list" id="cfgSiteUrlList">${siteUrlRowsMarkup(siteUrls)}</div><div class="site-url-actions"><button type="button" class="btn" id="btnAddSiteUrl">+ 添加站点</button></div><div class="subline">每个站点单独填写；保存时会逐项规范化并拒绝重复或不安全地址。</div></div><input type="hidden" id="cfgBaseUrl" value="${esc(siteUrls[0] || '')}">${isOverseasLastNight(source) ? '<div class="field"><label>起始路径</label><input class="input" value="/" readonly></div><div class="sensitive-note">欧美版可在凭据、授权和帖子同步能力检测通过后启用；若保存时被拒绝，将显示后端门禁原因。</div>' : ''}${h5CredentialFields(source, creating)}${creating ? '' : '<div class="action-row" style="margin-top:12px"><button class="btn" id="btnCheckAuth">检测授权</button><button class="btn" id="btnCheckCapabilities">检测能力</button></div>'}</div>${capabilityPanel(source)}`; }
   if (platform === 'taptap') return `<div class="detail-block"><div class="detail-label">TapTap 网页地址</div><div class="field"><label for="cfgBaseUrl">网页地址<span class="required">*</span></label><input class="input" id="cfgBaseUrl" type="url" value="${esc(configValue(source, 'baseUrl', 'base_url') || taptapDefaultUrl(source))}" placeholder="https://www.taptap.cn/app/.../topic?os=android"></div></div>`;
   if (Status.isSocialLoginPlatform(platform)) return `<div class="detail-block"><div class="detail-label">平台登录凭据</div><div class="field"><label>国家/地区代码</label><input class="input" value="+86" readonly></div><div class="field"><label>手机号${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPhone" inputmode="numeric" maxlength="11" autocomplete="off" value="${creating ? '' : esc(pick(identity.account, 'masked_phone', 'maskedPhone') || pick(source, 'masked_phone', 'maskedPhone') || '')}" placeholder="11 位中国大陆手机号" ${creating ? '' : 'readonly'}></div><div class="field"><label>登录密码${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPassword" type="password" autocomplete="new-password" placeholder="${configured ? '凭据已配置；留空不修改' : '请输入登录密码'}"></div><div class="field"><label>确认密码${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPasswordConfirm" type="password" autocomplete="new-password" placeholder="再次输入登录密码"></div><div class="sensitive-note">创建后为“待验证”，不会自动登录。密码不回显、不写入 URL 或浏览器存储。</div></div>${creating ? '' : capabilityPanel(source)}`;
   if (platform === 'discord') {
@@ -540,7 +562,18 @@ function commonFields(source, creating) {
 }
 function syncControls(source) { const available = ACTIONABLE.has(normalizedPlatform(source)); const running = STAGES.some(([scope]) => stageState(source, scope) === 'running'); const paused = STAGES.some(([scope]) => stageState(source, scope) === 'paused'); const reason = syncUnavailableReason(source); const syncAllowed = !reason; return `<div class="detail-block"><div class="detail-label">同步控制</div><div class="action-row"><button class="btn primary" id="btnRunSync" title="${esc(reason || '提交任务并自动启用采集源')}" ${syncAllowed ? '' : 'disabled'}>${esc(syncActionLabel(source, true))}</button><button class="btn" id="btnPauseSync" ${syncAllowed && available && running ? '' : 'disabled'}>暂停</button><button class="btn" id="btnResumeSync" ${syncAllowed && available && paused ? '' : 'disabled'}>继续</button><button class="btn danger" id="btnResetSync" ${syncAllowed && canSchedule(source) ? '' : 'disabled'}>授权范围全量回溯</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : '<div class="subline">开始同步后将自动启用该采集源，并进入周期调度。</div>'}</div>`; }
 
-  function setCommonValues(source) { if ($('#cfgFreq')) $('#cfgFreq').value = String(normalizedFrequency(source.frequency_seconds || source.frequencySeconds)); if ($('#cfgSyncMode')) $('#cfgSyncMode').value = sourceMode(source); if ($('#cfgHistoryStart')) $('#cfgHistoryStart').value = historyStartOf(source); }
+function setCommonValues(source) { if ($('#cfgFreq')) $('#cfgFreq').value = String(normalizedFrequency(source.frequency_seconds || source.frequencySeconds)); if ($('#cfgSyncMode')) $('#cfgSyncMode').value = sourceMode(source); if ($('#cfgHistoryStart')) $('#cfgHistoryStart').value = historyStartOf(source); }
+function bindSiteUrlActions() {
+  const list = $('#cfgSiteUrlList');
+  if (!list) return;
+  const refresh = (values, focusIndex = -1) => { list.innerHTML = siteUrlRowsMarkup(values); bind(); if (focusIndex >= 0) list.querySelectorAll('[data-site-url]')[focusIndex]?.focus(); };
+  const bind = () => {
+    list.querySelectorAll('[data-site-url]').forEach(input => { input.oninput = () => { input.setCustomValidity(''); input.classList.remove('has-error'); const error = input.closest('[data-site-url-row]').querySelector('[data-site-url-error]'); error.hidden = true; error.textContent = ''; }; });
+    list.querySelectorAll('[data-remove-site-url]').forEach(button => { button.onclick = () => { const index = [...list.querySelectorAll('[data-remove-site-url]')].indexOf(button); const values = readSiteUrlRows(); values.splice(index, 1); refresh(values.length ? values : [''], Math.max(0, index - 1)); }; });
+  };
+  bind();
+  if ($('#btnAddSiteUrl')) $('#btnAddSiteUrl').onclick = () => { const values = readSiteUrlRows(); values.push(''); refresh(values, values.length - 1); };
+}
 function openCreateDrawer() {
   const selected = state.scope?.selected?.() || {};
   const platform = Status.normalizePlatform($('[data-po-platform-select]')?.value || $('#platformFilter')?.value || selected.platform || 'bigplayer_h5');
@@ -557,7 +590,7 @@ function openCreateDrawer() {
   const render = () => {
     const isDiscord = platform === 'discord';
     $('#drawerContent').innerHTML = `<div class="drawer-header${isDiscord ? ' drawer-header--discord' : ''}"><div><h2>新增采集源</h2>${isDiscord ? '<div class="drawer-header-subtitle">先设定采集边界，再填写连接凭据。</div>' : ''}</div></div><div class="drawer-body${isDiscord ? ' drawer-body--discord' : ''}">${isDiscord ? `${platformPanel(source, true)}${commonFields(source, true)}` : `${commonFields(source, true)}${platformPanel(source, true)}`}</div><div class="drawer-footer"><button class="btn primary" id="btnCreate">创建</button><button class="btn" id="btnCancel">取消</button></div>`;
-    setCommonValues(source); if ($('#cfgBaseUrl')) $('#cfgBaseUrl').value = source.base_url || source.baseUrl || taptapDefaultUrl(source); if ($('#cfgAccountId')) $('#cfgAccountId').value = source.platform_account_id || ''; bindH5CredentialMode(source, true); bindDiscordChannelScope(); $('#btnCancel').onclick = closeDrawer; $('#btnCreate').onclick = createSource;
+    setCommonValues(source); if ($('#cfgBaseUrl')) $('#cfgBaseUrl').value = source.base_url || source.baseUrl || taptapDefaultUrl(source); if ($('#cfgAccountId')) $('#cfgAccountId').value = source.platform_account_id || ''; bindSiteUrlActions(); bindH5CredentialMode(source, true); bindDiscordChannelScope(); $('#btnCancel').onclick = closeDrawer; $('#btnCreate').onclick = createSource;
   };
   stopValidationWork(); render(); $('#drawerMask').classList.add('open');
 }
@@ -568,7 +601,7 @@ async function createSource() {
   if (selected.communityStatus && selected.communityStatus !== 'enabled') return toast(`社区「${selected.communityLabel}」已停用，不能新增采集源`); if (!payload.displayName) return toast('请填写采集源名称'); if (!SOURCE_FREQUENCIES.some(([value]) => value === payload.frequencySeconds)) return toast('请选择有效的采集频率');
   if (platform === 'bigplayer_h5') {
   const sourceIsOverseas = isOverseasLastNight({ community_id: payload.communityId, platform });
-    payload.baseUrl = sourceIsOverseas ? OVERSEAS_LAST_NIGHT_BASE_URL : $('#cfgBaseUrl').value.trim(); if (!payload.baseUrl) return toast('请填写站点地址');
+    const parsedSites = sourceIsOverseas ? parseSiteUrls(OVERSEAS_LAST_NIGHT_BASE_URL) : validateSiteUrlRows(); if (parsedSites.error) return toast(parsedSites.error); payload.siteUrls = parsedSites.urls; payload.baseUrl = parsedSites.urls[0];
     if (state.h5AuthMode === 'token') { payload.apiToken = $('#cfgToken')?.value || ''; }
     else { const account = $('#cfgH5Account')?.value.trim() || ''; const password = $('#cfgH5Password')?.value || ''; const confirmPassword = $('#cfgH5PasswordConfirm')?.value || ''; const validation = Status.validateH5CredentialUpdate({ account, password, confirmPassword, creating: true }); if (validation.error) return toast(validation.error); payload.account = validation.credential.account; payload.password = validation.credential.password; payload.confirmPassword = validation.credential.confirmPassword; }
   }
@@ -592,7 +625,14 @@ async function createSource() {
 }
 function detailHeader(source) { const meta = sourceLoginMeta(source); const auth = sourceAuthDisplay(source); const isH5 = normalizedPlatform(source.platform) === 'bigplayer_h5'; const displayStatus = isH5 && auth === 'configured_pending_verification' ? authDisplayLabel(source) : meta.label; return `<h2>${esc(source.display_name || source.displayName || platformLabel(source.platform))}</h2><div class="subline" style="margin-bottom:8px">${esc(platformLabel(source.platform))} · ${esc(pick(source, 'community_name', 'communityName') || sourceCommunity(source).name || '-')}${Status.isSocialLoginPlatform(source.platform) || isH5 ? ` · <span class="pill ${isH5 ? esc(auth) : meta.tone}">${esc(displayStatus)}</span>` : ` · <span class="pill ${esc(auth)}">${esc(authDisplayLabel(source))}</span>`}</div>`; }
 function validationPanel(source) {
-  const isH5 = normalizedPlatform(source.platform) === 'bigplayer_h5';
+  const platform = normalizedPlatform(source);
+  const isH5 = platform === 'bigplayer_h5';
+  if (isTapTapPlatform(source)) {
+    const auth = sourceAuthDisplay(source);
+    const checkedAt = pick(source, 'last_checked_at', 'lastCheckedAt', 'updated_at', 'updatedAt');
+    const targetState = taptapTargetsConfigured(source) ? '已配置' : '待配置';
+    return `<div class="detail-label">TapTap 采集验证工作区</div><div class="status-summary"><div class="status-cell"><div class="subline">监控目标</div><b><span class="pill ${taptapTargetsConfigured(source) ? 'healthy' : 'unconfigured'}">${targetState}</span></b></div><div class="status-cell"><div class="subline">最近检测</div><b>${esc(formatTime(checkedAt))}</b></div></div><div class="challenge-message">${esc(authDisplayLabel(source))}。TapTap 采集使用已配置的网页地址、监控账号或版块目标；此处仅展示验证状态，不会自动发起授权或同步。</div><div class="validation-empty" style="min-height:180px;margin-top:14px">暂无进行中的验证挑战</div>`;
+  }
   const needsLoginValidation = Status.needsLoginValidation(source, h5AuthMode(source));
   if (!needsLoginValidation) return '<div class="validation-empty">Token 授权无需登录会话验证，可直接检测接口授权和同步能力。</div>';
   const meta = Status.loginMeta(state.loginStatus || source); const status = state.loginStatus || {}; const checkedAt = pick(status, 'checkedAt', 'checked_at', 'updatedAt', 'updated_at');
@@ -614,7 +654,7 @@ async function fetchSourceDetail(id, timeoutMs = DETAIL_REQUEST_TIMEOUT_MS) {
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try { return await api(`/sources/${encodeURIComponent(id)}`, { signal: controller.signal }); }
   catch (error) {
-    if (error?.name === 'AbortError') { const timeoutError = new Error('详情加载超时，请稍后重试'); timeoutError.code = 'DETAIL_LOAD_TIMEOUT'; throw timeoutError; }
+    if (error?.name === 'AbortError' && controller.signal.aborted) { const timeoutError = new Error('详情加载超时，请稍后重试'); timeoutError.code = 'DETAIL_LOAD_TIMEOUT'; throw timeoutError; }
     throw error;
   } finally { clearTimeout(timeout); }
 }
@@ -641,11 +681,12 @@ async function openDrawer(id, force = false) {
 function renderDetail(source) {
   if (normalizedPlatform(source) === 'facebook') return renderFacebookDetail(source);
   const isDiscord = normalizedPlatform(source) === 'discord';
+  const usesSingleColumnDetailLayout = normalizedPlatform(source) === 'bigplayer_h5' && h5AuthMode(source) === 'token';
   const content = isDiscord
     ? `<div class="drawer-header drawer-header--discord">${detailHeader(source)}</div><div class="drawer-body drawer-body--discord">${platformPanel(source)}${commonFields(source, false)}${syncControls(source)}</div>`
-    : `<div class="drawer-header">${detailHeader(source)}</div><div class="drawer-body"><div class="detail-grid"><div class="detail-column">${commonFields(source, false)}${platformPanel(source)}${syncControls(source)}</div><div class="detail-column validation-column"><div class="validation-workspace">${validationPanel(source)}</div></div></div></div>`;
+    : `<div class="drawer-header">${detailHeader(source)}</div><div class="drawer-body"><div class="detail-grid${usesSingleColumnDetailLayout ? ' detail-grid--single' : ''}"><div class="detail-column">${commonFields(source, false)}${platformPanel(source)}${syncControls(source)}</div>${usesSingleColumnDetailLayout ? '' : `<div class="detail-column validation-column"><div class="validation-workspace">${validationPanel(source)}</div></div>`}</div></div>`;
   $('#drawerContent').innerHTML = `${content}<div class="drawer-footer"><button class="btn primary" id="btnSaveSource">保存配置</button><button class="btn" id="btnCancel">关闭</button></div>`;
-  setCommonValues(source); bindH5CredentialMode(source, false); bindDiscordChannelScope(); $('#btnSaveSource').onclick = () => saveSource(source); $('#btnCancel').onclick = closeDrawer; bindPlatformActions(source); bindSyncActions(source); bindValidationActions(source);
+  setCommonValues(source); bindSiteUrlActions(); bindH5CredentialMode(source, false); bindDiscordChannelScope(); $('#btnSaveSource').onclick = () => saveSource(source); $('#btnCancel').onclick = closeDrawer; bindPlatformActions(source); bindSyncActions(source); bindValidationActions(source);
 }
 async function saveSource(source) {
   if (normalizedPlatform(source) === 'facebook') return submitFacebookSource(source, false);
@@ -654,7 +695,7 @@ async function saveSource(source) {
   let credential;
   if (!patch.displayName) patch.displayName = source.display_name || source.displayName || 'TapTap采集源'; if (!SOURCE_FREQUENCIES.some(([value]) => value === patch.frequencySeconds)) return toast('请选择有效的采集频率');
   if (normalizedPlatform(source) === 'bigplayer_h5') {
-    patch.baseUrl = isOverseasLastNight(source) ? OVERSEAS_LAST_NIGHT_BASE_URL : $('#cfgBaseUrl').value.trim(); if (!patch.baseUrl) return toast('请填写站点地址');
+    const parsedSites = isOverseasLastNight(source) ? parseSiteUrls(OVERSEAS_LAST_NIGHT_BASE_URL) : validateSiteUrlRows(); if (parsedSites.error) return toast(parsedSites.error); patch.siteUrls = parsedSites.urls; patch.baseUrl = parsedSites.urls[0];
     const sourceIsOverseas = isOverseasLastNight(source);
     if (h5AuthMode(source) === 'token') {
       const token = ($('#cfgToken')?.value || '').trim();
@@ -745,7 +786,7 @@ async function recoverSyncPanel() {
     if (serial !== state.syncRecoverySerial || !runId) return;
     openSyncPanel(sourceId, runId, pick(run?.run || run, 'status', 'state', 'syncStatus', 'sync_status'));
   } catch (error) {
-    if (serial === state.syncRecoverySerial) { updateSyncDeepLink('', ''); toast(`同步进度恢复失败：${error.message}`); }
+    if (error.name !== 'AbortError' && serial === state.syncRecoverySerial) { updateSyncDeepLink('', ''); toast(`同步进度恢复失败：${error.message}`); }
   }
 }
 
@@ -769,10 +810,14 @@ async function runSourceAction(source, path, message, body = {}, options = {}) {
     const failed = path === 'check-auth'
       ? result?.authStatus !== 'authorized'
       : path === 'check-capabilities'
-        ? result?.authorized === false || capabilityStatuses(result).includes('unauthorized')
+        ? result?.authorized === false || !['full', 'authorized_scope', 'supported'].includes(capabilityState(result, 'posts'))
         : false;
     if (failed) {
-      const reason = result?.reason || Object.entries(result?.capabilities || {}).filter(([, value]) => { const status = typeof value === 'object' ? pick(value, 'status', 'capability') : value; return status === 'unauthorized'; }).map(([key, value]) => `${key}: ${typeof value === 'object' ? pick(value, 'status', 'capability') : value}`).join('，');
+      const failedItems = Object.entries(result?.capabilities || {})
+        .map(([key, value]) => [key, typeof value === 'object' ? pick(value, 'status', 'capability') : value])
+        .filter(([, status]) => status && !['full', 'authorized_scope', 'supported'].includes(status))
+        .map(([key, status]) => `${key}: ${capabilityLabel(status)}`);
+      const reason = result?.reason || failedItems.join('，');
       toast(`检测未通过：${sourceActionReason(reason || '当前账号未授权')}`);
     } else {
       toast(message);
@@ -818,6 +863,7 @@ function exactSourceParams(source) {
 }
 async function loadSources() {
   const serial = ++state.sourcesRequestSerial;
+  if (state.scope && !state.scope.available()) { state.sources = []; state.sourcesLoading = false; state.sourcesError = ''; renderRows(); $('#rows').innerHTML = '<tr><td colspan="8" class="empty">当前地区暂无可用社区</td></tr>'; return; }
   state.sourcesLoading = true;
   state.sourcesError = '';
   $('#rows').innerHTML = '<tr><td colspan="8" class="empty">正在加载采集源...</td></tr>';
@@ -827,7 +873,7 @@ async function loadSources() {
     if (serial !== state.sourcesRequestSerial) return;
     state.sources = sourceItems(response).map(source => ({ ...source, platform: Status.normalizePlatform(source.platform) }));
   } catch (error) {
-    if (serial !== state.sourcesRequestSerial) return;
+    if (error.name === 'AbortError' || serial !== state.sourcesRequestSerial) return;
     state.sources = [];
     state.sourcesError = error.message;
   } finally {
@@ -836,11 +882,27 @@ async function loadSources() {
     renderRows();
   }
 }
-async function load() { await loadSources(); openDeepLink(); await recoverSyncPanel(); }
+async function load() { const epoch = state.scope?.epoch(); await loadSources(); if (epoch !== state.scope?.epoch() || !state.scope?.available()) return; openDeepLink(); await recoverSyncPanel(); }
+async function deleteSource(source, button) {
+  if (!source || state.deletingSourceId) return;
+  const name = pick(source, 'display_name', 'displayName') || platformLabel(source.platform);
+  if (!window.confirm(`是否删除 ${name} 采集源？`)) return;
+  state.deletingSourceId = String(source.id);
+  const originalText = button?.textContent;
+  if (button) { button.disabled = true; button.textContent = '删除中…'; }
+  try {
+    await api(`/sources/${encodeURIComponent(source.id)}`, { method: 'DELETE' });
+    if (state.activeSourceId === String(source.id)) closeDrawer();
+    await loadSources();
+    toast('采集源已删除，历史内容已保留');
+  } catch (error) { toast(`删除失败：${error.message}`); }
+  finally { state.deletingSourceId = ''; if (button?.isConnected) { button.disabled = false; button.textContent = originalText; } }
+}
 function openDeepLink() { const params = new URLSearchParams(window.location.search); const status = params.get('status'); if (status && $('#statusFilter')) { $('#statusFilter').value = [...$('#statusFilter').options].some(option => option.value === status) ? status : ''; renderRows(); } const sourceId = params.get('sourceId'); if (sourceId && !state.sourcesLoading && !state.activeSourceId && state.sources.some(source => String(source.id) === sourceId)) openDrawer(sourceId); }
 function updateAddButton() { const selected = state.scope?.selected?.() || {}; const platform = Status.normalizePlatform($('[data-po-platform-select]')?.value || $('#platformFilter')?.value || selected.platform || 'bigplayer_h5'); const tapTapReady = platform === 'taptap'; let enabled = tapTapReady || Boolean(selected.communityId && selected.communityStatus === 'enabled'); if (platform === 'facebook') enabled = enabled && facebookCanManage(selected) && facebookScopeAllowed({ community_id: selected.communityId, region_code: selected.regionCode }); $('#addBtn').disabled = !enabled; $('#addBtn').textContent = tapTapReady ? '+ 配置 TapTap' : '+ 新增采集源'; $('#addBtn').title = enabled ? tapTapReady ? '配置 TapTap 关键词和监控账号' : '在当前社区新增采集源' : platform === 'facebook' ? '仅具备管理权限时可在已启用的境外 Last Night 社区新增' : selected.communityStatus === 'disabled' ? `社区「${selected.communityLabel}」已停用` : '请先选择已启用社区'; }
 function syncPlatformFilter() { const current = $('#platformFilter').value; const region = state.scope?.selected?.().regionCode || 'domestic'; const items = PublicOpinionScope.platformsForRegion(region); $('#platformFilter').innerHTML = '<option value="">全部平台</option>' + items.map(item => `<option value="${item.value}">${item.label}</option>`).join(''); $('#platformFilter').value = items.some(item => item.value === current) ? current : ''; }
-function bind() { $('#refreshBtn').onclick = load; $('#addBtn').onclick = openCreateDrawer; $('#addBtn').disabled = true; $('#platformFilter').onchange = renderRows; $('#statusFilter').onchange = () => { renderRows(); updateDeepLink('', $('#statusFilter').value); }; $('#rows').onclick = event => { const manage = event.target.closest('[data-manage-source]'); if (manage) return openDrawer(manage.dataset.manageSource); const sync = event.target.closest('[data-sync-source]'); if (sync) return startSync(state.sources.find(source => String(source.id) === String(sync.dataset.syncSource)), sync); }; $('#rows').onchange = event => { const checkbox = event.target.closest('[data-toggle-source]'); if (checkbox) toggleSource(state.sources.find(source => String(source.id) === String(checkbox.dataset.toggleSource)), checkbox); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('pagehide', () => { stopValidationWork(); state.syncRecoverySerial += 1; syncController.stop(false); }); }
-bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: async () => { closeDrawer(); syncPlatformFilter(); updateAddButton(); await loadSources(); openDeepLink(); } }); syncPlatformFilter(); updateAddButton(); await load(); })();
-    if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, fetchSourceDetail, platformPanel, commonFields, frequencySelect, normalizedFrequency, taptapDefaultUrl, state });
+function bind() { $('#refreshBtn').onclick = load; $('#addBtn').onclick = openCreateDrawer; $('#addBtn').disabled = true; $('#platformFilter').onchange = renderRows; $('#statusFilter').onchange = () => { renderRows(); updateDeepLink('', $('#statusFilter').value); }; $('#rows').onclick = event => { const remove = event.target.closest('[data-delete-source]'); if (remove) return deleteSource(state.sources.find(source => String(source.id) === String(remove.dataset.deleteSource)), remove); const manage = event.target.closest('[data-manage-source]'); if (manage) return openDrawer(manage.dataset.manageSource); const sync = event.target.closest('[data-sync-source]'); if (sync) return startSync(state.sources.find(source => String(source.id) === String(sync.dataset.syncSource)), sync); }; $('#rows').onchange = event => { const checkbox = event.target.closest('[data-toggle-source]'); if (checkbox) toggleSource(state.sources.find(source => String(source.id) === String(checkbox.dataset.toggleSource)), checkbox); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('pagehide', () => { stopValidationWork(); state.syncRecoverySerial += 1; syncController.stop(false); }); }
+async function scopeChanged() { closeDrawer(); collapseSyncPanel(); state.sources = []; syncPlatformFilter(); updateAddButton(); await load(); }
+bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }); syncPlatformFilter(); updateAddButton(); await load(); })();
+    if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, deleteSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, fetchSourceDetail, platformPanel, commonFields, frequencySelect, normalizedFrequency, taptapDefaultUrl, sourceSiteUrls, siteUrlRowsMarkup, validateSiteUrlRows, validationPanel, state });
 if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { parseFacebookPageUrl, facebookCanManage, facebookReady, facebookUnavailableReason, facebookErrorMessage, facebookCapabilityDetail, facebookCapabilityAdvice, facebookStatusFields, facebookInitialSync, facebookForm, facebookFormPayload, facebookFormChanged, renderFacebookDetail, submitFacebookSource, checkFacebookSource, startSync, canSchedule, syncUnavailableReason });

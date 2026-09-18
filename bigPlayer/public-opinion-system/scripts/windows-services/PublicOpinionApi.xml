@@ -1,0 +1,22 @@
+<service>
+  <id>PublicOpinionApi</id>
+  <name>PublicOpinionApi</name>
+  <description>Public Opinion API service</description>
+  <executable>%NODE_EXE%</executable>
+  <arguments>"%APP_ROOT%\server\src\app.js"</arguments>
+  <workingdirectory>%APP_ROOT%\server</workingdirectory>
+  <env name="PUBLIC_OPINION_SERVICE_MODE" value="1" />
+  <env name="PUBLIC_OPINION_ENV_FILE" value="%PUBLIC_OPINION_ENV_FILE%" />
+  <env name="Q1_DAILY_OUT_ROOT" value="%Q1_DAILY_OUT_ROOT%" />
+  <env name="NODE_PATH" value="" />
+  <env name="NODE_OPTIONS" value="" />
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <serviceaccount><domain>NT AUTHORITY</domain><user>LocalService</user></serviceaccount>
+  <stoptimeout>60 sec</stoptimeout>
+  <logpath>%SERVICE_LOG_ROOT%\PublicOpinionApi</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>14</keepFiles></log>
+</service>

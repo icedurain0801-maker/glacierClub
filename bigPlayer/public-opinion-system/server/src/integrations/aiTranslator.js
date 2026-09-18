@@ -1,8 +1,25 @@
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const clean = (value, max) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
 
+function textFromParts(value) {
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return null;
+  return value.map(part => {
+    if (typeof part === 'string') return part;
+    return part && ['text', 'output_text'].includes(part.type) && typeof part.text === 'string' ? part.text : '';
+  }).join('') || null;
+}
+function responseText(response, api) {
+  const choice = response?.choices?.[0];
+  if (choice?.message?.refusal) return null;
+  const candidates = api === 'anthropic-messages' ? [response?.content] : [choice?.message?.content, choice?.text, response?.output_text, ...(Array.isArray(response?.output) ? response.output.filter(item => item?.type === 'message').map(item => item.content) : [])];
+  for (const value of candidates) { const text = textFromParts(value); if (text) return text; }
+  return null;
+}
+
 class AiTranslator {
-  constructor(env = process.env) {
+  constructor(env = process.env, { reserveCall } = {}) {
+    this.reserveCall = reserveCall;
     this.enabled = env.AI_TRANSLATION_ENABLED === 'true' || env.AI_TRANSLATION_ENABLED === '1';
     this.url = env.AI_TRANSLATION_URL || env.AI_ANALYSIS_URL || '';
     this.token = env.AI_TRANSLATION_TOKEN || env.AI_ANALYSIS_TOKEN || '';
@@ -27,7 +44,11 @@ class AiTranslator {
     }
   }
 
-  tickCallGuard() {
+  async tickCallGuard() {
+    if (this.reserveCall) {
+      if (await this.reserveCall(this.dailyCallLimit)) return;
+      throw Object.assign(new Error('AI_TRANSLATION_DAILY_LIMIT_REACHED'), { code: 'AI_TRANSLATION_DAILY_LIMIT_REACHED', noImmediateRetry: true });
+    }
     const day = new Date().toISOString().slice(0, 10);
     if (this.callState.day !== day) this.callState = { day, calls: 0 };
     if (this.callState.calls >= this.dailyCallLimit) {
@@ -52,7 +73,7 @@ class AiTranslator {
     let lastError;
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       try {
-        this.tickCallGuard();
+        await this.tickCallGuard();
         const anthropic = this.api === 'anthropic-messages';
         const endpoint = anthropic ? (/\/messages\/?$/.test(this.url) ? this.url : `${this.url.replace(/\/$/, '')}/messages`) : this.url;
         const headers = anthropic
@@ -80,19 +101,20 @@ class AiTranslator {
   }
 
   parseResponse(response, messages) {
-    const text = this.api === 'anthropic-messages'
-      ? response?.content?.find(item => item?.type === 'text')?.text
-      : response?.choices?.[0]?.message?.content;
+    const text = responseText(response, this.api);
     if (!text || typeof text !== 'string') throw Object.assign(new Error('AI_TRANSLATION_INVALID_RESPONSE'), { code: 'AI_TRANSLATION_INVALID_RESPONSE' });
     let parsed;
-    try { parsed = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()); }
+    try { parsed = JSON.parse(text.trim().replace(/^\uFEFF/, '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()); }
     catch { throw Object.assign(new Error('AI_TRANSLATION_INVALID_RESPONSE'), { code: 'AI_TRANSLATION_INVALID_RESPONSE' }); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw Object.assign(new Error('AI_TRANSLATION_INVALID_RESPONSE'), { code: 'AI_TRANSLATION_INVALID_RESPONSE' });
     const title = clean(parsed?.title, this.maxChars);
     const body = clean(parsed?.body, this.maxChars);
     if (!title && !body) throw Object.assign(new Error('AI_TRANSLATION_EMPTY_RESPONSE'), { code: 'AI_TRANSLATION_EMPTY_RESPONSE' });
     const usage = response?.usage || {};
-    const inputTokens = Number.isFinite(usage.prompt_tokens) ? usage.prompt_tokens : Math.ceil(JSON.stringify(messages).length / 4);
-    const outputTokens = Number.isFinite(usage.completion_tokens) ? usage.completion_tokens : Math.ceil(text.length / 4);
+    const input = usage.prompt_tokens ?? usage.input_tokens;
+    const output = usage.completion_tokens ?? usage.output_tokens;
+    const inputTokens = Number.isFinite(input) ? Math.max(0, Math.floor(input)) : Math.ceil(JSON.stringify(messages).length / 4);
+    const outputTokens = Number.isFinite(output) ? Math.max(0, Math.floor(output)) : Math.ceil(text.length / 4);
     return { translatedTitle: title || null, translatedBody: body || null, sourceLanguage: clean(parsed?.sourceLanguage, 40) || null, modelName: this.model, usage: { inputTokens, outputTokens, totalTokens: Number.isFinite(usage.total_tokens) ? usage.total_tokens : inputTokens + outputTokens } };
   }
 

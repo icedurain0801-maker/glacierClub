@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>监控关键词设置- 舆情管理后台</title>
+<link rel="icon" type="image/svg+xml" href="opinion-favicon.svg">
+<link rel="stylesheet" href="../../shared/sidebar.css?v=200">
+<link rel="stylesheet" href="public-opinion.css?v=199">
+<style>
+:root{--blue:var(--po-primary);--red:var(--po-danger);--orange:var(--po-warning);--green:var(--po-success);--ink:var(--po-ink);--muted:var(--po-muted);--line:var(--po-line);--bg:var(--po-bg)}
+*{box-sizing:border-box}
+body{margin:0;display:flex;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif;font-size:13px}
+button,input,select,textarea{font:inherit}
+.admin-main{flex:1;min-width:0;min-height:100vh;padding:22px 26px 40px;overflow:auto}
+.topbar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px}
+.eyebrow{color:var(--blue);font-size:12px;font-weight:600;letter-spacing:.08em}
+.topbar h1{font-size:24px;margin:5px 0 6px;color:#14213d}
+.topbar p{margin:0;color:var(--muted);max-width:640px;line-height:1.6}
+.top-actions{display:flex;align-items:center;gap:10px}
+.btn{height:34px;border:1px solid #d9e1ec;border-radius:6px;background:#fff;color:#4a5568;padding:0 14px;cursor:pointer}
+.btn:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px #1890ff22}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:#40a9ff}
+.btn:hover{border-color:var(--blue);color:var(--blue)}
+.btn.danger{color:var(--red);border-color:#ffd6d6}
+.btn.danger:hover{background:#fff1f0}
+.btn.ghost{background:transparent;border:0;color:var(--blue)}
+.btn:disabled{cursor:not-allowed;opacity:.55;box-shadow:none}
+.btn:disabled:hover{border-color:#d9e1ec;color:#4a5568}
+.btn.primary:disabled:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+.select:disabled{cursor:not-allowed;opacity:.65}
+.select{height:34px;border:1px solid #d9e1ec;border-radius:6px;padding:0 10px;color:#4a5568;background:#fff;min-width:150px}
+.page-card{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 3px #172b4d08;margin-bottom:16px}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid #f0f2f5}
+.card-head h2{font-size:15px;margin:0;color:#263958}
+.card-head small{color:var(--muted)}
+.mode-badge{display:none;padding:2px 8px;border:1px solid #ffd591;border-radius:4px;background:#fff7e6;color:#ad6800;font-size:11px;font-weight:600}
+.mode-badge.show{display:inline-flex}
+
+/* ===== 规则列表 ===== */
+.rule-list{padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.rule-item{border:1px solid var(--line);border-radius:9px;padding:13px 14px;background:#fbfdff;cursor:pointer;transition:.14s;position:relative}
+.rule-item:hover{border-color:#bcd8f5;box-shadow:0 4px 14px #1890ff14}
+.rule-item .ri-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.rule-item .ri-name{font-weight:600;font-size:14px;color:#263958}
+.rule-item .ri-del{border:0;background:transparent;color:#c3ccd8;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px}
+.rule-item .ri-del:hover{color:var(--red)}
+.ri-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:11px;font-weight:600}
+.tag.agg{background:#e6f4ff;color:#1677cc}.tag.imm{background:#fff2e8;color:#d4620a}
+.tag.urgent{background:#fff1f0;color:var(--red)}.tag.attention{background:#fff7e6;color:var(--orange)}
+.tag.plat{background:#eef1f5;color:#4a5568}.tag.plat.default{background:#f0f9eb;color:#5a9a2e}
+.ri-kws{display:flex;gap:5px;flex-wrap:wrap}
+.ri-kws .c{background:#eef4fb;color:#5a7699;border-radius:4px;padding:2px 7px;font-size:11px}
+.ri-kws .more{color:#aab4c2;font-size:11px;align-self:center}
+.rule-add{border:1.5px dashed #cdd8e6;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--blue);cursor:pointer;font-weight:600;min-height:96px;background:#fff}
+.rule-add:hover{background:#f6fbff;border-color:var(--blue)}
+.empty{grid-column:1/-1;text-align:center;padding:40px;color:#9aa8b8}
+
+/* ===== 编辑抽屉 ===== */
+.wizard-mask{position:fixed;inset:0;background:#0b1a3355;opacity:0;pointer-events:none;transition:.2s;z-index:20}
+.wizard-mask.show{opacity:1;pointer-events:auto}
+.wizard{position:fixed;inset:0;margin:auto;width:940px;max-width:96vw;height:640px;max-height:94vh;background:transparent;z-index:21;transform:scale(.97);opacity:0;pointer-events:none;transition:.22s}
+.wizard.show{transform:none;opacity:1;pointer-events:auto}
+.wizard-inner{display:grid;grid-template-columns:1fr 330px;gap:16px;height:100%}
+.wcard{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px #0b1a3330;display:flex;flex-direction:column;overflow:hidden}
+.wtop{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f2f5}
+.wtop h3{margin:0;font-size:16px}
+.wclose{border:0;background:transparent;font-size:20px;color:#98a3b3;cursor:pointer;line-height:1}
+.steps{display:flex;padding:14px 20px;gap:6px;border-bottom:1px solid #f0f2f5}
+.step{flex:1;display:flex;align-items:center;gap:8px;font-size:12px;color:#aeb8c4;min-width:0}
+.step .num{width:22px;height:22px;border-radius:50%;border:1.5px solid #d9e1ec;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.step .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step.done{color:var(--green)}.step.done .num{background:var(--green);border-color:var(--green);color:#fff}
+.step.on{color:var(--blue);font-weight:600}.step.on .num{border-color:var(--blue);color:var(--blue);background:#f0f7ff}
+.step .bar{flex:1;height:1.5px;background:#eceff3;min-width:8px}
+.wbody{padding:22px 24px;overflow:auto;flex:1}
+.pane{display:none}.pane.on{display:block;animation:fade .22s}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.qtitle{font-size:17px;font-weight:600;margin:0 0 4px}
+.qdesc{color:var(--muted);margin:0 0 18px;font-size:12px;line-height:1.6}
+.kwbox{border:1.5px dashed #d9e1ec;border-radius:10px;padding:11px;min-height:58px;display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start}
+.kwbox .chip{background:#eaf4ff;color:var(--blue);border-radius:5px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+.kwbox .chip b{cursor:pointer;color:var(--red)}
+.kwbox .ph{color:#bbb;font-size:12px}
+.addkw{display:flex;gap:8px;margin-top:12px}
+.addkw input{flex:1;height:38px;border:1px solid #d9e1ec;border-radius:8px;padding:0 12px}
+.addkw input:focus{outline:none;border-color:var(--blue)}
+.fld{margin-top:16px}
+.fld>label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.fld input[type=text],.fld input[type=number],.fld select{width:100%;height:38px;border:1px solid #d9e1ec;border-radius:8px;padding:0 12px}
+.fld input:focus,.fld select:focus{outline:none;border-color:var(--blue)}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.choice{border:2px solid #e6ebf1;border-radius:12px;padding:16px;cursor:pointer;transition:.15s}
+.choice:hover{border-color:#bcd8f5}
+.choice.on{border-color:var(--blue);background:#f6fbff;box-shadow:0 4px 14px #1890ff18}
+.choice .ico{font-size:24px}.choice .ct{font-size:15px;font-weight:700;margin:8px 0 4px}
+.choice .cd{font-size:12px;color:var(--muted);line-height:1.6}
+.choice .eg{margin-top:10px;font-size:11px;color:#5a9a2e;background:#f2fbea;border-radius:6px;padding:5px 8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.note{font-size:12px;color:#4a5568;background:#f7fafd;border:1px solid #eaf0f6;border-radius:8px;padding:10px 12px;margin-top:14px;line-height:1.7}
+.note b{color:var(--ink)}
+.platgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.platgrid label{cursor:pointer}.platgrid input{display:none}
+.platgrid span{display:inline-block;padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:12px;color:#4a5568}
+.platgrid input:checked+span{background:#f0f7ff;color:var(--blue);border-color:var(--blue);font-weight:600}
+.wfoot{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-top:1px solid #f0f2f5}
+.wfoot .r{display:flex;gap:10px}
+
+/* 告警预览面板 */
+.pv{overflow:hidden}
+.pv .ph2{padding:14px 18px;border-bottom:1px solid #f0f2f5;font-weight:600;font-size:13px;display:flex;align-items:center;gap:7px}
+.pv .live{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px #52c41a33}
+.pvbody{padding:18px;overflow:auto}
+.pvcard{border:1px solid #eaeff5;border-radius:12px;overflow:hidden}
+.pvcard .bar{background:linear-gradient(90deg,#1890ff,#40a9ff);color:#fff;padding:10px 14px;font-size:12px;font-weight:600}
+.pvcard .bd{padding:14px}
+.pvline{font-size:12px;color:#4a5568;line-height:2}
+.pvline b{color:var(--ink)}
+.pvpill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600}
+.pvpill.u{background:#fff1f0;color:var(--red)}.pvpill.a{background:#fff7e6;color:var(--orange)}
+.pvkw{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.pvkw .c{background:#eef4fb;color:#5a7699;border-radius:4px;padding:2px 7px;font-size:11px}
+.pvsum{margin-top:14px;background:#f7fafd;border:1px dashed #d7e3f0;border-radius:10px;padding:12px;font-size:12px;color:#3d5573;line-height:1.7}
+.pvsum .em{color:var(--blue);font-weight:700}
+
+.toast{position:fixed;right:28px;bottom:26px;background:#172b4d;color:#fff;padding:10px 15px;border-radius:6px;box-shadow:0 5px 18px #172b4d33;display:none;z-index:40}
+.toast.show{display:block}
+.command-bar{background:linear-gradient(120deg,#152a4d,#1c3a66 55%,#215085);color:#fff;padding:24px 28px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin:-22px -26px 18px}.command-bar .eyebrow{color:#6fb4ff}.command-bar h1{font-size:23px;margin:5px 0 6px;color:#fff}.command-bar p{margin:0;color:rgba(255,255,255,.72);max-width:640px;line-height:1.6}.command-bar .top-actions{align-items:center;flex-wrap:wrap;justify-content:flex-end}.command-bar select{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.26);color:#fff}.command-bar select option{color:#1a2b45}.command-bar .btn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#fff}.command-bar .btn:hover:not(:disabled){background:rgba(255,255,255,.24);border-color:rgba(255,255,255,.5);color:#fff}.command-bar .btn.primary{background:#3d97ff;border-color:#3d97ff;color:#fff}.command-bar .btn.primary:hover:not(:disabled){background:#57a5ff;border-color:#57a5ff;color:#fff}@media(max-width:800px){.admin-main{padding:18px 14px}.command-bar{margin:-18px -14px 18px;padding:20px 18px}.command-bar .top-actions{justify-content:flex-start;width:100%}}
+/* Progressive dock layout */
+.rule-list{padding:0;display:block}
+.rule-item{border:0;border-bottom:1px solid var(--po-line);border-radius:0;padding:15px 18px;background:#fff;display:grid;grid-template-columns:minmax(190px,1.1fr) minmax(190px,.9fr) minmax(220px,1.4fr) 32px;align-items:center;gap:16px;box-shadow:none}
+.rule-item:last-child{border-bottom:0}.rule-item:hover{background:#f8fbff;box-shadow:none}.rule-item .ri-head{margin:0;min-width:0}.rule-item .ri-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ri-head .ri-sub{display:block;margin-top:3px;color:var(--po-muted);font-size:11px;font-weight:400}.ri-tags,.ri-kws{margin:0}.ri-del{width:30px;height:30px;border-radius:4px}.empty{min-height:240px;display:flex;align-items:center;justify-content:center}
+.wizard-mask{background:rgba(15,28,44,.42);backdrop-filter:blur(1px)}
+.wizard{inset:0 0 0 auto;margin:0;width:min(760px,calc(100vw - 240px));max-width:none;height:100vh;max-height:none;background:#fff;transform:translateX(100%);opacity:1;box-shadow:-8px 0 24px rgba(15,28,44,.14);transition:transform .22s ease}
+.wizard.show{transform:none}.wizard-inner{grid-template-columns:minmax(0,1fr) 260px;gap:0}.wcard{border:0;border-radius:0;box-shadow:none}.wcard:first-child{border-right:1px solid var(--po-line)}
+.wtop{min-height:64px}.steps{background:#fbfcfd}.step .lb{letter-spacing:0}.wbody{padding:22px 20px}.choice{border-radius:6px}.choice.on{box-shadow:inset 3px 0 0 var(--po-primary)}.choice .ico{font-size:16px}.pv{background:#f8fafc}.pvcard,.pvsum{border-radius:6px}.pvcard .bar{background:#344054}.toast{display:block;opacity:0;transform:translateY(8px);pointer-events:none;transition:.16s}.toast.show{opacity:1;transform:none}.toast.error{background:var(--po-danger)}.toast.success{background:var(--po-success)}
+@media(max-width:980px){.wizard{width:min(680px,100vw)}.wizard-inner{grid-template-columns:minmax(0,1fr) 230px}.rule-item{grid-template-columns:minmax(160px,1fr) minmax(150px,1fr) minmax(180px,1.2fr) 32px}}
+@media(max-width:720px){.card-head{flex-wrap:wrap;gap:8px}.card-head #newRuleBtn{margin-left:0!important;width:100%;order:3}.rule-item{grid-template-columns:minmax(0,1fr) 32px;gap:10px 8px;padding:14px}.ri-head{grid-column:1}.ri-tags,.ri-kws{grid-column:1/-1}.ri-del{grid-column:2;grid-row:1}.wizard{width:100vw}.wizard-inner{display:block}.wcard:first-child{height:100%;border-right:0}.pv{display:none}.steps{padding:12px 14px}.step .lb{display:none}.wtop,.wfoot{padding-left:14px;padding-right:14px}.wbody{padding:18px 14px}.choices,.two{grid-template-columns:1fr}.addkw input{min-width:0}}
+</style>
+
+</head>
+<body>
+<nav id="sidebar" class="sidebar"></nav>
+<main class="admin-main">
+  <header class="command-bar">
+    <div>
+      <div class="eyebrow">PUBLIC OPINION CENTER / 配置</div>
+      <h1>监控关键词设置</h1>
+      <p>设置当前社区各平台使用的监控关键词，用于识别重点内容和触发风险告警。</p>
+    </div>
+    <div class="top-actions" data-po-scope>
+      <button class="btn" id="refreshBtn">重载</button>
+      <button class="btn primary" id="saveAll">保存全部规则</button>
+    </div>
+  </header>
+  <div data-po-platform-scope hidden></div>
+
+  <section class="page-card">
+    <div class="card-head">
+      <h2>规则列表</h2>
+      <small id="ruleCount">共 0 条</small>
+      <span class="mode-badge" id="modeBadge">演示数据 · 本地保存</span>
+      <button class="btn primary" id="newRuleBtn" style="margin-left:auto">新建规则</button>
+    </div>
+    <div class="rule-list" id="ruleList"></div>
+  </section>
+</main>
+
+<!-- 编辑抽屉 -->
+<div class="wizard-mask" id="wizMask"></div>
+<aside class="wizard" id="wizard" role="dialog" aria-modal="true" aria-labelledby="wizTitle">
+  <div class="wizard-inner">
+    <div class="wcard">
+      <div class="wtop"><h3 id="wizTitle">新建规则</h3><button class="wclose" id="wizClose" title="关闭" aria-label="关闭">×</button></div>
+      <div class="steps">
+        <div class="step" id="st0"><span class="num">1</span><span class="lb">监控哪些词</span></div><span class="bar"></span>
+        <div class="step" id="st1"><span class="num">2</span><span class="lb">怎么判定命中</span></div><span class="bar"></span>
+        <div class="step" id="st2"><span class="num">3</span><span class="lb">管哪些平台</span></div><span class="bar"></span>
+        <div class="step" id="st3"><span class="num">4</span><span class="lb">确认</span></div>
+      </div>
+      <div class="wbody">
+        <!-- step 1 -->
+        <div class="pane" id="pane0">
+          <div class="qtitle">要监控哪些关键词？</div>
+          <div class="qdesc">各平台帖子里出现这些词时，系统会盯上。支持逗号 / 换行批量粘贴。</div>
+          <div class="kwbox" id="kwBox"></div>
+          <div class="addkw"><input id="kwInput" placeholder="输入关键词后回车，或粘贴一批用逗号 / 换行隔开"><button class="btn" id="kwAdd">添加</button></div>
+          <div class="fld"><label>给这组词起个名</label><input type="text" id="fGroupName" placeholder="例如：卡顿掉帧"></div>
+        </div>
+        <!-- step 2 -->
+        <div class="pane" id="pane1">
+          <div class="qtitle">这些词，怎么算“命中要报警”？</div>
+          <div class="qdesc">选一种口径，不确定就看每张卡的例子。</div>
+          <div class="choices">
+            <div class="choice" id="choiceImm" data-trig="immediate">
+              <div class="ico">!</div><div class="ct">出现即报</div>
+              <div class="cd">只要 1 条帖子命中，立即推送钉钉紧急告警。</div>
+              <div class="eg">适合“一票否决”的词：起诉、崩溃</div>
+            </div>
+            <div class="choice" id="choiceAgg" data-trig="aggregate">
+              <div class="ico">Σ</div><div class="ct">聚合才报</div>
+              <div class="cd">一段时间内命中足够多条，才合并推一次，避免刷屏。</div>
+              <div class="eg">适合“扎堆才危险”的词：卡顿、掉帧</div>
+            </div>
+          </div>
+          <div id="aggExtra">
+            <div class="two">
+              <div class="fld"><label>统计时间窗</label>
+                <select id="fWindow">
+                  <option value="900">15 分钟</option>
+                  <option value="1800">30 分钟</option>
+                  <option value="3600">1 小时</option>
+                  <option value="7200">2 小时</option>
+                </select></div>
+              <div class="fld"><label>收到几条报警</label><input type="number" min="1" id="fThreshold" value="5"></div>
+            </div>
+            <div class="note" id="aggNote"></div>
+          </div>
+          <div class="fld" id="sevWrap"><label>告警严重度</label>
+            <select id="fSeverity"><option value="attention">关注（橙）</option><option value="urgent">紧急（红）</option></select>
+          </div>
+        </div>
+        <!-- step 3 -->
+        <div class="pane" id="pane2">
+          <div class="qtitle">这条规则管哪些平台？</div>
+          <div class="qdesc">规则按当前社区和平台生效；切换平台后配置对应平台的专属规则。</div>
+          <div class="platgrid" id="platGrid"></div>
+          <div class="note" id="platNote"></div>
+        </div>
+        <!-- step 4 -->
+        <div class="pane" id="pane3">
+          <div class="qtitle">确认并保存规则</div>
+          <div class="qdesc">点击“保存规则”后立即写入；正式模式保存到数据库，演示模式保存到当前浏览器。</div>
+          <div class="note" id="confirmNote" style="font-size:13px"></div>
+        </div>
+      </div>
+      <div class="wfoot">
+        <button class="btn" id="wizPrev">上一步</button>
+        <div class="r">
+          <button class="btn" id="wizCancel">取消</button>
+          <button class="btn primary" id="wizNext">下一步→</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wcard pv">
+      <div class="ph2"><span class="live"></span>实时告警预览</div>
+      <div class="pvbody" id="pvBody"></div>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="../../shared/sidebar-data.js?v=200"></script><script src="../../shared/sidebar.js?v=200"></script>
+<script>initSidebar({root:'../..',currentHref:'admin/PublicOpinion/keywords.html'});</script>
+<script src="assets/scope.js?v=147"></script><script src="assets/keywords.js?v=145"></script>
+</body>
+</html>

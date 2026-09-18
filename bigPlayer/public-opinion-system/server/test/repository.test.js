@@ -26,13 +26,89 @@ function stubRepo(handler) {
   return repo;
 }
 
+test('analysis claim preserves bounded recency, restart reclaim and owner fencing', async () => {
+  const repo = stubRepo(() => []);
+  await repo.claimAnalysisJobs({ profile: 'light', version: 'v1', leaseOwner: 'worker-a', limit: 10 });
+  const claim = repo.calls[0];
+  assert.match(claim.sql, /CASE WHEN j\.created_at >= DATE_SUB/);
+  assert.match(claim.sql, /j\.status='running' AND j\.lease_until<NOW\(\)/);
+  assert.match(claim.sql, /j\.next_retry_at<=NOW\(\)/);
+  assert.equal(claim.params.at(-1), 10);
+  assert.equal(repo.calls[1].params[0], claim.params[0]);
+  await repo.finishAnalysisJob('job', { leaseOwner: 'old-owner', status: 'retryable', retryAt: new Date() });
+  assert.match(repo.calls.at(-1).sql, /WHERE id=\? AND lease_owner=\?/);
+  assert.equal(repo.calls.at(-1).params.at(-1), 'old-owner');
+});
+
+test('analysis progress separates claimable jobs, active leases and orphan alarms', async () => {
+  const repo = stubRepo(sql => sql.includes('GROUP BY j.status') ? [
+    { status: 'pending', count: 1, oldest_created_at: '2026-09-18 12:00:00', oldest_wait_seconds: 60 },
+    { status: 'running', count: 1, running_active: 1 },
+    { status: 'completed', count: 1, completed_last_5m: 1 }
+  ] : [{ count: 1, oldest_created_at: '2026-08-28 12:00:00' }]);
+  const result = await repo.countAnalysisJobs({ profile: 'light', version: 'v1', communityId: 'community' });
+  assert.equal(result.queueDepth, 1); assert.equal(result.runningActive, 1);
+  assert.equal(result.oldestWaitingSeconds, 60); assert.equal(result.orphanAnalysisJobs, 1);
+  assert.equal(result.throughputPerMinute, 0.2);
+  assert.match(repo.calls[0].sql, /s\.enabled=1/);
+  assert.match(repo.calls[0].sql, /c\.is_deleted=0/);
+  assert.match(repo.calls[0].sql, /j\.lease_owner NOT LIKE/);
+  assert.match(repo.calls[1].sql, /c\.id IS NULL/);
+});
+
+test('analysis claim fails closed after consumer gate connection ownership is lost', async () => {
+  const repo = stubRepo(() => []);
+  repo.advisoryLocks.set('po-analysis-consumer', { async query() { return [[{ owned: 0 }]]; } });
+  await assert.rejects(repo.claimAnalysisJobs({ profile: 'light', version: 'v1' }), { code: 'ANALYSIS_SCOPE_LEASE_LOST' });
+  assert.equal(repo.calls.length, 0);
+});
+
 test('renewSyncRunLease only renews an owned running run', async () => {
   const repo = stubRepo(() => ({ affectedRows: 1 }));
-  const renewed = await repo.renewSyncRunLease('run-1', 'owner-1', 45);
+  const renewed = await repo.renewSyncRunLease('run-1', 'owner-1', 45, 3);
   assert.equal(renewed, true);
   assert.match(repo.calls[0].sql, /status='running'/);
   assert.match(repo.calls[0].sql, /lease_owner=\?/);
-  assert.deepEqual(repo.calls[0].params, [45, 'run-1', 'owner-1']);
+  assert.match(repo.calls[0].sql, /UTC_TIMESTAMP\(3\)/);
+  assert.doesNotMatch(repo.calls[0].sql, /NOW\(\)/);
+  assert.deepEqual(repo.calls[0].params, [45, 'run-1', 'owner-1', 3]);
+});
+
+test('claimSyncRun uses one UTC database clock and only reclaims queued or expired running work', async () => {
+  const repo = stubRepo(sql => {
+    if (sql.startsWith('UPDATE po_sync_runs')) return { affectedRows: 1 };
+    if (sql.startsWith('SELECT * FROM po_sync_runs')) return [{ id: 'run-1', trigger_type: 'scheduled', status: 'running' }];
+    return [];
+  });
+
+  const run = await repo.claimSyncRun({ runId: 'run-1', leaseOwner: 'worker-1', leaseSeconds: 90 });
+  assert.equal(run.id, 'run-1');
+  const claim = repo.calls[0];
+  assert.match(claim.sql, /started_at=COALESCE\(started_at,UTC_TIMESTAMP\(3\)\)/);
+  assert.match(claim.sql, /lease_until=DATE_ADD\(UTC_TIMESTAMP\(3\), INTERVAL \? SECOND\)/);
+  assert.match(claim.sql, /updated_at=UTC_TIMESTAMP\(3\)/);
+  assert.match(claim.sql, /attempts=attempts\+1/);
+  assert.match(claim.sql, /next_retry_at IS NULL OR next_retry_at<=UTC_TIMESTAMP\(3\)/);
+  assert.match(claim.sql, /status='queued' OR \(status='running'/);
+  assert.doesNotMatch(claim.sql, /status='failed'|status='partial'|NOW\(\)/);
+});
+
+test('listRunnableSyncRuns compares expired running leases with the UTC database clock', async () => {
+  const repo = stubRepo(() => []);
+  await repo.listRunnableSyncRuns({ limit: 50 });
+  assert.match(repo.calls[0].sql, /r\.lease_until<UTC_TIMESTAMP\(3\)/);
+  assert.match(repo.calls[0].sql, /r\.status='queued'.*r\.status='running'/);
+  assert.match(repo.calls[0].sql, /r\.next_retry_at IS NULL OR r\.next_retry_at<=UTC_TIMESTAMP\(3\)/);
+  assert.doesNotMatch(repo.calls[0].sql, /status='failed'|status='partial'|NOW\(\)/);
+});
+
+test('listWorkerAlerts suppresses legacy restart identities after stable identities exist', async () => {
+  const repo = stubRepo(() => []);
+  await repo.listWorkerAlerts({ heartbeatTimeoutSeconds: 90, sourceTimeoutSeconds: 480 });
+
+  assert.match(repo.calls[0].sql, /worker_id NOT REGEXP/);
+  assert.match(repo.calls[0].sql, /stable\.worker_id LIKE 'worker:%' AND stable\.last_seen_at>=h\.last_seen_at/);
+  assert.deepEqual(repo.calls[0].params, [90, 480, 90, 480]);
 });
 
 test('listGames and listCommunities support external directory identifiers', async () => {
@@ -96,7 +172,16 @@ test('listDueSources 用 active_window 过滤到期源', async () => {
   assert.deepEqual(due.map(s => s.id), ['s1']);
   // 到期判定用 frequency_seconds 且要求 game 启用
   assert.match(repo.calls[0].sql, /INTERVAL s\.frequency_seconds SECOND/);
+  assert.match(repo.calls[0].sql, /UTC_TIMESTAMP\(3\) - INTERVAL s\.frequency_seconds SECOND/);
+  assert.doesNotMatch(repo.calls[0].sql, /NOW\(\)/);
   assert.match(repo.calls[0].sql, /g\.enabled=1/);
+});
+
+test('markSourceRun persists the scheduler success anchor with the UTC database clock', async () => {
+  const repo = stubRepo(() => ({ affectedRows: 1 }));
+  await repo.markSourceRun('source-1', { status: 'success' });
+  assert.match(repo.calls[0].sql, /last_success_at=UTC_TIMESTAMP\(3\)/);
+  assert.doesNotMatch(repo.calls[0].sql, /NOW\(\)/);
 });
 
 test('loadKeywordRules 两级词表：平台级覆盖游戏级', async () => {
@@ -312,13 +397,15 @@ test('claimAnalysisJobs rejects disabled source bypass without the complete manu
 test('countAnalysisJobs and countContentsByType keep yesterday isolation in SQL', async () => {
   const repo = stubRepo(sql => sql.includes('GROUP BY j.status')
     ? [{ status: 'pending', count: '2' }, { status: 'completed', count: '5' }]
-    : [{ content_type: 'post', count: '3' }, { content_type: 'comment', count: '4' }]);
+    : sql.includes('c.id IS NULL') ? [{ count: 0 }] : [{ content_type: 'post', count: '3' }, { content_type: 'comment', count: '4' }]);
   const window = { publishedFrom: '2026-08-10T16:00:00.000Z', publishedTo: '2026-08-11T16:00:00.000Z' };
 
-  assert.deepEqual(await repo.countAnalysisJobs({ profile: 'light', version: 'sentiment-v1', ...window }), { pending: 2, running: 0, retryable: 0, completed: 5, failed: 0, total: 7, completionRate: 71.4, updatedAt: null });
+  const progress = await repo.countAnalysisJobs({ profile: 'light', version: 'sentiment-v1', ...window });
+  assert.equal(progress.pending, 2); assert.equal(progress.completed, 5); assert.equal(progress.total, 7);
+  assert.equal(progress.completionRate, 71.4); assert.equal(progress.queueDepth, 2); assert.equal(progress.orphanAnalysisJobs, 0);
   assert.deepEqual(await repo.countContentsByType(window), { post: 3, comment: 4 });
   assert.match(repo.calls[0].sql, /c\.published_at>=\?.*c\.published_at<\?/);
-  assert.match(repo.calls[1].sql, /c\.published_at>=\?.*c\.published_at<\?/);
+  assert.match(repo.calls.find(call => call.sql.includes('GROUP BY c.content_type')).sql, /c\.published_at>=\?.*c\.published_at<\?/);
 });
 
 test('listSyncParents can refresh completed comment checkpoints for daily collection', async () => {
@@ -326,6 +413,8 @@ test('listSyncParents can refresh completed comment checkpoints for daily collec
   await repo.listSyncParents('account-1', 'comments', { includeCompleted: true });
   assert.match(repo.calls[0].sql, /cp\.status<>'running'/);
   assert.doesNotMatch(repo.calls[0].sql, /cp\.status IN \('idle','failed'\)/);
+  assert.match(repo.calls[0].sql, /cp\.lease_until<UTC_TIMESTAMP\(3\)/);
+  assert.doesNotMatch(repo.calls[0].sql, /NOW\(\)/);
 });
 
 test('claimTranslationJobs supports a strict job/content allowlist', async () => {
@@ -370,14 +459,14 @@ test('content list and tree queries expose analysis_reason', async () => {
   assert.match(repo.calls[1].sql, /an\.analysis_reason/);
 });
 
-test('getOverview 返回完整归属的 trend 与 hotNegative', async () => {
+test('getOverview 返回完整归属的 trend、hotNegative 与当前告警', async () => {
   const repo = stubRepo((sql) => {
     if (/DATE_ADD\(c\.published_at, INTERVAL 8 HOUR\)/.test(sql)) return [{ date: '2026-08-07', negative: 2, total: 5 }];
-    if (/engagement DESC/.test(sql)) return [{ id: 'c1', game_name: '超能世界', community_name: '超能世界国服版', engagement: 99 }];
+    if (/SELECT c\.\*/.test(sql) && /ORDER BY c\.published_at DESC, c\.id DESC/.test(sql)) return [{ id: 'c1', game_name: '超能世界', community_name: '超能世界国服版', engagement: 99 }];
     if (/GROUP BY s\.platform/.test(sql)) return [{ platform: 'taptap', count: 5 }];
     if (/GROUP BY a\.sentiment/.test(sql)) return [{ sentiment: 'negative', count: 2 }];
     if (/po_alerts/.test(sql)) return [{ id: 'a1', game_name: '超能世界', community_name: '超能世界国服版' }];
-    return [{ total: 5, negative: 2, urgent: 1 }];
+    return [{ total: 5, negative: 2 }];
   });
   const overview = await repo.getOverview({
     regionCode: 'domestic',
@@ -390,6 +479,7 @@ test('getOverview 返回完整归属的 trend 与 hotNegative', async () => {
   assert.equal(overview.hotNegative[0].community_name, '超能世界国服版');
   assert.equal(overview.activeAlerts[0].game_name, '超能世界');
   assert.equal(overview.metrics.total, 5);
+  assert.equal(overview.metrics.activeAlertCount, 1);
 
   const trend = repo.calls.find(({ sql }) => /DATE_ADD\(c\.published_at, INTERVAL 8 HOUR\)/.test(sql));
   assert.match(trend.sql, /JOIN po_games g ON g\.id=c\.game_id/);
@@ -397,7 +487,7 @@ test('getOverview 返回完整归属的 trend 与 hotNegative', async () => {
   assert.doesNotMatch(trend.sql, /CURRENT_DATE - INTERVAL 6 DAY/);
   assert.deepEqual(trend.params, ['domestic', 'g1', 'cm1', '2026-08-01T00:00:00.000Z', '2026-08-08T00:00:00.000Z']);
 
-  const hotNegative = repo.calls.find(({ sql }) => /engagement DESC/.test(sql));
+  const hotNegative = repo.calls.find(({ sql }) => /SELECT c\.\*/.test(sql) && /ORDER BY c\.published_at DESC, c\.id DESC/.test(sql));
   assert.match(hotNegative.sql, /g\.name AS game_name, g\.region_code/);
   assert.match(hotNegative.sql, /cm\.name AS community_name/);
   assert.match(hotNegative.sql, /JOIN po_games g ON g\.id=c\.game_id/);
@@ -406,9 +496,66 @@ test('getOverview 返回完整归属的 trend 与 hotNegative', async () => {
   const alerts = repo.calls.find(({ sql }) => /FROM po_alerts a/.test(sql));
   assert.match(alerts.sql, /g\.name AS game_name, g\.region_code/);
   assert.match(alerts.sql, /cm\.name AS community_name/);
-  assert.match(alerts.sql, /a\.created_at >= \?/);
-  assert.match(alerts.sql, /a\.created_at < \?/);
+  assert.match(alerts.sql, /JOIN po_alert_contents ac ON ac\.alert_id=a\.id/);
+  assert.match(alerts.sql, /JOIN po_contents c ON c\.id=ac\.content_id/);
+  assert.match(alerts.sql, /a\.status IN \('pending','processing'\)/);
+  assert.match(alerts.sql, /c\.published_at >= \?/);
+  assert.match(alerts.sql, /c\.published_at < \?/);
+  assert.doesNotMatch(alerts.sql, /a\.created_at >= \?/);
   assert.deepEqual(alerts.params, ['domestic', 'g1', 'cm1', '2026-08-01T00:00:00.000Z', '2026-08-08T00:00:00.000Z']);
+});
+
+test('getOverview reuses content stats and negative list without extra type or status predicates', async () => {
+  const repo = stubRepo(() => []); const calls = [];
+  repo.getContentStats = async filters => { calls.push(['stats', filters]); return { negative: 7, attention: 3 }; };
+  repo.listContents = async filters => { calls.push(['list', filters]); return [{ id: 'negative-comment', content_type: 'comment' }]; };
+  const result = await repo.getOverview({ regionCode: 'domestic', communityId: 'cm1', platform: 'bigplayer_h5', from: '2026-09-01 16:00:00', to: '2026-09-02 12:30:00' });
+  assert.equal(result.metrics.negative, 7); assert.equal(result.metrics.attention, 3);
+  assert.equal(result.hotNegative[0].content_type, 'comment');
+  for (const [, filters] of calls) { assert.equal(filters.publishedFrom, '2026-09-01 16:00:00'); assert.equal(filters.publishedTo, '2026-09-02 12:30:00'); assert.equal(filters.communityId, 'cm1'); assert.equal(filters.contentType, undefined); assert.equal(filters.analysisStatus, undefined); }
+  const [, negativeFilters] = calls.find(([name]) => name === 'list');
+  assert.equal(negativeFilters.sentiment, undefined); assert.equal(negativeFilters.riskMode, 'negative'); assert.equal(negativeFilters.sort, 'published_desc'); assert.equal(negativeFilters.pageSize, 10);
+  const [, attentionFilters] = calls.find(([name, filters]) => name === 'list' && filters.riskMode === 'attention');
+  assert.equal(attentionFilters.sentiment, undefined); assert.equal(attentionFilters.riskMode, 'attention'); assert.equal(attentionFilters.sort, 'published_desc'); assert.equal(attentionFilters.pageSize, 10);
+  assert.equal(result.hotAttention[0].display_type, 'comment');
+});
+
+test('getOverview both mixed columns use stable publication order and Top10 SQL', async () => {
+  const mixed = [
+    { id: 'z', content_type: 'comment', published_at: '2026-09-16 08:00:00' },
+    { id: 'y', content_type: 'post', platform: 'bigplayer_h5', raw_payload: { type: 1 }, published_at: '2026-09-16 08:00:00' },
+    { id: 'x', content_type: 'post', platform: 'bigplayer_h5', raw_payload: { type: 0 }, published_at: '2026-09-16 07:00:00' }
+  ];
+  const repo = stubRepo(sql => /SELECT c\.\*/.test(sql) ? mixed : []);
+  repo.getContentStats = async () => ({ negative: 3, attention: 3 });
+  const result = await repo.getOverview({ regionCode: 'domestic', communityId: 'cm1', platform: 'bigplayer_h5', from: '2026-09-16 00:00:00', to: '2026-09-17 00:00:00' });
+  for (const items of [result.hotNegative, result.hotAttention]) {
+    assert.deepEqual(items.map(item => item.id), ['z', 'y', 'x']);
+    assert.deepEqual(items.map(item => item.display_type), ['comment', 'dynamic', 'post']);
+  }
+  const lists = repo.calls.filter(({ sql }) => /SELECT c\.\*/.test(sql));
+  assert.equal(lists.length, 2);
+  for (const { sql, params } of lists) {
+    assert.match(sql, /ORDER BY c\.published_at DESC, c\.id DESC LIMIT \? OFFSET \?/);
+    assert.doesNotMatch(sql, /ORDER BY engagement_score|c\.content_type=\?/);
+    assert.deepEqual(params.slice(-2), [10, 0]);
+  }
+});
+
+test('riskMode list and count share exact severity without sentiment guesses', async () => {
+  for (const [riskMode, severity] of [['negative', 'urgent'], ['attention', 'attention']]) {
+    const repo = stubRepo(sql => /COUNT\(\*\)/.test(sql) ? [{ total: 0 }] : []);
+    const filters = { riskMode, sentiment: 'negative', communityId: 'cm1', platform: 'bigplayer_h5', contentType: 'comment', keyword: 'risk', publishedFrom: '2026-09-01 00:00:00', publishedTo: '2026-09-02 00:00:00' };
+    await repo.listContents(filters); await repo.countContents(filters);
+    for (const { sql, params } of repo.calls) {
+      assert.match(sql, /a\.severity=\?/); assert.doesNotMatch(sql, /a\.sentiment=\?/);
+      assert.ok(params.includes(severity)); assert.ok(params.includes('cm1'));
+      assert.ok(params.includes('comment')); assert.ok(params.includes('%risk%'));
+      assert.match(sql, /c\.published_at>=\?.*c\.published_at<\?/);
+    }
+    await assert.rejects(repo.listContents({ riskMode, severity: 'normal' }), /conflict/);
+    await assert.rejects(repo.countContents({ riskMode: 'invalid' }), /not supported/);
+  }
 });
 
 // ── A3 后台配置写入 ──
@@ -629,6 +776,8 @@ test('claim checkpoint is atomic and lease based', async () => {
   assert.equal(row.status, 'running');
   assert.match(repo.calls[0].sql, /INSERT IGNORE/);
   assert.match(repo.calls[1].sql, /lease_until/);
+  assert.match(repo.calls[1].sql, /DATE_ADD\(UTC_TIMESTAMP\(3\), INTERVAL \? SECOND\)/);
+  assert.doesNotMatch(repo.calls[1].sql, /NOW\(\)/);
   assert.doesNotMatch(repo.calls[1].sql, /'paused'/);
 });
 
@@ -656,6 +805,22 @@ test('checkpoint identity isolates exact collection windows and preserves same-w
   assert.equal(resumed.cursor, 'page-2');
   assert.notEqual(nextDate.id, first.id);
   assert.equal(nextDate.cursor, null);
+});
+
+test('same source account and window rejects a concurrent checkpoint claim', async () => {
+  let updateCount = 0;
+  const row = { id: 'cp-same-window', status: 'running', lease_owner: 'worker-1' };
+  const repo = stubRepo((sql) => {
+    if (sql.startsWith('UPDATE po_sync_checkpoints SET status=')) return { affectedRows: updateCount++ === 0 ? 1 : 0 };
+    if (sql.startsWith('SELECT * FROM po_sync_checkpoints')) return [row];
+    return { affectedRows: 1 };
+  });
+  const input = { accountId: 'a1', taskKind: 'q1_feed', taskKey: 'home', syncScope: 'posts', windowStart: '2026-09-04T16:00:00.000Z', windowEnd: '2026-09-05T16:00:00.000Z', leaseSeconds: 60 };
+  const first = await repo.claimSyncCheckpoint({ ...input, leaseOwner: 'worker-1' });
+  const duplicate = await repo.claimSyncCheckpoint({ ...input, leaseOwner: 'worker-2' });
+  assert.equal(first.id, 'cp-same-window');
+  assert.equal(duplicate, null);
+  assert.equal(updateCount, 2);
 });
 
 test('checkpoint release remains fenced against a stale owner', async () => {
@@ -750,7 +915,8 @@ test('upsertContentPage validates active sync-run lease before writing content',
   assert.match(lease.sql, /a\.source_id=\?/);
   assert.match(lease.sql, /r\.status='running'/);
   assert.match(lease.sql, /r\.lease_owner=\?/);
-  assert.match(lease.sql, /r\.lease_until>NOW\(\)/);
+  assert.match(lease.sql, /r\.lease_until>UTC_TIMESTAMP\(3\)/);
+  assert.doesNotMatch(lease.sql, /NOW\(\)/);
   assert.match(lease.sql, /FOR UPDATE/);
   assert.deepEqual(lease.params, ['run-1', 'a1', 's1', 'worker-1']);
 });
@@ -762,10 +928,11 @@ test('upsertContentPage commits content before checkpoint advancement', async ()
     async beginTransaction() { executed.push({ sql: 'BEGIN' }); }, async commit() { executed.push({ sql: 'COMMIT' }); }, async rollback() { executed.push({ sql: 'ROLLBACK' }); }, release() {}
   };
   repo.pool = { async getConnection() { return conn; }, async query() { return [[{ id: 'cp1', status: 'completed' }]]; } };
-  const result = await repo.upsertContentPage({ account: { id: 'a1', game_id: 'g1', source_id: 's1' }, syncScope: 'posts', checkpointId: 'cp1', leaseOwner: 'worker-1', items: [{ externalId: 'p1', title: 't', body: 'b', fingerprint: 'fp' }], hasMore: false });
+  const result = await repo.upsertContentPage({ account: { id: 'a1', game_id: 'g1', source_id: 's1' }, syncScope: 'posts', checkpointId: 'cp1', leaseOwner: 'worker-1', items: [{ externalId: 'p1', title: 't', body: 'b', fingerprint: 'fp', rawPayload: { type: 1 } }], hasMore: false });
   assert.equal(result.storedCount, 1);
   assert.equal(result.contents[0].change, 'inserted');
   assert.equal(result.contents[0].content.id, 'c1');
+  assert.equal(executed.find(c => c.sql.startsWith('INSERT INTO po_contents')).params.at(-1), '{"type":1}');
   assert.ok(executed.findIndex(c => c.sql.startsWith('INSERT INTO po_contents')) < executed.findIndex(c => c.sql.startsWith('UPDATE po_sync_checkpoints')));
   assert.equal(executed.at(-1).sql, 'COMMIT');
 });
@@ -1154,14 +1321,18 @@ function manualSyncHarness(overrides = {}) {
   const source = { id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', source_auth_expired: 0, admission_anchor: '2026-09-11 08:30:00.000', default_account_id: 'a1', game_enabled: 1, community_status: 'enabled', ...(overrides.source || {}) };
   const account = { id: 'a1', source_id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', account_auth_expired: 0, ...(overrides.account || {}) };
   const credential = { id: 'credential-1', status: 'active', credential_expired: 0, has_secret_cipher: 1, ...(overrides.credential || {}) };
-  const schema = { migration_table_ready: 1, default_account_ready: 1, source_schedule_columns_ready: 1, checkpoint_window_columns_ready: 1, checkpoint_window_index_ready: 1, run_source_ready: 1, run_trigger_ready: 1, run_schedule_column_ready: 1, run_window_columns_ready: 1, run_slot_ready: 1, run_trigger_constraint_ready: 1, run_source_fk_ready: 1, schedule_state_ready: 1, schedule_state_columns_ready: 1, schedule_state_fk_ready: 1, ...(overrides.schema || {}) };
+  const schema = { migration_table_ready: 1, default_account_ready: 1, source_schedule_columns_ready: 1, checkpoint_window_columns_ready: 1, checkpoint_window_index_ready: 1, run_source_ready: 1, run_trigger_ready: 1, run_schedule_column_ready: 1, run_window_columns_ready: 1, run_lease_epoch_ready: 1, run_slot_ready: 1, run_trigger_constraint_ready: 1, run_source_fk_ready: 1, schedule_state_ready: 1, schedule_state_columns_ready: 1, schedule_state_fk_ready: 1, worker_lease_table_ready: 1, worker_lease_columns_ready: 1, worker_heartbeat_table_ready: 1, worker_heartbeat_columns_ready: 1, ...(overrides.schema || {}) };
   const conn = {
     async query(sql, params = []) {
       executed.push({ sql, params });
       if (overrides.schemaError && sql.includes('information_schema')) throw overrides.schemaError;
       if (sql.includes('information_schema')) return [[schema]];
       if (sql === 'SHOW CREATE TABLE po_sync_runs') return [[{ 'Create Table': overrides.checkDdl || "CREATE TABLE po_sync_runs (CONSTRAINT po_sync_runs_trigger_slot_chk CHECK ((trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)))" }]];
-      if (sql.startsWith('SELECT version FROM po_schema_migrations')) return [overrides.migrationMissing ? [] : [{ version: '023_unified_source_scheduling.sql' }]];
+      if (sql.startsWith('SELECT version FROM po_schema_migrations')) return [overrides.migrationMissing ? [] : [
+        { version: '023_unified_source_scheduling.sql' },
+        { version: '025_worker_scan_leases.sql' },
+        { version: '026_scheduler_runtime_schema_reconciliation.sql' }
+      ].filter(row => row.version !== overrides.missingMigration)];
       if (sql.includes('FROM po_sources s LEFT JOIN')) return [[source]];
       if (sql.includes('FROM po_accounts a WHERE a.id=')) return [[overrides.accountMissing ? undefined : account].filter(Boolean)];
       if (sql.includes('FROM po_credentials WHERE source_id=')) return [[overrides.credentialMissing ? undefined : credential].filter(Boolean)];
@@ -1485,12 +1656,10 @@ test('bounded manual backfill reuses only the same active source window', async 
   assert.deepEqual(sameWindowLookup.params.slice(-2), ['2026-09-04 08:30:00.000', '2026-09-11 08:30:00.000']);
   assert.ok(!same.executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
 
-  const different = manualSyncHarness({ activeRun: { id: 'run-other-window' } });
-  await assert.rejects(
-    () => different.repo.startBoundedSourceBackfill({ sourceId: 's1', publishedFrom: '2026-09-05T08:30:00.000Z', publishedTo: '2026-09-10T08:30:00.000Z' }),
-    error => error.code === 'PREVIOUS_RUN_ACTIVE'
-  );
-  assert.ok(!different.executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  const different = manualSyncHarness();
+  const parallel = await different.repo.startBoundedSourceBackfill({ sourceId: 's1', publishedFrom: '2026-09-05T08:30:00.000Z', publishedTo: '2026-09-10T08:30:00.000Z' });
+  assert.equal(parallel.reused, false);
+  assert.ok(different.executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
 });
 
 test('startSourceSync reuses only the same active manual source and mode without mutation', async () => {
@@ -1549,11 +1718,18 @@ test('manual sync fails closed for old or unverifiable unified scheduler schema'
     [{ schema: { checkpoint_window_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { checkpoint_window_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_window_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { run_lease_epoch_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_slot_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_trigger_constraint_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_source_fk_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { worker_lease_table_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { worker_lease_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { worker_heartbeat_table_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { worker_heartbeat_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ checkDdl: "CREATE TABLE po_sync_runs (CONSTRAINT po_sync_runs_trigger_slot_chk CHECK (trigger_type IN ('legacy','manual')))" }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ migrationMissing: true }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ missingMigration: '025_worker_scan_leases.sql' }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ missingMigration: '026_scheduler_runtime_schema_reconciliation.sql' }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schemaError: Object.assign(new Error('denied'), { code: 'ER_ACCESS_DENIED_ERROR' }) }, 'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED']
   ]) {
     const { repo, executed } = manualSyncHarness(overrides);
@@ -1667,13 +1843,37 @@ test('latest source run prioritizes queued or running work', async () => {
 
 test('finishSyncRun preserves accumulated counters and enforces lease ownership', async () => {
   const repo = stubRepo((sql) => sql.startsWith('SELECT r.') ? [{ id: 'run-1', fetched_count: 9 }] : { affectedRows: 1 });
-  const run = await repo.finishSyncRun('run-1', { status: 'completed_full', leaseOwner: 'worker-1' });
+  const run = await repo.finishSyncRun('run-1', { status: 'completed_full', leaseOwner: 'worker-1', leaseEpoch: 3 });
   const update = repo.calls[0];
   assert.match(update.sql, /discovered_count=COALESCE\(\?,discovered_count\)/);
   assert.doesNotMatch(update.sql, /fetched_count=/);
   assert.match(update.sql, /WHERE id=\? AND lease_owner=\?/);
-  assert.deepEqual(update.params, ['completed_full', null, null, null, null, 'run-1', 'worker-1']);
+  assert.deepEqual(update.params, ['completed_full', null, null, null, null, null, 'run-1', 'worker-1', 3]);
   assert.equal(run.fetched_count, 9);
+});
+
+test('deferSyncRun requeues an owned rate-limited run without a terminal timestamp', async () => {
+  const repo = stubRepo(sql => sql.startsWith('UPDATE') ? { affectedRows: 1 } : [{ id: 'run-rate-limited', status: 'queued' }]);
+  const nextRetryAt = '2026-09-18T06:00:00.000Z';
+  const run = await repo.deferSyncRun('run-rate-limited', { errorCode: 'RATE_LIMITED', errorMessage: 'retry evidence', nextRetryAt, leaseOwner: 'worker-1', leaseEpoch: 4 });
+  const update = repo.calls[0];
+  assert.equal(run.status, 'queued');
+  assert.match(update.sql, /status='queued'/);
+  assert.match(update.sql, /finished_at=NULL/);
+  assert.match(update.sql, /next_retry_at=\?/);
+  assert.match(update.sql, /lease_owner=NULL, lease_until=NULL/);
+  assert.match(update.sql, /status='running' AND lease_owner=\? AND lease_epoch=\? AND lease_until>UTC_TIMESTAMP\(3\)/);
+  assert.deepEqual(update.params, ['RATE_LIMITED', 'retry evidence', nextRetryAt, 'run-rate-limited', 'worker-1', 4]);
+});
+
+test('finishSyncRun persists provider next eligible time as auditable UTC retry evidence', async () => {
+  const repo = stubRepo(sql => sql.startsWith('SELECT r.') ? [{ id: 'run-rate-limited' }] : { affectedRows: 1 });
+  const nextRetryAt = '2026-09-18T06:00:00.000Z';
+  await repo.finishSyncRun('run-rate-limited', { status: 'failed', errorCode: 'RATE_LIMITED', errorMessage: 'retry evidence', nextRetryAt, leaseOwner: 'worker-1', leaseEpoch: 4 });
+  const update = repo.calls[0];
+  assert.match(update.sql, /next_retry_at=\?/);
+  assert.equal(update.params[5], nextRetryAt);
+  assert.deepEqual(update.params.slice(-3), ['run-rate-limited', 'worker-1', 4]);
 });
 
 test('finishSyncRun returns null when stale worker no longer owns the lease', async () => {
@@ -1703,8 +1903,12 @@ test('upsertContentPage records sync-run progress and links content idempotently
   assert.match(scopeCheck.sql, /FOR UPDATE/);
   const runUpdate = executed.find(call => call.sql.startsWith('UPDATE po_sync_runs SET fetched_count'));
   assert.ok(runUpdate);
+  assert.match(runUpdate.sql, /DATE_ADD\(UTC_TIMESTAMP\(3\), INTERVAL \? SECOND\)/);
+  assert.doesNotMatch(runUpdate.sql, /NOW\(\)/);
   assert.deepEqual(runUpdate.params.slice(0, 7), [1, 1, 0, 0, 4, 1, 1]);
   const checkpointUpdate = executed.find(call => call.sql.startsWith('UPDATE po_sync_checkpoints SET `cursor`'));
+  assert.match(checkpointUpdate.sql, /DATE_ADD\(UTC_TIMESTAMP\(3\), INTERVAL \? SECOND\)/);
+  assert.doesNotMatch(checkpointUpdate.sql, /NOW\(\)/);
   assert.equal(checkpointUpdate.params[4], '2026-08-12 10:00:00');
   assert.ok(executed.findIndex(call => call.sql.startsWith('INSERT IGNORE INTO po_sync_run_contents')) < executed.findIndex(call => call.sql.startsWith('UPDATE po_sync_runs SET fetched_count')));
   assert.equal(executed.at(-1).sql, 'COMMIT');

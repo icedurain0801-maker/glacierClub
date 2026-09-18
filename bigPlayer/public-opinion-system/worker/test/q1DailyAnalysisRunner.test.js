@@ -2,6 +2,23 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Q1AnalysisRunner, parseArgs } = require('../src/q1DailyAnalysisRunner');
 
+test('Q1 owns the shared analysis gate and releases it after failure', async () => {
+  const calls = [];
+  const runner = new Q1AnalysisRunner({ repo: {
+    async acquireAdvisoryLock(name) { calls.push(['acquire', name]); return true; },
+    async releaseAdvisoryLock(name) { calls.push(['release', name]); }
+  } });
+  runner.runScoped = async () => { throw new Error('test failure'); };
+  await assert.rejects(runner.run());
+  assert.deepEqual(calls, [['acquire', 'po-analysis-consumer'], ['release', 'po-analysis-consumer']]);
+});
+
+test('Q1 does not consume when the cross-process gate is busy', async () => {
+  const runner = new Q1AnalysisRunner({ repo: { async acquireAdvisoryLock() { return false; } } });
+  runner.runScoped = async () => { throw new Error('must not consume'); };
+  await assert.rejects(runner.run(), { code: 'ANALYSIS_SCOPE_BUSY' });
+});
+
 test('Q1 analysis runner parses options without exposing credentials', () => {
   assert.deepEqual(parseArgs(['node', 'runner', '--source-id', 's1', '--batch-size', '20']), { sourceId: 's1', batchSize: '20' });
 });
@@ -43,6 +60,8 @@ test('Q1 analysis runner processes all scoped jobs independently', async () => {
   const jobs = [{ id: 'j1', content_id: 'c1', fingerprint: 'fp1', content_fingerprint: 'fp1', title: 't', body: 'b', game_id: 'g1', game_name: 'game', community_id: 'cmt', platform: 'q1', region_code: 'domestic', matched_keywords: '[]', trigger_reason: 'all_content', lease_owner: 'q1' }];
   const finished = [];
   const repo = {
+    async acquireAdvisoryLock() { return true; },
+    async releaseAdvisoryLock() {},
     async enqueueMissingAnalysis() { return 0; },
     async claimAnalysisJobs() { return jobs.splice(0); },
     async getAnalysisCache() { return []; },

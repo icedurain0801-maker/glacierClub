@@ -259,3 +259,14 @@ test('expired or stale epoch cannot finalize', async () => {
 
   assert.deepEqual(result, { finalized: false });
 });
+
+test('listWorkerAlerts keeps multi-worker alerts and filters retired legacy restart identities', async () => {
+  const connection = fakeConnection(() => [[], []]);
+  const adapter = createSchedulerRepositoryAdapter(connection);
+
+  assert.deepEqual(await adapter.listWorkerAlerts({ heartbeatTimeoutSeconds: 75, sourceTimeoutSeconds: 360 }), []);
+  assert.match(connection.calls[0].sql, /worker_id NOT REGEXP/);
+  assert.match(connection.calls[0].sql, /stable\.worker_id LIKE 'worker:%' AND stable\.last_seen_at>=h\.last_seen_at/);
+  assert.doesNotMatch(connection.calls[0].sql, /ORDER BY last_seen_at DESC LIMIT 1/);
+  assert.deepEqual(connection.calls[0].params, [75, 360, 75, 360]);
+});

@@ -37,6 +37,7 @@ function createSourceSchedulerRuntime({
   async function run(options = {}) {
     const { now, existingEvidence = [] } = options;
     const attempts = new Map();
+    const atomicResults = new Map();
     const leaseUntil = new Date(now.getTime() + leaseDurationMs);
 
     const leaseAdapter = {
@@ -44,6 +45,17 @@ function createSourceSchedulerRuntime({
         const runId = idFactory();
         const attempt = { runId, leaseEpoch: null };
         attempts.set(intent.sourceId, attempt);
+        // Only opt into the transaction path when the adapter is backed by a
+        // pooled connection exposing transaction primitives; lightweight seam
+        // fakes and legacy callers continue using the compatibility path.
+        if (typeof repository.scheduleSlotAtomic === 'function' && (typeof connection.beginTransaction === 'function' || typeof connection.getConnection === 'function')) {
+          const result = await repository.scheduleSlotAtomic({
+            ...intent, runId, ownerId: workerId, leaseUntil,
+          });
+          atomicResults.set(intent.sourceId, result);
+          if (result?.leaseToken) attempt.leaseEpoch = result.leaseToken.epoch;
+          return result?.acquired ? result : { acquired: false, leaseToken: null };
+        }
         const lease = await repository.acquireLease({
           sourceId: intent.sourceId,
           runId,
@@ -69,6 +81,8 @@ function createSourceSchedulerRuntime({
       existingEvidence,
       leaseAdapter,
       async enqueue(intent) {
+        const atomic = atomicResults.get(intent.sourceId);
+        if (atomic) return atomic;
         try {
           return await repository.enqueueScheduled({
             ...intent,

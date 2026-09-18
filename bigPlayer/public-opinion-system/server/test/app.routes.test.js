@@ -71,6 +71,7 @@ test.before(async () => {
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
   await repo.query('CREATE TABLE IF NOT EXISTS po_sync_run_contents (sequence_no BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, run_id VARCHAR(64) NOT NULL, content_id VARCHAR(64) NOT NULL, sync_scope VARCHAR(20) NOT NULL, change_type VARCHAR(20) NOT NULL, fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY po_sync_run_contents_test_uk (run_id, content_id, sync_scope))');
   await repo.query('CREATE TABLE IF NOT EXISTS po_contents (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), source_id VARCHAR(64), account_id VARCHAR(64) NULL, external_id VARCHAR(255), content_type VARCHAR(20), platform_author_id VARCHAR(255) NULL, author_name VARCHAR(160) NULL, title TEXT NULL, body TEXT NULL, published_at DATETIME NULL, source_url TEXT NULL, engagement TEXT NULL, raw_payload TEXT NULL, is_deleted TINYINT DEFAULT 0, UNIQUE KEY po_contents_test_identity_uk (source_id, external_id))');
+  await repo.query('CREATE INDEX IF NOT EXISTS po_contents_published_time_idx ON po_contents (published_at,id)');
   await repo.query(`CREATE TABLE IF NOT EXISTS po_alerts (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), severity VARCHAR(20), alert_type VARCHAR(20), title VARCHAR(255), trigger_detail TEXT, status VARCHAR(20) DEFAULT 'pending', assignee_id VARCHAR(64) NULL, resolution_note TEXT NULL, ding_talk_status VARCHAR(20) DEFAULT 'not_sent', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, resolved_at DATETIME NULL)`);
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS fingerprint CHAR(64) NULL');
@@ -82,6 +83,9 @@ test.before(async () => {
   await repo.query('CREATE INDEX IF NOT EXISTS po_contents_source_collected_idx ON po_contents (source_id, collected_at, id)');
   await repo.query('ALTER TABLE po_alerts ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
   await repo.query('CREATE TABLE IF NOT EXISTS po_analyses (content_id VARCHAR(64) PRIMARY KEY, sentiment VARCHAR(20) NULL, severity VARCHAR(20) NULL, negative_score DECIMAL(5,4) NULL, analyzed_at DATETIME NULL)');
+  for (const [column, type] of [ ['confidence', 'DECIMAL(5,4) NULL'], ['quality_score', 'DECIMAL(5,4) NULL'], ['recommend_home', 'TINYINT DEFAULT 0'], ['recommend_pin', 'TINYINT DEFAULT 0'], ['recommend_feature', 'TINYINT DEFAULT 0'], ['quality_reason', 'TEXT NULL'], ['model_name', 'VARCHAR(120) NULL'], ['analysis_level', 'VARCHAR(20) NULL'], ['analysis_version', 'VARCHAR(80) NULL'], ['trigger_reason', 'TEXT NULL'], ['analysis_reason', 'TEXT NULL'] ]) {
+    await repo.query(`ALTER TABLE po_analyses ADD COLUMN IF NOT EXISTS ${column} ${type}`);
+  }
   await repo.query('ALTER TABLE po_analyses ADD COLUMN IF NOT EXISTS sentiment VARCHAR(20) NULL');
   await repo.query('ALTER TABLE po_analyses ADD COLUMN IF NOT EXISTS severity VARCHAR(20) NULL');
   await repo.query('ALTER TABLE po_analyses ADD COLUMN IF NOT EXISTS negative_score DECIMAL(5,4) NULL');
@@ -90,6 +94,7 @@ test.before(async () => {
   await repo.query('ALTER TABLE po_analyses ADD COLUMN IF NOT EXISTS matched_keywords TEXT NULL');
   await repo.query('ALTER TABLE po_analyses ADD COLUMN IF NOT EXISTS summary TEXT NULL');
   await repo.query('CREATE INDEX IF NOT EXISTS po_analyses_sentiment_cover_idx ON po_analyses (sentiment, severity, content_id)');
+  await repo.query("CREATE TABLE IF NOT EXISTS po_analysis_jobs (id VARCHAR(64) PRIMARY KEY, content_id VARCHAR(64), analysis_profile VARCHAR(20), analysis_version VARCHAR(80), status VARCHAR(20), error_code VARCHAR(80) NULL, error_message TEXT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
   await repo.query('ALTER TABLE po_keyword_rules ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
   await repo.query(`CREATE TABLE IF NOT EXISTS po_quality_candidates (
     id VARCHAR(64) PRIMARY KEY,
@@ -122,6 +127,7 @@ test.before(async () => {
   await repo.query('DELETE FROM po_alert_contents WHERE alert_id LIKE ?', ['alert-detail-%']);
   await repo.query('DELETE FROM po_quality_candidates WHERE id LIKE ?', ['quality-test-%']);
   await repo.query('DELETE FROM po_alerts WHERE id LIKE ?', ['alert-detail-%']);
+  await repo.query('DELETE FROM po_analyses WHERE content_id LIKE ? OR content_id LIKE ?', ['alert-detail-%', 'quality-test-%']);
   await repo.query('DELETE FROM po_contents WHERE id LIKE ? OR id LIKE ?', ['alert-detail-%', 'quality-test-%']);
   await repo.query('DELETE FROM po_keyword_rules WHERE game_id=?', [gameId]);
   await repo.query('DELETE FROM po_credentials WHERE source_id=?', [sourceId]);
@@ -148,7 +154,7 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  try { await repo.query('DELETE FROM po_alert_contents WHERE alert_id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_quality_candidates WHERE id LIKE ?', ['quality-test-%']); await repo.query('DELETE FROM po_alerts WHERE id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_contents WHERE id LIKE ? OR id LIKE ?', ['alert-detail-%', 'quality-test-%']); await repo.query('DELETE FROM po_keyword_rules WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sync_run_contents WHERE run_id IN (SELECT id FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?))', [gameId]); await repo.query('DELETE FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_credentials WHERE source_id IN (SELECT id FROM po_sources WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_accounts WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sources WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_games WHERE id=?', [gameId]); } catch {}
+  try { await repo.query('DELETE FROM po_alert_contents WHERE alert_id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_quality_candidates WHERE id LIKE ?', ['quality-test-%']); await repo.query('DELETE FROM po_alerts WHERE id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_analyses WHERE content_id LIKE ? OR content_id LIKE ?', ['alert-detail-%', 'quality-test-%']); await repo.query('DELETE FROM po_contents WHERE id LIKE ? OR id LIKE ?', ['alert-detail-%', 'quality-test-%']); await repo.query('DELETE FROM po_keyword_rules WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sync_run_contents WHERE run_id IN (SELECT id FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?))', [gameId]); await repo.query('DELETE FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_credentials WHERE source_id IN (SELECT id FROM po_sources WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_accounts WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sources WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_games WHERE id=?', [gameId]); } catch {}
   if (server) await new Promise(resolve => server.close(resolve));
   if (repo && repo.pool) await repo.pool.end();
   // app.js 内部另持一个模块级 repo 连接池，测试结束需一并关闭，否则进程不退出。
@@ -174,21 +180,153 @@ test('社区写接口已下线并返回外部管理错误', async () => {
   }
 });
 
-test('GET /overview 接受 period 时间视图并拒绝非法参数', async () => {
+test('GET /overview 接受北京时间时间视图并拒绝非法参数', async () => {
   const today = await api('/overview?period=today&gameId=g-test-1&communityId=c-test-1');
   assert.equal(today.status, 200);
   assert.ok(today.body.data.metrics);
-  const yesterday = await api('/overview?period=yesterday&gameId=g-test-1');
-  assert.equal(yesterday.status, 200);
+  const sevenDays = await api('/overview?period=7d&gameId=g-test-1');
+  assert.equal(sevenDays.status, 200);
+  const thirtyDays = await api('/overview?period=30d&gameId=g-test-1');
+  assert.equal(thirtyDays.status, 200);
   const invalidPeriod = await api('/overview?period=month');
   assert.equal(invalidPeriod.status, 400);
   assert.equal(invalidPeriod.body.error.code, 'INVALID_INPUT');
   const unknown = await api('/overview?period=today&unexpected=1');
   assert.equal(unknown.status, 400);
-  const conflict = await api('/overview?period=week&from=2026-08-01T00:00:00.000Z');
+  const conflict = await api('/overview?period=7d&from=2026-08-01T00:00:00.000Z');
   assert.equal(conflict.status, 400);
   const reversed = await api('/overview?from=2026-08-08T00:00:00.000Z&to=2026-08-01T00:00:00.000Z');
   assert.equal(reversed.status, 400);
+});
+
+test('GET /overview four-card negative attention and hot IDs share content predicates and exact boundaries', async () => {
+  const ids = ['alert-detail-four-card-post', 'alert-detail-four-card-comment', 'alert-detail-four-card-attention', 'alert-detail-four-card-outside', 'alert-detail-four-card-deleted'];
+  const rows = [
+    ['post', 'negative', 'normal', '2026-09-01 16:00:00', 0, 4],
+    ['comment', 'negative', 'urgent', '2026-09-02 12:29:59', 0, 9],
+    ['post', 'positive', 'attention', '2026-09-02 08:00:00', 0, 1],
+    ['post', 'negative', 'attention', '2026-09-02 12:30:00', 0, 100],
+    ['post', 'negative', 'attention', '2026-09-02 08:00:00', 1, 100]
+  ];
+  try {
+    for (let i = 0; i < ids.length; i++) {
+      const [type, sentiment, severity, published, deleted, engagement] = rows[i];
+      await repo.query('INSERT INTO po_contents (id,game_id,community_id,source_id,external_id,content_type,title,body,published_at,is_deleted,engagement) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [ids[i], gameId, 'c-test-1', sourceId, ids[i], type, '四卡测试', '四卡同源测试内容', published, deleted, JSON.stringify({ like: engagement })]);
+      await repo.query("INSERT INTO po_analyses (content_id,sentiment,severity,negative_score,topics) VALUES (?,?,?,0.9,'[]')", [ids[i], sentiment, severity]);
+    }
+    const scope = new URLSearchParams({ gameId, communityId: 'c-test-1', publishedFrom: '2026-09-02T00:00:00+08:00', publishedTo: '2026-09-02T20:30:00+08:00' });
+    const overviewQuery = new URLSearchParams({ gameId, communityId: 'c-test-1', from: scope.get('publishedFrom'), to: scope.get('publishedTo'), fresh: '1' });
+    const overview = await api(`/overview?${overviewQuery}`); assert.equal(overview.status, 200);
+    const stats = await api(`/contents/stats?${scope}`); assert.equal(stats.status, 200);
+    const negative = await api(`/contents?${scope}&riskMode=negative&severity=urgent`); assert.equal(negative.status, 200);
+    const attention = await api(`/contents?${scope}&severity=attention`); assert.equal(attention.status, 200);
+    assert.equal(Number(overview.body.data.metrics.negative), 1);
+    assert.equal(Number(overview.body.data.metrics.negative), stats.body.data.negative);
+    assert.equal(Number(overview.body.data.metrics.negative), negative.body.meta.total);
+    assert.equal(Number(overview.body.data.metrics.attention), 1);
+    assert.equal(Number(overview.body.data.metrics.attention), stats.body.data.attention);
+    assert.equal(Number(overview.body.data.metrics.attention), attention.body.meta.total);
+    assert.deepEqual(overview.body.data.hotNegative.map(item => item.id), [ids[1]], 'only urgent comments enter negative risk mode');
+    assert.deepEqual(overview.body.data.hotNegative.map(item => item.id).sort(), negative.body.data.map(item => item.id).sort());
+    assert.deepEqual(overview.body.data.window, { publishedFrom: '2026-09-01T16:00:00.000Z', publishedTo: '2026-09-02T12:30:00.000Z' });
+  } finally {
+    await repo.query(`DELETE FROM po_analyses WHERE content_id IN (${ids.map(() => '?').join(',')})`, ids);
+    await repo.query(`DELETE FROM po_contents WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+  }
+});
+
+test('GET risk modes are mutually exclusive and share counts, filters and mixed Top10', async () => {
+  const ids = [];
+  const marker = 'severity-exclusive-fixture';
+  try {
+    await repo.query('CREATE TABLE IF NOT EXISTS po_content_translations (content_id VARCHAR(64), content_fingerprint CHAR(64), target_language VARCHAR(20), source_language VARCHAR(20), translated_title TEXT, translated_body TEXT, translation_version VARCHAR(80), translated_at DATETIME)');
+    await repo.query('CREATE TABLE IF NOT EXISTS po_translation_jobs (content_id VARCHAR(64), content_fingerprint CHAR(64), target_language VARCHAR(20), translation_version VARCHAR(80), status VARCHAR(20), error_code VARCHAR(80))');
+    for (const severity of ['urgent', 'attention', 'normal', null, 'unanalyzed']) {
+      const count = severity === 'urgent' || severity === 'attention' ? 12 : 1;
+      for (let i = 0; i < count; i++) {
+        const id = `alert-detail-risk-${severity}-${String(i).padStart(2, '0')}`; ids.push(id);
+        const type = i % 3 === 0 ? 'comment' : 'post';
+        const raw = type === 'post' ? JSON.stringify({ type: i % 3 === 1 ? 1 : 0 }) : '{}';
+        await repo.query('INSERT INTO po_contents (id,game_id,community_id,source_id,account_id,external_id,content_type,title,body,published_at,is_deleted,raw_payload) VALUES (?,?,?,?,?,?,?,?,?,?,0,?)', [id, gameId, 'c-test-1', sourceId, 'a-test-1', id, type, marker, marker, '2026-09-02 08:00:00', raw]);
+        if (severity !== 'unanalyzed') await repo.query("INSERT INTO po_analyses (content_id,sentiment,severity,topics) VALUES (?,?,?,'[]')", [id, i % 2 ? 'positive' : 'negative', severity]);
+      }
+    }
+    const scope = new URLSearchParams({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', publishedFrom: '2026-09-02T00:00:00+08:00', publishedTo: '2026-09-03T00:00:00+08:00' });
+    const stats = await api(`/contents/stats?${scope}&keyword=${marker}`); assert.equal(stats.status, 200);
+    const collections = [];
+    for (const [mode, severity] of [['negative', 'urgent'], ['attention', 'attention']]) {
+      const list = await api(`/contents?${scope}&keyword=${marker}&riskMode=${mode}&severity=${severity}&pageSize=100`);
+      assert.equal(list.status, 200); assert.equal(list.body.meta.total, 12); assert.equal(list.body.data.length, 12);
+      assert.equal(stats.body.data[mode], list.body.meta.total);
+      assert.ok(list.body.data.every(item => item.severity === severity));
+      collections.push(new Set(list.body.data.map(item => item.id)));
+      const typed = await api(`/contents?${scope}&keyword=${marker}&riskMode=${mode}&contentType=comment`);
+      assert.equal(typed.status, 200); assert.equal(typed.body.meta.total, 4); assert.equal(typed.body.data.length, 4);
+      assert.ok(typed.body.data.every(item => item.severity === severity && item.content_type === 'comment'));
+      const sentiment = await api(`/contents?${scope}&keyword=${marker}&riskMode=${mode}&sentiment=negative&pageSize=100`);
+      assert.equal(sentiment.status, 200); assert.equal(sentiment.body.meta.total, 12, 'sentiment must not narrow a severity risk collection');
+      const conflict = await api(`/contents?${scope}&riskMode=${mode}&severity=normal`);
+      assert.equal(conflict.status, 400);
+    }
+    assert.equal([...collections[0]].filter(id => collections[1].has(id)).length, 0);
+    const overview = await api(`/overview?gameId=${gameId}&communityId=c-test-1&from=2026-09-02T00:00:00%2B08:00&to=2026-09-03T00:00:00%2B08:00&fresh=1`);
+    assert.equal(overview.status, 200);
+    for (const [mode, severity, key] of [['negative', 'urgent', 'hotNegative'], ['attention', 'attention', 'hotAttention']]) {
+      assert.equal(overview.body.data.metrics[mode], 12);
+      const items = overview.body.data[key]; assert.equal(items.length, 10);
+      const expected = ids.filter(id => id.startsWith(`alert-detail-risk-${severity}-`)).sort().reverse().slice(0, 10);
+      assert.deepEqual(items.map(item => item.id), expected);
+      assert.deepEqual([...new Set(items.map(item => item.display_type))].sort(), ['comment', 'dynamic', 'post']);
+    }
+    assert.equal((await api(`/contents?${scope}&riskMode=invalid`)).status, 400);
+  } finally {
+    if (ids.length) {
+      const placeholders = ids.map(() => '?').join(',');
+      await repo.query(`DELETE FROM po_analyses WHERE content_id IN (${placeholders})`, ids);
+      await repo.query(`DELETE FROM po_contents WHERE id IN (${placeholders})`, ids);
+    }
+  }
+});
+
+test('GET /overview 统一按关联内容 published_at 的北京时间半开区间筛选当前告警', async () => {
+  const contentIds = ['alert-detail-overview-window-start', 'alert-detail-overview-window-end', 'alert-detail-overview-window-outside'];
+  const alertIds = ['alert-detail-overview-window-pending', 'alert-detail-overview-window-processing', 'alert-detail-overview-window-outside', 'alert-detail-overview-window-resolved', 'alert-detail-overview-window-false-positive', 'alert-detail-overview-window-unlinked'];
+  try {
+    await repo.query("INSERT INTO po_contents (id,game_id,community_id,source_id,external_id,content_type,author_name,title,body,published_at) VALUES (?,?,?,?,?,'post',?,?,?,?), (?,?,?,?,?,'post',?,?,?,?), (?,?,?,?,?,'post',?,?,?,?)", [
+      contentIds[0], gameId, 'c-test-1', sourceId, 'overview-window-start', '窗口作者', '窗口起点', '北京时间窗口起点内容', '2026-08-31 16:00:00',
+      contentIds[1], gameId, 'c-test-1', sourceId, 'overview-window-end', '窗口作者', '窗口终点前', '北京时间窗口终点前内容', '2026-09-01 15:59:59',
+      contentIds[2], gameId, 'c-test-1', sourceId, 'overview-window-outside', '窗口作者', '窗口终点', '北京时间窗口终点内容', '2026-09-01 16:00:00'
+    ]);
+    await repo.query("INSERT INTO po_analyses (content_id,sentiment,severity,negative_score,topics) VALUES (?,'negative','urgent',0.9,'[\"窗口议题\"]'), (?,'neutral','normal',0.1,'[\"窗口议题\"]'), (?,'negative','attention',0.8,'[\"窗口外议题\"]')", contentIds);
+    await repo.query("INSERT INTO po_alerts (id,game_id,community_id,severity,alert_type,title,trigger_detail,status) VALUES (?,?,'c-test-1','urgent','ai_urgent','窗口内待处理告警','关联两条窗口内内容','pending'), (?,?,'c-test-1','attention','ai_attention','窗口内处理中告警','关联窗口内内容','processing'), (?,?,'c-test-1','urgent','ai_urgent','窗口外告警','关联窗口外内容','pending'), (?,?,'c-test-1','urgent','ai_urgent','已解决告警','关联窗口内内容','resolved'), (?,?,'c-test-1','urgent','ai_urgent','误报告警','关联窗口内内容','false_positive'), (?,?,'c-test-1','urgent','ai_urgent','无关联告警','没有关联内容','pending')", [alertIds[0], gameId, alertIds[1], gameId, alertIds[2], gameId, alertIds[3], gameId, alertIds[4], gameId, alertIds[5], gameId]);
+    await repo.query('INSERT INTO po_alert_contents (alert_id,content_id) VALUES (?,?),(?,?),(?,?),(?,?),(?,?),(?,?)', [alertIds[0], contentIds[0], alertIds[0], contentIds[1], alertIds[1], contentIds[1], alertIds[2], contentIds[2], alertIds[3], contentIds[0], alertIds[4], contentIds[0]]);
+
+    const result = await api(`/overview?gameId=${gameId}&communityId=c-test-1&from=2026-09-01T00%3A00%3A00%2B08%3A00&to=2026-09-02T00%3A00%3A00%2B08%3A00&fresh=1`);
+    assert.equal(result.status, 200);
+    assert.equal(Number(result.body.data.metrics.total), 2, '内容指标按 [from,to) 包含起点、排除终点');
+    assert.equal(Number(result.body.data.metrics.negative), 1, '负面率分子与内容窗口一致');
+    assert.equal(Number(result.body.data.trend.reduce((total, item) => total + Number(item.total || 0), 0)), 2, '口碑趋势与内容窗口一致');
+    assert.deepEqual(result.body.data.hotNegative.map(item => item.id), [contentIds[0]], '负面热帖排除窗口终点内容');
+    assert.deepEqual(result.body.data.topicDistribution.map(item => item.topic), ['窗口议题'], '恢复议题分布且排除窗口外内容');
+    assert.ok(result.body.data.hotAttention.every(item => item.severity === 'attention' && contentIds.slice(0, 2).includes(item.id)), '关注级列表排除窗口外内容且仅含关注级');
+    assert.deepEqual(result.body.data.activeAlerts.map(item => item.id).sort(), [alertIds[0], alertIds[1]].sort(), '只保留 pending/processing，告警按关联内容发布时间过滤且聚合去重');
+    assert.equal(Number(result.body.data.metrics.activeAlertCount), result.body.data.activeAlerts.length, '当前告警卡片与处置列表共用同一告警总数');
+
+    await repo.query("UPDATE po_alerts SET status='resolved' WHERE id=?", [alertIds[1]]);
+    const afterResolve = await api(`/overview?gameId=${gameId}&communityId=c-test-1&from=2026-09-01T00%3A00%3A00%2B08%3A00&to=2026-09-02T00%3A00%3A00%2B08%3A00&fresh=1`);
+    assert.deepEqual(afterResolve.body.data.activeAlerts.map(item => item.id), [alertIds[0]], '告警处置为 resolved 后列表同步减少');
+    assert.equal(Number(afterResolve.body.data.metrics.activeAlertCount), 1, '告警处置为 resolved 后卡片同步减少');
+
+    await repo.query("UPDATE po_alerts SET status='resolved' WHERE id=?", [alertIds[0]]);
+    const empty = await api(`/overview?gameId=${gameId}&communityId=c-test-1&from=2026-09-01T00%3A00%3A00%2B08%3A00&to=2026-09-02T00%3A00%3A00%2B08%3A00&fresh=1`);
+    assert.deepEqual(empty.body.data.activeAlerts, [], '没有 pending/processing 告警时返回空列表');
+    assert.equal(Number(empty.body.data.metrics.activeAlertCount), 0, '没有当前告警时卡片归零');
+  } finally {
+    await repo.query(`DELETE FROM po_alert_contents WHERE alert_id IN (${alertIds.map(() => '?').join(',')})`, alertIds);
+    await repo.query(`DELETE FROM po_alerts WHERE id IN (${alertIds.map(() => '?').join(',')})`, alertIds);
+    await repo.query(`DELETE FROM po_analyses WHERE content_id IN (${contentIds.map(() => '?').join(',')})`, contentIds);
+    await repo.query(`DELETE FROM po_contents WHERE id IN (${contentIds.map(() => '?').join(',')})`, contentIds);
+  }
 });
 
 test('GET /contents/:id 保留内容树翻译字段并为评论映射翻译对象', async () => {
@@ -520,6 +658,34 @@ test('legacy PATCH repliesApiUrl is accepted and ignored while posts/comments re
   assert.deepEqual(Object.keys(res.body.data.capabilities).sort(), ['comments', 'posts']);
 });
 
+test('BigPlayer check-capabilities always uses live detectCapabilities and persists its result', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalDetect = connector.detectCapabilities;
+  const originalHealth = connector.accountHealth;
+  let detectCalls = 0;
+  connector.detectCapabilities = async () => {
+    detectCalls += 1;
+    return { posts: { status: 'available', probe: 'live' }, comments: { status: 'unsupported' } };
+  };
+  // Static accountHealth capabilities must never be used for BigPlayer detection.
+  connector.accountHealth = async () => ({ authorized: true, capabilities: { posts: { status: 'available', probe: 'stale' }, comments: { status: 'available', probe: 'stale' } } });
+  try {
+    await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com', postsApiUrl: 'https://community.bigplayer.com/posts', commentsApiUrl: 'https://community.bigplayer.com/posts/:postId/comments' }), sourceId]);
+    const res = await api(`/sources/${sourceId}/check-capabilities`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    assert.equal(detectCalls, 1);
+    assert.equal(res.body.data.capabilities.posts, 'authorized_scope');
+    assert.equal(res.body.data.capabilities.comments, 'unsupported');
+    const rows = await repo.query('SELECT capability,status,detail FROM po_source_capabilities WHERE source_id=? ORDER BY capability', [sourceId]);
+    assert.equal(rows.find(row => row.capability === 'posts').status, 'authorized_scope');
+    assert.match(rows.find(row => row.capability === 'posts').detail, /live/);
+  } finally {
+    connector.detectCapabilities = originalDetect;
+    connector.accountHealth = originalHealth;
+  }
+});
+
 test('PATCH /sources/:id/configuration 原子保存 H5 配置并支持空凭据保留', async () => {
   const before = (await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', ['a-test-1', 'api_token']))[0].secret_cipher;
   const res = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 原子配置', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 21600, syncMode: 'incremental', historyStart: null, enabled: false, credential: {} }) });
@@ -542,6 +708,35 @@ test('PATCH /sources/:id/configuration 原子保存 H5 配置并支持空凭据�
   await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', syncMode: 'incremental', historyStart: null }), sourceId]);
   await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ syncMode: 'incremental', historyStart: null }), 'a-test-1']);
 });
+
+test('PATCH /sources/:id/configuration 保存并回显 BigPlayer 多站点，首站保持 baseUrl 兼容', async () => {
+  const payload = {
+    displayName: 'H5 多站点配置',
+    baseUrl: 'https://community.bigplayer.com/',
+    siteUrls: ['https://community.bigplayer.com/', 'https://community.bigplayer.com/secondary/'],
+    frequencySeconds: 21600,
+    credential: {}
+  };
+  const res = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify(payload) });
+  assert.equal(res.status, 200);
+  const responseConfig = typeof res.body.data.config === 'string' ? JSON.parse(res.body.data.config) : res.body.data.config;
+  assert.equal(responseConfig.baseUrl, 'https://community.bigplayer.com/');
+  assert.deepEqual(responseConfig.siteUrls.map(site => site.url), ['https://community.bigplayer.com/', 'https://community.bigplayer.com/secondary']);
+  const storedConfig = JSON.parse((await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config);
+  assert.equal(storedConfig.baseUrl, responseConfig.siteUrls[0].url);
+  assert.deepEqual(storedConfig.siteUrls, responseConfig.siteUrls);
+
+  const beforeReject = JSON.stringify(storedConfig);
+  const duplicate = await api(`/sources/${sourceId}/configuration`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ...payload, siteUrls: ['https://community.bigplayer.com/', 'https://community.bigplayer.com'] })
+  });
+  assert.equal(duplicate.status, 400);
+  assert.equal(duplicate.body.error.code, 'SITE_URL_DUPLICATE');
+  const afterReject = (await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config;
+  assert.equal(afterReject, beforeReject, '非法多站点输入不得产生部分保存');
+});
+
 test('PATCH /sources/:id 非法频率返回 400', async () => {
   const res = await api(`/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ frequencySeconds: -5 }) });
   assert.equal(res.status, 400);
@@ -1665,6 +1860,12 @@ test('Facebook baseUrl 变化原子失效旧目标状态，规范化未变化时
 test('DELETE /sources/:id 软删除：列表消失但 DB 行仍在（历史数据保留）', async () => {
   const created = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '待删源', baseUrl: 'https://community.bigplayer.com/', apiToken: 'delete-token' }) });
   const delId = created.body.data.id;
+  const accountId = created.body.data.account.id;
+  const contentId = 'alert-detail-delete-source-content'; const alertId = 'alert-detail-delete-source-alert';
+  await repo.query("INSERT INTO po_contents (id,game_id,community_id,source_id,account_id,external_id,content_type,title,body,source_url) VALUES (?,?,?,?,?,?,'post','历史帖子','必须保留','https://community.bigplayer.com/history')", [contentId, gameId, 'c-test-1', delId, accountId, 'delete-history-post']);
+  await repo.query("INSERT INTO po_analyses (content_id,sentiment,severity,negative_score,analyzed_at) VALUES (?,'neutral','normal',0,NOW())", [contentId]);
+  await repo.query("INSERT INTO po_alerts (id,game_id,community_id,severity,alert_type,title,trigger_detail) VALUES (?,?,'c-test-1','normal','keyword','历史告警','保留')", [alertId, gameId]);
+  await repo.query('INSERT INTO po_alert_contents (alert_id,content_id) VALUES (?,?)', [alertId, contentId]);
   const del = await api(`/sources/${delId}`, { method: 'DELETE' });
   assert.equal(del.status, 200);
   assert.equal(del.body.data.deleted, true);
@@ -1676,6 +1877,33 @@ test('DELETE /sources/:id 软删除：列表消失但 DB 行仍在（历史数�
   assert.equal(rows.length, 1, '物理行保留');
   const cfg = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config;
   assert.equal(cfg.deleted, true);
+  assert.equal((await repo.query('SELECT enabled FROM po_accounts WHERE id=?', [accountId]))[0].enabled, 0, '账号运行配置失效但历史引用保留');
+  assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_credentials WHERE source_id=?', [delId]))[0].total, 0, '凭据已清除');
+  assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_contents WHERE id=?', [contentId]))[0].total, 1, '历史内容保留');
+  assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_analyses WHERE content_id=?', [contentId]))[0].total, 1, '历史分析保留');
+  assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_alert_contents WHERE alert_id=? AND content_id=?', [alertId, contentId]))[0].total, 1, '历史告警关联保留');
+  const repeated = await api(`/sources/${delId}`, { method: 'DELETE' });
+  assert.equal(repeated.status, 404, '重复删除明确返回不存在');
+});
+
+test('DELETE /sources/:id 在运行任务存在时返回 409 且不发生半删除', async () => {
+  const created = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '运行中待删源', baseUrl: 'https://community.bigplayer.com/', apiToken: 'delete-running-token' }) });
+  const id = created.body.data.id; const accountId = created.body.data.account.id; const runId = `delete-running-${Date.now()}`;
+  try {
+    await repo.query("INSERT INTO po_sync_runs (id,account_id,status,sync_mode,lease_owner,lease_until) VALUES (?,?,'running','incremental','delete-test',DATE_ADD(NOW(), INTERVAL 1 HOUR))", [runId, accountId]);
+    const result = await api(`/sources/${id}`, { method: 'DELETE' });
+    assert.equal(result.status, 409);
+    assert.equal(result.body.error.code, 'SOURCE_RUN_ACTIVE');
+    const source = (await repo.query('SELECT enabled,config FROM po_sources WHERE id=?', [id]))[0];
+    assert.equal(source.enabled, 1);
+    assert.notEqual((typeof source.config === 'string' ? JSON.parse(source.config || '{}') : source.config || {}).deleted, true);
+    assert.equal((await repo.query('SELECT COUNT(*) AS total FROM po_credentials WHERE source_id=?', [id]))[0].total, 1);
+  } finally {
+    await repo.query('DELETE FROM po_sync_runs WHERE id=?', [runId]);
+    await repo.query('DELETE FROM po_credentials WHERE source_id=?', [id]);
+    await repo.query('DELETE FROM po_accounts WHERE source_id=?', [id]);
+    await repo.query('DELETE FROM po_sources WHERE id=?', [id]);
+  }
 });
 
 test('DELETE /sources/:id 不存在返回 404', async () => {

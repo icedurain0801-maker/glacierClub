@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>告警详情原文图片自适应验收 fixture</title>
+  <style>
+    :root { color-scheme: light; font: 14px system-ui, sans-serif; }
+    body { margin: 20px; color: #263958; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    button { padding: 6px 10px; border: 1px solid #b8c4d5; border-radius: 4px; background: #fff; cursor: pointer; }
+    #viewport { width: 1280px; max-width: 100%; height: 720px; border: 1px solid #b8c4d5; resize: horizontal; overflow: hidden; }
+    #page { display: block; width: 100%; height: 100%; border: 0; }
+    #result { margin-top: 10px; white-space: pre-wrap; color: #52627a; }
+  </style>
+</head>
+<body>
+  <h1>原文图片自适应验收 fixture</h1>
+  <p>启动方式：在 <code>bigPlayer</code> 目录执行 <code>python -m http.server 8080</code>，再访问本 fixture。</p>
+  <div class="toolbar">
+    <button type="button" data-mode="wide">宽视口 1280 / 抽屉 560</button>
+    <button type="button" data-mode="narrow">窄视口 375 / 抽屉 320</button>
+    <span>小图样本：PublicOpinion/opinion-favicon.svg（项目现有稳定资源）</span>
+  </div>
+  <div id="viewport"><iframe id="page" title="真实告警详情页面"></iframe></div>
+  <div id="result" role="status">正在加载真实 alerts.html…</div>
+  <script>
+    const frame = document.getElementById('page');
+    const viewport = document.getElementById('viewport');
+    const result = document.getElementById('result');
+    const pageUrl = '../../../../admin/PublicOpinion/alerts.html';
+    const sampleUrl = 'opinion-favicon.svg';
+
+    function installProbe(mode) {
+      const doc = frame.contentDocument;
+      const drawer = doc.querySelector('.drawer');
+      const mask = doc.querySelector('.drawer-mask');
+      const content = doc.querySelector('#drawerContent');
+      if (!drawer || !mask || !content) {
+        result.textContent = 'fixture 失败：alerts.html 未找到详情抽屉节点';
+        return;
+      }
+      const narrow = mode === 'narrow';
+      viewport.style.width = narrow ? '375px' : '1280px';
+      drawer.style.width = narrow ? '320px' : '560px';
+      content.innerHTML = '<div class="detail-block"><div class="detail-label">原文内容（fixture 小图）</div><div class="detail-text"><img class="content-image" src="' + sampleUrl + '" alt="稳定小图样本"></div></div>';
+      mask.classList.add('open');
+      const image = content.querySelector('.content-image');
+      const detailText = content.querySelector('.detail-text');
+      const check = () => {
+        const style = doc.defaultView.getComputedStyle(image);
+        const natural = image.naturalWidth + 'x' + image.naturalHeight;
+        const rendered = Math.round(image.getBoundingClientRect().width * 100) / 100;
+        const container = detailText.getBoundingClientRect().width;
+        result.textContent = [
+          '模式：' + (narrow ? '窄视口/窄抽屉' : '宽视口/宽抽屉'),
+          '样本：' + sampleUrl + '，natural=' + natural,
+          'computed：width=' + style.width + '，max-width=' + style.maxWidth + '，height=' + style.height,
+          'rendered：image=' + rendered + 'px，detail-text=' + Math.round(container * 100) / 100 + 'px，横溢出=' + (image.scrollWidth > detailText.clientWidth),
+          '验收：小图应保持自然尺寸；窄模式图片宽度不得超过 detail-text，且比例不变。'
+        ].join('\n');
+      };
+      image.addEventListener('load', check, { once: true });
+      if (image.complete) check();
+    }
+
+    frame.addEventListener('load', () => installProbe('wide'));
+    document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => installProbe(button.dataset.mode)));
+    frame.src = pageUrl;
+  </script>
+</body>
+</html>

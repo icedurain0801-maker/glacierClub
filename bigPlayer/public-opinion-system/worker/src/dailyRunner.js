@@ -270,6 +270,7 @@ async function runDaily(deps, {
   let releaseDailyAnalysisScope = null;
   const lockName = `po-daily-${window.businessDate}`;
   let locked = false;
+  let analysisLocked = false;
   try {
     await deps.repo.health();
     if (!deps.ai?.configured?.('light')) {
@@ -294,6 +295,9 @@ async function runDaily(deps, {
       skippedSources: preflight.skipped
     };
     if (dryRun) return { ...summary, dryRun: true };
+
+    analysisLocked = await deps.repo.acquireAdvisoryLock('po-analysis-consumer', 60);
+    if (!analysisLocked) throw Object.assign(new Error('analysis consumer is active'), { code: 'ANALYSIS_SCOPE_BUSY' });
 
     const dailyStartedAt = clockNow(deps);
     releaseDailyAnalysisScope = registerDailyAnalysisScope(window);
@@ -364,6 +368,7 @@ async function runDaily(deps, {
     return { ...summary, dryRun: false, collectionStatus, sources: latestRuns, incompleteSources: incomplete, contents, analysis };
   } finally {
     if (typeof releaseDailyAnalysisScope === 'function') releaseDailyAnalysisScope();
+    if (analysisLocked) await deps.repo.releaseAdvisoryLock('po-analysis-consumer');
     if (locked) await deps.repo.releaseAdvisoryLock(lockName);
   }
 }

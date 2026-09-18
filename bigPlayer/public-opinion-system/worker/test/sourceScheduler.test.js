@@ -69,6 +69,41 @@ test('schedules domestic BigPlayer and overseas Discord through the same decisio
   assert.ok(inputs.enqueued.every(item => item.scheduledAt === '2026-01-01T19:00:00.000Z'));
 });
 
+test('same platform keeps independent source leases and schedules both sources', async () => {
+  const acquired = [];
+  const inputs = deps({
+    accounts: [account(), account({ id: 'account-2', source_id: 'source-2' })],
+    leaseAdapter: { async acquire(intent) { acquired.push(intent.sourceId); return { acquired: true, leaseToken: `lease-${intent.sourceId}` }; }, async release() {} }
+  });
+  const result = await scheduleSources({
+    sources: [source(), source({ id: 'source-2', default_account_id: 'account-2' })],
+    now: NOW,
+    ...inputs
+  });
+  assert.deepEqual(acquired, ['source-1', 'source-2']);
+  assert.deepEqual(result.decisions.map(item => item.status), ['enqueued', 'enqueued']);
+  assert.deepEqual(inputs.enqueued.map(item => item.sourceId), ['source-1', 'source-2']);
+});
+
+test('BigPlayer, TapTap, and Discord each isolate leases by source rather than platform', async () => {
+  for (const [platform, region] of [['bigplayer_h5', 'domestic'], ['taptap', 'domestic'], ['discord', 'overseas']]) {
+    const acquired = [];
+    const first = source({ id: `${platform}-1`, platform, region_code: region, default_account_id: `${platform}-account-1` });
+    const second = source({ id: `${platform}-2`, platform, region_code: region, default_account_id: `${platform}-account-2` });
+    const inputs = deps({
+      accounts: [
+        account({ id: first.default_account_id, source_id: first.id, platform }),
+        account({ id: second.default_account_id, source_id: second.id, platform })
+      ],
+      connectorCapabilities: { [platform]: { available: true, supportsScheduling: true } },
+      leaseAdapter: { async acquire(intent) { acquired.push(intent.sourceId); return { acquired: true, leaseToken: `lease-${intent.sourceId}` }; }, async release() {} }
+    });
+    const result = await scheduleSources({ sources: [first, second], now: NOW, ...inputs });
+    assert.deepEqual(acquired, [first.id, second.id], platform);
+    assert.deepEqual(result.decisions.map(item => item.status), ['enqueued', 'enqueued'], platform);
+  }
+});
+
 test('admits Last Light BigPlayer after stale state recovery and advances its next slot', async () => {
   const inputs = deps({
     accounts: [account({ id: 'last-light-account', source_id: '081a16d2-5545-4afd-9c65-e04777e4540b', game_id: 'last-light-game', community_id: '00000000-0000-0000-0000-000000000102', platform: 'bigplayer_h5' })],

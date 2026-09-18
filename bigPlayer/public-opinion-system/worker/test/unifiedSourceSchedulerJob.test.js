@@ -113,7 +113,7 @@ test('isolates a source adapter failure and preserves manual or legacy evidence'
       if (normalized.startsWith('SELECT s.id AS source_id')) {
         return [[candidateRow(), candidateRow('source-2', 'account-2')]];
       }
-      if (normalized.includes('lease_epoch=lease_epoch+1') && params[3] === 'source-1') throw new Error('lease unavailable');
+      if (normalized.includes('lease_epoch=lease_epoch+1') && params.includes('source-1')) throw new Error('lease unavailable');
       if (normalized.includes('lease_epoch=lease_epoch+1')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 6 }]];
       if (normalized.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];

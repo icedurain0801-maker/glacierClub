@@ -174,6 +174,30 @@ const SIDEBAR_DATA = [
           },
           {
             type: 'dir',
+            label: '创作管理',
+            children: [
+              {
+                type: 'item',
+                label: '创作任务管理',
+                version: 'v3.1.4',
+                href: 'admin/community/CreationTaskManage.html'
+              }
+            ]
+          },
+          {
+            type: 'dir',
+            label: '限时任务管理',
+            children: [
+              {
+                type: 'item',
+                label: '限时任务列表',
+                version: 'v3.1.4',
+                href: 'admin/community/TimedTaskManage.html'
+              }
+            ]
+          },
+          {
+            type: 'dir',
             label: '楼层抽奖管理',
             children: [
               {
@@ -212,7 +236,49 @@ const SIDEBAR_DATA = [
         type: 'dir',
         label: '版块管理',
         children: []
+      },
+      {
+        type: 'dir',
+        label: '客服管理',
+        children: [
+          {
+            type: 'item',
+            label: '社区货币管理',
+            version: 'v3.1.4',
+            href: 'admin/community/CommunityCurrencyManage.html'
+          }
+        ]
       }
+    ]
+  },
+  {
+    type: 'group',
+    label: '舆情管理',
+    children: [
+      { type: 'item', label: '舆情数据概览', href: 'admin/PublicOpinion/index.html' },
+      { type: 'item', label: '抓取内容管理', href: 'admin/PublicOpinion/content.html' },
+      { type: 'item', label: '舆情通知管理', href: 'admin/PublicOpinion/alerts.html' },
+      { type: 'item', label: '抓取账号管理', href: 'admin/PublicOpinion/sources.html' },
+      { type: 'item', label: '抓取任务记录', href: 'admin/PublicOpinion/collection-runs.html' },
+      { type: 'item', label: '监控关键词设置', href: 'admin/PublicOpinion/keywords.html' }
+    ]
+  }
+];
+
+// 舆情页面使用独立、单层的工作台导航；避免在数据运营场景暴露无关的全站目录。
+const PUBLIC_OPINION_SIDEBAR_DATA = [
+  {
+    type: 'group', label: '分析', children: [
+      { type: 'item', label: '舆情数据概览', href: 'admin/PublicOpinion/index.html', icon: 'overview' },
+      { type: 'item', label: '抓取内容管理', href: 'admin/PublicOpinion/content.html', icon: 'content' },
+      { type: 'item', label: '舆情通知管理', href: 'admin/PublicOpinion/alerts.html', icon: 'alerts' }
+    ]
+  },
+  {
+    type: 'group', label: '采集', children: [
+      { type: 'item', label: '抓取账号管理', href: 'admin/PublicOpinion/sources.html', icon: 'sources' },
+      { type: 'item', label: '抓取任务记录', href: 'admin/PublicOpinion/collection-runs.html', icon: 'runs' },
+      { type: 'item', label: '监控关键词设置', href: 'admin/PublicOpinion/keywords.html', icon: 'keywords' }
     ]
   }
 ];

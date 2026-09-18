@@ -132,6 +132,12 @@ class Q1AnalysisRunner {
   }
   async counts(profile) { return this.repo.countAnalysisJobs({ profile, version: this.ai.selectProfile(profile).version, sourceId: this.sourceId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo }); }
   async run() {
+    const locked = await this.repo.acquireAdvisoryLock('po-analysis-consumer', 60);
+    if (!locked) throw Object.assign(new Error('analysis consumer is active'), { code: 'ANALYSIS_SCOPE_BUSY' });
+    try { return await this.runScoped(); }
+    finally { await this.repo.releaseAdvisoryLock('po-analysis-consumer'); }
+  }
+  async runScoped() {
     if (!this.sourceId || !this.publishedFrom || !this.publishedTo) throw new Error('sourceId and published window are required');
     if ((this.scope.gameId && !this.scope.communityId) || (this.scope.communityId && !this.scope.gameId)) throw Object.assign(new Error('canonical game and community scope must be supplied together'), { code: 'ANALYSIS_SCOPE_REQUIRED' });
     if (!this.ai.configured('light')) throw new Error('AI_ANALYSIS_NOT_CONFIGURED');
