@@ -4,19 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>文档修改记录 - 大玩家</title>
-<link rel="stylesheet" href="shared/sidebar.css">
+<link rel="stylesheet" href="shared/sidebar.css?v=admin-sidebar-v034">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
   background: #f0f4f8;
   min-height: 100vh;
-  display: flex;
+  padding-left: 250px;
 }
 
 .page-wrapper {
-  display: flex;
-  flex: 1;
   min-height: 100vh;
 }
 
@@ -115,7 +113,7 @@ tbody td {
 <body>
 <div class="page-wrapper">
 
-  <nav id="sidebar" class="sidebar"></nav>
+  <nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
 
   <div class="main">
     <div class="main-title">文档修改记录</div>
@@ -144,8 +142,8 @@ tbody td {
 
 </div>
 
-<script src="shared/sidebar-data.js"></script>
-<script src="shared/sidebar.js"></script>
+<script src="shared/sidebar-data.js?v=admin-sidebar-v034"></script>
+<script src="shared/sidebar.js?v=sidebar-system-split-v037"></script>
 <script>
 initSidebar({
   root: '.',
@@ -154,6 +152,7 @@ initSidebar({
 
 // ---- 数据（最新版在最前）----
 const CHANGELOG = [
+  { version: 'v3.1.4', changes: ['1. 管理后台-新增「创作任务管理」：奖励扩展为经验值、游戏道具、个性装扮；单个任务仅允许一种奖励类型，游戏道具支持多个道具、数量必填及 ICON 异常兜底，个性装扮支持头像框/个性背景级联选择', '2. 管理后台-新增「社区货币管理」：提供正式列表与审核列表，支持批量录入通行证 ID、Excel 导入与模板下载、账号校验；发放类型限定为经验值和个性装扮，并补充审核状态与字段规则', '3. 管理后台-新增「限时任务管理」：包含任务列表、审核列表及批量审核；单个限时任务支持最多 4 组“任务+奖励”，覆盖浏览、评论、发帖、点赞任务，并支持指定帖文校验及经验值、游戏道具、个性装扮奖励', '4. C端-新增「福利任务」页面：在每日任务、每周任务之外增加限时任务模块，展示活动时间、倒计时、任务进度、操作入口和多类型奖励；任务标题支持指定帖文/话题蓝色高亮、长标题两行截断及单行高度自适应', '5. C端-首页与福利任务联动：福利任务入口根据版块“功能栏”配置在首页顶部与侧边栏之间互斥迁移；首页发帖面板新增最多 4 个推荐话题，按置顶时间和浏览量排序，限时任务跳转时自动勾选指定话题', '6. C端原型公共能力优化：统一左侧导航和需求说明入口，页签同步展示版本号；侧边栏搜索支持当前页签内跨页面保留，清空后恢复完整目录，并与舆情分析系统的导航、样式和状态严格隔离'], date: '2026/09/21', operator: '刘福毅' },
   { version: 'v3.1.3', changes: ['1. 管理后台-内容治理新增「灌水判定配置」页面：机审新增灌水库审查（屏蔽词→阿里云→灌水库三道关），按 R1~R8 规则命中数与阈值输出 正常/嫌疑/灌水 三档，灌水判机审不通过', '2. 支持分版块配置总开关、灌水词库（分页+导入）、R1~R8 规则启停、灌水/嫌疑阈值；评论场景命中即灌水、无嫌疑档', '3. 新增数据分析看板：帖子/动态/评论分三区统计各档占比，支持时间范围筛选'], date: '2026/06/23', operator: '刘福毅' },
   { version: 'v3.1.2', changes: ['1. 楼层抽奖新建/编辑表单的「投票选项」字段新增「最多票数」tab 选项'], date: '2026/06/15', operator: '刘福毅' },
   { version: 'v3.1.1', changes: ['1. 管理后台-新增「用户数据分析」页面：按所属版块 + 日期 + 创角天数筛选，展示累计总数（去重）与按天统计明细', '2. 用户数据分析筛选栏新增「社区类型」单选下拉（不限 / 网页端 / 小程序端 / APP端），默认「不限」；选择具体端类型后累计总数与按天表按所选端类型重新统计，因历史数据未按端类型区分，仅统计本需求上线后新产生的数据'], date: '2026/05/29', operator: '刘福毅' },

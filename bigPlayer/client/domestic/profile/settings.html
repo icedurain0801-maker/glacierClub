@@ -4,6 +4,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
 <title>设置</title>
+<link rel="stylesheet" href="../../../shared/sidebar.css?v=20260920-sidebar3">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script>tailwind.config={theme:{extend:{colors:{primary:'#0061a4'}}}}</script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
@@ -40,6 +41,7 @@
 </style>
 </head>
 <body class="flex justify-center selection:bg-blue-200 font-sans">
+<nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
 
 <main class="w-full max-w-[428px] min-h-[100dvh] bg-[#f0f2f5] relative flex flex-col">
 
@@ -130,5 +132,9 @@ function toggleDark(el) {
   // 仅演示，暂不实现真实深色模式
 }
 </script>
+<script src="../../../shared/sidebar-data.js?v=20260921-c-end-version2"></script>
+<script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
+<script>initSidebar({root:'../../..',currentHref:'client/domestic/profile/settings.html'});</script>
+<script src="../../../shared/requirement-panel.js?v=20260921-requirements"></script>
 </body>
 </html>

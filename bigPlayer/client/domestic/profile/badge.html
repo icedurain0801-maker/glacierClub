@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>徽章墙 - 原型文档</title>
-<link rel="stylesheet" href="../../../shared/sidebar.css">
+  <link rel="stylesheet" href="../../../shared/sidebar.css?v=20260920-sidebar3">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 /* s4 光晕伪元素 — Tailwind 不支持伪元素 clip-path */
@@ -22,7 +22,7 @@
 <div class="flex w-fit min-h-screen">
 
   <!-- ============ 侧边导航栏（通用） ============ -->
-  <nav id="sidebar" class="sidebar"></nav>
+  <nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
 
   <!-- ============ 左侧：手机原型 ============ -->
   <div class="relative flex-shrink-0 w-[375px] h-[667px] overflow-hidden sticky top-0 self-start bg-white shadow-[2px_0_16px_rgba(0,0,0,0.10)] my-5 ml-6 rounded-lg">
@@ -673,8 +673,8 @@
     return map[name] || '1f3c5';
   }
 </script>
-<script src="../../../shared/sidebar-data.js"></script>
-<script src="../../../shared/sidebar.js"></script>
+<script src="../../../shared/sidebar-data.js?v=20260921-c-end-version2"></script>
+<script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
 <script>
   initSidebar({
     root: '../../..',
@@ -689,5 +689,6 @@
   _applyHash();
   window.addEventListener('hashchange', _applyHash);
 </script>
+<script src="../../../shared/requirement-panel.js?v=20260921-requirements"></script>
 </body>
 </html>

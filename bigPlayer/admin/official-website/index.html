@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>冰游汇社区 - 专注打造游戏体验社区</title>
+<link rel="stylesheet" href="../../shared/sidebar.css?v=admin-sidebar-v034">
 <style>
 /* ── Reset & Base ── */
 *{margin:0;padding:0;box-sizing:border-box}
@@ -13,13 +14,14 @@ body{
   color:#fff;
   background:#23272a;
   overflow-x:hidden;
+  padding-left:250px;
 }
 a{text-decoration:none;color:inherit}
 img{max-width:100%;display:block}
 
 /* ── Navbar ── */
 .navbar{
-  position:fixed;top:0;left:0;right:0;z-index:100;
+  position:fixed;top:0;left:250px;right:0;z-index:100;
   display:flex;align-items:center;justify-content:space-between;
   padding:0 40px;height:64px;
   background:rgba(16,19,34,0.85);
@@ -414,6 +416,7 @@ img{max-width:100%;display:block}
 </style>
 </head>
 <body>
+<aside class="sidebar sidebar--fixed-left" id="sidebar"></aside>
 
 <!-- ── Navbar ── -->
 <nav class="navbar">
@@ -610,5 +613,8 @@ window.addEventListener('scroll', () => {
     window.scrollY > 50 ? 'rgba(8,11,17,0.95)' : 'rgba(16,19,34,0.85)';
 });
 </script>
+<script src="../../shared/sidebar-data.js?v=admin-sidebar-v034"></script>
+<script src="../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
+<script>initSidebar({root:'../..',currentHref:'admin/official-website/index.html'});</script>
 </body>
 </html>
