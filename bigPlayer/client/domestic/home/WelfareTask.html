@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="stylesheet" href="../../../shared/sidebar.css?v=20260920-sidebar3">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght@400;500;600&display=swap" rel="stylesheet"/>
+<title>福利任务</title>
+<style>
+  :root { --welfare-blue:#16a9e8; --welfare-deep:#4d4fa6; --welfare-ink:#263238; --welfare-muted:#8b949a; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; background:#eef2f5; color:var(--welfare-ink); font-family:Inter,"Microsoft YaHei",sans-serif; }
+  .welfare-shell { position:relative; width:375px; height:100dvh; min-height:667px; background:#fff; overflow:hidden; }
+  .welfare-inner { width:100%; height:100%; min-height:667px; display:flex; flex-direction:column; background:#fff; }
+  .welfare-header { position:relative; min-height:158px; padding:12px 10px 14px; color:#fff; overflow:hidden; background:linear-gradient(168deg,#393a91 0%,#5658b7 62%,#4d4fa6 100%); }
+  .welfare-header::before,.welfare-header::after { content:""; position:absolute; pointer-events:none; opacity:.22; }
+  .welfare-header::before { width:205px; height:92px; right:-26px; top:-28px; border-radius:50%; border:3px solid #d9b0ee; transform:rotate(12deg); box-shadow:0 0 0 11px #9a74cd44,0 0 0 23px #9a74cd22; }
+  .welfare-header::after { width:154px; height:30px; right:28px; top:38px; background:linear-gradient(135deg,transparent 37%,#bd9ae8 38%,#bd9ae8 46%,transparent 47%),linear-gradient(45deg,transparent 45%,#9a91dc 46%,#9a91dc 55%,transparent 56%); }
+  .welfare-topbar { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; height:30px; }
+  .welfare-topbar h1 { margin:0; font-size:16px; font-weight:700; letter-spacing:.2px; }
+  .welfare-icon-btn { width:28px; height:28px; border:0; padding:0; display:grid; place-items:center; color:#fff; background:transparent; cursor:pointer; }
+  .welfare-icon-btn .material-symbols-outlined { font-size:24px; }
+  .welfare-level { position:relative; z-index:1; margin:7px 0 0; }
+  .welfare-level-line { position:relative; height:27px; margin:0 4px; }
+  .welfare-level-line::before { content:""; position:absolute; left:0; right:0; top:15px; height:3px; border-radius:2px; background:#dbe5ff66; }
+  .welfare-level-line::after { content:""; position:absolute; left:0; width:50%; top:15px; height:3px; border-radius:2px; background:#28b9ee; }
+  .welfare-node { position:absolute; top:10px; width:12px; height:12px; border:2px solid #fff; border-radius:50%; background:#28b9ee; transform:translateX(-50%); z-index:2; }
+  .welfare-node.start { left:10%; } .welfare-node.end { left:90%; background:#9fa5c2; }
+  .welfare-level-label { position:absolute; top:-3px; font-size:11px; font-weight:600; color:#eef2ff; }
+  .welfare-level-label.left { left:0; } .welfare-level-label.right { right:0; }
+  .welfare-xp-bubble { position:absolute; left:10%; top:-5px; transform:translateX(-50%); padding:4px 6px; border-radius:4px; background:#11afe8; color:#fff; font-size:12px; font-weight:700; }
+  .welfare-xp-bubble::after { content:""; position:absolute; left:50%; bottom:-5px; border:5px solid transparent; border-top-color:#11afe8; border-bottom:0; transform:translateX(-50%); }
+  .welfare-scale { display:flex; justify-content:space-between; padding:1px 5px 0; font-size:11px; color:#eef2ff; }
+  .welfare-summary { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; margin-top:3px; font-size:11px; color:#eef2ff; }
+  .welfare-summary .material-symbols-outlined { margin-right:3px; font-size:17px; vertical-align:-4px; }
+  .welfare-summary strong { color:#fff; font-size:12px; }
+  .welfare-record { border:0; padding:0; color:#fff; background:transparent; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .welfare-record .material-symbols-outlined { font-size:15px; margin:0; }
+  .welfare-main { flex:1; min-height:0; overflow-y:auto; background:#fff; }
+  .welfare-section { padding:11px 8px 7px; border-bottom:5px solid #f0f2f3; }
+  .welfare-section:last-of-type { border-bottom:0; }
+  .welfare-section-title { margin:0 0 4px; font-size:14px; font-weight:700; color:#313b40; }
+  .welfare-task { display:grid; grid-template-columns:28px minmax(0,1fr) 96px 48px; gap:6px; align-items:center; min-height:48px; }
+  .welfare-task-icon { display:grid; place-items:center; color:var(--welfare-blue); }
+  .welfare-task-icon .material-symbols-outlined { font-size:20px; }
+  .welfare-task-copy { min-width:0; }
+  .welfare-task-title { display:flex; align-items:baseline; gap:7px; font-size:13px; line-height:1.25; white-space:nowrap; }
+  .welfare-task-target { color:#0787b3; font-weight:700; }
+  .welfare-task-count { color:#9aa1a6; font-size:12px; }
+  .welfare-task-desc { overflow:hidden; color:#8b949a; font-size:10px; line-height:1.4; text-overflow:ellipsis; white-space:nowrap; }
+  .welfare-task-desc strong { color:#08a6e8; font-weight:600; }
+  .welfare-reward { display:flex; align-items:center; gap:4px; min-width:0; min-height:18px; overflow:visible; color:#08a6e8; white-space:normal; text-overflow:clip; }
+  .welfare-reward-label { color:#8b949a; }
+  .welfare-item-reward { position:relative; display:grid; place-items:center; width:16px; height:16px; flex:0 0 16px; color:#08a6e8; font-weight:600; cursor:help; }
+  .welfare-item-icon { display:block; width:16px; height:16px; flex:0 0 16px; object-fit:contain; background:transparent; filter:drop-shadow(0 1px 1px #0d4d7922); }
+  .welfare-item-count { position:absolute; right:-5px; bottom:-5px; z-index:1; min-width:9px; padding:1px 2px; border-radius:4px; background:#263238; color:#fff; font:700 6px/1 Inter,"Microsoft YaHei",sans-serif; font-style:normal; text-align:center; }
+  .welfare-item-reward::after { content:attr(data-item-name); position:absolute; left:50%; bottom:calc(100% + 7px); z-index:5; padding:4px 7px; border-radius:5px; background:#263238; color:#fff; font-size:10px; font-weight:500; line-height:1.2; white-space:nowrap; pointer-events:none; opacity:0; transform:translate(-50%,4px); transition:opacity .15s ease,transform .15s ease; }
+  .welfare-item-reward:hover::after,.welfare-item-reward:focus-visible::after { opacity:1; transform:translate(-50%,0); }
+  .welfare-progress { height:12px; border-radius:8px; background:#f1f4f6; overflow:hidden; }
+  .welfare-progress > span { display:block; height:100%; width:0; border-radius:8px; background:#bceaf8; }
+  .welfare-action { min-width:48px; height:25px; border:0; border-radius:6px; background:var(--welfare-blue); color:#fff; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .welfare-action:hover { background:#0794d0; }
+  .welfare-limited-section { margin:4px 8px 8px; padding:10px 7px 7px; border:1px solid #d1eff7; border-radius:6px; outline:1px solid transparent; outline-offset:2px; background:#fff; animation:welfareLimitedBreath 3.1s ease-in-out infinite; }
+  .welfare-limited-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin:0 1px 4px; }
+  .welfare-limited-title { display:flex; align-items:center; gap:5px; margin:0; color:#313b40; font-size:14px; font-weight:700; }
+  .welfare-limited-title .material-symbols-outlined { color:var(--welfare-blue); font-size:19px; }
+  .welfare-limited-subtitle { margin:2px 0 0; color:var(--welfare-muted); font-size:10px; line-height:1.4; }
+  .welfare-limited-time { flex-shrink:0; padding:3px 6px; border:1px solid #a8dff0; border-radius:5px; background:#effaff; color:#0787b3; font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .welfare-limited-section .welfare-task { grid-template-columns:28px minmax(0,1fr) 48px; grid-template-rows:auto auto; gap:4px 6px; align-items:start; min-height:0; padding:7px 0; border-bottom:1px solid #eef2f4; }
+  .welfare-limited-section .welfare-task-icon { grid-column:1; grid-row:1 / 3; align-self:stretch; padding-top:0; }
+  .welfare-limited-section .welfare-task-copy { grid-column:2; grid-row:1; }
+  .welfare-limited-section .welfare-task-title { display:-webkit-box; max-height:32px; overflow:hidden; line-height:16px; white-space:normal; overflow-wrap:anywhere; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+  .welfare-limited-section .welfare-task-target { overflow-wrap:anywhere; }
+  .welfare-limited-section .welfare-progress { grid-column:2; grid-row:2; width:100%; height:8px; align-self:center; margin-top:2px; }
+  .welfare-limited-section .welfare-action { grid-column:3; grid-row:1 / 3; align-self:center; width:48px; padding:0; }
+  .welfare-limited-footer { display:flex; justify-content:space-between; padding:4px 1px 0; color:#8b949a; font-size:10px; }
+  .welfare-limited-footer strong { color:#0787b3; font-weight:600; }
+  @keyframes welfareLimitedBreath { 0%,100% { border-color:#d1eff7; outline-color:#effbfe; box-shadow:0 0 0 0 #26b7df00; filter:brightness(1); } 50% { border-color:#62cbe7; outline-color:#a9e5f4; box-shadow:0 0 0 5px #26b7df0e,0 0 28px 4px #26b7df1d; filter:brightness(1.012); } }
+  .welfare-grade { padding:9px 8px 30px; }
+  .welfare-grade-title { margin:0 0 7px; font-size:14px; font-weight:700; }
+  .welfare-grade-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; }
+  .welfare-grade-table th { height:28px; color:#525d62; font-weight:500; text-align:left; }
+  .welfare-grade-table td { height:28px; border-bottom:1px solid #e9edef; color:#3d474c; }
+  .welfare-grade-table th:first-child,.welfare-grade-table td:first-child { width:22%; }
+  .welfare-grade-table td:first-child { color:#9a7d49; font-weight:700; }
+  .welfare-fab { position:absolute; z-index:51; right:16px; bottom:68px; width:50px; height:50px; border:0; border-radius:50%; background:#1464ea; color:#fff; box-shadow:0 5px 14px #1464ea55; cursor:pointer; }
+  .welfare-fab .material-symbols-outlined { font-size:25px; }
+  .welfare-toast { position:fixed; left:50%; bottom:78px; transform:translateX(-50%); display:none; z-index:1002; padding:8px 12px; border-radius:6px; background:#263238e8; color:#fff; font-size:12px; white-space:nowrap; }
+  .welfare-toast.show { display:block; }
+  .welfare-help { position:fixed; z-index:1003; inset:0; display:none; align-items:flex-end; justify-content:center; background:#10182866; }
+  .welfare-help.open { display:flex; }
+  .welfare-help-panel { width:375px; padding:18px 18px 24px; background:#fff; border-radius:16px 16px 0 0; }
+  .welfare-help-panel header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .welfare-help-panel h2 { margin:0; font-size:16px; }
+  .welfare-help-panel button { border:0; background:transparent; color:#6b7280; cursor:pointer; font-size:20px; }
+  .welfare-help-panel p { margin:7px 0 0; color:#69747a; font-size:12px; line-height:1.7; }
+  @media (max-width:430px) {
+    body { padding-left:0 !important; background:#fff; }
+    .welfare-shell { width:100vw; min-height:100dvh; }
+    .welfare-inner { min-height:100dvh; }
+    .welfare-help-panel { width:100vw; }
+  }
+</style>
+</head>
+<body>
+<nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
+<div class="welfare-shell">
+  <div class="welfare-inner">
+    <header class="welfare-header">
+      <div class="welfare-topbar">
+        <button class="welfare-icon-btn" type="button" aria-label="返回" onclick="history.back()"><span class="material-symbols-outlined">arrow_back_ios</span></button>
+        <h1>福利任务</h1>
+        <button class="welfare-icon-btn" type="button" aria-label="福利任务说明" onclick="openHelp()"><span class="material-symbols-outlined">help_outline</span></button>
+      </div>
+      <div class="welfare-level">
+        <div class="welfare-level-line"><span class="welfare-level-label left">lv.4</span><span class="welfare-level-label right">lv.5</span><span class="welfare-xp-bubble">500</span><i class="welfare-node start"></i><i class="welfare-node end"></i></div>
+        <div class="welfare-scale"><span>500</span><span>1000</span></div>
+      </div>
+      <div class="welfare-summary"><span><span class="material-symbols-outlined">monitoring</span>累计获得 <strong>500</strong> 经验值，还需 <strong>500</strong> 经验值升级</span><button class="welfare-record" type="button" onclick="showToast('获取记录功能即将开放')">获取记录 <span class="material-symbols-outlined">chevron_right</span></button></div>
+    </header>
+    <main class="welfare-main">
+      <section class="welfare-limited-section" aria-label="限时任务">
+        <div class="welfare-limited-header">
+          <div><h2 class="welfare-limited-title"><span class="material-symbols-outlined">schedule</span>限时任务</h2><p class="welfare-limited-subtitle">抓住时间，完成任务领取限定奖励</p></div>
+          <span class="welfare-limited-time">06 : 08 : 42</span>
+        </div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">edit_note</span></div><div class="welfare-task-copy"><div class="welfare-task-title">发布活动主题内容 <span class="welfare-task-count">0/1</span></div><div class="welfare-task-desc">奖励：<strong>+200 经验值</strong></div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post_publish.html">去发帖</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">chat_bubble_outline</span></div><div class="welfare-task-copy"><div class="welfare-task-title">评论帖文<span class="welfare-task-target">英雄试炼通关攻略...</span> <span class="welfare-task-count">0/2</span></div><div class="welfare-task-desc welfare-reward" aria-label="奖励：英雄拼图 200、英雄拼图 1、英雄拼图 2、英雄拼图 1、英雄拼图 1"><span class="welfare-reward-label">奖励：</span><span class="welfare-item-reward" data-item-name="英雄拼图 · 200 个" title="英雄拼图 · 200 个" tabindex="0"><img class="welfare-item-icon" src="../assets/welfare-prop-4002.png" alt="" /><i class="welfare-item-count">200</i></span><span class="welfare-item-reward" data-item-name="英雄拼图 · 1 个" title="英雄拼图 · 1 个" tabindex="0"><img class="welfare-item-icon" src="../assets/welfare-prop-4002.png" alt="" /><i class="welfare-item-count">1</i></span><span class="welfare-item-reward" data-item-name="英雄拼图 · 2 个" title="英雄拼图 · 2 个" tabindex="0"><img class="welfare-item-icon" src="../assets/welfare-prop-4002.png" alt="" /><i class="welfare-item-count">2</i></span><span class="welfare-item-reward" data-item-name="英雄拼图 · 1 个" title="英雄拼图 · 1 个" tabindex="0"><img class="welfare-item-icon" src="../assets/welfare-prop-4002.png" alt="" /><i class="welfare-item-count">1</i></span><span class="welfare-item-reward" data-item-name="英雄拼图 · 1 个" title="英雄拼图 · 1 个" tabindex="0"><img class="welfare-item-icon" src="../assets/welfare-prop-4002.png" alt="" /><i class="welfare-item-count">1</i></span></div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post-detail.html">去评论</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">workspace_premium</span></div><div class="welfare-task-copy"><div class="welfare-task-title">发布优质创作 <span class="welfare-task-count">0/1</span></div><div class="welfare-task-desc">奖励：<strong>星耀头像框</strong></div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post_publish.html">去发帖</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">auto_awesome</span></div><div class="welfare-task-copy"><div class="welfare-task-title">参与<span class="welfare-task-target">Patch Notes and Strategy Discussion</span>话题 <span class="welfare-task-count">0/3</span></div><div class="welfare-task-desc">奖励：<strong>极光个性背景</strong></div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="home.html?taskTopic=%23Patch%20Notes%20and%20Strategy%20Discussion">去发帖</button></div>
+        <div class="welfare-limited-footer"><span>09/20 12:00 开始</span><strong>09/27 23:59 结束</strong></div>
+      </section>
+      <section class="welfare-section">
+        <h2 class="welfare-section-title">每日任务</h2>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">send</span></div><div class="welfare-task-copy"><div class="welfare-task-title">发帖 <span class="welfare-task-count">0/3</span></div><div class="welfare-task-desc">每日发表 1 篇创作 <strong>+10</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post_publish.html">去发帖</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">chat_bubble_outline</span></div><div class="welfare-task-copy"><div class="welfare-task-title">评论 <span class="welfare-task-count">0/6</span></div><div class="welfare-task-desc">每日发表 1 次评论 <strong>+5</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="chat.html">去评论</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">thumb_up</span></div><div class="welfare-task-copy"><div class="welfare-task-title">点赞 <span class="welfare-task-count">0/10</span></div><div class="welfare-task-desc">每日点赞 1 次 <strong>+2</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="news_feed.html">去点赞</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">visibility</span></div><div class="welfare-task-copy"><div class="welfare-task-title">浏览 <span class="welfare-task-count">0/5</span></div><div class="welfare-task-desc">每日浏览 1 篇创作 <strong>+2</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="news_feed.html">去浏览</button></div>
+      </section>
+      <section class="welfare-section">
+        <h2 class="welfare-section-title">每周任务</h2>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">publish</span></div><div class="welfare-task-copy"><div class="welfare-task-title">置顶 <span class="welfare-task-count">0/2</span></div><div class="welfare-task-desc">每周创作被置顶 1 次 <strong>+1000</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post_publish.html">去发帖</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">workspace_premium</span></div><div class="welfare-task-copy"><div class="welfare-task-title">加精 <span class="welfare-task-count">0/4</span></div><div class="welfare-task-desc">每周创作被加精 1 次 <strong>+500</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post_publish.html">去发帖</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">favorite</span></div><div class="welfare-task-copy"><div class="welfare-task-title">获赞 <span class="welfare-task-count">0/50</span></div><div class="welfare-task-desc">每周获赞 1 次 <strong>+2</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post_publish.html">去发帖</button></div>
+        <div class="welfare-task"><div class="welfare-task-icon"><span class="material-symbols-outlined">volunteer_activism</span></div><div class="welfare-task-copy"><div class="welfare-task-title">获赞收藏 <span class="welfare-task-count">0/50</span></div><div class="welfare-task-desc">每周被收藏 1 次 <strong>+5</strong> 经验值</div></div><div class="welfare-progress"><span></span></div><button class="welfare-action" type="button" data-href="post_publish.html">去发帖</button></div>
+      </section>
+      <section class="welfare-grade">
+        <h2 class="welfare-grade-title">等级说明</h2>
+        <table class="welfare-grade-table"><thead><tr><th>等级</th><th>所需经验值</th><th>获得称号</th><th>尊享特权</th></tr></thead><tbody><tr><td>LV1</td><td>0</td><td>无</td><td>无</td></tr><tr><td>LV2</td><td>80</td><td>无</td><td>会员积分：100</td></tr><tr><td>LV3</td><td>200</td><td>无</td><td>会员积分：100</td></tr><tr><td>LV4</td><td>500</td><td>无</td><td>会员积分：100</td></tr><tr><td>LV5</td><td>1000</td><td>无</td><td>会员积分：100</td></tr></tbody></table>
+      </section>
+    </main>
+    <bottom-nav active="home" base="../"></bottom-nav>
+  </div>
+  <button class="welfare-fab" type="button" aria-label="打开福利助手" onclick="showToast('福利助手已开启')"><span class="material-symbols-outlined">face</span></button>
+</div>
+<div class="welfare-toast" id="welfare-toast"></div>
+<div class="welfare-help" id="welfare-help" role="dialog" aria-modal="true" aria-label="福利任务说明"><div class="welfare-help-panel"><header><h2>福利任务说明</h2><button type="button" aria-label="关闭" onclick="closeHelp()">×</button></header><p>完成每日任务和每周任务可获得经验值。任务进度会随社区行为实时更新，达到目标后发放对应奖励。</p></div></div>
+<script src="../../../shared/sidebar-data.js?v=20260921-c-end-version2"></script>
+<script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
+<script src="../../../shared/bottom-nav.js"></script>
+<script>
+  initSidebar({ root:'../../..', currentHref:'client/domestic/home/WelfareTask.html' });
+  document.querySelectorAll('.welfare-action').forEach(button => button.addEventListener('click', () => { const href = button.dataset.href; if (href) location.href = href; }));
+  function showToast(message) { const toast = document.getElementById('welfare-toast'); toast.textContent = message; toast.classList.add('show'); window.clearTimeout(window.__welfareToastTimer); window.__welfareToastTimer = window.setTimeout(() => toast.classList.remove('show'), 1800); }
+  function openHelp() { document.getElementById('welfare-help').classList.add('open'); }
+  function closeHelp() { document.getElementById('welfare-help').classList.remove('open'); }
+  document.getElementById('welfare-help').addEventListener('click', event => { if (event.target.id === 'welfare-help') closeHelp(); });
+</script>
+<script>
+  window.requirementPanelConfig = {
+    title: '福利任务需求说明',
+    version: 'v3.1.4',
+    html: `
+      <section>
+        <h2>v3.1.4 · 福利任务与限时任务（最新）</h2>
+        <h3>一、页面结构与展示规则</h3>
+        <p>福利任务页按「限时任务 → 每日任务 → 每周任务 → 等级说明」顺序展示。限时任务位于每日任务上方，展示活动倒计时、任务进度、操作入口及奖励信息。</p>
+        <ul>
+          <li>任务标题、ICON、进度、操作按钮和奖励说明必须保持同一任务卡内对应展示。</li>
+          <li>限时任务标题最多展示两行；任务行高度随标题实际行数自适应，单行标题不预留第二行空白，两行标题自然撑高。奖励与进度条跟随标题下方展示，操作按钮固定在任务卡右侧并相对整行垂直居中。超过两行的极端内容由前端截断，避免文字、进度条和按钮互相挤压。</li>
+          <li>任务数量和指定帖子、指定话题等目标对象由后台配置维护，前端按配置展示当前进度。</li>
+          <li>限时任务超过活动结束时间后进入结束状态，不再继续累计进度或重复发放奖励。</li>
+        </ul>
+        <h3>二、C端限时任务展示示例</h3>
+        <p>以下示例用于说明 C 端限时任务卡片中 ICON、任务标题和奖励说明的展示方式；奖励文案仅作示例，实际内容以后台配置返回为准。</p>
+        <table>
+          <tr><th>ICON</th><th>任务标题</th><th>奖励说明</th></tr>
+          <tr><td><code>visibility</code></td><td>浏览创作</td><td>奖励：+200 经验值</td></tr>
+          <tr><td><code>visibility</code></td><td>浏览帖文<span style="color:#0787b3;font-weight:700">新手快速通关攻略...</span></td><td>奖励：冒险补给箱 ×1</td></tr>
+          <tr><td><code>visibility</code></td><td>获得浏览量</td><td>奖励：星耀头像框</td></tr>
+          <tr><td><code>chat_bubble_outline</code></td><td>发表评论</td><td>奖励：+50 经验值</td></tr>
+          <tr><td><code>chat_bubble_outline</code></td><td>评论帖文<span style="color:#0787b3;font-weight:700">活动玩法介绍...</span></td><td>奖励：极光个性背景</td></tr>
+          <tr><td><code>edit_note</code></td><td>发布创作</td><td>奖励：+200 经验值</td></tr>
+          <tr><td><code>edit_note</code></td><td>参与<span style="color:#0787b3;font-weight:700">新手攻略</span>话题</td><td>奖励：星耀头像框</td></tr>
+          <tr><td><code>thumb_up</code></td><td>完成点赞</td><td>奖励：+20 经验值</td></tr>
+          <tr><td><code>thumb_up</code></td><td>点赞指定帖子</td><td>奖励：冒险补给箱 ×1</td></tr>
+          <tr><td><code>thumb_up</code></td><td>获得点赞</td><td>奖励：极光个性背景</td></tr>
+        </table>
+        <h3>三、指定对象的前端展示与跳转</h3>
+        <ul>
+          <li>浏览指定帖子、评论指定帖子：任务标题分别展示为“浏览帖文XXXXX”“评论帖文XXXXX”。其中“XXXXX”取后台绑定的帖子标题或动态正文，最多展示 10 个字；超过 10 个字时截取前 10 个字并追加“...”。例如：帖子标题为“新手快速通关攻略分享”时，展示为“浏览帖文<span style="color:#0787b3;font-weight:700">新手快速通关攻略...</span>”；帖子标题或动态正文部分使用蓝色字体。</li>
+          <li>动态正文为空时，不展示空白占位文案；任务标题保留“浏览”或“评论”动作，避免用户无法识别任务。</li>
+          <li>浏览指定帖子右侧按钮固定为“去浏览”，点击后跳转至该帖子或动态对应的详情页，不跳转到通用列表。</li>
+          <li>评论指定帖子右侧按钮固定为“去评论”，点击后跳转至该帖子或动态对应的详情页。</li>
+          <li>参与指定话题任务标题展示为“参与XXXX话题”，其中“XXXX”为后台绑定的话题名称；话题名称使用蓝色字体。点击“去发帖”后进入首页发帖入口，并自动勾选该话题。</li>
+          <li>指定帖子、动态或话题失效时，标题不展示错误对象；任务按钮置为不可用，并按页面规则提示任务暂不可用。</li>
+        </ul>
+        <h3>四、计数与奖励规则</h3>
+        <ul>
+          <li>数量参数由后台任务配置维护，前端按实际配置展示进度，不得向用户展示变量占位符。</li>
+          <li>涉及指定帖子或指定话题的任务必须绑定明确对象；对象失效时，任务显示不可用状态并停止累计。</li>
+          <li>同一用户在同一任务周期内达到目标后仅发放一次奖励；重复操作、无效操作和超出目标的操作不重复计奖。</li>
+          <li>任务完成后同步更新进度和奖励状态；奖励发放失败时保留待补发状态，避免任务完成记录丢失。</li>
+        </ul>
+        <h3>五、验收要点</h3>
+        <ul>
+          <li>进入福利任务页后，限时任务位于每日任务上方，四项任务均展示对应 ICON、标题、进度、操作按钮和奖励说明。</li>
+          <li>指定帖子或动态任务的标题按绑定对象截取展示，超过 10 个字显示省略号；点击按钮分别进入对应详情页。</li>
+          <li>指定话题任务标题显示实际话题名称；点击“去发帖”后，首页发帖入口自动带入并勾选该话题。</li>
+          <li>完成数量型、指定帖子型、指定话题型和被动累计型任务后，进度按配置累计，达到目标后仅发放一次对应奖励。</li>
+          <li>活动结束或指定对象失效后，任务进入不可继续累计状态，并保留历史完成与奖励记录。</li>
+        </ul>
+      </section>
+    `
+  };
+</script>
+<script src="../../../shared/requirement-panel.js?v=20260921-requirements"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
 <title>大玩家 — 首页</title>
-<link rel="stylesheet" href="../../../shared/sidebar.css">
+<link rel="stylesheet" href="../../../shared/sidebar.css?v=20260920-sidebar3">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -675,6 +675,25 @@
   .variant-switcher button:not(.active):hover {
     color: var(--on-surface);
   }
+  .tutorial-control {
+    position: fixed; top: 76px; right: 24px; z-index: 9999;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    width: 164px; min-height: 54px; padding: 10px 12px;
+    border: 1px solid rgba(42,52,57,0.10); border-radius: 8px;
+    background: rgba(255,255,255,0.94); box-shadow: 0 4px 16px rgba(42,52,57,0.12);
+    font-family: Inter, sans-serif;
+  }
+  .tutorial-control__copy { min-width: 0; }
+  .tutorial-control__title { display: block; color: #2a3439; font-size: 12px; font-weight: 700; line-height: 1.3; }
+  .tutorial-control__hint { display: block; margin-top: 2px; color: #8a979f; font-size: 10px; line-height: 1.3; }
+  .tutorial-switch { position: relative; flex: 0 0 34px; width: 34px; height: 20px; cursor: pointer; }
+  .tutorial-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .tutorial-switch__track { position: absolute; inset: 0; border-radius: 999px; background: #c7d1d7; transition: background .18s ease; }
+  .tutorial-switch__track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(42,52,57,.25); transition: transform .18s ease; }
+  .tutorial-switch input:checked + .tutorial-switch__track { background: #0061a4; }
+  .tutorial-switch input:checked + .tutorial-switch__track::after { transform: translateX(14px); }
+  .tutorial-switch input:focus-visible + .tutorial-switch__track { outline: 3px solid rgba(0,97,164,.30); outline-offset: 3px; }
+  @media (max-width: 700px) { .tutorial-control { display: none; } }
 
   /* ════════════════════════════════════════════════════════════════
      小程序版「登录」弹窗（Hero 横条按钮卡片）
@@ -1004,13 +1023,57 @@
   .sticky-header span.font-headline span {
     color: #e6f3ff !important;
   }
+  .topbar-task {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 46px;
+    height: 28px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 8px;
+    color: #fff;
+    background: linear-gradient(155deg, rgba(137, 214, 255, 0.7) 0%, rgba(34, 146, 228, 0.62) 100%);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    font: 600 10px/1 Inter, sans-serif;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36), 0 0 0 2px rgba(224, 246, 255, 0.28), 0 0 13px rgba(103, 204, 255, 0.52), 0 7px 18px rgba(0, 91, 177, 0.34);
+  }
+  .topbar-task svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    line-height: 1;
+  }
+  .topbar-task:active { background: rgba(0, 126, 220, 0.5); }
+  body[data-active-variant="miniprogram"] .topbar-task {
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+  body[data-active-variant="miniprogram"] .topbar-task:active {
+    background: rgba(0, 126, 220, 0.5);
+  }
 </style>
 </head>
 <body class="bg-[#e8e8e8] flex justify-center items-start py-10 min-h-screen" data-active-variant="web">
+<nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
 
 <div class="variant-switcher" id="variantSwitcher">
   <button data-variant="web" class="active" onclick="setVariant('web')">网页版</button>
   <button data-variant="miniprogram" onclick="setVariant('miniprogram')">小程序版</button>
+</div>
+<div class="tutorial-control" aria-label="新手教程控制">
+  <div class="tutorial-control__copy">
+    <span class="tutorial-control__title">新手教程</span>
+    <span class="tutorial-control__hint">预览两步引导流程</span>
+  </div>
+  <label class="tutorial-switch" title="开启或关闭新手教程">
+    <input id="tutorialToggle" type="checkbox" role="switch" aria-label="开启新手教程" aria-checked="false" onchange="setTutorialEnabled(this.checked)">
+    <span class="tutorial-switch__track" aria-hidden="true"></span>
+  </label>
 </div>
 
 <div class="phone-shell">
@@ -1107,6 +1170,16 @@
           <span class="font-headline text-[24px] font-extrabold italic tracking-tight" style="color:#0061a4;">玄域<span style="color:#005590;">英雄</span></span>
         </div>
         <div class="flex items-center gap-3">
+          <button id="topbar-task" class="topbar-task" aria-label="福利任务" onclick="location.href='WelfareTask.html'">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+              <path d="M4 9h16v10H4z"></path>
+              <path d="M3 7h18v4H3z"></path>
+              <path d="M8 7V5h8v2"></path>
+              <path d="M12 7v12"></path>
+              <path d="m6 12 2 2 2-2M14 12l2 2 2-2"></path>
+            </svg>
+            <span>任务</span>
+          </button>
           <button id="topbar-search" class="w-9 h-9 flex items-center justify-center rounded-full active:bg-surface-container" onclick="location.href='search-en.html'">
             <span class="material-symbols-outlined text-on-surface" style="font-size:22px;">search</span>
           </button>
@@ -1862,8 +1935,20 @@
   <div id="post-overlay" onclick="togglePostMenu()" style="position:absolute;inset:0;z-index:200;background:rgba(0,0,0,0);backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);pointer-events:none;transition:background 0.28s ease,backdrop-filter 0.28s ease;"></div>
   <div id="post-sheet" style="position:absolute;bottom:0;left:0;right:0;z-index:201;padding:0 16px 90px;pointer-events:none;">
     <div style="display:flex;flex-direction:column;gap:10px;">
+      <div id="post-topic-picker" style="padding:10px;border:1px solid rgba(255,255,255,0.24);border-radius:13px;background:rgba(255,255,255,0.14);opacity:0;transform:scale(0.96) translateY(24px);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px;color:#fff;font-family:Inter,sans-serif;">
+          <b style="font-size:11px;">Recommended Topics</b>
+          <span style="font-size:9px;opacity:0.78;white-space:nowrap;">勾选后发布时自动带入</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;">
+          <label style="position:relative;min-width:0;cursor:pointer;"><input type="checkbox" value="#Best Beginner Build for First Week" checked onchange="updateTopicSelection(this)" style="position:absolute;opacity:0;"><span style="min-height:62px;padding:7px 8px 20px;border-radius:8px;background:#fff;color:#0061a4;display:flex;align-items:flex-start;gap:4px;font:700 11px/1.22 Inter,sans-serif;"><b style="flex:1;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;">#Best Beginner Build for First Week</b><i style="position:absolute;left:8px;bottom:7px;font:500 9px/1 Inter,sans-serif;color:#6d8da0;font-style:normal;">总浏览 · 23.4K</i><em data-topic-check style="position:absolute;right:8px;bottom:6px;width:14px;height:14px;border-radius:50%;background:#0061a4;color:#fff;display:flex;align-items:center;justify-content:center;font:700 10px/1 Inter,sans-serif;font-style:normal;">✓</em></span></label>
+          <label style="position:relative;min-width:0;cursor:pointer;"><input type="checkbox" value="#Patch Notes and Strategy Discussion" onchange="updateTopicSelection(this)" style="position:absolute;opacity:0;"><span style="min-height:62px;padding:7px 8px 20px;border:1px solid rgba(255,255,255,0.42);border-radius:8px;background:rgba(3,31,52,0.20);color:#e9f6ff;display:flex;align-items:flex-start;gap:4px;font:500 11px/1.22 Inter,sans-serif;"><b style="flex:1;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;">#Patch Notes and Strategy Discussion</b><i style="position:absolute;left:8px;bottom:7px;font:500 9px/1 Inter,sans-serif;color:#c8e8ff;font-style:normal;">总浏览 · 18.2K</i><em data-topic-check style="position:absolute;right:8px;bottom:6px;width:14px;height:14px;border-radius:50%;background:#0061a4;color:#fff;display:none;align-items:center;justify-content:center;font:700 10px/1 Inter,sans-serif;font-style:normal;">✓</em></span></label>
+          <label style="position:relative;min-width:0;cursor:pointer;"><input type="checkbox" value="#Show Your Luckiest Pull Today" checked onchange="updateTopicSelection(this)" style="position:absolute;opacity:0;"><span style="min-height:62px;padding:7px 8px 20px;border-radius:8px;background:#fff;color:#0061a4;display:flex;align-items:flex-start;gap:4px;font:700 11px/1.22 Inter,sans-serif;"><b style="flex:1;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;">#Show Your Luckiest Pull Today</b><i style="position:absolute;left:8px;bottom:7px;font:500 9px/1 Inter,sans-serif;color:#6d8da0;font-style:normal;">总浏览 · 9.6K</i><em data-topic-check style="position:absolute;right:8px;bottom:6px;width:14px;height:14px;border-radius:50%;background:#0061a4;color:#fff;display:flex;align-items:center;justify-content:center;font:700 10px/1 Inter,sans-serif;font-style:normal;">✓</em></span></label>
+          <label style="position:relative;min-width:0;cursor:pointer;"><input type="checkbox" value="#Looking for Dungeon Team Members" onchange="updateTopicSelection(this)" style="position:absolute;opacity:0;"><span style="min-height:62px;padding:7px 8px 20px;border:1px solid rgba(255,255,255,0.42);border-radius:8px;background:rgba(3,31,52,0.20);color:#e9f6ff;display:flex;align-items:flex-start;gap:4px;font:500 11px/1.22 Inter,sans-serif;"><b style="flex:1;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;">#Looking for Dungeon Team Members</b><i style="position:absolute;left:8px;bottom:7px;font:500 9px/1 Inter,sans-serif;color:#c8e8ff;font-style:normal;">总浏览 · 7.1K</i><em data-topic-check style="position:absolute;right:8px;bottom:6px;width:14px;height:14px;border-radius:50%;background:#0061a4;color:#fff;display:none;align-items:center;justify-content:center;font:700 10px/1 Inter,sans-serif;font-style:normal;">✓</em></span></label>
+        </div>
+      </div>
       <!-- Guide / Long-form post -->
-      <button id="post-card-guide" onclick="event.stopPropagation();location.href='../../publish/light/post_publish-en.html'" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:#fff;border:none;border-radius:16px;box-shadow:0 4px 20px rgba(0,97,164,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
+      <button id="post-card-guide" onclick="event.stopPropagation();openPublish('post')" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:#fff;border:none;border-radius:16px;box-shadow:0 4px 20px rgba(0,97,164,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
         <div style="position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(91,159,255,0.22) 0%,transparent 70%);pointer-events:none;"></div>
         <div style="position:absolute;top:12px;left:12px;width:5px;height:5px;border-radius:50%;background:rgba(0,97,164,0.4);"></div>
         <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#5b9fff,#0061a4);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(0,97,164,0.30);">
@@ -1876,7 +1961,7 @@
         <span class="material-symbols-outlined" style="font-size:18px;color:#b0bec5;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24">chevron_right</span>
       </button>
       <!-- Quick post / mood -->
-      <button id="post-card-mood" onclick="event.stopPropagation();location.href='../../publish/light/mood_publish-en.html'" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:#fff;border:none;border-radius:16px;box-shadow:0 4px 20px rgba(14,165,233,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
+      <button id="post-card-mood" onclick="event.stopPropagation();openPublish('mood')" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;background:#fff;border:none;border-radius:16px;box-shadow:0 4px 20px rgba(14,165,233,0.13);cursor:pointer;text-align:left;transition:transform 0.15s;opacity:0;transform:scale(0.6) translateY(30px);" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.97)'" ontouchend="this.style.transform=''">
         <div style="position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,0.20) 0%,transparent 70%);pointer-events:none;"></div>
         <div style="position:absolute;top:12px;left:12px;width:5px;height:5px;border-radius:50%;background:rgba(14,165,233,0.4);"></div>
         <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(14,165,233,0.30);">
@@ -2153,6 +2238,8 @@
 
   /* ── Tutorial Logic ── */
   let tutorialStep = 0;
+  let tutorialEnabled = false;
+  let tutorialCloseTimer = null;
 
   const STEPS = [
     {
@@ -2243,11 +2330,29 @@
     }
   }
 
+  function syncTutorialToggle() {
+    const toggle = document.getElementById('tutorialToggle');
+    if (!toggle) return;
+    toggle.checked = tutorialEnabled;
+    toggle.setAttribute('aria-checked', String(tutorialEnabled));
+  }
+
+  function setTutorialEnabled(enabled) {
+    tutorialEnabled = Boolean(enabled);
+    syncTutorialToggle();
+    if (tutorialEnabled) openTutorial();
+    else closeTutorial();
+  }
+
   function closeTutorial() {
+    tutorialEnabled = false;
+    syncTutorialToggle();
     const overlay = document.getElementById('tutorialOverlay');
+    overlay.classList.remove('active');
     overlay.style.opacity = '0';
     overlay.style.transition = 'opacity 0.3s';
-    setTimeout(() => {
+    clearTimeout(tutorialCloseTimer);
+    tutorialCloseTimer = setTimeout(() => {
       overlay.style.display = 'none';
       // Close drawer if it was opened by tutorial
       closeDrawer();
@@ -2255,6 +2360,8 @@
   }
 
   function openTutorial() {
+    clearTimeout(tutorialCloseTimer);
+    closeDrawer();
     tutorialStep = 0;
     const overlay = document.getElementById('tutorialOverlay');
     overlay.style.display = 'block';
@@ -2265,9 +2372,10 @@
     requestAnimationFrame(() => { overlay.style.opacity = '1'; });
   }
 
-  // Init on load — show tutorial automatically
+  // Init on load — keep tutorial disabled until the desktop preview switch is turned on.
   window.addEventListener('load', () => {
-    openTutorial();
+    tutorialEnabled = false;
+    syncTutorialToggle();
   });
 
   function refreshHotCommunity(btn) {
@@ -2281,6 +2389,7 @@ function togglePostMenu() {
   var overlay   = document.getElementById('post-overlay');
   var sheet     = document.getElementById('post-sheet');
   var circle    = document.getElementById('post-btn-circle');
+  var topicPicker = document.getElementById('post-topic-picker');
   var cardGuide = document.getElementById('post-card-guide');
   var cardMood  = document.getElementById('post-card-mood');
   if (_postOpen) {
@@ -2290,10 +2399,10 @@ function togglePostMenu() {
     overlay.style.pointerEvents = 'auto';
     sheet.style.pointerEvents = 'auto';
     circle.style.transform = 'rotate(45deg)';
-    [cardGuide, cardMood].forEach(function(el, i) {
+    [topicPicker, cardGuide, cardMood].forEach(function(el, i) {
       el.style.animation = 'none';
       el.style.opacity = '0';
-      el.style.transform = 'scale(0.6) translateY(30px)';
+      el.style.transform = i === 0 ? 'scale(0.96) translateY(24px)' : 'scale(0.6) translateY(30px)';
       requestAnimationFrame(function() {
         el.style.animation = 'enPostJellyIn 0.52s cubic-bezier(0.34,1.56,0.64,1) ' + (i * 80) + 'ms forwards';
       });
@@ -2305,11 +2414,89 @@ function togglePostMenu() {
     overlay.style.pointerEvents = 'none';
     sheet.style.pointerEvents = 'none';
     circle.style.transform = 'rotate(0deg)';
-    [cardMood, cardGuide].forEach(function(el, i) {
+    [cardMood, cardGuide, topicPicker].forEach(function(el, i) {
       el.style.animation = 'enPostJellyOut 0.22s ease ' + (i * 50) + 'ms forwards';
     });
   }
 }
+
+function openPublish(type) {
+  var selectedTopics = Array.prototype.slice.call(document.querySelectorAll('#post-topic-picker input:checked'))
+    .map(function(input) { return input.value; });
+  var target = type === 'post' ? '../publish/post_publish.html' : '../publish/mood_publish.html';
+  var query = selectedTopics.length ? '?topics=' + encodeURIComponent(JSON.stringify(selectedTopics)) : '';
+  location.href = target + query;
+}
+
+function updateTopicSelection(input) {
+  var card = input.nextElementSibling;
+  var views = card.querySelector('i');
+  var check = card.querySelector('[data-topic-check]');
+  if (input.checked) {
+    card.style.background = '#fff';
+    card.style.color = '#0061a4';
+    card.style.fontWeight = '700';
+    card.style.borderColor = 'transparent';
+    views.style.color = '#6d8da0';
+    check.style.display = 'flex';
+  } else {
+    card.style.background = 'rgba(3,31,52,0.20)';
+    card.style.color = '#e9f6ff';
+    card.style.fontWeight = '500';
+    card.style.borderColor = 'rgba(255,255,255,0.42)';
+    views.style.color = '#c8e8ff';
+    check.style.display = 'none';
+  }
+}
+
+function resetRecommendedTopicSelection() {
+  Array.prototype.slice.call(document.querySelectorAll('#post-topic-picker input')).forEach(function (input) {
+    input.checked = false;
+    updateTopicSelection(input);
+  });
+}
+
+function sortRecommendedTopics() {
+  var topicMeta = {
+    '#Best Beginner Build for First Week': { pinned: false, views: 23400 },
+    '#Patch Notes and Strategy Discussion': { pinned: true, pinnedAt: '2026-09-21T09:30:00+08:00', views: 18200 },
+    '#Show Your Luckiest Pull Today': { pinned: true, pinnedAt: '2026-09-21T08:00:00+08:00', views: 9600 },
+    '#Looking for Dungeon Team Members': { pinned: false, views: 7100 }
+  };
+  var grid = document.querySelector('#post-topic-picker > div:nth-child(2)');
+  if (!grid) return;
+  var cards = Array.prototype.slice.call(grid.children);
+  cards.sort(function (left, right) {
+    var leftMeta = topicMeta[left.querySelector('input').value] || {};
+    var rightMeta = topicMeta[right.querySelector('input').value] || {};
+    if (leftMeta.pinned !== rightMeta.pinned) return leftMeta.pinned ? -1 : 1;
+    if (leftMeta.pinned && rightMeta.pinned) {
+      var pinnedDiff = Date.parse(rightMeta.pinnedAt || 0) - Date.parse(leftMeta.pinnedAt || 0);
+      if (pinnedDiff) return pinnedDiff;
+    }
+    return Number(rightMeta.views || 0) - Number(leftMeta.views || 0);
+  });
+  cards.forEach(function (card) { grid.appendChild(card); });
+}
+
+function openTaskTopicFlow() {
+  var taskTopic = new URLSearchParams(window.location.search).get('taskTopic');
+  if (!taskTopic) return;
+  var input = Array.prototype.slice.call(document.querySelectorAll('#post-topic-picker input'))
+    .find(function (candidate) { return candidate.value === taskTopic; });
+  if (!input) return;
+  input.checked = true;
+  updateTopicSelection(input);
+  window.setTimeout(function () {
+    if (!_postOpen) togglePostMenu();
+  }, 120);
+}
+
+window.addEventListener('load', function () {
+  resetRecommendedTopicSelection();
+  sortRecommendedTopics();
+  openTaskTopicFlow();
+});
 
 /* ── Featured carousel auto-play (coverflow) ── */
 (function () {
@@ -2536,90 +2723,6 @@ function togglePostMenu() {
 
 
 
-<!-- ══ Page Nav v3.1.1 ══ -->
-<style>
-#pnav-fab{position:fixed;left:16px;top:80px;z-index:9998;width:36px;height:36px;border-radius:10px;background:rgba(0,97,164,.92);box-shadow:0 3px 12px rgba(0,97,164,.35);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
-#pnav-fab:hover{transform:scale(1.08);}
-#pnav-fab svg{width:18px;height:18px;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;}
-#pnav-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:9997;opacity:0;pointer-events:none;transition:opacity .2s;}
-#pnav-overlay.open{opacity:1;pointer-events:auto;}
-#pnav-drawer{position:fixed;top:0;left:-300px;width:280px;height:100vh;background:#fff;z-index:9998;box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:left .24s cubic-bezier(.4,0,.2,1);overflow:hidden;}
-#pnav-drawer.open{left:0;}
-#pnav-head{padding:20px 16px 12px;border-bottom:1px solid #e1e9ee;flex-shrink:0;}
-#pnav-head h3{font-family:Manrope,system-ui,sans-serif;font-size:14px;font-weight:800;color:#0061a4;margin:0 0 2px;}
-#pnav-head p{font-family:Inter,system-ui,sans-serif;font-size:11px;color:#a9b4b9;margin:0;}
-#pnav-close{position:absolute;top:14px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:#f0f4f7;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-#pnav-close svg{width:14px;height:14px;stroke:#566166;stroke-width:2.5;stroke-linecap:round;fill:none;}
-#pnav-list{flex:1;overflow-y:auto;padding:8px 0 24px;}
-.pnav-section{padding:12px 16px 4px;}
-.pnav-section-label{font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:700;color:#a9b4b9;letter-spacing:.08em;text-transform:uppercase;}
-.pnav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;text-decoration:none;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:500;color:#2a3439;transition:background .12s;}
-.pnav-item:hover{background:#f0f4f7;}
-.pnav-item.current{background:#eff6ff;color:#0061a4;font-weight:700;}
-.pnav-item .pnav-dot{width:6px;height:6px;border-radius:50%;background:#d9e4ea;flex-shrink:0;}
-.pnav-item.current .pnav-dot{background:#0061a4;}
-.pnav-item .pnav-num{font-size:10px;font-weight:700;color:#a9b4b9;width:16px;flex-shrink:0;text-align:right;}
-.pnav-item.current .pnav-num{color:#0061a4;}
-</style>
-
-<button id="pnav-fab" onclick="openPnav()" title="页面目录">
-  <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="16" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-</button>
-<div id="pnav-overlay" onclick="closePnav()"></div>
-<div id="pnav-drawer">
-  <div id="pnav-head">
-    <h3>国内版 · 页面目录</h3>
-    <p>亮色模式 · 共 15 页</p>
-    <button id="pnav-close" onclick="closePnav()">
-      <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
-    </button>
-  </div>
-  <nav id="pnav-list">
-    <div class="pnav-section"><span class="pnav-section-label">首页模块</span></div>
-    <a class="pnav-item" href="../../home/light/home-en.html" data-file="home-en.html"><span class="pnav-num">01</span><span class="pnav-dot"></span>首页（社区主页）</a>
-    <a class="pnav-item" href="../../home/light/post-detail-en.html" data-file="post-detail-en.html"><span class="pnav-num">02</span><span class="pnav-dot"></span>帖子详情</a>
-    <a class="pnav-item" href="../../home/light/mood-detail-en.html" data-file="mood-detail-en.html"><span class="pnav-num">03</span><span class="pnav-dot"></span>心情详情</a>
-    <a class="pnav-item" href="../../home/light/search-en.html" data-file="search-en.html"><span class="pnav-num">04</span><span class="pnav-dot"></span>搜索页</a>
-    <a class="pnav-item" href="../../home/light/search-results-en.html" data-file="search-results-en.html"><span class="pnav-num">05</span><span class="pnav-dot"></span>搜索结果页</a>
-
-    <div class="pnav-section"><span class="pnav-section-label">动态模块</span></div>
-    <a class="pnav-item" href="../../feed/light/feed-en.html" data-file="feed-en.html"><span class="pnav-num">06</span><span class="pnav-dot"></span>动态流</a>
-
-    <div class="pnav-section"><span class="pnav-section-label">资讯模块</span></div>
-    <a class="pnav-item" href="../../news/light/news-en.html" data-file="news-en.html"><span class="pnav-num">07</span><span class="pnav-dot"></span>资讯列表</a>
-
-    <div class="pnav-section"><span class="pnav-section-label">个人中心</span></div>
-    <a class="pnav-item" href="../../profile/light/profile-en.html" data-file="profile-en.html"><span class="pnav-num">08</span><span class="pnav-dot"></span>我的主页</a>
-    <a class="pnav-item" href="../../profile/light/profile-other-en.html" data-file="profile-other-en.html"><span class="pnav-num">09</span><span class="pnav-dot"></span>他人主页</a>
-    <a class="pnav-item" href="../../profile/light/settings-en.html" data-file="settings-en.html"><span class="pnav-num">10</span><span class="pnav-dot"></span>设置页</a>
-    <a class="pnav-item" href="../../profile/light/notifications-en.html" data-file="notifications-en.html"><span class="pnav-num">11</span><span class="pnav-dot"></span>通知页</a>
-    <a class="pnav-item" href="../../profile/light/chat-en.html" data-file="chat-en.html"><span class="pnav-num">12</span><span class="pnav-dot"></span>聊天页</a>
-    <a class="pnav-item" href="../../profile/light/drafts-en.html" data-file="drafts-en.html"><span class="pnav-num">13</span><span class="pnav-dot"></span>草稿箱</a>
-
-    <div class="pnav-section"><span class="pnav-section-label">发布模块</span></div>
-    <a class="pnav-item" href="../../publish/light/post_publish-en.html" data-file="post_publish-en.html"><span class="pnav-num">14</span><span class="pnav-dot"></span>发帖页</a>
-    <a class="pnav-item" href="../../publish/light/mood_publish-en.html" data-file="mood_publish-en.html"><span class="pnav-num">15</span><span class="pnav-dot"></span>发心情页</a>
-  </nav>
-</div>
-<script>
-(function(){
-  var cur = location.pathname.split('/').pop();
-  document.querySelectorAll('.pnav-item').forEach(function(a){
-    if(a.getAttribute('data-file')===cur){a.classList.add('current');}
-  });
-})();
-function openPnav(){
-  document.getElementById('pnav-drawer').classList.add('open');
-  document.getElementById('pnav-overlay').classList.add('open');
-}
-function closePnav(){
-  document.getElementById('pnav-drawer').classList.remove('open');
-  document.getElementById('pnav-overlay').classList.remove('open');
-}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();});
-</script>
-<!-- ══ /Page Nav ══ -->
-
 <!-- ══ Spec Panel v3.1.1 ══ -->
 <style>
 #spec-fab{position:fixed;right:24px;bottom:36px;z-index:9999;width:44px;height:44px;border-radius:50%;background:#0061a4;box-shadow:0 4px 16px rgba(0,97,164,.40);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,box-shadow .18s;}
@@ -2655,15 +2758,15 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
 #spec-body blockquote{border-left:3px solid #0061a4;margin:8px 0;padding:6px 12px;background:#eff6ff;border-radius:0 6px 6px 0;color:#566166;font-size:12px;}
 #spec-body hr{border:none;border-top:1px solid #e8eff3;margin:16px 0;}
 </style>
-<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.2.0 · 小程序登录弹窗">
+<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.4 · 首页福利任务入口与发帖话题">
   <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
 </button>
 <div id="spec-overlay" onclick="closeSpecPanel()"></div>
 <div id="spec-panel">
   <div id="spec-panel-head">
     <div style="display:flex;align-items:baseline;gap:0">
-      <span id="spec-panel-title">国内小程序版 · 登录弹窗需求说明</span>
-      <span id="spec-panel-ver">v3.2.0</span>
+      <span id="spec-panel-title">首页需求说明 · 福利任务入口与发帖话题</span>
+      <span id="spec-panel-ver">v3.1.4</span>
     </div>
     <button id="spec-panel-close" onclick="closeSpecPanel()">
       <svg viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
@@ -2717,6 +2820,42 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closePnav();
     return joined;
   }
   document.getElementById('spec-body').innerHTML = md2html(raw);
+  document.getElementById('spec-body').insertAdjacentHTML('afterbegin',
+    '<section id="spec-v314">' +
+      '<h2>v3.1.4 · 首页福利任务入口与发帖话题（最新）</h2>' +
+      '<h3>一、版本范围</h3>' +
+      '<p>本版本说明首页福利任务入口联动与首页发帖话题推荐两项能力。后台配置、C 端展示及跨页面跳转须按本说明保持一致。</p>' +
+      '<h3>二、福利任务入口与版块配置</h3>' +
+      '<p>后台在<strong>版块管理</strong>中为当前版块勾选「功能栏」后，C 端的「福利任务」入口由侧边栏迁移至首页顶部；取消勾选后，入口恢复至侧边栏。</p>' +
+      '<table><tr><th>版块管理配置</th><th>C 端展示位置</th><th>互斥规则</th></tr>' +
+      '<tr><td>已勾选「功能栏」</td><td>首页顶部「福利任务」按钮</td><td>侧边栏不展示「福利任务」入口</td></tr>' +
+      '<tr><td>未勾选「功能栏」</td><td>侧边栏「福利任务」入口</td><td>首页顶部不展示「福利任务」按钮</td></tr></table>' +
+      '<ul><li>配置以当前版块的「功能栏」勾选状态为准；切换版块时，按切换后版块的配置重新判断入口位置。</li>' +
+      '<li>配置保存并在 C 端刷新后生效；同一版块同一时刻只能展示一个「福利任务」入口。</li>' +
+      '<li>两种入口均跳转至同一福利任务页面，入口迁移不改变任务内容、进度或奖励数据。</li></ul>' +
+      '<h3>三、首页发帖话题推荐</h3>' +
+      '<p>用户点击首页底部导航的「Post」按钮后，发布操作面板在「攻略 / 帖子」和「发心情」入口上方展示推荐话题区，帮助用户在进入发布页前选择可带入的社区话题。</p>' +
+      '<h4>话题排序优先级</h4>' +
+      '<table><tr><th>优先级</th><th>适用范围</th><th>主排序字段</th><th>排序方向</th><th>字段相同时的兜底规则</th></tr>' +
+      '<tr><td>P1</td><td>后台已置顶的话题</td><td>置顶时间</td><td>按时间倒序，最新置顶在前</td><td>保持后台返回顺序</td></tr>' +
+      '<tr><td>P2</td><td>后台未置顶的话题</td><td>总浏览量</td><td>按数值降序，浏览量高的在前</td><td>保持后台返回顺序</td></tr></table>' +
+      '<p><strong>接口字段要求：</strong>每个推荐话题须返回置顶状态、置顶时间、总浏览量及后台返回顺序。C 端先按 P1、P2 分组，再执行对应组内排序；置顶话题的浏览量不参与其排序。</p>' +
+      '<h4>交互与展示规范</h4>' +
+      '<ul><li>推荐话题区最多展示 4 个话题；每个话题卡尺寸统一，采用两列布局，英文长标题允许换行但不得撑破卡片或造成横向溢出。</li>' +
+      '<li>用户常规打开发布操作面板时，所有推荐话题默认不勾选；仅从福利任务的指定话题“去发帖”入口进入时，系统自动勾选该指定话题。除该任务带入场景外，C 端不得依据话题排序或浏览量自动勾选。</li>' +
+      '<li>每张卡片同时展示话题名称和总浏览量；总浏览量固定位于卡片左下区域，不使用截断或浮动替代。</li>' +
+      '<li>选中状态使用高对比样式并显示明确对号；取消勾选后恢复未选中样式，且不得残留对号。</li>' +
+      '<li>推荐话题区右上角固定展示「勾选后发布时自动带入」，用于说明选择结果会影响后续发布内容。</li>' +
+      '<li>点击「攻略 / 帖子」或「发心情」后，将当前已勾选话题带入对应发布页；未勾选话题不带入，未选择任何话题时正常进入发布页。</li>' +
+      '<li>发布页只接收推荐列表中的有效话题，最多处理 4 个；重复值、非法值或超出数量上限的参数必须过滤，不得直接渲染。</li></ul>' +
+      '<h3>四、跨页面联动与验收要点</h3>' +
+      '<ul><li>已勾选「功能栏」的版块 → 进入首页 → 顶部展示「福利任务」，侧边栏不展示该入口。</li>' +
+      '<li>取消勾选「功能栏」的版块 → 刷新首页 → 顶部不展示「福利任务」，侧边栏恢复展示该入口。</li>' +
+      '<li>在不同配置的版块间切换 → 返回首页 → 入口位置与当前版块配置一致，且不会同时出现两个入口。</li>' +
+      '<li>点击「Post」→ 推荐话题区出现在两个发布入口上方，并展示不超过 4 个等尺寸话题卡。</li>' +
+      '<li>勾选或取消勾选话题 → 卡片对号和选中样式即时同步，总浏览量位置保持在左下方。</li>' +
+      '<li>选择话题后分别进入「攻略 / 帖子」和「发心情」→ 对应发布页展示已带入话题；取消全部选择后进入发布页不展示已带入话题。</li></ul>' +
+    '</section><hr><h2>v3.0.0 · 小程序登录弹窗（原有说明）</h2>');
 })();
 function openSpecPanel(){
   document.getElementById('spec-panel').classList.add('open');
@@ -2786,6 +2925,8 @@ function toggleLike(ev, el) {
 })();
 </script>
 <!-- ══ /Like button ══ -->
-
+<script src="../../../shared/sidebar-data.js?v=20260921-c-end-version2"></script>
+<script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
+<script>initSidebar({root:'../../..',currentHref:'client/domestic/home/home.html'});</script>
 </body>
 </html>

@@ -29,91 +29,117 @@ const SIDEBAR_DATA = [
     children: [
       {
         type: 'dir',
-        label: '首页',
+        label: '首页模块',
         children: [
           {
             type: 'item',
-            label: '首页',
+            label: '首页（社区主页）',
+            version: 'v3.1.4',
             href: 'client/domestic/home/home.html'
+          },
+          {
+            type: 'item',
+            label: '帖子详情',
+            version: '',
+            href: 'client/domestic/home/post-detail.html'
+          },
+          {
+            type: 'item',
+            label: '心情详情',
+            version: '',
+            href: 'client/domestic/home/mood-detail.html'
+          },
+          {
+            type: 'item',
+            label: '搜索页',
+            version: '',
+            href: 'client/domestic/home/search.html'
+          },
+          {
+            type: 'item',
+            label: '搜索结果页',
+            version: '',
+            href: 'client/domestic/home/search-results.html'
+          },
+          {
+            type: 'item',
+            label: '福利任务',
+            version: 'v3.1.4',
+            href: 'client/domestic/home/WelfareTask.html'
           }
         ]
       },
       {
         type: 'dir',
-        label: '资讯',
-        children: []
-      },
-      {
-        type: 'dir',
-        label: '玩家圈',
-        children: []
+        label: '动态模块',
+        children: [
+          {
+            type: 'item',
+            label: '动态流',
+            version: '',
+            href: 'client/domestic/news/news_feed.html'
+          }
+        ]
       },
       {
         type: 'dir',
         label: '个人中心',
         children: [
           {
-            type: 'dir',
-            label: '个性装扮',
-            children: [
-              {
-                type: 'dir',
-                label: '徽章墙',
-                version: 'v3.0.9',
-                href: 'client/domestic/profile/badge.html',
-                children: [
-                  {
-                    type: 'item',
-                    label: '徽章墙',
-                    version: 'v3.0.9',
-                    href: 'client/domestic/profile/badge.html',
-                    screenId: 's1'
-                  },
-                  {
-                    type: 'item',
-                    label: '我的徽章',
-                    version: 'v3.0.9',
-                    href: 'client/domestic/profile/badge.html',
-                    screenId: 's2'
-                  },
-                  {
-                    type: 'item',
-                    label: '设置徽章展示',
-                    version: 'v3.0.9',
-                    href: 'client/domestic/profile/badge.html',
-                    screenId: 's3'
-                  },
-                  {
-                    type: 'item',
-                    label: '徽章详情',
-                    version: 'v3.0.9',
-                    href: 'client/domestic/profile/badge.html',
-                    screenId: 's4'
-                  },
-                  {
-                    type: 'item',
-                    label: '徽章获得通知',
-                    version: 'v3.0.9',
-                    href: 'client/domestic/profile/badge.html',
-                    screenId: 's5'
-                  },
-                  {
-                    type: 'item',
-                    label: '角色信息确认',
-                    version: 'v3.0.9',
-                    href: 'client/domestic/profile/badge.html',
-                    screenId: 's6'
-                  }
-                ]
-              }
-            ]
+            type: 'item',
+            label: '我的主页',
+            version: '',
+            href: 'client/domestic/profile/profile.html'
+          },
+          {
+            type: 'item',
+            label: '他人主页',
+            version: '',
+            href: 'client/domestic/profile/player.html'
+          },
+          {
+            type: 'item',
+            label: '设置页',
+            version: '',
+            href: 'client/domestic/profile/settings.html'
+          },
+          {
+            type: 'item',
+            label: '通知页',
+            version: '',
+            href: 'client/domestic/home/notifications.html'
+          },
+          {
+            type: 'item',
+            label: '聊天页',
+            version: '',
+            href: 'client/domestic/home/chat.html'
+          },
+          {
+            type: 'item',
+            label: '草稿箱',
+            version: '',
+            href: 'client/domestic/publish/drafts.html'
           }
         ]
       },
       {
         type: 'dir',
-        label: '帖子详情',
-        children: []
+        label: '发布模块',
+        children: [
+          {
+            type: 'item',
+            label: '发帖页',
+            version: '',
+            href: 'client/domestic/publish/post_publish.html'
+          },
+          {
+            type: 'item',
+            label: '发心情页',
+            version: '',
+            href: 'client/domestic/publish/mood_publish.html'
+          }
+        ]
       }
     ]
   },
@@ -124,7 +150,14 @@ const SIDEBAR_DATA = [
       {
         type: 'dir',
         label: '内容管理',
-        children: []
+        children: [
+          {
+            type: 'item',
+            label: '官网展示',
+            version: '',
+            href: 'admin/official-website/index.html'
+          }
+        ]
       },
       {
         type: 'dir',

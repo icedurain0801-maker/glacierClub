@@ -170,6 +170,23 @@
   color: rgba(255,255,255,0.28);
 }
 
+/* C 端统一导航固定在视口左侧，页面内容为侧栏预留同等宽度。 */
+body.has-fixed-sidebar {
+  padding-left: 220px;
+}
+
+.sidebar--fixed-left {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+}
+
+/* C 端页面在首屏就预留侧栏空间，避免 initSidebar 执行后的布局跳变。 */
+body:has(> #sidebar.sidebar--fixed-left) {
+  padding-left: 220px;
+}
+
 /* 舆情分析系统专属侧栏：仅由 sidebar.js 的路径门禁添加该类。 */
 .sidebar.sidebar--public-opinion {
   width: 232px;
@@ -271,4 +288,155 @@
   .sidebar.sidebar--public-opinion { width: 100%; }
   .sidebar--public-opinion .sidebar-logo { min-height: 76px; padding-top: 16px; padding-bottom: 14px; }
   .sidebar--public-opinion .sidebar-tree { max-height: 154px; }
+}
+
+/* C 端 Dark Command：保留固定左侧与原目录结构，提升对比度、层级和点击热区。 */
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) {
+  width: 250px;
+  background: #192a3e;
+  border-right: 1px solid #2b4259;
+}
+
+body.has-fixed-sidebar,
+body:has(> #sidebar.sidebar--fixed-left) {
+  padding-left: 250px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-logo {
+  min-height: 74px;
+  box-sizing: border-box;
+  padding: 23px 24px 13px;
+  gap: 7px;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-logo .logo-main {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-logo .logo-tag {
+  font-size: 10px;
+  background: #2e7096;
+  color: #d9f4ff;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-search {
+  padding: 16px 14px 4px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-search-input {
+  padding: 10px 11px 10px 31px;
+  background-color: #112237;
+  border-color: #34536d;
+  border-radius: 7px;
+  color: #ffffff;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-search-input::placeholder {
+  color: #819bb1;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-search-input:focus {
+  background-color: #162d45;
+  border-color: #55c8f5;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-group {
+  padding: 20px 0 5px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-group-label {
+  padding: 0 24px 7px;
+  color: #7190aa;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-dir {
+  padding: 8px 11px;
+  margin: 2px 14px;
+  gap: 7px;
+  color: #c4d5e2;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-dir:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-dir-arrow {
+  color: #7694ac;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-children {
+  padding-left: 10px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-children .nav-children {
+  padding-left: 8px;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-item {
+  min-height: 36px;
+  box-sizing: border-box;
+  margin: 2px 14px;
+  padding: 9px 11px 9px 28px;
+  gap: 8px;
+  color: #abc0d1;
+  font-size: 13px;
+  line-height: 1.4;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-item.active {
+  color: #ffffff;
+  background: #204d6c;
+  border-left-color: #55c8f5;
+  box-shadow: inset 0 0 0 1px #397ba0;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-item-dot {
+  width: 6px;
+  height: 6px;
+  background: #55738b;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-item.active .nav-item-dot {
+  background: #55c8f5;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-version {
+  color: #6f8da6;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-item.active .nav-version {
+  color: #9ee5ff;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-dir-link:hover,
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .nav-dir.open > .nav-dir-link {
+  color: #ffffff;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-search-item-name {
+  color: #d4e2ed;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-search-item-path {
+  color: #7893aa;
+}
+
+.sidebar.sidebar--fixed-left:not(.sidebar--public-opinion) .sidebar-search-empty {
+  color: #819bb1;
 }
