@@ -617,6 +617,22 @@ tailwind.config = {
 
   <!-- ══ SCREEN: system ══ -->
   <div id="screen-system" class="screen">
+    <div class="msg-row" style="background:#f0f7ff" onclick="window.location.href='claim-reward.html'">
+      <div class="flex items-start gap-3">
+        <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#dcefff,#b8dcf7)">🎁</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between gap-2 mb-1">
+            <div class="text-[13px] font-bold text-on-surface font-headline leading-snug flex-1">道具获得通知</div>
+            <span class="text-[10px] text-outline-variant flex-shrink-0 mt-0.5">刚刚</span>
+          </div>
+          <div class="text-xs text-on-surface-variant leading-relaxed">恭喜你在XXXX活动中获得了奖励：高级经验药水*2、强化石*20、金币补给箱*3、传送卷轴*5、双倍经验卡*1、星海头像框*1、星海背景*1。</div>
+          <button onclick="event.stopPropagation();window.location.href='claim-reward.html'" class="mt-2 px-3 py-1 rounded-full text-[11px] font-bold text-white bg-primary">点击领取</button>
+        </div>
+        <div class="w-2 h-2 rounded-full bg-error flex-shrink-0 mt-1"></div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
     <div class="msg-row" style="background:#f0f7ff">
       <div class="flex items-start gap-3">
         <div class="w-11 h-11 rounded-[13px] flex items-center justify-center text-xl flex-shrink-0" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)">⬆️</div>
@@ -885,14 +901,43 @@ function toggleLike(btn) {
 
 // 初始化赞列表
 renderLikesList('like');
+
+// 领取页回跳时保持在系统通知列表。
+const notificationParams = new URLSearchParams(window.location.search);
+if (notificationParams.get('tab') === 'system') {
+  navTo('system', '系统通知');
+}
 </script>
-<script src="../../../shared/sidebar-data.js?v=20260921-c-end-version2"></script>
+<script src="../../../shared/sidebar-data.js?v=20260923-c-end-version3"></script>
 <script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
 <script>
   initSidebar({
     root: '../../..',
     currentHref: 'client/domestic/home/notifications.html'
   });
+</script>
+<script>
+  window.requirementPanelConfig = {
+    title: '系统通知与奖励领取需求说明',
+    version: 'v3.1.4',
+    html: `
+      <section>
+        <h2>v3.1.4 · 道具获得通知与领取</h2>
+        <h3>一、系统通知</h3>
+        <p>系统通知新增“道具获得通知”，标题固定为“道具获得通知”。正文展示“恭喜你在XXXX活动中获得了奖励：”及完整奖励清单。</p>
+        <p>奖励名称与数量使用“名称*数量”格式；通知卡片提供“点击领取”入口，点击后进入奖励领取页。</p>
+        <h3>二、奖励领取页</h3>
+        <ul>
+          <li>顶部展示活动信息和奖励说明。</li>
+          <li>角色使用下拉框选择，选项展示为“角色名称（角色ID）”。</li>
+          <li>奖励列表支持 4-5 个或更多游戏道具纵向展示，列表可滚动，底部领取按钮固定可见。</li>
+          <li>头像框、背景与游戏道具统一只展示奖励名称和数量，不显示类型小字。</li>
+        </ul>
+        <h3>三、领取结果</h3>
+        <p>点击“领取全部奖励”后展示领取成功反馈，显示实际选择的角色；反馈结束后自动返回系统通知列表。</p>
+      </section>
+    `
+  };
 </script>
 <script src="../../../shared/requirement-panel.js?v=20260921-requirements"></script>
 </body>

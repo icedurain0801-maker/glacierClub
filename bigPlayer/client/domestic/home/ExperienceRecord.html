@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>获取记录</title>
+<link rel="stylesheet" href="../../../shared/sidebar.css?v=admin-sidebar-v034">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root { --record-blue:#16a9e8; --record-text:#263238; --record-muted:#87939b; --record-line:#edf1f3; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100dvh; display:flex; justify-content:center; align-items:flex-start; background:#eef2f5; color:var(--record-text); font-family:Inter,"Microsoft YaHei",sans-serif; }
+  .record-page { width:375px; height:667px; min-height:667px; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
+  .record-header { height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; position:relative; border-bottom:1px solid var(--record-line); background:#fff; }
+  .record-header h1 { margin:0; font-size:17px; line-height:1; font-weight:500; letter-spacing:.1px; }
+  .record-back { position:absolute; left:10px; top:8px; width:32px; height:32px; padding:0; border:0; background:transparent; color:#2c3940; display:grid; place-items:center; cursor:pointer; }
+  .record-back .material-symbols-outlined { font-size:23px; font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  .record-list { flex:1; overflow-y:auto; overscroll-behavior:contain; background:#fff; scrollbar-width:none; }
+  .record-list::-webkit-scrollbar { display:none; }
+  .record-item { min-height:62px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--record-line); background:#fff; }
+  .record-action-group { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+  .record-action { font-size:15px; font-weight:400; color:#263238; white-space:nowrap; }
+  .record-task { max-width:160px; overflow:hidden; color:#87939b; font-size:11px; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
+  .record-meta { display:flex; min-width:0; flex-direction:column; align-items:flex-end; gap:4px; text-align:right; }
+  .record-rewards { display:flex; max-width:205px; flex-direction:column; align-items:flex-end; gap:3px; }
+  .record-reward { display:inline-flex; align-items:center; gap:3px; font-size:12px; line-height:1.2; color:#68767d; white-space:nowrap; }
+  .record-reward strong { color:var(--record-blue); font-size:14px; font-weight:600; margin-right:2px; }
+  .record-reward-items { display:block; max-width:205px; overflow-wrap:anywhere; color:#3d5964; font-size:12px; line-height:1.35; text-align:right; }
+  .record-reward-item { display:inline; }
+  .record-reward-appearance { color:#586a72; }
+  .record-reward-appearance .material-symbols-outlined { color:#16a9e8; font-size:15px; }
+  .record-time { color:var(--record-muted); font-size:12px; line-height:1; white-space:nowrap; }
+  .record-footer { min-height:38px; padding:11px 12px 10px; flex:0 0 auto; text-align:center; border-top:1px solid #f5f7f8; color:#98a3a9; font-size:12px; background:#fff; }
+  .record-footer.loading { color:var(--record-blue); }
+  @media (max-width:430px) { body { padding-left:0 !important; background:#fff; } .record-page { width:100vw; height:100dvh; min-height:100dvh; } }
+</style>
+</head>
+<body>
+<nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
+<main class="record-page" aria-label="获取记录">
+  <header class="record-header"><button class="record-back" type="button" aria-label="返回福利任务" onclick="goBack()"><span class="material-symbols-outlined">arrow_back_ios_new</span></button><h1>获取记录</h1></header>
+  <section class="record-list" id="record-list" aria-label="奖励获取明细"></section>
+  <div class="record-footer" id="record-footer">上拉获取更多记录</div>
+</main>
+<script src="../../../shared/sidebar-data.js?v=20260921-c-end-version2"></script>
+<script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
+<script>
+  initSidebar({ root:'../../..', currentHref:'client/domestic/home/WelfareTask.html' });
+  const RECORDS = [
+    { action:'限时任务', task:'发布活动主题内容', rewards:[{ type:'experience', amount:200 }], time:'2026/09/20 13:10:26' },
+    { action:'限时任务', task:'评论指定帖文', rewards:[
+      { type:'item', name:'英雄拼图', quantity:200 }, { type:'item', name:'英雄拼图', quantity:1 }, { type:'item', name:'英雄拼图', quantity:2 }, { type:'item', name:'英雄拼图', quantity:1 }, { type:'item', name:'英雄拼图', quantity:1 }
+    ], time:'2026/09/20 12:58:04' },
+    { action:'限时任务', task:'发布优质创作', rewards:[{ type:'avatar', name:'星耀头像框' }], time:'2026/09/20 12:40:18' },
+    { action:'限时任务', task:'参与指定话题', rewards:[{ type:'background', name:'极光个性背景' }], time:'2026/09/20 12:31:47' },
+    { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/09/16 12:22:09' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/28 16:38:34' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/23 18:21:58' }, { action:'点赞', rewards:[{ type:'experience', amount:2 }], time:'2026/07/23 15:19:35' }, { action:'点赞', rewards:[{ type:'experience', amount:2 }], time:'2026/07/22 09:37:33' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/22 09:37:33' }, { action:'点赞', rewards:[{ type:'experience', amount:2 }], time:'2026/07/21 11:51:37' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/21 11:45:47' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/21 11:09:24' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/21 11:07:19' }, { action:'点赞', rewards:[{ type:'experience', amount:2 }], time:'2026/07/21 10:59:24' }, { action:'点赞', rewards:[{ type:'experience', amount:2 }], time:'2026/07/20 20:42:11' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/20 18:16:03' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/20 17:48:56' }, { action:'点赞', rewards:[{ type:'experience', amount:2 }], time:'2026/07/20 15:07:41' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/19 21:22:30' }, { action:'点赞', rewards:[{ type:'experience', amount:2 }], time:'2026/07/19 18:12:05' }, { action:'浏览', rewards:[{ type:'experience', amount:2 }], time:'2026/07/19 16:30:42' }
+  ];
+  const PAGE_SIZE = 10; let renderedCount = 0; let loading = false;
+  const list = document.getElementById('record-list'); const footer = document.getElementById('record-footer');
+  const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+  const rewardTemplate = reward => {
+    if (reward.type === 'experience') return `<span class="record-reward"><strong>+${reward.amount}</strong>经验值</span>`;
+    if (reward.type === 'item') return `<span class="record-reward-item">${escapeHtml(reward.name)} ×${reward.quantity}</span>`;
+    const icon = reward.type === 'avatar' ? 'workspace_premium' : 'wallpaper';
+    return `<span class="record-reward record-reward-appearance"><span class="material-symbols-outlined" aria-hidden="true">${icon}</span>${escapeHtml(reward.name)}</span>`;
+  };
+  const rewardsTemplate = rewards => {
+    const items = rewards.filter(reward => reward.type === 'item');
+    const otherRewards = rewards.filter(reward => reward.type !== 'item');
+    const itemText = items.length ? `<span class="record-reward-items">${items.map(rewardTemplate).join('、')}</span>` : '';
+    return `${itemText}${otherRewards.map(rewardTemplate).join('')}`;
+  };
+  const rowTemplate = record => `<article class="record-item"><div class="record-action-group"><span class="record-action">${escapeHtml(record.action)}</span>${record.task ? `<span class="record-task">${escapeHtml(record.task)}</span>` : ''}</div><div class="record-meta"><div class="record-rewards">${rewardsTemplate(record.rewards)}</div><time class="record-time">${record.time}</time></div></article>`;
+  function updateFooter() { if (renderedCount >= RECORDS.length) { footer.textContent = '没有更多记录了'; return; } footer.textContent = '上拉获取更多记录'; footer.classList.remove('loading'); }
+  function appendRecords() { const nextRecords = RECORDS.slice(renderedCount, renderedCount + PAGE_SIZE); if (!nextRecords.length) { updateFooter(); return; } list.insertAdjacentHTML('beforeend', nextRecords.map(rowTemplate).join('')); renderedCount += nextRecords.length; updateFooter(); }
+  function loadMore() { if (loading || renderedCount >= RECORDS.length) return; loading = true; footer.textContent = '正在加载记录…'; footer.classList.add('loading'); window.setTimeout(() => { appendRecords(); loading = false; }, 260); }
+  function goBack() { if (document.referrer && document.referrer.includes('WelfareTask.html')) history.back(); else location.href = 'WelfareTask.html'; }
+  list.addEventListener('scroll', () => { if (list.scrollTop + list.clientHeight >= list.scrollHeight - 20) loadMore(); });
+  appendRecords();
+</script>
+<script>
+  window.requirementPanelConfig = { title:'获取记录需求说明', version:'v3.1.4', html:`<section><h2>v3.1.4 · 获取记录</h2><h3>一、入口与返回</h3><p>用户在福利任务页点击“获取记录”进入本页；点击左上角返回按钮回到福利任务页。</p><h3>二、记录展示</h3><p>记录按获取时间倒序展示。每条记录展示触发行为、奖励内容和精确到秒的获取时间。</p><ul><li>经验值奖励以“+N 经验值”展示。</li><li>游戏道具不展示图片或图标，仅展示“道具名称 ×N”；同一条记录包含多个道具时逐项列出。</li><li>头像框、个性背景展示对应名称，可使用类别图标辅助区分。</li></ul><h3>三、加载状态</h3><p>列表滚动到底部后加载下一批记录。无更多记录时展示“没有更多记录了”。示例数据仅用于原型展示，真实数据来源与奖励撤回、补发口径待后续确认。</p></section>` };
+</script>
+<script src="../../../shared/requirement-panel.js?v=20260921-requirements"></script>
+</body>
+</html>
