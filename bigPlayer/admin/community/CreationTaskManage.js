@@ -8,6 +8,7 @@
     '.task-drag{color:#8c8c8c;font-size:18px;cursor:grab;user-select:none}.task-select,.task-number{width:100%;height:32px;padding:0 8px;border:1px solid #d9d9d9;border-radius:2px;background:#fff}.task-number-wrap{display:flex;align-items:center;gap:6px}.task-setting-remove{color:#ff4d4f;border:0;background:transparent;cursor:pointer}.task-add-row{display:flex;justify-content:center;align-items:center;height:42px;color:#262626;cursor:pointer;background:#fff}.task-add-row:hover{color:#1890ff;background:#f0f7ff}.task-drawer-footer{display:flex;justify-content:flex-end;align-items:center;height:56px;padding:0 20px;border-top:1px solid #f0f0f0}.task-submit{min-width:72px;height:32px;border:0;border-radius:2px;color:#fff;background:#1890ff;cursor:pointer}',
     '.task-setting-wrap{margin-left:0;width:100%}.task-setting-table th,.task-setting-table td{padding:8px 8px}.task-setting-table th{color:#344054;font-weight:600}.task-reward-cell{min-width:0!important;text-align:left!important}.task-reward-editor{min-width:0}.task-reward-controls{display:flex;align-items:center;gap:6px;min-width:0}.task-reward-controls .task-select{min-width:0;height:34px;color:#344054}.task-reward-type{flex:0 0 96px}.task-reward-item{flex:1 1 auto}.task-reward-quantity{flex:0 0 70px}.task-reward-add,.task-reward-clear{height:34px;border-radius:2px;padding:0 10px;white-space:nowrap;cursor:pointer}.task-reward-add{flex:0 0 54px;border:1px solid #1890ff;background:#1890ff;color:#fff}.task-reward-clear{flex:0 0 54px;border:1px solid #ff4d4f;background:#fff;color:#ff4d4f}.task-reward-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.task-reward-tag{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 8px;border:0;border-radius:2px;background:#29b6f6;color:#fff;font-size:12px;cursor:pointer}.task-reward-tag-icon{display:block;width:20px;height:20px;flex:0 0 20px;border-radius:2px;object-fit:cover;background:#eaf5ff}.task-reward-tag-icon.is-fallback{background:#f5f5f5}.task-reward-tag-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.task-reward-tag-close{font-size:15px;line-height:1}.task-reward-empty{margin-top:7px;color:#98a2b3;font-size:12px}.task-reward-editor .task-number{height:34px}.task-reward-editor .task-number-wrap{flex:1;min-width:0}.task-reward-editor .task-number-wrap span{color:#667085;white-space:nowrap}',
     '.task-status-ended{color:#f5222d}.task-status-pending{color:#fa8c16}.task-switch{position:relative;display:inline-flex;align-items:center;width:44px;height:22px;padding:2px;border:0;border-radius:12px;color:#fff;background:#1890ff;cursor:pointer;font-size:10px}.task-switch:after{content:"";width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transform:translateX(20px);transition:transform .16s}.task-switch.is-off{justify-content:flex-end;background:#bfbfbf}.task-switch.is-off:after{transform:translateX(-20px)}.task-detail{line-height:1.7;color:#262626;white-space:pre-line}.task-action-link{margin-right:10px;border:0;padding:0;color:#1890ff;background:transparent;cursor:pointer}.task-action-link.disabled{color:#bfbfbf;cursor:not-allowed}.task-empty-audit{padding:48px 0;color:#8c8c8c;text-align:center}.task-help-summary{margin:0 0 16px;color:#475467;font-size:12px;line-height:1.8}.task-help-section{margin:0 0 18px}.task-help-section:last-child{margin-bottom:0}.task-help-section-title{margin:0 0 8px;padding-left:8px;border-left:3px solid #1890ff;color:#262626;font-size:13px;font-weight:600;line-height:1.35}.task-help-section p,.task-help-section li{color:#475467;font-size:12px;line-height:1.8}.task-help-section ul{margin:0;padding-left:18px}.task-help-table-wrap{overflow-x:auto;border:1px solid #e5e7eb;border-radius:4px}.task-help-table{width:100%;min-width:430px;border-collapse:collapse;font-size:12px}.task-help-table th,.task-help-table td{padding:8px 9px;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top;color:#475467;line-height:1.55}.task-help-table th{background:#f8fafc;color:#344054;font-weight:600;white-space:nowrap}.task-help-table th:last-child,.task-help-table td:last-child{border-right:0}.task-help-table tbody tr:last-child td{border-bottom:0}.task-help-note{margin:0;padding:10px 12px;border-radius:4px;background:#fff7e6;color:#8c5a00;font-size:12px;line-height:1.75}',
+    '.task-lang-bar{display:flex;align-items:center;gap:8px;min-height:48px;padding:8px 20px;background:#fafafa;border-bottom:1px solid #e8e8e8;overflow-x:auto}.task-lang-tab{height:30px;padding:0 14px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;color:#595959;cursor:pointer;font-size:13px;white-space:nowrap}.task-lang-tab.active{position:relative;border-color:#1677ff;background:#e6f4ff;color:#1677ff;font-weight:600}.task-lang-tab.active:after{content:"";position:absolute;right:0;bottom:-9px;left:0;height:2px;background:#1677ff}.task-lang-add{height:30px;padding:0 12px;border:1px dashed #b7c4d6;border-radius:4px;background:transparent;color:#1677ff;cursor:pointer;font-size:13px;white-space:nowrap}.task-lang-add:hover{border-color:#1677ff;background:#f5faff}.task-lang-modal{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}.task-lang-modal.open{display:flex}.task-lang-dialog{width:360px;padding:20px;border-radius:4px;background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.18)}.task-lang-dialog h3{margin:0 0 14px;font-size:16px}.task-lang-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}.task-lang-option{height:36px;border:1px solid #d9d9d9;border-radius:2px;background:#fff;color:#344054;cursor:pointer}.task-lang-option:hover{border-color:#1890ff;color:#1890ff}.task-lang-dialog-footer{display:flex;justify-content:flex-end;margin-top:16px}',
     '@media(max-width:900px){.task-drawer.drawer{width:100vw;max-width:100vw;right:-100vw}.task-drawer.drawer.open{right:0}.task-form-row{grid-template-columns:100px minmax(0,1fr)}.task-setting-wrap{margin-left:0!important;width:100%!important;overflow-x:auto}.task-setting-table{min-width:760px}}',
     '</style>'
   ].join(''));
@@ -34,7 +35,7 @@
       '<div class="tab-bar"><div class="tab-item active" id="task-tab-list">任务列表</div><div class="tab-item" id="task-tab-audit">审核列表</div></div>',
       '<div id="task-panel-list">',
         '<div class="filter-bar">',
-          '<div class="filter-item"><span><span class="filter-required">*</span> 所属版块：</span><select class="filter-select" id="task-module"><option>超能世界</option><option>圣魂纷争</option><option>逍遥情缘</option></select></div>',
+          '<div class="filter-item"><span>所属版块：</span><select class="filter-select" id="task-board"><optgroup label="境内"><option value="境内/圣魂纷争" selected>圣魂纷争</option><option value="境内/吸血鬼手游">吸血鬼手游</option><option value="境内/天境传说手游">天境传说手游</option><option value="境内/逍遥情缘">逍遥情缘</option><option value="境内/太初界">太初界</option><option value="境内/钓鱼世界">钓鱼世界</option><option value="境内/泰坦降临">泰坦降临</option></optgroup><optgroup label="境外"><option value="境外/Last Light">Last Light</option><option value="境外/X-clash">X-clash</option></optgroup><option value="">不限</option></select></div>',
           '<div class="filter-item"><span>状态：</span><select class="filter-select" id="task-status"><option value="">不限</option><option value="待审核">待审核</option><option value="进行中">进行中</option><option value="已结束">已结束</option></select></div>',
           '<div class="filter-item"><select class="filter-select" id="task-key-type" style="min-width:112px;"><option value="id">任务ID</option><option value="name">任务名称</option></select><input class="filter-input" id="task-keyword" placeholder="请输入"></div>',
           '<button class="btn-query" id="task-query">查询</button>',
@@ -46,14 +47,14 @@
       '<div id="task-panel-audit" style="display:none;"><div class="filter-bar"><div class="filter-item"><span><span class="filter-required">*</span> 所属版块：</span><select class="filter-select"><option>超能世界</option></select></div><div class="filter-item"><span>任务名称：</span><input class="filter-input" placeholder="请输入任务名称"></div><button class="btn-query">查询</button></div><div class="task-empty-audit">暂无待审核创作任务</div></div>',
     '</div>',
     '<div class="drawer-overlay" id="task-overlay"></div>',
-    '<div class="drawer task-drawer" id="task-drawer"><div class="drawer-header"><span class="drawer-title">新增创作任务</span><button class="drawer-close" id="task-close">×</button></div><div class="drawer-body"><div class="task-form">',
-      '<div class="task-form-row"><div class="task-form-label"><span class="task-required">*</span>所属版块：</div><div><span class="task-readonly-tag">超能世界</span></div></div>',
+    '<div class="drawer task-drawer" id="task-drawer"><div class="drawer-header"><span class="drawer-title">新增创作任务</span><button class="drawer-close" id="task-close">×</button></div><div class="task-lang-bar" id="task-lang-bar" style="display:none;"></div><div class="drawer-body"><div class="task-form">',
       '<div class="task-form-row"><label class="task-form-label" for="task-name"><span class="task-required">*</span>任务名称：</label><input class="task-form-input" id="task-name" maxlength="30" placeholder="输入任务名称"></div>',
       '<div class="task-form-row"><label class="task-form-label" for="task-start"><span class="task-required">*</span>开始时间：</label><input class="task-form-input" id="task-start" type="datetime-local"></div>',
       '<div class="task-form-row"><label class="task-form-label" for="task-end"><span class="task-required">*</span>结束时间：</label><input class="task-form-input" id="task-end" type="datetime-local"></div>',
       '<div class="task-form-row"><div class="task-form-label"><span class="task-required">*</span>任务设置：</div><div></div></div>',
       '<div class="task-setting-wrap"><table class="task-setting-table"><thead><tr><th style="width:52px;">排序</th><th style="width:128px;">任务类型</th><th style="width:118px;">达成要求</th><th>奖励</th><th style="width:58px;">操作</th></tr></thead><tbody id="task-setting-body"></tbody></table><div class="task-add-row" id="task-add-row">⊕&nbsp; 添加任务</div></div>',
-    '</div></div><div class="task-drawer-footer"><button class="task-submit" id="task-submit">提交</button></div></div>'
+    '</div></div><div class="task-drawer-footer"><button class="task-submit" id="task-submit">提交</button></div></div>',
+    '<div class="task-lang-modal" id="task-lang-modal"><div class="task-lang-dialog"><h3>添加语种</h3><div class="task-lang-options" id="task-lang-options"></div><div class="task-lang-dialog-footer"><button type="button" class="btn-copy" id="task-lang-cancel">取消</button></div></div></div>'
   ].join('');
 
   document.body.insertAdjacentHTML('beforeend', [
@@ -61,6 +62,10 @@
     '<div class="help-panel-overlay" id="task-help-overlay"></div>',
     '<div class="help-panel" id="task-help-panel"><div class="help-panel-header"><div class="help-panel-title">创作任务管理 v3.1.4 — 需求说明</div><button class="help-panel-close" id="task-help-close">×</button></div><div class="help-panel-body">',
       '<p class="task-help-summary">本次仅扩展「任务设置」中的奖励配置：奖品类型由原有的经验值扩展为经验值、游戏道具和个性装扮。</p>',
+      '<section class="task-help-section"><h3 class="task-help-section-title">海外版块语种配置（v3.1.4）</h3><ul>',
+        '<li>列表所属版块选择海外版块时，新增创作任务抽屉显示语种配置；选择国内版块时隐藏。</li>',
+        '<li>切换不同语种时，已选择的游戏道具名称按当前语种同步切换展示；道具数量、奖励类型和已选道具配置保持不变。</li>',
+      '</ul></section>',
       '<section class="task-help-section"><h3 class="task-help-section-title">本次新增字段</h3><div class="task-help-table-wrap"><table class="task-help-table"><thead><tr><th>奖品类型</th><th>新增字段</th><th>规则</th></tr></thead><tbody>',
         '<tr><td>经验值（默认）</td><td>经验值数量</td><td>必填，整数范围 1～999999。</td></tr>',
         '<tr><td>游戏道具</td><td>道具 ICON、道具选择、道具数量</td><td>道具 ICON 随所选道具读取；道具选择和数量均必填，数量为 1～999999。点击「添加」后生成「道具 ICON + 名称 + 数量」标签，可继续添加多个道具；单个标签可删除，也可一键清空。</td></tr>',
@@ -73,16 +78,30 @@
         '<li>道具 ICON：随所选道具读取并以 20px 图标展示；无 ICON、ICON 地址为空或图片加载失败时，统一展示裂图 ICON 占位，标签仍保留道具名称与数量。</li>',
         '<li>提交时再次校验奖励：经验值数量不能为空；游戏道具和个性装扮至少需添加 1 个已确认标签。</li>',
       '</ul></section>',
-      '<section class="task-help-section"><h3 class="task-help-section-title">待确认的业务口径</h3><p class="task-help-note">实际发奖触发时点、审核拒绝 / 删除 / 撤回后的奖励处理、重复事件幂等、奖励上限与周期、历史任务是否重算，需在服务端规则确认后补充。</p></section>',
     '</div></div>'
   ].join(''));
 
   var tasks = [{
-    sort: 1, id: 3, enabled: true, name: '6月创作者任务',
+    sort: 1, id: 3, enabled: true, board: '境内/圣魂纷争', name: '6月创作者任务',
     detail: '发帖达10次+100经验值\n评论达60次+300经验值\n获赞达100次+200经验值',
     status: '已结束', time: '2026-06-09 12:00:00~2026-06-30 23:59:59',
     note: '通过', reviewer: '梁仓', reviewTime: '2026-06-30 23:59:59'
   }];
+
+  var languages = [
+    { code: 'en', label: '英文' },
+    { code: 'zh', label: '中文' }
+  ];
+  var languageOptions = [
+    { code: 'ja', label: '日文' },
+    { code: 'ko', label: '韩文' },
+    { code: 'es', label: '西班牙文' },
+    { code: 'pt', label: '葡萄牙文' },
+    { code: 'de', label: '德文' },
+    { code: 'fr', label: '法文' }
+  ];
+  var activeLanguage = 'en';
+  var localizedTaskNames = { en: '', zh: '' };
 
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, function (character) {
@@ -105,9 +124,10 @@
     var keyword = document.getElementById('task-keyword').value.trim();
     var keyType = document.getElementById('task-key-type').value;
     var status = document.getElementById('task-status').value;
+    var board = document.getElementById('task-board').value;
     var visible = tasks.filter(function (task) {
       var target = keyType === 'id' ? task.id : task.name;
-      return (!keyword || String(target).indexOf(keyword) !== -1) && (!status || task.status === status);
+      return (!keyword || String(target).indexOf(keyword) !== -1) && (!status || task.status === status) && (!board || task.board === board);
     });
     document.getElementById('task-table-body').innerHTML = visible.map(function (task) {
       var statusClass = task.status === '已结束' ? 'task-status-ended' : 'task-status-pending';
@@ -238,7 +258,82 @@
     document.getElementById('task-setting-body').appendChild(row);
   }
 
+  function saveActiveLanguageName() {
+    var input = document.getElementById('task-name');
+    if (input) localizedTaskNames[activeLanguage] = input.value;
+  }
+
+  function languageLabel(code) {
+    var language = languages.find(function (item) { return item.code === code; });
+    return language ? language.label : '';
+  }
+
+  function switchTaskLanguage(code) {
+    saveActiveLanguageName();
+    activeLanguage = code;
+    var input = document.getElementById('task-name');
+    if (input) {
+      input.value = localizedTaskNames[code] || '';
+      input.placeholder = code === 'en' ? '输入英文任务名称' : code === 'zh' ? '输入中文任务名称' : '输入' + languageLabel(code) + '任务名称';
+    }
+    document.querySelectorAll('#task-lang-bar .task-lang-tab').forEach(function (tab) {
+      tab.classList.toggle('active', tab.dataset.lang === code);
+    });
+  }
+
+  function renderTaskLanguageTabs() {
+    var bar = document.getElementById('task-lang-bar');
+    if (!bar) return;
+    var overseas = isOverseasBoard(document.getElementById('task-board').value);
+    bar.style.display = overseas ? 'flex' : 'none';
+    if (!overseas) return;
+    bar.innerHTML = languages.map(function (language) {
+      return '<button type="button" class="task-lang-tab' + (language.code === activeLanguage ? ' active' : '') + '" data-lang="' + language.code + '">' + language.label + '</button>';
+    }).join('') + '<button type="button" class="task-lang-add" id="task-lang-add">+ 添加语种</button>';
+    document.getElementById('task-lang-add').addEventListener('click', openLanguageModal);
+  }
+
+  function openLanguageModal() {
+    var options = document.getElementById('task-lang-options');
+    options.innerHTML = languageOptions.filter(function (item) {
+      return !languages.some(function (language) { return language.code === item.code; });
+    }).map(function (item) {
+      return '<button type="button" class="task-lang-option" data-add-lang="' + item.code + '">' + item.label + '</button>';
+    }).join('') || '<div style="grid-column:1/-1;color:#98a2b3;font-size:12px;">暂无可添加语种</div>';
+    document.getElementById('task-lang-modal').classList.add('open');
+  }
+
+  function addTaskLanguage(code) {
+    var item = languageOptions.find(function (language) { return language.code === code; });
+    if (!item || languages.some(function (language) { return language.code === code; })) return;
+    saveActiveLanguageName();
+    languages.push(item);
+    localizedTaskNames[code] = '';
+    document.getElementById('task-lang-modal').classList.remove('open');
+    renderTaskLanguageTabs();
+    switchTaskLanguage(code);
+  }
+
+  function isOverseasBoard(value) {
+    return String(value || '').indexOf('境外/') === 0;
+  }
+
+  function resetTaskLanguages(overseas) {
+    languages = overseas
+      ? [{ code: 'en', label: '英文' }, { code: 'zh', label: '中文' }]
+      : [{ code: 'en', label: '英文' }];
+    activeLanguage = 'en';
+    localizedTaskNames = { en: '', zh: '' };
+    renderTaskLanguageTabs();
+    var input = document.getElementById('task-name');
+    if (input) {
+      input.value = '';
+      input.placeholder = '输入任务名称';
+    }
+  }
+
   function openDrawer() {
+    resetTaskLanguages(isOverseasBoard(document.getElementById('task-board').value));
     document.getElementById('task-overlay').classList.add('open');
     document.getElementById('task-drawer').classList.add('open');
   }
@@ -255,9 +350,15 @@
   }
 
   document.getElementById('task-query').addEventListener('click', renderTasks);
+  document.getElementById('task-board').addEventListener('change', function () {
+    if (document.getElementById('task-drawer').classList.contains('open')) {
+      resetTaskLanguages(isOverseasBoard(this.value));
+    }
+  });
   document.getElementById('task-refresh').addEventListener('click', function () {
     document.getElementById('task-status').value = '';
     document.getElementById('task-keyword').value = '';
+    document.getElementById('task-board').value = '境内/圣魂纷争';
     renderTasks();
   });
   document.getElementById('task-tab-list').addEventListener('click', function () { switchPanel('list'); });
@@ -266,6 +367,17 @@
   document.getElementById('task-close').addEventListener('click', closeDrawer);
   document.getElementById('task-overlay').addEventListener('click', closeDrawer);
   document.getElementById('task-add-row').addEventListener('click', addSettingRow);
+  document.getElementById('task-lang-modal').addEventListener('click', function (event) {
+    if (event.target === this) {
+      this.classList.remove('open');
+      return;
+    }
+    var addButton = event.target.closest('[data-add-lang]');
+    if (addButton) addTaskLanguage(addButton.dataset.addLang);
+  });
+  document.getElementById('task-lang-cancel').addEventListener('click', function () {
+    document.getElementById('task-lang-modal').classList.remove('open');
+  });
   document.getElementById('task-table-body').addEventListener('click', function (event) {
     var toggle = event.target.closest('[data-toggle]');
     if (toggle) {
@@ -277,11 +389,20 @@
     if (copy) alert('已复制任务 ' + copy.dataset.copy);
   });
   document.getElementById('task-submit').addEventListener('click', function () {
-    var name = document.getElementById('task-name').value.trim();
+    saveActiveLanguageName();
+    var localizedNames = languages.reduce(function (result, language) {
+      result[language.code] = String(localizedTaskNames[language.code] || '').trim();
+      return result;
+    }, {});
+    var hasAnyName = languages.some(function (language) {
+      return localizedNames[language.code];
+    });
+    var name = localizedNames.zh || localizedNames.en || localizedNames[languages[0].code] || '';
     var start = document.getElementById('task-start').value;
     var end = document.getElementById('task-end').value;
-    if (!name || !start || !end) {
-      alert('请完成任务名称、开始时间和结束时间');
+    var board = document.getElementById('task-board').value || '境内/圣魂纷争';
+    if (!hasAnyName || !start || !end) {
+      alert('请至少填写一种语言的任务名称、开始时间和结束时间');
       return;
     }
     if (start >= end) {
@@ -305,7 +426,7 @@
         return;
       }
     }
-    tasks.unshift({ sort: tasks.length + 1, id: tasks.length + 3, enabled: true, name: name, detail: '待补充任务设置', status: '待审核', time: start.replace('T', ' ') + '~' + end.replace('T', ' '), note: '-', reviewer: '-', reviewTime: '-' });
+    tasks.unshift({ sort: tasks.length + 1, id: tasks.length + 3, enabled: true, board: board, name: name, localizedNames: localizedNames, detail: '待补充任务设置', status: '待审核', time: start.replace('T', ' ') + '~' + end.replace('T', ' '), note: '-', reviewer: '-', reviewTime: '-' });
     closeDrawer();
     renderTasks();
     alert('创作任务已提交，等待审核');

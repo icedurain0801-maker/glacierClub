@@ -46,7 +46,7 @@
   </tbody></table></div></section>
   <section class="help-section"><h3 class="help-section-title">社区货币赠送字段规则</h3><div class="help-table-wrap"><table class="help-table" style="min-width:690px"><thead><tr><th>字段</th><th>是否必填</th><th>默认值</th><th>匹配 / 校验规则</th><th>联动说明</th></tr></thead><tbody>
   <tr><td>通行证ID</td><td>是，至少1个</td><td>空</td><td>精确ID校验；重复ID不可添加；账号不存在不可提交。</td><td>支持手动添加和Excel导入；每个ID在下方校验表展示结果。</td></tr>
-  <tr><td>Excel导入</td><td>否</td><td>未选择文件</td><td>仅读取首列非空ID；支持.xlsx、.xls；文件不超过100MB。</td><td>导入后与手动添加使用相同的重复和账号校验规则。</td></tr>
+  <tr><td>Excel导入</td><td>否</td><td>未选择文件</td><td>仅读取首列非空ID；支持.xlsx、.xls；文件不超过100MB；单次最多导入10,000个通行证ID，超出时整批不导入。</td><td>导入后与手动添加使用相同的重复和账号校验规则。</td></tr>
   <tr><td>Excel模板</td><td>否</td><td>无</td><td>模板首列为通行证ID，按文本格式填写。</td><td>用于避免通行证ID被Excel转为科学计数法。</td></tr>
   <tr><td>账号校验结果</td><td>是</td><td>无记录</td><td>展示通行证ID、名称、账号存在或账号不存在。</td><td>存在无效账号时提交按钮不可通过校验，需先移除无效账号。</td></tr>
   <tr><td>发放类型</td><td>是</td><td>经验值</td><td>精确枚举：经验值、个性装扮。</td><td>单次申请只能选择一种类型，不支持混合；切换后显示对应字段。</td></tr>
@@ -56,7 +56,7 @@
   <tr><td>发放理由</td><td>是</td><td>空</td><td>最多50个字符，不支持空值。</td><td>同一批通行证ID复用同一理由。</td></tr>
   </tbody></table></div></section>
   <section class="help-section"><h3 class="help-section-title">业务规则</h3><ul><li>社区货币仅支持赠送；经验值不得为0或负数。</li><li>一条有效通行证ID生成一条待审核记录；批量提交时复用同一发放类型、发放内容和理由。</li><li>提交前必须至少存在1个账号，且已添加账号必须全部通过存在性校验。</li><li>真实账号查询、重复提交、并发审核、实际发奖时点和失败重试，应由服务端以幂等键和审计日志保证一致性。</li></ul></section>
-  <section class="help-section"><h3 class="help-section-title">待确认的业务口径</h3><p class="help-note">单次Excel导入行数上限、操作权限、审核备注是否必填、实际奖励发放时点、撤回/删除后是否扣回奖励，以及历史记录展示和数据重算规则，需在服务端方案确认后补充。</p></section>`;
+  <section class="help-section"><h3 class="help-section-title">待确认的业务口径</h3><p class="help-note">操作权限、审核备注是否必填、实际奖励发放时点、撤回/删除后是否扣回奖励，以及历史记录展示和数据重算规则，需在服务端方案确认后补充。</p></section>`;
 }());
 </script>
 <script src="../../shared/sidebar-data.js?v=admin-sidebar-v034"></script><script src="../../shared/sidebar.js?v=sidebar-system-split-v037"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>

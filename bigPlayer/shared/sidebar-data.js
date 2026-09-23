@@ -106,7 +106,7 @@ const SIDEBAR_DATA = [
           {
             type: 'item',
             label: '通知页',
-            version: '',
+            version: 'v3.1.4',
             href: 'client/domestic/home/notifications.html'
           },
           {
