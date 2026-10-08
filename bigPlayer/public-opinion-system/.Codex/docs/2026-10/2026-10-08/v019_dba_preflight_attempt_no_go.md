@@ -23,9 +23,9 @@ Date: 2026-10-08
 
 ## 本地准备修复与验证
 
-`scripts/snapshot-production-dba-preflight.js` 已改为：先验证操作者，再创建独立目录，使用 `icacls` 设置 SYSTEM/Administrators/当前操作者三类 ACL；若设置失败，仅清理本次新目录。`scripts/snapshot-production-dba-preflight.acl.test.js` 在系统临时目录验证最小 ACL、脱敏 JSON 写入、正常及模拟 ACL 失败时清理，结果 `PASS_LOCAL_PREFLIGHT_ACL`，`productionTouched:false`，1/1 通过。脱敏测试结果写入仓库上级 `.temp/po-closeout-20261008/dba-preflight-acl-local-test.json`。该测试不加载服务 env、不连接数据库，不能替代新的生产授权或 DBA 预检。
+`scripts/snapshot-production-dba-preflight.js` 已改为：先检查固定目标指纹与证据输出顶层字段白名单，再验证操作者、创建独立目录，使用 `icacls` 设置 SYSTEM/Administrators/当前操作者三类 ACL；本地准备全部成功后才读取服务 env。若 ACL 设置失败，仅清理本次新目录。`scripts/snapshot-production-dba-preflight.acl.test.js` 在系统临时目录验证最小 ACL、脱敏 JSON 写入、禁止额外顶层字段、固定目标漂移在 ACL 操作前拒绝，以及正常和模拟 ACL 失败时清理。测试结果 `PASS_LOCAL_PREFLIGHT_ACL`，`productionTouched:false`，凭据读取 0、数据库连接 0，1/1 通过；`node --check scripts/snapshot-production-dba-preflight.js` 通过。脱敏测试结果写入仓库上级 `.temp/po-closeout-20261008/dba-preflight-acl-local-test.json`。该测试不加载服务 env、不连接数据库，不能替代新的生产授权或 DBA 预检。
 
-冻结哈希：预检脚本 SHA256 `1350f54f775868a643ef7632c8dafa7b491ab58c917e5d3fd19b4d09afa60`；本地 ACL 测试 SHA256 `687e17367b7aa6d4af730bb4beacacf6f0dda10d4927bf952ae21cf9d74f6096`；脱敏测试结果 SHA256 `5d83cc7f1c48684bc5c7af74b32866123cf9f7a6069f16938ada39194f44a863`。独立 QA 尚未完成，不能称生产预检通过。
+冻结哈希：预检脚本 SHA256 `888073d986c1eac48424be359221238dfbafbe57b4c02d0dac387260e34c1b08`；本地 ACL 测试 SHA256 `0b1e50dc8067a47e05148e8dbc7e5a83d6e223664809bf4ae1bffc98952c4d64`；脱敏测试结果 SHA256 `0c2040e911b1dbf2fbd8b077bd08e341d8f4d6a25423ba18e013c012c64beab0`。独立 QA 尚未完成，不能称生产预检通过。
 
 ## 未执行事项
 

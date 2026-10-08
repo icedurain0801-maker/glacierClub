@@ -11,6 +11,10 @@ const auditRoot = 'C:/ProgramData/PublicOpinion/audit';
 const expected = { hostname: 'LIUFUYI-2-48', port: 3306, serverId: 1, version: '10.4.14-MariaDB', database: 'public_opinion' };
 const allowedTaskPatterns = [/BigPlayer/i, /PublicOpinion/i, /Q1/i, /Overseas/i];
 const timeoutMs = 5000;
+const outputKeys = Object.freeze([
+  'status', 'code', 'productionTouched', 'authorizedScope', 'startedAt', 'finishedAt',
+  'actorHash', 'target', 'queries', 'identity', 'effectivePrivileges', 'processes', 'blockers'
+]);
 
 function parseEnv(file) {
   const values = {};
@@ -56,10 +60,30 @@ function secureEvidenceDir(root = auditRoot, runCommand = spawnSync) {
   }
 }
 
+function assertStaticBoundary(target = expected, keys = outputKeys) {
+  if (target.hostname !== expected.hostname || target.port !== expected.port ||
+    target.serverId !== expected.serverId || target.version !== expected.version ||
+    target.database !== expected.database) throw new Error('STATIC_TARGET_MISMATCH');
+  if (!Array.isArray(keys) || keys.length !== outputKeys.length ||
+    new Set(keys).size !== outputKeys.length || keys.some(key => !outputKeys.includes(key))) {
+    throw new Error('EVIDENCE_OUTPUT_WHITELIST_INVALID');
+  }
+}
+
+function prepareLocalPreflight({ root = auditRoot, runCommand = spawnSync, target = expected, keys = outputKeys } = {}) {
+  assertStaticBoundary(target, keys);
+  return secureEvidenceDir(root, runCommand);
+}
+
+function writeEvidence(file, evidence) {
+  if (Object.keys(evidence).some(key => !outputKeys.includes(key))) throw new Error('EVIDENCE_OUTPUT_NOT_ALLOWED');
+  fs.writeFileSync(file, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+}
+
 async function main() {
   if (process.argv.length !== 2) throw new Error('PREFLIGHT_ARGUMENTS_REJECTED');
+  const { dir, who } = prepareLocalPreflight();
   const env = parseEnv(envFile);
-  const { dir, who } = secureEvidenceDir();
   const startedAt = new Date().toISOString();
   const evidence = { status: 'NO_GO', code: 'NOT_STARTED', productionTouched: false, authorizedScope: 'DBA_READONLY_PREFLIGHT_ONLY', startedAt, actorHash: hash(who), target: { host: env.DB_HOST, port: Number(env.DB_PORT), database: env.DB_NAME }, queries: { timeoutMs, rawSqlSaved: false, businessRowsSaved: false, credentialsSaved: false } };
   let connection;
@@ -101,11 +125,11 @@ async function main() {
     if (unknownConnections.length) evidence.blockers.push('NON_TARGET_PROCESS_GROUPS_PRESENT');
     if (Number(trx[0].n) > 0) evidence.blockers.push('ACTIVE_TRANSACTIONS');
     evidence.finishedAt = new Date().toISOString();
-    fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+    writeEvidence(path.join(dir, 'result.json'), evidence);
     process.stdout.write(JSON.stringify({ status: evidence.status, code: evidence.code, productionTouched: false, evidenceDir: dir }) + '\n');
   } catch (error) {
     evidence.code = error.code || error.message || 'PREFLIGHT_FAILED'; evidence.finishedAt = new Date().toISOString();
-    fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+    writeEvidence(path.join(dir, 'result.json'), evidence);
     process.stdout.write(JSON.stringify({ status: 'NO_GO', code: evidence.code, productionTouched: false, evidenceDir: dir }) + '\n');
     process.exitCode = 1;
   } finally { if (connection) await connection.end().catch(() => {}); }
@@ -113,4 +137,4 @@ async function main() {
 
 if (require.main === module) main().catch(() => { process.stdout.write(JSON.stringify({ status: 'NO_GO', code: 'PREFLIGHT_FAILED', productionTouched: false }) + '\n'); process.exitCode = 1; });
 
-module.exports = { secureEvidenceDir };
+module.exports = { secureEvidenceDir, prepareLocalPreflight, assertStaticBoundary, writeEvidence };
