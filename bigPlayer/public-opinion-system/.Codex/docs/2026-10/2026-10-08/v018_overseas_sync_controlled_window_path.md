@@ -27,3 +27,47 @@ Date: 2026-10-08
 - **停止条件与回退**：任一上界、身份、对象、写入、事务、锁、磁盘、子进程或恢复校验失败，立即释放本次锁、停自有子进程，保留脱敏证据，禁止 029/030/真实 Run。若尚未执行 DDL，按已记录原状态恢复服务/任务；若 DDL 已开始，MariaDB 隐式提交且 030 旧唯一索引可能无法无损重建，不能自动 down migration 或删历史行，保持消费关闭并交项目经理单独决策。
 
 最短下一步：项目经理让 QA 只读审查本页和生产入口缺口，再向用户分别申请“高权限 DBA 只读预检”与“服务/任务排空窗口”的授权；未批准前保持 `NO_GO`。
+
+## QA 阻断补充
+
+### 权限、身份、语句与审计矩阵
+
+以下是设计矩阵，不是授权清单。实际权限必须由 DBA 在隔离环境用 `SHOW GRANTS` 验证，生产未执行。
+
+| 阶段 | 连接身份/主机 | 最小语句白名单 | 所需权限边界 | 会话/审计输出 |
+|---|---|---|---|---|
+| 生产只读预检 | 经批准的维护 DBA 身份；固定生产主机到 `LIUFUYI-2-48:3306/public_opinion` | `SELECT @@hostname,@@port,@@server_id,@@datadir,VERSION(),DATABASE(),CONNECTION_ID()`；目标库 `information_schema` 聚合；`SHOW FULL PROCESSLIST`；`SELECT` `information_schema.innodb_trx`；`SHOW EVENTS`/复制状态只读查询 | 需要能看到全实例线程/事务的 `PROCESS`；目标库元数据 `SELECT`；不授写权限、DDL、`GRANT OPTION`。此身份标记为 privileged，不进入最小观察脚本 | 只记录身份、计数、年龄分布、用户/库/命令聚合和错误码；不记录 SQL 文本、凭据、连接 ID 明文或业务行 |
+| 锁定与源清单 | 同一已批准 DBA 连接，独立 owner/watcher 会话 | `SET SESSION lock_wait_timeout=...`；`SELECT CONNECTION_ID()`；`FLUSH TABLES WITH READ LOCK`；目标库对象/Manifest 查询；`UNLOCK TABLES` | `FLUSH TABLES WITH READ LOCK` 的实际最小权限必须由隔离实测和 DBA 审核确认（通常涉及 `RELOAD`）；锁主不得复用业务连接；watcher 只读监视 owner 存活 | 审计锁请求/持有/释放时间、owner/watcher 角色、锁错误码和对象/数据摘要，不保存 SQL 正文 |
+| 生产 dump | 同一窗口内的受控 dump 执行身份；固定 `127.0.0.1`/目标端口和数据库指纹 | `mysqldump --no-defaults --host=... --protocol=tcp --default-character-set=utf8mb4 --single-transaction --quick --routines --triggers --events --hex-blob --no-tablespaces public_opinion` | 目标库 `SELECT`、`SHOW VIEW`、`TRIGGER`、例程/事件读取及 dump 所需锁/元数据权限；不写业务库；实际 GRANT 由 DBA 先在隔离副本验证 | 只记录参数模板（凭据脱敏）、退出码、stderr 大小、字节数、SHA256、耗时和 artifact ID |
+| 隔离恢复 | 全新 433xx/独立 datadir 的隔离 root 或专用 restore 身份，不连接 3306 | `mysql --no-defaults --protocol=tcp --default-character-set=utf8mb4 --binary-mode=1 < artifact`；恢复库对象/Manifest 查询 | 仅隔离恢复库 `CREATE/ALTER/INSERT/INDEX/CREATE VIEW/ROUTINE/TRIGGER/EVENT` 等对象权限；该身份和 datadir 不得复用于生产 | 记录隔离实例身份、退出码、对象/数据摘要、清理状态；不保留口令或原始业务行 |
+
+所有阶段都必须固定 `--no-defaults`、TCP 目标、工具绝对路径、硬时限和最小证据目录；任何身份/主机/权限漂移立即失败关闭。`PROCESS` 的跨库可见性需单独审批，不能因“DBA”三个字自动放行。
+
+### 写入者全量盘点（只读聚合）
+
+排空前必须同时采集以下类别，输出只保留数量、状态、最近时间和脱敏标识：
+
+- WinSW：API、主 Worker、分析 Worker、翻译 Worker 的服务状态、PID、自动恢复配置和实际 release/build hash。
+- Windows Task Scheduler：所有名称含 `BigPlayer`、`PublicOpinion`、`Q1`、`Overseas` 的任务，以及脚本/触发时间/下次运行状态；不得只看两项已知任务。
+- MariaDB Event Scheduler：`@@event_scheduler`、目标库 `information_schema.events` 的 enabled/status 聚合；触发器、例程和事件对象均纳入 Manifest。
+- 外部连接与导入：`PROCESSLIST` 按 user/host/db/command 聚合，目标库连接和非目标库连接分开计数；外部 API、Discord/导入作业、一次性脚本和运维会话只记录存在性与脱敏 owner，不输出 SQL 文本。
+- 复制/集成：只读检查 `SHOW SLAVE STATUS`/`SHOW REPLICA STATUS`（版本可用性按实际返回判断）、`SHOW MASTER STATUS`/binlog 状态和已知同步服务；未知复制或外部集成即阻断。
+- 数据库状态：活跃 `po_sync_runs`、schedule/worker lease、heartbeat、checkpoint 写入窗口和两次全局写入计数；无法读取全局计数时显式标记 blind spot，不按零处理。
+
+上述类别任一无法盘点、出现未知写入者、未提交事务或持续写入，即 `NO_GO`。停止服务/禁任务动作必须记录原状态、进程/任务标识、恢复命令和验证结果；本轮不执行。
+
+### 排空与锁耗时硬停止
+
+窗口上界不能凭经验填写，必须先用同版本、同对象规模的隔离负载测量并记录 P95/P99，再由项目经理批准数值。生产执行时分别计时：新写入阻断、排空等待、锁获取、锁持有、dump、隔离恢复、总窗口。任一阶段超过批准上界、磁盘低于阈值、watcher 失联、锁主变化、未知写入者出现或子进程退出未确认，立即中止并释放本次锁；禁止临时延长、强杀未知进程或自动重试。
+
+### 生产入口分阶段实现（默认关闭）
+
+1. `production-preflight`：只读身份/权限/写入者/容量盘点，固定输出 `NO_GO` 或缺项；不接受生产连接串，不创建账号，不调用 dump。
+2. `production-authorized`：仅在用户批准维护窗口、DBA 身份、目标指纹、候选 SHA、时间上界和审计范围后生成一次性授权材料；材料不含口令，默认过期，独立 QA 复核后才可进入下一阶段。
+3. `production-execute`：当前代码继续固定 `PRODUCTION_EXECUTION_DISABLED`。未来实现必须在隔离 fake executor、错误/超时/清理故障注入和 ACL 测试全部通过后，由独立 QA 复核；任何缺项仍失败关闭。
+
+### 029/030 分段批准与回退
+
+029 与 030 均可能隐式提交，不能依赖事务 `ROLLBACK`。必须在 DDL 前分别取得用户批准并保存前镜像/结构基线；先执行 029，独立核验定义、ledger、索引和历史字段，再重新取得 030 批准并执行 030。任一段失败或部分完成，立即保持所有 BigPlayer 消费关闭，不自动补偿、不删除历史、不猜测 down migration；项目经理根据已完成 DDL 和备份可恢复性决定继续修复、整库恢复或放弃窗口。DDL 后只有在 029/030 双段核验、同版 API/Worker 验收和新的写入者/lease/事务盘点均通过后，才可单独申请站点对齐事务与真实 Run。
+
+隔离门禁当前已有：生产入口零连接 `PRODUCTION_EXECUTION_DISABLED`、非法隔离身份/路径零连接拒绝、43317 真实 dump/严格恢复、数据/对象变异拒绝、锁/恢复/清理硬时限和端口释放。最新隔离 E2E 为 `PASS_ISOLATED_EXECUTOR_E2E`：51 项执行器/Gate/Manifest 单测通过，锁持有 237ms，dump 9,067 字节，数据/对象变异拒绝，清理和 43317 释放通过；脱敏证据为仓库上级 `.temp/po-closeout-20261008/snapshot-executor-isolated-4pZqTc/`，dump SHA256 `487c7bcb6fd8dea3f7f095c26d513c9ca69e49fca49bd2814f932d7bac0fac73`。它们只能证明隔离边界，不能替代上述生产权限、写入者、体量和 DDL 分段门禁。
