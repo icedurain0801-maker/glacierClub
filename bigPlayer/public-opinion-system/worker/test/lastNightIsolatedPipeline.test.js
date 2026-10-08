@@ -17,11 +17,40 @@ function fakeStore() {
   const jobs = new Map();
   const runs = [];
   const pages = [];
+  const tasks = new Set();
+  const checkpoints = new Map();
   let writes = 0;
-  return { content, jobs, runs, pages, get writes() { return writes; },
-    async startRun(input) { writes++; const run = { id: `run-${runs.length + 1}`, ...input, status: 'running' }; runs.push(run); return run; },
+  const pageKey = input => [input.runId, input.scope, input.feedKey,
+    input.rootPostId || '', input.commentId || ''].join(':');
+  return { content, jobs, runs, pages, tasks, checkpoints, get writes() { return writes; },
+    async startRun(input) {
+      const existing = runs.find(run => run.sourceId === input.sourceId && run.siteId === input.siteId &&
+        run.publishedFrom === input.publishedFrom && run.publishedTo === input.publishedTo);
+      if (existing) {
+        if (existing.status === 'failed') {
+          if (input.retryFailed !== true) throw Object.assign(new Error('retry approval'), { code: 'LAST_NIGHT_STORE_RETRY_APPROVAL_REQUIRED' });
+          existing.status = 'running';
+        }
+        return existing;
+      }
+      writes++; const run = { id: `run-${runs.length + 1}`, ...input, status: 'running', leaseEpoch: 1 }; runs.push(run); return run;
+    },
+    async loadPageState(input) { return checkpoints.get(pageKey(input)) || null; },
+    async renewRunLease(id, leaseEpoch) {
+      assert.equal(leaseEpoch, 1);
+      assert.equal(runs.find(run => run.id === id)?.status, 'running');
+    },
+    async registerFeeds(runId, leaseEpoch, feeds) {
+      assert.equal(leaseEpoch, 1);
+      for (const feed of feeds) tasks.add(pageKey({ runId, scope: 'posts', feedKey: feed.feedKey }));
+    },
+    async registerTask(input) { tasks.add(pageKey(input)); },
     async commitPage(input) {
+      assert.ok(tasks.has(pageKey(input)));
       writes++; pages.push(input);
+      checkpoints.set(pageKey(input), { nextCursor: input.nextCursor,
+        pageSeq: (checkpoints.get(pageKey(input))?.pageSeq || 0) + 1,
+        status: input.hasMore ? 'running' : 'complete' });
       for (const item of input.items) {
         const key = [input.sourceId, input.boardId, input.siteId, item.contentType, item.externalId].join(':');
         if (!content.has(key)) {
@@ -31,14 +60,18 @@ function fakeStore() {
         }
       }
     },
-    async finishRun(id) { writes++; runs.find(run => run.id === id).status = 'completed'; },
-    async failRun(id, code) { writes++; Object.assign(runs.find(run => run.id === id), { status: 'failed', code }); },
+    async finishRun(id, leaseEpoch) {
+      assert.equal(leaseEpoch, 1);
+      assert.ok([...tasks].filter(key => key.startsWith(`${id}:`)).every(key => checkpoints.get(key)?.status === 'complete'));
+      writes++; runs.find(run => run.id === id).status = 'completed';
+    },
+    async failRun(id, leaseEpoch, code) { assert.equal(leaseEpoch, 1); writes++; Object.assign(runs.find(run => run.id === id), { status: 'failed', code }); },
     async claimAnalysisJobs({ limit }) { return [...jobs.values()].filter(job => job.status === 'pending').slice(0, limit).map(job => { job.status = 'running'; return job; }); },
-    async completeAnalysisJob(id, analysis, { queueDeep }) {
+    async completeAnalysisJob(id, _leaseEpoch, analysis, { queueDeep }) {
       writes++; const job = jobs.get(id); Object.assign(job, { status: 'completed', analysis });
       if (queueDeep) jobs.set(id.replace(/:light$/, ':deep'), { ...job, id: id.replace(/:light$/, ':deep'), profile: 'deep', status: 'pending' });
     },
-    async failAnalysisJob(id, code) { writes++; Object.assign(jobs.get(id), { status: 'failed', code }); }
+    async failAnalysisJob(id, _leaseEpoch, code) { writes++; Object.assign(jobs.get(id), { status: 'failed', code }); }
   };
 }
 
@@ -74,8 +107,8 @@ test('three sites paginate posts and comments; rerun is idempotent and async AI 
   assert.equal((await collectIsolated(options)).siteRuns.length, 3);
   assert.equal(store.content.size, 12);
   assert.equal(store.jobs.size, 12);
-  assert.equal(store.runs.length, 6);
-  assert.equal(store.pages.length, 24);
+  assert.equal(store.runs.length, 3);
+  assert.equal(store.pages.length, 12);
   const ai = { configured: () => true, async analyzeBatch(items, profile) {
     return items.map(() => ({ sentiment: 'negative', profile, needsDeep: profile === 'light' }));
   } };
@@ -96,8 +129,62 @@ test('scope mismatch, incomplete pagination and unauthorized response fail close
     connector: fakeConnector({ incomplete: true }), ...window }),
   { code: 'LAST_NIGHT_ISOLATED_PAGE_INCOMPLETE' });
   assert.equal(store.runs[0].status, 'failed');
-  await assert.rejects(collectIsolated({ source, account, sites, store,
+  const unauthorizedStore = fakeStore();
+  await assert.rejects(collectIsolated({ source, account, sites, store: unauthorizedStore,
     connector: fakeConnector({ unauthorized: true }), ...window }), { code: 'UNAUTHORIZED' });
-  assert.equal(store.runs[1].status, 'failed');
+  assert.equal(unauthorizedStore.runs[0].status, 'failed');
   assert.equal(store.content.size, 0);
+  assert.equal(unauthorizedStore.content.size, 0);
+});
+
+test('comment failure preserves post cursor and resumes committed comment page', async () => {
+  const store = fakeStore();
+  const postCursors = [];
+  const commentCursors = [];
+  let failSecondCommentPage = true;
+  const connector = {
+    async discoverFeeds() { return [{ boardId: BOARD_ID, feedKey: 'merged' }]; },
+    async listFeedContents({ source: siteSource, cursor }) {
+      if (siteSource.siteId !== 'site-1') return { items: [], hasMore: false, capability: 'authorized_scope' };
+      postCursors.push(cursor);
+      return cursor === 'p2'
+        ? { items: [{ externalId: 'post-2', contentType: 'post' }], hasMore: false, capability: 'authorized_scope' }
+        : { items: [{ externalId: 'post-1', contentType: 'post' }], hasMore: true,
+          nextCursor: 'p2', capability: 'authorized_scope' };
+    },
+    async listComments({ postId, cursor }) {
+      if (postId === 'post-2') return { items: [], hasMore: false, capability: 'authorized_scope' };
+      commentCursors.push(cursor);
+      if (cursor === 'c2' && failSecondCommentPage) {
+        failSecondCommentPage = false;
+        throw Object.assign(new Error('temporary failure'), { code: 'UPSTREAM_FAILED' });
+      }
+      return cursor === 'c2'
+        ? { items: [{ externalId: 'comment-2', contentType: 'comment' }], hasMore: false, capability: 'authorized_scope' }
+        : { items: [{ externalId: 'comment-1', contentType: 'comment' }], hasMore: true,
+          nextCursor: 'c2', capability: 'authorized_scope' };
+    }
+  };
+  const options = { source, account, sites, store, connector, ...window,
+    maxPagesPerFeed: 2, maxCommentPages: 2 };
+  await assert.rejects(collectIsolated(options), { code: 'UPSTREAM_FAILED' });
+  assert.equal(store.loadPageState && (await store.loadPageState({ runId: 'run-1', scope: 'posts', feedKey: 'merged' })), null);
+  assert.equal((await store.loadPageState({ runId: 'run-1', scope: 'comments', feedKey: 'merged', rootPostId: 'post-1' })).nextCursor, 'c2');
+  assert.equal((await collectIsolated({ ...options, retryFailed: true })).status, 'collected');
+  assert.deepEqual(postCursors, [null, null, 'p2']);
+  assert.deepEqual(commentCursors, [null, 'c2', 'c2']);
+  assert.equal(store.content.size, 4);
+  assert.equal(store.runs.length, 3);
+});
+
+test('retry cannot reset the persisted page budget', async () => {
+  const store = fakeStore();
+  const connector = fakeConnector();
+  await assert.rejects(collectIsolated({ source, account, sites, store, connector,
+    ...window, maxPagesPerFeed: 1 }), { code: 'LAST_NIGHT_ISOLATED_PAGE_BUDGET' });
+  const pageCount = store.pages.length;
+  await assert.rejects(collectIsolated({ source, account, sites, store, connector,
+    ...window, maxPagesPerFeed: 1, retryFailed: true }),
+  { code: 'LAST_NIGHT_ISOLATED_PAGE_BUDGET' });
+  assert.equal(store.pages.length, pageCount);
 });
