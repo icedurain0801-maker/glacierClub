@@ -36,19 +36,27 @@ Date: 2026-10-08
 
 | 阶段 | 连接身份/主机 | 最小语句白名单 | 所需权限边界 | 会话/审计输出 |
 |---|---|---|---|---|
-| 生产只读预检 | 经批准的维护 DBA 身份；固定生产主机到 `LIUFUYI-2-48:3306/public_opinion` | `SELECT @@hostname,@@port,@@server_id,@@datadir,VERSION(),DATABASE(),CONNECTION_ID()`；目标库 `information_schema` 聚合；`SHOW FULL PROCESSLIST`；`SELECT` `information_schema.innodb_trx`；`SHOW EVENTS`/复制状态只读查询 | 需要能看到全实例线程/事务的 `PROCESS`；目标库元数据 `SELECT`；不授写权限、DDL、`GRANT OPTION`。此身份标记为 privileged，不进入最小观察脚本 | 只记录身份、计数、年龄分布、用户/库/命令聚合和错误码；不记录 SQL 文本、凭据、连接 ID 明文或业务行 |
+| 生产只读预检 | 经批准的维护 DBA 身份；固定生产主机到 `LIUFUYI-2-48:3306/public_opinion` | `SELECT CURRENT_USER(),CURRENT_ROLE(),@@hostname,@@port,@@server_id,@@datadir,VERSION(),DATABASE(),CONNECTION_ID()`；`SHOW GRANTS`/角色映射与 `information_schema.USER_PRIVILEGES`、`SCHEMA_PRIVILEGES`、`TABLE_PRIVILEGES` 有效权限审计；目标库 `information_schema` 聚合；`SHOW FULL PROCESSLIST`；`SELECT` `information_schema.innodb_trx`；`SHOW EVENTS`/复制状态只读查询 | 需要能看到全实例线程/事务的 `PROCESS`；目标库元数据 `SELECT`；不授写权限、DDL、`GRANT OPTION`。必须拒绝默认/继承角色带来的额外全局或库权限；此身份标记为 privileged，不进入最小观察脚本 | 只记录精确 `CURRENT_USER()`/`CURRENT_ROLE()` 是否匹配审批指纹、有效权限集合的脱敏分类、计数、年龄分布、用户/库/命令聚合和错误码；不记录 SQL 文本、凭据、连接 ID 明文或业务行 |
 | 锁定与源清单 | 同一已批准 DBA 连接，独立 owner/watcher 会话 | `SET SESSION lock_wait_timeout=...`；`SELECT CONNECTION_ID()`；`FLUSH TABLES WITH READ LOCK`；目标库对象/Manifest 查询；`UNLOCK TABLES` | `FLUSH TABLES WITH READ LOCK` 的实际最小权限必须由隔离实测和 DBA 审核确认（通常涉及 `RELOAD`）；锁主不得复用业务连接；watcher 只读监视 owner 存活 | 审计锁请求/持有/释放时间、owner/watcher 角色、锁错误码和对象/数据摘要，不保存 SQL 正文 |
 | 生产 dump | 同一窗口内的受控 dump 执行身份；固定 `127.0.0.1`/目标端口和数据库指纹 | `mysqldump --no-defaults --host=... --protocol=tcp --default-character-set=utf8mb4 --single-transaction --quick --routines --triggers --events --hex-blob --no-tablespaces public_opinion` | 目标库 `SELECT`、`SHOW VIEW`、`TRIGGER`、例程/事件读取及 dump 所需锁/元数据权限；不写业务库；实际 GRANT 由 DBA 先在隔离副本验证 | 只记录参数模板（凭据脱敏）、退出码、stderr 大小、字节数、SHA256、耗时和 artifact ID |
 | 隔离恢复 | 全新 433xx/独立 datadir 的隔离 root 或专用 restore 身份，不连接 3306 | `mysql --no-defaults --protocol=tcp --default-character-set=utf8mb4 --binary-mode=1 < artifact`；恢复库对象/Manifest 查询 | 仅隔离恢复库 `CREATE/ALTER/INSERT/INDEX/CREATE VIEW/ROUTINE/TRIGGER/EVENT` 等对象权限；该身份和 datadir 不得复用于生产 | 记录隔离实例身份、退出码、对象/数据摘要、清理状态；不保留口令或原始业务行 |
 
 所有阶段都必须固定 `--no-defaults`、TCP 目标、工具绝对路径、硬时限和最小证据目录；任何身份/主机/权限漂移立即失败关闭。`PROCESS` 的跨库可见性需单独审批，不能因“DBA”三个字自动放行。
 
+### 第一段：DBA 高权限只读预检申请口径
+
+该段只做元数据和状态查询，不停服务、不禁任务、不持 FTWRL、不执行 dump/restore/DDL。影响是维护 DBA 身份可看到全实例线程、事务和部分 SQL 元数据；它不是最小权限观察账号，也不改变数据库对象或业务数据。预计 2-5 分钟，查询总时长上界由项目经理预先批准，单条查询超时立即停止，不临时延长。
+
+白名单仅包含：连接身份 `CURRENT_USER()`/`CURRENT_ROLE()`/目标指纹；`SHOW GRANTS`、角色映射及 `information_schema` 有效权限集合；`SHOW FULL PROCESSLIST`、`information_schema.innodb_trx`、目标库 Run/lease/heartbeat 聚合；全量 Windows 任务枚举与 allowlist 分类；Event Scheduler、复制/导入状态和服务状态的只读采样。输出只保存脱敏身份匹配结果、权限分类、计数、年龄桶、任务/服务状态、错误码和采样时间，不保存 SQL 文本、命令行、凭据、业务行或原始进程列表。
+
+预检停止条件：`CURRENT_USER()`/`CURRENT_ROLE()` 与审批指纹不符、发现继承角色额外权限、出现写权限/DDL/`GRANT OPTION`、目标主机/库/版本漂移、任何任务未分类、查询超时、未知连接/写入者、脱敏失败或无法证明输出范围。任一条件即返回 `NO_GO`，不进入排空、锁库或备份；该段本身也不构成后续生产授权。
+
 ### 写入者全量盘点（只读聚合）
 
 排空前必须同时采集以下类别，输出只保留数量、状态、最近时间和脱敏标识：
 
 - WinSW：API、主 Worker、分析 Worker、翻译 Worker 的服务状态、PID、自动恢复配置和实际 release/build hash。
-- Windows Task Scheduler：所有名称含 `BigPlayer`、`PublicOpinion`、`Q1`、`Overseas` 的任务，以及脚本/触发时间/下次运行状态；不得只看两项已知任务。
+- Windows Task Scheduler：先全量枚举 `Get-ScheduledTask` 的任务名、路径、状态、动作和触发器，再按项目经理批准的 allowlist 分类（BigPlayer、PublicOpinion、Q1、Overseas 及明确的无关任务）。任何未分类任务、无法读取动作/触发器或 allowlist 漂移都立即阻断，不得只看两项已知任务。
 - MariaDB Event Scheduler：`@@event_scheduler`、目标库 `information_schema.events` 的 enabled/status 聚合；触发器、例程和事件对象均纳入 Manifest。
 - 外部连接与导入：`PROCESSLIST` 按 user/host/db/command 聚合，目标库连接和非目标库连接分开计数；外部 API、Discord/导入作业、一次性脚本和运维会话只记录存在性与脱敏 owner，不输出 SQL 文本。
 - 复制/集成：只读检查 `SHOW SLAVE STATUS`/`SHOW REPLICA STATUS`（版本可用性按实际返回判断）、`SHOW MASTER STATUS`/binlog 状态和已知同步服务；未知复制或外部集成即阻断。
