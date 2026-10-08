@@ -15,6 +15,8 @@ test('BigPlayer source form exposes multi-site input and legacy baseUrl fallback
   assert.match(sourceScript, /patch\.siteUrls = parsedSites\.urls/);
   assert.match(sourceScript, /payload\.baseUrl = parsedSites\.urls\[0\]/);
   assert.match(sourceScript, /patch\.baseUrl = parsedSites\.urls\[0\]/);
+  assert.doesNotMatch(sourceScript, /sourceIsOverseas \? parseSiteUrls\(OVERSEAS_LAST_NIGHT_BASE_URL\) : validateSiteUrlRows\(\)/);
+  assert.doesNotMatch(sourceScript, /const siteUrls = isOverseasLastNight\(source\) \? \[OVERSEAS_LAST_NIGHT_BASE_URL\] : sourceSiteUrls\(source\)/);
 });
 
 test('BigPlayer form rejects unsafe and duplicate normalized URLs before API call', () => {

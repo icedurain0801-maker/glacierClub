@@ -362,11 +362,11 @@ test('light/deep severity 提示词按 urgent→attention→normal 互斥单选�
     const system = ai.buildMessages([{ title: '标题', body: '正文' }], profile)[0].content;
     assert.match(system, /severity 必须互斥单选/);
     assert.match(system, /urgent→attention→normal/);
-    assert.match(system, /urgent（负面待处理）仅用于存在明确需立即处理的风险/);
-    assert.match(system, /不满足 urgent 时，attention（关注级）/);
-    assert.match(system, /其余为 normal（正常）/);
-    assert.match(system, /不得依据 sentiment 或 negative_score 猜测等级/);
-    assert.match(system, /一般负向表达不得自动判为 attention/);
+    assert.match(system, /positive 必须为 normal/);
+    assert.match(system, /negative 至少为 attention/);
+    assert.match(system, /明确游戏问题/);
+    assert.match(system, /negative_score≥0\.60 且 confidence≥0\.60/);
+    assert.match(system, /不得依据互动量、点赞量或评论量升级等级/);
   }
 });
 
@@ -374,7 +374,7 @@ test('severity 新提示词 schema 使旧缓存失效但不改变历史 analysis
   const ai = new AiAnalyzer({ ...ENV, AI_ANALYSIS_VERSION: 'existing-version' });
   for (const profile of [ai.profiles.light, ai.profiles.deep]) {
     const payload = {
-      promptSchemaVersion: 'sentiment-quality-context-severity-exclusive-v3',
+      promptSchemaVersion: 'sentiment-quality-context-severity-exclusive-v4',
       regionCode: 'legacy-unassigned', gameId: 'legacy-unassigned',
       communityId: 'legacy-unassigned', platform: 'legacy-unassigned',
       fingerprint: 'same-content', profile: profile.name, model: profile.model, version: 'existing-version'

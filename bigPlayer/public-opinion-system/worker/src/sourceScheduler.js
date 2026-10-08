@@ -77,13 +77,26 @@ function rejected(source, reasonCode) {
   return { sourceId: source.id, status: 'rejected', reasonCode, triggerType: null, scheduledAt: null };
 }
 function boundedWindowFor(source, schedule, now) {
-  if (schedule.window) return schedule.window;
-  if (source.platform !== 'bigplayer_h5' || !['scheduled', 'scheduled_catchup'].includes(schedule.triggerType)) return null;
+  const isScheduledBigPlayer = source.platform === 'bigplayer_h5' && ['scheduled', 'scheduled_catchup'].includes(schedule.triggerType);
+  if (schedule.window) {
+    if (!isScheduledBigPlayer) return schedule.window;
+    const scheduledEnd = parseDate(schedule.window.windowEndAt);
+    if (scheduledEnd == null || now.getTime() <= scheduledEnd) return schedule.window;
+    return { ...schedule.window, windowEndAt: now.toISOString() };
+  }
+  if (!isScheduledBigPlayer) return null;
   const end = now.getTime();
   return { windowStartAt: new Date(end - 7 * 24 * 60 * 60 * 1000).toISOString(), windowEndAt: new Date(end).toISOString() };
 }
+function hasConfiguredBigPlayerMultiSite(source) {
+  if (source.platform !== 'bigplayer_h5') return false;
+  let config = source.config;
+  try { if (typeof config === 'string') config = JSON.parse(config); } catch { return false; }
+  return Array.isArray(config?.siteUrls) && config.siteUrls.filter(Boolean).length > 1;
+}
 
 function sourceEligibility(source, account, capability, now) {
+  if (source.platform === 'bigplayer_h5' && !require('../../shared/bigPlayerBoard').boardIdOf(source)) return 'BOARD_ID_REQUIRED';
   if (!source.enabled) return 'SOURCE_DISABLED';
   if (!source.game_enabled) return 'GAME_DISABLED';
   if (source.community_status !== 'enabled') return 'COMMUNITY_DISABLED';
@@ -151,6 +164,7 @@ async function scheduleSources({
     const boundedWindow = boundedWindowFor(source, schedule, now);
     const intent = {
       sourceId: source.id,
+      ...(source.platform === 'bigplayer_h5' ? { communityId: source.community_id, boardId: require('../../shared/bigPlayerBoard').boardIdOf(source) } : {}),
       accountId: account.id,
       platform: source.platform,
       regionCode: source.region_code,
@@ -160,18 +174,19 @@ async function scheduleSources({
       windowStartAt: boundedWindow?.windowStartAt || null,
       windowEndAt: boundedWindow?.windowEndAt || null,
       scheduleVersion: Number(source.schedule_version || 1),
+      ...(hasConfiguredBigPlayerMultiSite(source) ? { multiSite: true } : {}),
       idempotencyKey: `${source.id}:${schedule.dueSlotAt}`
     };
 
     let lease;
     try {
       lease = await leaseAdapter.acquire(intent);
-    } catch {
-      decisions.push({ ...intent, status: 'failed', reasonCode: 'LEASE_FAILED' });
+    } catch (error) {
+      decisions.push({ ...intent, status: 'failed', reasonCode: error?.code || 'LEASE_FAILED', errorCode: error?.code || null });
       continue;
     }
     if (!lease?.acquired) {
-      decisions.push({ ...intent, status: 'skipped', reasonCode: 'PREVIOUS_RUN_ACTIVE' });
+      decisions.push({ ...intent, status: 'skipped', reasonCode: lease?.reasonCode || 'PREVIOUS_RUN_ACTIVE' });
       continue;
     }
 

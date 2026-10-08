@@ -46,7 +46,7 @@ function lease(overrides = {}) {
   };
 }
 
-test('expired lease acquisition restores the schedule state slot atomically', async () => {
+test('expired lease acquisition does not advance schedule state before enqueue', async () => {
   const connection = fakeConnection((call, index) => index === 0
     ? [{ affectedRows: 1 }]
     : [[{ lease_epoch: 8 }]]);
@@ -56,10 +56,9 @@ test('expired lease acquisition restores the schedule state slot atomically', as
     scheduledAt: '2026-09-08T18:00:00.000Z',
     nextSlotAt: '2026-09-08T19:00:00.000Z'
   });
-  assert.match(connection.calls[0].sql, /last_scheduled_at=\?, next_scheduled_at=\?/);
+  assert.doesNotMatch(connection.calls[0].sql, /last_scheduled_at=\?, next_scheduled_at=\?/);
   assert.deepEqual(connection.calls[0].params, [
     'run-new', 'scheduler-a', '2026-09-08 18:04:00.000',
-    '2026-09-08 18:00:00.000', '2026-09-08 19:00:00.000',
     'source-1', '2026-09-08 17:59:00.000'
   ]);
 });
@@ -83,6 +82,17 @@ test('scheduled enqueue inserts first and returns the winning run for a new slot
   ]);
   assert.match(connection.calls[1].sql, /^SELECT id FROM po_sync_runs WHERE source_id=\? AND scheduled_at=\? LIMIT 1$/);
   assert.deepEqual(connection.calls[1].params, ['source-1', '2026-09-08 18:00:00.000']);
+});
+
+test('advanceLease moves the cursor only after a successful enqueue', async () => {
+  const connection = fakeConnection(() => [{ affectedRows: 1 }]);
+  const adapter = createSchedulerRepositoryAdapter(connection);
+  const result = await adapter.advanceLease({
+    sourceId: 'source-1', runId: 'run-new', ownerId: 'scheduler-a', epoch: 7,
+    scheduledAt: '2026-09-08T18:00:00.000Z', nextSlotAt: '2026-09-08T19:00:00.000Z'
+  });
+  assert.deepEqual(result, { advanced: true });
+  assert.match(connection.calls[0].sql, /^UPDATE po_source_schedule_state SET last_scheduled_at=\?, next_scheduled_at=\?/);
 });
 
 test('preserves canonical MariaDB timestamps and nullable windows without timezone conversion', async () => {
@@ -135,6 +145,72 @@ test('duplicate scheduled slot returns the existing run without pre-reading', as
   assert.equal(connection.calls[0].sql.startsWith('INSERT INTO po_sync_runs'), true);
 });
 
+test('atomic BigPlayer multi-site slot creates one scheduled parent and internal scheduled_site children', async () => {
+  const calls = [];
+  const tx = {
+    async beginTransaction() { calls.push({ sql: 'BEGIN', params: [] }); },
+    async commit() { calls.push({ sql: 'COMMIT', params: [] }); },
+    async rollback() { calls.push({ sql: 'ROLLBACK', params: [] }); },
+    release() {},
+    async query(sql, params = []) {
+      const call = { sql: compact(sql), params }; calls.push(call);
+      if (call.sql.startsWith('UPDATE po_source_schedule_state s')) return [{ affectedRows: 1 }];
+      if (call.sql.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 8 }]];
+      if (call.sql.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
+      if (call.sql.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-parent' }]];
+      if (call.sql.startsWith('SELECT platform, config FROM po_sources')) return [[{ platform: 'bigplayer_h5', config: JSON.stringify({ baseUrl: 'https://club.q1.com/?gameId=a', siteUrls: [{ siteId: 'a', url: 'https://club.q1.com/?gameId=a' }, { siteId: 'b', url: 'https://club.q1.com/?gameId=b' }] }) }]];
+      if (call.sql.startsWith('SELECT site_id, url, enabled FROM po_source_sites')) return [[{ site_id: 'a', url: 'https://club.q1.com/?gameId=a', enabled: 1 }, { site_id: 'b', url: 'https://club.q1.com/?gameId=b', enabled: 1 }]];
+      if (call.sql.startsWith('SELECT MAX(last_item_at)')) return [[{ last_successful_cursor: call.params[1] === 'a' ? '2026-09-08 12:00:00.000' : '2026-09-07 18:00:00.000' }]];
+      if (call.sql.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at')) return [{ affectedRows: 1 }];
+      throw new Error(`unexpected SQL: ${call.sql}`);
+    }
+  };
+  const adapter = createSchedulerRepositoryAdapter({ async getConnection() { return tx; }, async query() { throw new Error('root connection must not be used'); } });
+  const result = await adapter.scheduleSlotAtomic({ ...scheduledIntent({ runId: 'run-parent', sourceId: 'source-a', accountId: 'account-a' }), ownerId: 'scheduler-a', leaseUntil: '2026-09-08T18:04:00.000Z', nextSlotAt: '2026-09-08T19:00:00.000Z', multiSite: true });
+  assert.equal(result.created, true);
+  const childInserts = calls.filter(call => call.sql.startsWith('INSERT INTO po_sync_runs') && call.sql.includes("'scheduled_site'"));
+  assert.equal(childInserts.length, 2);
+  assert.deepEqual(childInserts.map(call => [call.params[1], call.params[2], call.params[3]]), [['run-parent', 'a', 'https://club.q1.com/?gameId=a'], ['run-parent', 'b', 'https://club.q1.com/?gameId=b']]);
+  assert.deepEqual(childInserts.map(call => call.params[7]), ['2026-09-08 12:00:00.000', '2026-09-07 18:00:00.000'], 'fast and slow sites keep independent windows');
+  assert.equal(calls.at(-1).sql, 'COMMIT');
+});
+
+test('atomic BigPlayer multi-site slot rolls back when every configured site is disabled', async () => {
+  const calls = [];
+  const tx = {
+    async beginTransaction() { calls.push({ sql: 'BEGIN', params: [] }); },
+    async commit() { calls.push({ sql: 'COMMIT', params: [] }); },
+    async rollback() { calls.push({ sql: 'ROLLBACK', params: [] }); },
+    release() {},
+    async query(sql, params = []) {
+      const call = { sql: compact(sql), params }; calls.push(call);
+      if (call.sql.startsWith('UPDATE po_source_schedule_state s')) return [{ affectedRows: 1 }];
+      if (call.sql.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 8 }]];
+      if (call.sql.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
+      if (call.sql.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-parent' }]];
+      if (call.sql.startsWith('SELECT platform, config FROM po_sources')) return [[{
+        platform: 'bigplayer_h5',
+        config: JSON.stringify({ siteUrls: [
+          { siteId: 'a', url: 'https://club.q1.com/?gameId=a', enabled: false },
+          { siteId: 'b', url: 'https://club.q1.com/?gameId=b', enabled: false }
+        ] })
+      }]];
+      if (call.sql.startsWith('SELECT site_id, url, enabled FROM po_source_sites')) return [[]];
+      throw new Error(`unexpected SQL: ${call.sql}`);
+    }
+  };
+  const adapter = createSchedulerRepositoryAdapter({
+    async getConnection() { return tx; },
+    async query() { throw new Error('root connection must not be used'); }
+  });
+  await assert.rejects(
+    () => adapter.scheduleSlotAtomic({ ...scheduledIntent({ runId: 'run-parent' }), ownerId: 'scheduler-a', leaseUntil: '2026-09-08T18:04:00.000Z', nextSlotAt: '2026-09-08T19:00:00.000Z', multiSite: true }),
+    error => error.code === 'MULTISITE_SITE_REGISTRY_MISMATCH'
+  );
+  assert.equal(calls.some(call => call.sql === 'ROLLBACK'), true);
+  assert.equal(calls.some(call => call.sql === 'COMMIT'), false);
+});
+
 test('manual and legacy runs cannot enter the scheduled-slot merge path', async () => {
   const connection = fakeConnection(() => { throw new Error('query must not run'); });
   const adapter = createSchedulerRepositoryAdapter(connection);
@@ -161,7 +237,7 @@ test('lease acquisition is a conditional update that increments and returns epoc
   });
   assert.match(connection.calls[0].sql, /lease_epoch=lease_epoch\+1/);
   assert.match(connection.calls[0].sql, /WHERE s\.source_id=\? AND \(lease_until IS NULL OR lease_until<=\?\)/);
-  assert.match(connection.calls[0].sql, /AND NOT EXISTS \(\s*SELECT 1 FROM po_sync_runs r WHERE r\.source_id=s\.source_id AND r\.status IN \('queued','running'\)\s*\)$/);
+  assert.match(connection.calls[0].sql, /AND NOT EXISTS \(\s*SELECT 1 FROM po_sync_runs r WHERE r\.source_id=s\.source_id AND r\.status IN \('queued','running','pausing','paused','cancelling'\)\s*\)$/);
   assert.deepEqual(connection.calls[0].params, [
     'run-new', 'scheduler-a', '2026-09-08 18:04:00.000',
     'source-1', '2026-09-08 17:59:00.000'
@@ -173,23 +249,23 @@ test('an active manual run blocks lease acquisition in the same atomic update', 
   const activeRuns = [{ source_id: 'source-1', trigger_type: 'manual', status: 'queued' }];
   const connection = fakeConnection(call => {
     assert.match(call.sql, /^UPDATE po_source_schedule_state s /);
-    assert.match(call.sql, /NOT EXISTS \(\s*SELECT 1 FROM po_sync_runs r WHERE r\.source_id=s\.source_id AND r\.status IN \('queued','running'\)\s*\)$/);
+    assert.match(call.sql, /NOT EXISTS \(\s*SELECT 1 FROM po_sync_runs r WHERE r\.source_id=s\.source_id AND r\.status IN \('queued','running','pausing','paused','cancelling'\)\s*\)$/);
     assert.equal(activeRuns.some(run => run.source_id === call.params[3]
       && ['queued', 'running'].includes(run.status)), true);
     return [{ affectedRows: 0 }];
   });
   const adapter = createSchedulerRepositoryAdapter(connection);
 
-  assert.deepEqual(await adapter.acquireLease(lease()), { acquired: false, leaseToken: null });
-  assert.equal(connection.calls.length, 1);
+  assert.equal((await adapter.acquireLease(lease())).reasonCode, 'LEASE_OR_RUN_ACTIVE');
+  assert.equal(connection.calls.length, 2);
 });
 
 test('an unexpired lease rejects acquisition without reading an epoch', async () => {
   const connection = fakeConnection(() => [{ affectedRows: 0 }]);
   const adapter = createSchedulerRepositoryAdapter(connection);
 
-  assert.deepEqual(await adapter.acquireLease(lease()), { acquired: false, leaseToken: null });
-  assert.equal(connection.calls.length, 1);
+  assert.equal((await adapter.acquireLease(lease())).reasonCode, 'SCHEDULE_STATE_UNAVAILABLE');
+  assert.equal(connection.calls.length, 3);
 });
 
 test('renew and release require source, run, owner, epoch and an unexpired lease', async () => {

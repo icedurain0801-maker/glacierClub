@@ -12,7 +12,7 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/,
 
 const listenHost = String(config.listenHost || '::');
 const listenPort = Number(config.listenPort);
-if (!Number.isInteger(listenPort) || listenPort !== 3001) throw new Error('listenPort must be 3001');
+if (!Number.isInteger(listenPort) || ![3000, 3001].includes(listenPort)) throw new Error('listenPort must be 3000 or 3001');
 const upstream = new URL(String(config.upstreamOrigin || ''));
 if (upstream.protocol !== 'http:' || upstream.hostname !== '127.0.0.1' || upstream.port !== '4320' || upstream.pathname !== '/') {
   throw new Error('upstreamOrigin must be http://127.0.0.1:4320');

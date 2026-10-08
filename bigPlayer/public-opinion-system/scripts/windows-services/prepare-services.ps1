@@ -61,20 +61,29 @@ function New-StrictSecurity([bool]$Directory, [System.Security.AccessControl.Fil
     return $security
 }
 
+function Set-FileSystemAclCompat {
+    param([System.IO.FileSystemInfo]$Item, [System.Security.AccessControl.FileSystemSecurity]$Acl)
+    if (@($Item.PSObject.Methods.Match('SetAccessControl')).Count -gt 0) { $Item.SetAccessControl($Acl); return }
+    if ($Item -is [IO.DirectoryInfo]) { [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]$Item, [Security.AccessControl.DirectorySecurity]$Acl); return }
+    [IO.FileSystemAclExtensions]::SetAccessControl([IO.FileInfo]$Item, [Security.AccessControl.FileSecurity]$Acl)
+}
+
 function Set-StrictTreeAcl([string]$Path, [System.Security.AccessControl.FileSystemRights]$LocalServiceRights) {
     $rootItem = Get-Item -LiteralPath $Path -Force
     $items = @($rootItem)
-    if ($rootItem -is [System.IO.DirectoryInfo]) { $items += @(Get-ChildItem -LiteralPath $Path -Force -Recurse) }
+    if ($rootItem -is [System.IO.DirectoryInfo]) {
+        $items += @(Get-ChildItem -LiteralPath $Path -Force -Recurse -ErrorAction Stop)
+    }
     foreach ($item in $items) {
         if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Reparse point is forbidden: $($item.FullName)" }
-        $item.SetAccessControl((New-StrictSecurity -Directory ($item -is [System.IO.DirectoryInfo]) -LocalServiceRights $LocalServiceRights))
+        Set-FileSystemAclCompat -Item $item -Acl (New-StrictSecurity -Directory ($item -is [System.IO.DirectoryInfo]) -LocalServiceRights $LocalServiceRights)
     }
 }
 
 function Set-StrictItemAcl([string]$Path, [System.Security.AccessControl.FileSystemRights]$LocalServiceRights) {
     $item = Get-Item -LiteralPath $Path -Force
     if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Reparse point is forbidden: $($item.FullName)" }
-    $item.SetAccessControl((New-StrictSecurity -Directory ($item -is [System.IO.DirectoryInfo]) -LocalServiceRights $LocalServiceRights))
+    Set-FileSystemAclCompat -Item $item -Acl (New-StrictSecurity -Directory ($item -is [System.IO.DirectoryInfo]) -LocalServiceRights $LocalServiceRights)
 }
 
 if ((Get-Sha256 $resolvedWinSWSource) -ne $expectedWinSWHash) { throw "WinSW SHA-256 mismatch: expected $expectedWinSWHash" }

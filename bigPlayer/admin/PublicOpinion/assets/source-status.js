@@ -81,15 +81,13 @@
     return { hasCredential, hasToken, hasPassword, account: String(maskedIdentifier || '') };
   }
   function pickMasked(value) { return value?.maskedAccount || value?.masked_account || value?.maskedLoginIdentifier || value?.masked_login_identifier || value?.loginAccountMasked || value?.login_account_masked || value?.login_identifier || ''; }
-  function validateH5CredentialUpdate({ account = '', password = '', confirmPassword = '', creating = false } = {}) {
+  function validateH5CredentialUpdate({ account = '', password = '', creating = false } = {}) {
     const normalizedAccount = String(account || '').trim();
     const nextPassword = String(password || '');
-    const confirmation = String(confirmPassword || '');
-    if (!creating && !normalizedAccount && !nextPassword && !confirmation) return { credential: null };
+    if (!creating && !normalizedAccount && !nextPassword) return { credential: null };
     if (creating && !normalizedAccount) return { error: '请填写 H5 登录账号' };
     if (!nextPassword) return { error: '账号密码需同时填写' };
-    if (nextPassword !== confirmation) return { error: '两次输入的密码不一致' };
-    return { credential: { credentialType: 'account_password', ...(normalizedAccount ? { account: normalizedAccount } : {}), password: nextPassword, confirmPassword: confirmation } };
+    return { credential: { credentialType: 'account_password', ...(normalizedAccount ? { account: normalizedAccount } : {}), password: nextPassword } };
   }
   function isTerminalLoginState(value) { return ['healthy', 'credential_error', 'session_expired', 'collection_error', 'paused'].includes(loginMeta(value).state); }
   function canSync(value) { const source = value || {}; const platform = normalizePlatform(source.platform); if (platform !== 'bigplayer_h5') return false; const login = loginMeta(source.loginStatus || source.login_status || source); const capability = source.capabilities?.posts; const capabilityState = typeof capability === 'object' ? capability.status || capability.capability : capability; return login.state === 'healthy' && ['full', 'authorized_scope', 'supported'].includes(capabilityState); }

@@ -2,9 +2,14 @@ const mysql = require('mysql2/promise');
 const crypto = require('node:crypto');
 const { contentDisplayType } = require('../services/contentDisplayType');
 const { normalizeFacebookPageUrl } = require('../services/sourceValidators');
+const { normalizeSiteUrls } = require('../services/bigplayerSiteConfig');
+const { aggregateParentStatus } = require('../services/bigplayerMultiSiteRuns');
 const { normalizeRiskFilters } = require('../../../shared/riskModes');
+const { boardIdOf, boardRunIdentity } = require('../../../shared/bigPlayerBoard');
+const { bigPlayerBoardSchemaReady } = require('../../../shared/bigPlayerBoardSchema');
 
 const uuid = () => crypto.randomUUID();
+const SYNC_RUN_PROJECTION = `r.id,r.account_id,r.community_id AS run_community_id,r.board_id,r.board_name,r.run_scope,r.parent_run_id,r.parent_run_id AS parentRunId,r.site_id,r.site_id AS siteId,r.site_url_snapshot,r.site_url_snapshot AS siteUrl,r.last_request_at,r.last_request_at AS lastRequestAt,r.trigger_type,r.trigger_type AS triggerType,r.window_start,r.window_start AS windowStart,r.window_end,r.window_end AS windowEnd,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS run_role,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS runRole,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS has_scheduled_site_children,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS hasScheduledSiteChildren,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id) AS site_total,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope','partial','failed','cancelled','canceled')) AS site_terminal,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope')) AS site_succeeded,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('partial','failed','cancelled','canceled')) AS site_failed,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.comment_count AS advertised_comment_count,(SELECT COUNT(DISTINCT run_posts.content_id) FROM po_sync_run_contents run_posts WHERE run_posts.run_id=r.id AND run_posts.sync_scope='posts') AS post_count,(SELECT COUNT(DISTINCT run_comments.content_id) FROM po_sync_run_contents run_comments WHERE run_comments.run_id=r.id AND run_comments.sync_scope IN ('comments','replies')) AS actual_comment_body_count,(SELECT COUNT(DISTINCT run_replies.content_id) FROM po_sync_run_contents run_replies WHERE run_replies.run_id=r.id AND run_replies.sync_scope='replies') AS reply_count,r.error_code,r.error_message`;
 function repositoryError(code, message) { const error = new Error(message); error.code = code; return error; }
 function normalizedCheckDefinition(value) {
   let normalized = String(value || '').replace(/`/g, '').replace(/\s+/g, '').toLowerCase();
@@ -89,6 +94,38 @@ function boundedBackfillWindowFromAnchor(admissionAnchor, lookbackDays) {
   const durationMs = Number(lookbackDays) * 24 * 60 * 60 * 1000;
   const toSql = value => new Date(value).toISOString().slice(0, 23).replace('T', ' ');
   return { windowStart: toSql(anchorMs - durationMs), windowEnd: toSql(anchorMs), startMs: anchorMs - durationMs, endMs: anchorMs };
+}
+function effectiveBigPlayerWindow(admissionAnchor, lastSuccessfulCursor = null) {
+  const base = boundedBackfillWindowFromAnchor(admissionAnchor, 7);
+  const cursorMs = databaseUtcTimestampMs(lastSuccessfulCursor);
+  if (Number.isFinite(cursorMs) && cursorMs > base.startMs && cursorMs < base.endMs) {
+    base.windowStart = new Date(cursorMs).toISOString().slice(0, 23).replace('T', ' ');
+    base.startMs = cursorMs;
+  }
+  return base;
+}
+async function reconcileBigPlayerSourceSites(conn, sourceId, siteUrls) {
+  if (!Array.isArray(siteUrls)) return [];
+  const normalized = normalizeSiteUrls({ siteUrls }).siteUrls;
+  const [rows] = await conn.query('SELECT site_id, url, url_hash FROM po_source_sites WHERE source_id=? FOR UPDATE', [sourceId]);
+  const bySiteId = new Map((rows || []).map(row => [String(row.site_id), row]));
+  const byUrlHash = new Map((rows || []).map(row => [String(row.url_hash).toLowerCase(), row]));
+  for (const site of normalized) {
+    const urlHash = crypto.createHash('sha256').update(site.url).digest('hex');
+    const sameUrl = byUrlHash.get(urlHash);
+    if (sameUrl && String(sameUrl.site_id) !== String(site.siteId)) throw repositoryError('MULTISITE_SITE_ID_CONFLICT', 'saved BigPlayer URL is already bound to another siteId');
+    const sameId = bySiteId.get(String(site.siteId));
+    if (sameId && String(sameId.url_hash).toLowerCase() !== urlHash && byUrlHash.has(urlHash)) throw repositoryError('MULTISITE_SITE_URL_CONFLICT', 'saved BigPlayer siteId conflicts with another URL');
+  }
+  await conn.query('UPDATE po_source_sites SET enabled=0, updated_at=UTC_TIMESTAMP(3) WHERE source_id=?', [sourceId]);
+  for (const site of normalized) {
+    const urlHash = crypto.createHash('sha256').update(site.url).digest('hex');
+    await conn.query(`INSERT INTO po_source_sites (id,source_id,site_id,url,url_hash,enabled,auth_status,capabilities)
+      VALUES (?,?,?,?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE url=VALUES(url),url_hash=VALUES(url_hash),enabled=VALUES(enabled),updated_at=UTC_TIMESTAMP(3)`,
+    [uuid(), sourceId, site.siteId, site.url, urlHash, site.enabled === false ? 0 : 1, 'unknown', JSON.stringify({})]);
+  }
+  return normalized;
 }
 function boundedBackfillWindowResponse(run, fallback = null) {
   const startMs = databaseUtcTimestampMs(run?.window_start);
@@ -186,12 +223,14 @@ class Repository {
     this.syncUpsertLockWaitSeconds = Math.max(1, Number(env.SYNC_UPSERT_LOCK_WAIT_SECONDS || 30));
     this.claimDeadlockMaxAttempts = Math.max(1, Number(env.CLAIM_DEADLOCK_MAX_RETRIES == null ? 3 : env.CLAIM_DEADLOCK_MAX_RETRIES));
     this.claimDeadlockRetryBaseMs = Math.max(0, Number(env.CLAIM_DEADLOCK_RETRY_BASE_MS == null ? 500 : env.CLAIM_DEADLOCK_RETRY_BASE_MS));
-    this.pool = mysql.createPool(env.DATABASE_URL || {
+    this.pool = mysql.createPool({
+      ...(env.DATABASE_URL ? { uri: env.DATABASE_URL } : {
       host: env.DB_HOST || '127.0.0.1',
       port: Number(env.DB_PORT || 3306),
       user: env.DB_USER || 'root',
       password: env.DB_PASSWORD || '',
-      database: env.DB_NAME || 'public_opinion',
+      database: env.DB_NAME || 'public_opinion'
+      }),
       waitForConnections: true,
       connectionLimit: Number(env.DB_POOL_SIZE || 10),
       charset: 'utf8mb4_unicode_ci',
@@ -589,6 +628,7 @@ class Repository {
   }
   async createRun(sourceId) { const id = uuid(); await this.query('INSERT INTO po_collection_runs (id, source_id, status) VALUES (?, ?, ?)', [id, sourceId, 'running']); return (await this.query('SELECT * FROM po_collection_runs WHERE id=?', [id]))[0]; }
   async finishRun(id, patch) { await this.query('UPDATE po_collection_runs SET status=?, finished_at=NOW(), discovered_count=?, stored_count=?, analyzed_count=?, alerted_count=?, error_code=?, error_message=? WHERE id=?', [patch.status, patch.discoveredCount || 0, patch.storedCount || 0, patch.analyzedCount || 0, patch.alertedCount || 0, patch.errorCode || null, patch.errorMessage || null, id]); }
+  async setRunBoardName(runId, boardName) { await this.query('UPDATE po_sync_runs SET board_name=? WHERE id=? AND board_id IS NOT NULL', [boardName, runId]); await this.query('UPDATE po_sync_runs parent JOIN po_sync_runs child ON child.parent_run_id=parent.id SET parent.board_name=? WHERE child.id=? AND parent.board_id=child.board_id AND parent.board_id IS NOT NULL', [boardName, runId]); }
   // 回写源表「最近运行」状态：成功时间与调度判断统一使用数据库 UTC 时钟。
   // 这样采集源列表页的"最近运行"列才能显示真实时间，而不是永远 "-"。
   async markSourceRun(sourceId, patch) {
@@ -614,7 +654,36 @@ class Repository {
     ))[0] || null;
   }
   async insertAnalysis(contentId, analysis) {
-    await this.query('INSERT INTO po_analyses (id, content_id, analysis_level, analysis_version, content_fingerprint, trigger_reason, analysis_reason, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, matched_keywords, summary, model_name, input_tokens, output_tokens, total_tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE analysis_level=VALUES(analysis_level), analysis_version=VALUES(analysis_version), content_fingerprint=VALUES(content_fingerprint), trigger_reason=VALUES(trigger_reason), analysis_reason=VALUES(analysis_reason), sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), matched_keywords=VALUES(matched_keywords), summary=VALUES(summary), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), analyzed_at=NOW()', [uuid(), contentId, analysis.analysisLevel || analysis.profile || 'light', analysis.analysisVersion || 'sentiment-v2', analysis.contentFingerprint || null, analysis.triggerReason || null, analysis.reason || null, analysis.sentiment || 'neutral', Number.isFinite(Number(analysis.negativeScore)) ? Number(analysis.negativeScore) : 0, analysis.confidence == null ? 0 : Number(analysis.confidence), analysis.qualityScore == null ? 0 : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.severity, JSON.stringify(analysis.topics || []), JSON.stringify(analysis.matchedKeywords || []), analysis.summary || '', analysis.modelName || null, Number(analysis.usage?.inputTokens || analysis.inputTokens || 0), Number(analysis.usage?.outputTokens || analysis.outputTokens || 0), Number(analysis.usage?.totalTokens || analysis.totalTokens || 0)]);
+    await this.query('INSERT INTO po_analyses (id, content_id, analysis_level, analysis_version, content_fingerprint, trigger_reason, analysis_reason, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, matched_keywords, summary, model_name, input_tokens, output_tokens, total_tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE analysis_level=VALUES(analysis_level), analysis_version=VALUES(analysis_version), content_fingerprint=VALUES(content_fingerprint), trigger_reason=VALUES(trigger_reason), analysis_reason=VALUES(analysis_reason), sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), matched_keywords=VALUES(matched_keywords), summary=VALUES(summary), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), analyzed_at=NOW()', [uuid(), contentId, analysis.analysisLevel || analysis.profile || 'light', analysis.analysisVersion || 'sentiment-v2', analysis.contentFingerprint || null, analysis.triggerReason || null, analysis.analysisReason || analysis.reason || null, analysis.sentiment || 'neutral', Number.isFinite(Number(analysis.negativeScore)) ? Number(analysis.negativeScore) : 0, analysis.confidence == null ? 0 : Number(analysis.confidence), analysis.qualityScore == null ? 0 : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.severity, JSON.stringify(analysis.topics || []), JSON.stringify(analysis.matchedKeywords || []), analysis.summary || '', analysis.modelName || null, Number(analysis.usage?.inputTokens || analysis.inputTokens || 0), Number(analysis.usage?.outputTokens || analysis.outputTokens || 0), Number(analysis.usage?.totalTokens || analysis.totalTokens || 0)]);
+  }
+  async reconcilePositiveRiskAlerts(contentId, analysis, { runId } = {}) {
+    if (analysis?.sentiment !== 'positive' || analysis?.severity !== 'normal') return { reconciled: false, alertIds: [] };
+    const normalizedContentId = String(contentId || '').trim();
+    const normalizedRunId = String(runId || '').trim();
+    if (!normalizedContentId || !normalizedRunId) throw repositoryError('INVALID_INPUT', 'contentId and runId are required for positive risk reconciliation');
+    const reasons = Array.isArray(analysis.severityNormalizationReasons) ? analysis.severityNormalizationReasons.map(String) : [];
+    const originalSeverity = String(analysis.originalSeverity || analysis.severity || 'normal');
+    const finalSeverity = String(analysis.severity);
+    const resolutionNote = `system: positive_normal_reconciliation; runId=${normalizedRunId}`.slice(0, 500);
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [contents] = await conn.query('SELECT game_id,source_id FROM po_contents WHERE id=? FOR UPDATE', [normalizedContentId]);
+      if (!contents.length) throw repositoryError('CONTENT_NOT_FOUND', 'content not found for positive risk reconciliation');
+      const [alerts] = await conn.query("SELECT a.id FROM po_alerts a JOIN po_alert_contents ac ON ac.alert_id=a.id WHERE ac.content_id=? AND a.status IN ('pending','processing') ORDER BY a.id FOR UPDATE", [normalizedContentId]);
+      const alertIds = alerts.map(row => row.id);
+      if (!alertIds.length) { await conn.commit(); return { reconciled: false, alertIds: [] }; }
+      const placeholders = alertIds.map(() => '?').join(',');
+      const [updated] = await conn.query(`UPDATE po_alerts SET status='false_positive', resolution_note=?, resolved_at=UTC_TIMESTAMP(3) WHERE id IN (${placeholders}) AND status IN ('pending','processing')`, [resolutionNote, ...alertIds]);
+      if (Number(updated.affectedRows) !== alertIds.length) throw repositoryError('POSITIVE_ALERT_RECONCILIATION_CONFLICT', 'positive risk alert state changed during reconciliation');
+      const detail = { contentId: normalizedContentId, alertIds, originalSeverity, finalSeverity, reasons, runId: normalizedRunId };
+      await conn.query('INSERT INTO po_audit_events (id, game_id, source_id, account_id, actor_type, actor_id, event_type, outcome, detail) VALUES (?,?,?,?,?,?,?,?,?)', [uuid(), contents[0].game_id || null, contents[0].source_id || null, null, 'system', null, 'positive_risk_alerts_reconciled', 'success', JSON.stringify(detail)]);
+      await conn.commit();
+      return { reconciled: true, alertIds, detail };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally { conn.release(); }
   }
   async enqueueAnalysisJob(contentId, { profile = 'light', version = 'sentiment-v2', contentFingerprint, triggerReason, matchedKeywords = [], force = false } = {}) {
     const id = uuid();
@@ -1075,15 +1144,40 @@ class Repository {
   async listSourceCapabilities(sourceId) { return this.query('SELECT * FROM po_source_capabilities WHERE source_id=? ORDER BY capability', [sourceId]); }
   async recordAuditEvent({ gameId, sourceId, accountId, actorType = 'system', actorId, eventType, outcome = 'success', detail = {} } = {}) { const id = uuid(); await this.query('INSERT INTO po_audit_events (id, game_id, source_id, account_id, actor_type, actor_id, event_type, outcome, detail) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId || null, sourceId || null, accountId || null, actorType, actorId || null, eventType, outcome, JSON.stringify(detail || {})]); return (await this.query('SELECT * FROM po_audit_events WHERE id=?', [id]))[0] || null; }
   async listAuditEvents({ accountId, sourceId, eventType, limit = 100 } = {}) { const values = []; const clauses = []; for (const [value, sql] of [[accountId, 'account_id'], [sourceId, 'source_id'], [eventType, 'event_type']]) if (value) { values.push(value); clauses.push(`${sql}=?`); } values.push(Number(limit)); return this.query(`SELECT * FROM po_audit_events ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT ?`, values); }
+  async recordBigPlayerCandidateObservation({ sourceId, runId, observation } = {}) {
+    if (!sourceId || !runId || !observation || typeof observation !== 'object') throw repositoryError('INVALID_INPUT', 'sourceId, runId and observation are required');
+    const count = value => Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : 0;
+    const candidate = value => value && typeof value === 'object' ? {
+      externalId: value.externalId == null ? null : String(value.externalId),
+      publishedAtUtc: value.publishedAtUtc == null ? null : String(value.publishedAtUtc)
+    } : null;
+    // Keep this allowlist narrow: audit data must never contain Q1 request URLs,
+    // headers, credential material, or content bodies.
+    const detail = {
+      sourceId: String(sourceId), runId: String(runId),
+      endpointKind: String(observation.endpointKind || ''), feedKey: String(observation.feedKey || ''),
+      candidateCount: count(observation.candidateCount), validCreateTimeCount: count(observation.validCreateTimeCount),
+      inWindowCreateTimeCount: count(observation.inWindowCreateTimeCount),
+      firstCandidate: candidate(observation.firstCandidate), lastCandidate: candidate(observation.lastCandidate),
+      httpStatus: Number.isSafeInteger(Number(observation.httpStatus)) ? Number(observation.httpStatus) : null
+    };
+    return this.recordAuditEvent({ sourceId, eventType: 'bigplayer_candidate_observed', detail });
+  }
 
-  async getSyncCheckpoint({ accountId, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '' }) { return (await this.query('SELECT * FROM po_sync_checkpoints WHERE account_id=? AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=?', [accountId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd]))[0] || null; }
-  async claimSyncCheckpoint({ accountId, syncScope, rootPlatformContentId = '', syncMode = 'incremental', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '', leaseOwner, leaseSeconds = 300 }) {
+  async getSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '' }) {
+    const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
+    const params = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
+    return (await this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=?`, params))[0] || null;
+  }
+  async claimSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', syncMode = 'incremental', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '', leaseOwner, leaseSeconds = 300 }) {
     if (syncScope === 'replies') return null;
     const id = uuid();
-    await this.query('INSERT IGNORE INTO po_sync_checkpoints (id, account_id, task_kind, task_key, sync_scope, root_platform_content_id, window_start, window_end, sync_mode, status) VALUES (?,?,?,?,?,?,?,?,?,\'idle\')', [id, accountId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd, syncMode]);
-    const claimed = await this.query('UPDATE po_sync_checkpoints SET status=\'running\', lease_owner=?, lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), sync_mode=?, error_code=NULL, error_message=NULL WHERE account_id=? AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? AND (status IN (\'idle\',\'failed\',\'completed\') OR (status=\'running\' AND lease_until<UTC_TIMESTAMP(3)))', [leaseOwner || null, Number(leaseSeconds), syncMode, accountId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd]);
+    await this.query('INSERT IGNORE INTO po_sync_checkpoints (id, account_id, site_id, task_kind, task_key, sync_scope, root_platform_content_id, window_start, window_end, sync_mode, status) VALUES (?,?,?,?,?,?,?,?,?,?,\'idle\')', [id, accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd, syncMode]);
+    const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
+    const identityParams = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
+    const claimed = await this.query(`UPDATE po_sync_checkpoints SET status='running', lease_owner=?, lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), sync_mode=?, error_code=NULL, error_message=NULL WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? AND (status IN ('idle','failed','completed') OR (status='running' AND lease_until<UTC_TIMESTAMP(3)))`, [leaseOwner || null, Number(leaseSeconds), syncMode, ...identityParams]);
     if (!claimed.affectedRows) return null;
-    const checkpoint = await this.getSyncCheckpoint({ accountId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd });
+    const checkpoint = await this.getSyncCheckpoint({ accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd });
     return checkpoint && checkpoint.status === 'running' && checkpoint.lease_owner === (leaseOwner || null) ? checkpoint : null;
   }
   async releaseSyncCheckpoint(id, patch = {}) {
@@ -1096,7 +1190,12 @@ class Repository {
     return (await this.query('SELECT * FROM po_sync_checkpoints WHERE id=?', [id]))[0] || null;
   }
   async pauseSyncCheckpoint(id, patch = {}) { return this.releaseSyncCheckpoint(id, { ...patch, status: 'paused' }); }
-  async resetSyncCheckpoint({ accountId, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '' }) { await this.query('UPDATE po_sync_checkpoints SET status=\'idle\', `cursor`=NULL, items_fetched=0, last_item_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL WHERE account_id=? AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=?', [accountId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd]); return this.getSyncCheckpoint({ accountId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd }); }
+  async resetSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '' }) {
+    const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
+    const identityParams = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
+    await this.query(`UPDATE po_sync_checkpoints SET status='idle', \`cursor\`=NULL, items_fetched=0, last_item_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=?`, identityParams);
+    return this.getSyncCheckpoint({ accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd });
+  }
   async getSyncStatus({ accountId, syncScope } = {}) {
     if (syncScope === 'replies') return [];
     return this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND sync_scope<>'replies'${syncScope ? ' AND sync_scope=?' : ''} ORDER BY sync_scope, root_platform_content_id`, syncScope ? [accountId, syncScope] : [accountId]);
@@ -1116,6 +1215,15 @@ class Repository {
       return this.query(`SELECT c.external_id AS root_platform_content_id, c.external_id AS post_platform_id FROM po_contents c LEFT JOIN po_sync_checkpoints cp ON cp.account_id=c.account_id AND cp.sync_scope='comments' AND cp.task_kind='comments' AND cp.task_key=c.external_id AND cp.root_platform_content_id=c.external_id WHERE ${predicates.join(' AND ')} ORDER BY c.published_at IS NULL, c.published_at DESC${safeLimit ? ' LIMIT ?' : ''}`, params);
     }
     return [];
+  }
+  async listDomesticBigPlayerCommentGaps({ limit = 100 } = {}) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 10000);
+    const declaredCommentCount = "COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0)";
+    const storedTopLevelCommentCount = "(SELECT COUNT(*) FROM po_contents cc WHERE cc.root_content_id=c.id AND cc.content_type='comment' AND cc.content_depth=1 AND cc.is_deleted=0)";
+    const checkpointIdentity = "cp_pending.account_id=c.account_id AND cp_pending.sync_scope='comments' AND cp_pending.task_kind='comments' AND cp_pending.task_key=c.external_id AND cp_pending.root_platform_content_id=c.external_id";
+    const pendingCheckpoint = `EXISTS (SELECT 1 FROM po_sync_checkpoints cp_pending WHERE ${checkpointIdentity} AND (cp_pending.status IN ('idle','failed') OR (cp_pending.status='running' AND (cp_pending.lease_until IS NULL OR cp_pending.lease_until<UTC_TIMESTAMP(3)))))`;
+    const activeCheckpoint = "EXISTS (SELECT 1 FROM po_sync_checkpoints cp_active WHERE cp_active.account_id=c.account_id AND cp_active.sync_scope='comments' AND cp_active.task_kind='comments' AND cp_active.task_key=c.external_id AND cp_active.root_platform_content_id=c.external_id AND cp_active.status='running' AND cp_active.lease_until>UTC_TIMESTAMP(3))";
+    return this.query(`SELECT c.source_id, c.account_id, c.external_id AS root_platform_content_id, c.external_id AS post_platform_id, ${declaredCommentCount} AS declared_comment_count, ${storedTopLevelCommentCount} AS stored_top_level_comment_count, (SELECT cp_status.status FROM po_sync_checkpoints cp_status WHERE cp_status.account_id=c.account_id AND cp_status.sync_scope='comments' AND cp_status.task_kind='comments' AND cp_status.task_key=c.external_id AND cp_status.root_platform_content_id=c.external_id ORDER BY cp_status.updated_at DESC, cp_status.id DESC LIMIT 1) AS checkpoint_status FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE s.platform=? AND g.region_code=? AND c.content_type='post' AND c.content_depth=0 AND c.is_deleted=0 AND NOT (${activeCheckpoint}) AND (${declaredCommentCount}>${storedTopLevelCommentCount} OR ${pendingCheckpoint}) ORDER BY c.published_at IS NULL, c.published_at DESC, c.id DESC LIMIT ?`, ['bigplayer_h5', 'domestic', safeLimit]);
   }
   async createSyncRun({ sourceId, accountId, syncMode = 'incremental', status = 'queued', triggerType } = {}) {
     if (!sourceId || !accountId || triggerType !== 'legacy' || status !== 'queued') throw repositoryError('INVALID_INPUT', 'createSyncRun only accepts a complete queued legacy run identity');
@@ -1150,15 +1258,15 @@ class Repository {
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   }
   async listRunnableSyncRuns({ limit = 100 } = {}) {
-    return this.query(`SELECT r.*, s.id AS source_id, s.game_id, s.community_id, s.platform, s.source_type, s.display_name, s.enabled, s.frequency_seconds, s.config, s.active_window, s.auth_status, s.auth_expire_at, s.collect_requested_at, s.last_success_at, g.name AS game_name, g.region_code, g.enabled AS game_enabled, c.name AS community_name, c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND (r.next_retry_at IS NULL OR r.next_retry_at<=UTC_TIMESTAMP(3)) AND (r.status='queued' OR (r.status='running' AND (r.lease_until IS NULL OR r.lease_until<UTC_TIMESTAMP(3)))) ORDER BY CASE WHEN r.status='queued' THEN 0 ELSE 1 END, r.created_at ASC LIMIT ?`, [Math.min(Math.max(Number(limit) || 100, 1), 500)]);
+    return this.query(`SELECT r.*, s.id AS source_id, s.game_id, s.community_id, s.platform, s.source_type, s.display_name, s.enabled, s.frequency_seconds, s.config, s.active_window, s.auth_status, s.auth_expire_at, s.collect_requested_at, s.last_success_at, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND NOT EXISTS (SELECT 1 FROM po_sync_runs child WHERE child.parent_run_id=r.id) AND (r.next_retry_at IS NULL OR r.next_retry_at<=UTC_TIMESTAMP(3)) AND (r.status='queued' OR (r.status='running' AND (r.lease_until IS NULL OR r.lease_until<UTC_TIMESTAMP(3)))) ORDER BY CASE WHEN r.status='queued' THEN 0 ELSE 1 END, r.created_at ASC LIMIT ?`, [Math.min(Math.max(Number(limit) || 100, 1), 500)]);
   }
   async getSyncRun(id, { accountId, sourceId, regionCode, gameId, communityId, leaseOwner, status } = {}) {
     const params = [id]; const clauses = ['r.id=?'];
     for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id'], [leaseOwner, 'r.lease_owner'], [status, 'r.status']]) if (value != null) { clauses.push(`${sql}=?`); params.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); }
-    return (await this.query(`SELECT r.id,r.account_id,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.error_code,r.error_message,a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, params))[0] || null;
+    return (await this.query(`SELECT ${SYNC_RUN_PROJECTION},a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, params))[0] || null;
   }
-  async getLatestSyncRunForSource(sourceId, { accountId } = {}) { const params = [sourceId]; const accountClause = accountId ? ' AND r.account_id=?' : ''; if (accountId) params.push(accountId); return (await this.query(`SELECT r.*, a.source_id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE a.source_id=?${accountClause} ORDER BY CASE WHEN r.status IN ('queued','running') THEN 0 ELSE 1 END, r.created_at DESC LIMIT 1`, params))[0] || null; }
+  async getLatestSyncRunForSource(sourceId, { accountId } = {}) { const params = [sourceId]; const accountClause = accountId ? ' AND r.account_id=?' : ''; if (accountId) params.push(accountId); return (await this.query(`SELECT ${SYNC_RUN_PROJECTION},a.source_id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE a.source_id=?${accountClause} ORDER BY CASE WHEN r.parent_run_id IS NULL AND EXISTS(SELECT 1 FROM po_sync_runs child_latest WHERE child_latest.parent_run_id=r.id) THEN 0 WHEN r.status IN ('queued','running') THEN 1 ELSE 2 END, r.created_at DESC LIMIT 1`, params))[0] || null; }
   async listSyncRuns({ accountId, sourceId, regionCode, gameId, communityId, platform, status, syncMode, startedFrom, startedTo, runId, page = 1, pageSize = 20 } = {}) {
     const values = []; const clauses = [];
     for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id'], [platform, 'a.platform'], [status, 'r.status'], [syncMode, 'r.sync_mode'], [runId, 'r.id']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
@@ -1167,7 +1275,7 @@ class Repository {
     if (startedTo) { clauses.push('COALESCE(r.started_at,r.requested_at,r.created_at)<?'); values.push(startedTo); }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''; const base = `FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id ${where}`;
     const limit = Math.min(Math.max(Number(pageSize) || 20, 1), 100); const currentPage = Math.max(Number(page) || 1, 1); const offset = (currentPage - 1) * limit;
-    const [countRows, items] = await Promise.all([this.query(`SELECT COUNT(*) AS total ${base}`, values), this.query(`SELECT r.id,r.account_id,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.error_code,r.error_message,a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status ${base} ORDER BY r.created_at DESC,r.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset])]);
+    const [countRows, items] = await Promise.all([this.query(`SELECT COUNT(*) AS total ${base}`, values), this.query(`SELECT ${SYNC_RUN_PROJECTION},a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status ${base} ORDER BY r.created_at DESC,r.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset])]);
     return { items, total: Number(countRows[0]?.total || 0), page: currentPage, pageSize: limit };
   }
   async getDeletePreview(runId) {
@@ -1226,8 +1334,118 @@ class Repository {
   async renewSyncRunLease(runId, owner, extension) {
     const seconds = Math.max(1, Number(extension) || 1);
     const epoch = arguments[3];
-    const result = await this.query("UPDATE po_sync_runs SET lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status='running' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [seconds, runId, owner, epoch]);
+    const result = await this.query("UPDATE po_sync_runs SET lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status IN ('running','pausing','cancelling') AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [seconds, runId, owner, epoch]);
     return Boolean(result.affectedRows);
+  }
+  // Control requests never take over an in-flight lease. For running work they only
+  // persist a requested state; the worker that owns the exact lease settles it after
+  // its current page has committed the checkpoint.
+  async requestSyncRunControl(id, action) {
+    const transitions = {
+      pause: {
+        sql: "UPDATE po_sync_runs SET status=CASE WHEN status='queued' THEN 'paused' ELSE 'pausing' END, lease_owner=CASE WHEN status='queued' THEN NULL ELSE lease_owner END, lease_until=CASE WHEN status='queued' THEN NULL ELSE lease_until END, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND (status='queued' OR (status='running' AND lease_owner IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)))",
+        eventType: 'sync_run_pause_requested'
+      },
+      resume: {
+        sql: "UPDATE po_sync_runs SET status='queued', finished_at=NULL, next_retry_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status='paused'",
+        eventType: 'sync_run_resumed'
+      },
+      cancel: {
+        sql: "UPDATE po_sync_runs SET status=CASE WHEN status='running' THEN 'cancelling' ELSE 'cancelled' END, finished_at=CASE WHEN status='running' THEN finished_at ELSE UTC_TIMESTAMP(3) END, error_code=CASE WHEN status='running' THEN error_code ELSE 'SYNC_RUN_CANCELLED' END, error_message=CASE WHEN status='running' THEN error_message ELSE 'cancelled before worker claim' END, lease_owner=CASE WHEN status='running' THEN lease_owner ELSE NULL END, lease_until=CASE WHEN status='running' THEN lease_until ELSE NULL END, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND (status IN ('queued','paused','pausing') OR (status='running' AND lease_owner IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)))",
+        eventType: 'sync_run_cancel_requested'
+      }
+    };
+    const transition = transitions[action];
+    if (!transition) throw repositoryError('INVALID_INPUT', 'sync run control action is not supported');
+    const existing = await this.getSyncRun(id);
+    if (existing && Number(existing.hasScheduledSiteChildren || existing.has_scheduled_site_children) === 1) {
+      const allowedParentStates = { pause: new Set(['queued', 'running']), cancel: new Set(['queued', 'running', 'pausing', 'paused']), resume: new Set(['paused']) };
+      const conn = await this.pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [parentRows] = await conn.query('SELECT id,status FROM po_sync_runs WHERE id=? AND parent_run_id IS NULL FOR UPDATE', [id]);
+        const parent = parentRows[0];
+        if (!parent || !allowedParentStates[action].has(String(parent.status || '').toLowerCase())) { await conn.rollback(); return null; }
+        const [children] = await conn.query("SELECT id,status,lease_owner,lease_until,(lease_owner IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)) AS lease_active FROM po_sync_runs WHERE parent_run_id=? FOR UPDATE", [id]);
+        if (!children.length) { await conn.rollback(); return null; }
+        if (action === 'resume' && children.some(child => !['paused','completed','completed_full','completed_authorized_scope','partial','failed','cancelled','canceled'].includes(String(child.status || '').toLowerCase()))) {
+          await conn.rollback(); return null;
+        }
+        const resulting = [];
+        for (const child of children) {
+          const status = String(child.status || '').toLowerCase();
+          let target = status;
+          if (action === 'pause') {
+            if (status === 'queued') target = 'paused';
+            else if (status === 'running') target = Number(child.lease_active) ? 'pausing' : 'paused';
+          } else if (action === 'cancel') {
+            if (['queued','paused'].includes(status)) target = 'cancelled';
+            else if (['running','pausing'].includes(status)) target = Number(child.lease_active) ? 'cancelling' : 'cancelled';
+          } else if (status === 'paused') target = 'queued';
+          if (target !== status) {
+            const keepsLease = target === 'pausing' || target === 'cancelling';
+            await conn.query("UPDATE po_sync_runs SET status=?,finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END,error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END,error_message=CASE WHEN ?='cancelled' THEN 'cancelled before or after lease expiry' ELSE NULL END,lease_owner=CASE WHEN ? THEN lease_owner ELSE NULL END,lease_until=CASE WHEN ? THEN lease_until ELSE NULL END,next_retry_at=CASE WHEN ?='queued' THEN NULL ELSE next_retry_at END,updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=?", [target, target, target, target, keepsLease ? 1 : 0, keepsLease ? 1 : 0, target, child.id, status]);
+          }
+          resulting.push(target);
+        }
+        const targetStatus = action === 'resume' ? 'running'
+          : action === 'pause' ? (resulting.includes('pausing') ? 'pausing' : 'paused')
+            : (resulting.includes('cancelling') ? 'cancelling' : 'cancelled');
+        const [updated] = await conn.query("UPDATE po_sync_runs SET status=?,finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END,error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END,error_message=CASE WHEN ?='cancelled' THEN 'all site runs cancelled' ELSE NULL END,updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=?", [targetStatus, targetStatus, targetStatus, targetStatus, id, parent.status]);
+        if (!updated.affectedRows) { await conn.rollback(); return null; }
+        await conn.commit();
+      } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+      const controlled = await this.getSyncRun(id);
+      await this.recordAuditEvent({ gameId: controlled?.game_id, sourceId: controlled?.source_id, accountId: controlled?.account_id, eventType: transition.eventType, detail: { runId: id, action, status: controlled?.status, propagatedToChildren: true } });
+      return controlled;
+    }
+    const result = await this.query(transition.sql, [id]);
+    if (!result.affectedRows) return null;
+    const run = await this.getSyncRun(id);
+    await this.recordAuditEvent({ gameId: run?.game_id, sourceId: run?.source_id, accountId: run?.account_id, eventType: transition.eventType, detail: { runId: id, action, status: run?.status } });
+    return run;
+  }
+  async getSyncRunControl(id, { leaseOwner, leaseEpoch } = {}) {
+    if (!id || !leaseOwner || leaseEpoch == null) return null;
+    return (await this.query("SELECT id,status,lease_owner,lease_epoch FROM po_sync_runs WHERE id=? AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3) LIMIT 1", [id, leaseOwner, leaseEpoch]))[0] || null;
+  }
+  async markSyncRunRequest(id, { leaseOwner, leaseEpoch } = {}) {
+    if (!id || !leaseOwner || leaseEpoch == null) return false;
+    const result = await this.query("UPDATE po_sync_runs SET last_request_at=UTC_TIMESTAMP(3),updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status IN ('running','pausing','cancelling') AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [id, leaseOwner, leaseEpoch]);
+    return Boolean(result.affectedRows);
+  }
+  async settleSyncRunControl(id, { status, leaseOwner, leaseEpoch } = {}) {
+    const requested = status === 'paused' ? 'pausing' : status === 'cancelled' ? 'cancelling' : null;
+    if (!requested || !leaseOwner || leaseEpoch == null) throw repositoryError('INVALID_INPUT', 'invalid sync run control settlement');
+    const current = await this.getSyncRun(id);
+    if (!current?.parent_run_id && !current?.parentRunId) {
+      const result = await this.query("UPDATE po_sync_runs SET status=?, finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END, error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END, error_message=CASE WHEN ?='cancelled' THEN 'cancelled after current safe page' ELSE NULL END, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=? AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, status, status, status, id, requested, leaseOwner, leaseEpoch]);
+      if (!result.affectedRows) return null;
+      const run = await this.getSyncRun(id);
+      await this.recordAuditEvent({ gameId: run?.game_id, sourceId: run?.source_id, accountId: run?.account_id, eventType: status === 'paused' ? 'sync_run_paused' : 'sync_run_cancelled', detail: { runId: id, status } });
+      return run;
+    }
+    const conn = await this.pool.getConnection(); let settled = false;
+    try {
+      await conn.beginTransaction();
+      const [result] = await conn.query("UPDATE po_sync_runs SET status=?, finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END, error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END, error_message=CASE WHEN ?='cancelled' THEN 'cancelled after current safe page' ELSE NULL END, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=? AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, status, status, status, id, requested, leaseOwner, leaseEpoch]);
+      if (!result.affectedRows) { await conn.rollback(); return null; }
+      const [rows] = await conn.query('SELECT id,parent_run_id FROM po_sync_runs WHERE id=? FOR UPDATE', [id]);
+      const parentRunId = rows[0]?.parent_run_id;
+      if (parentRunId) {
+        const [siblings] = await conn.query('SELECT status FROM po_sync_runs WHERE parent_run_id=? FOR UPDATE', [parentRunId]);
+        const active = siblings.some(child => ['queued','running','pausing','cancelling'].includes(String(child.status || '').toLowerCase()));
+        if (!active) {
+          const parentRequested = status === 'paused' ? 'pausing' : 'cancelling';
+          await conn.query("UPDATE po_sync_runs SET status=?,finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END,error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE error_code END,error_message=CASE WHEN ?='cancelled' THEN 'all site runs cancelled' ELSE error_message END,updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=?", [status, status, status, status, parentRunId, parentRequested]);
+        }
+      }
+      await conn.commit(); settled = true;
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+    if (!settled) return null;
+    const run = await this.getSyncRun(id);
+    await this.recordAuditEvent({ gameId: run?.game_id, sourceId: run?.source_id, accountId: run?.account_id, eventType: status === 'paused' ? 'sync_run_paused' : 'sync_run_cancelled', detail: { runId: id, status } });
+    return run;
   }
   async finishSyncRun(id, patch = {}) {
     const status = patch.status || 'completed_full';
@@ -1238,15 +1456,56 @@ class Repository {
     if (!result.affectedRows) return null;
     return this.getSyncRun(id, { status });
   }
+  async finishScheduledSiteRun(id, patch = {}) {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const status = patch.status || 'completed_full';
+      if (!['completed','completed_full','completed_authorized_scope','partial','failed'].includes(String(status).toLowerCase())) throw repositoryError('INVALID_INPUT', 'site run terminal status is not supported');
+      const [result] = await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=COALESCE(?,discovered_count), stored_count=COALESCE(?,stored_count), error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NOT NULL AND trigger_type='scheduled_site' AND status='running' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, patch.discoveredCount == null ? null : Number(patch.discoveredCount), patch.storedCount == null ? null : Number(patch.storedCount), patch.errorCode || null, patch.errorMessage || null, patch.nextRetryAt || null, id, patch.leaseOwner, patch.leaseEpoch]);
+      if (!result.affectedRows) { await conn.rollback(); return null; }
+      const [childRows] = await conn.query('SELECT parent_run_id,status FROM po_sync_runs WHERE id=? FOR UPDATE', [id]);
+      const parentRunId = childRows[0]?.parent_run_id;
+      const [siblings] = await conn.query('SELECT id,status,discovered_count,stored_count,fetched_count,inserted_count,changed_count,unchanged_count,comment_count,error_code,error_message FROM po_sync_runs WHERE parent_run_id=? FOR UPDATE', [parentRunId]);
+      const parentStatus = aggregateParentStatus(siblings || []);
+      let parent = null;
+      if (parentStatus !== 'running') {
+        const totals = (siblings || []).reduce((summary, child) => ({
+          discovered: summary.discovered + Math.max(0, Number(child.discovered_count) || 0),
+          stored: summary.stored + Math.max(0, Number(child.stored_count) || 0),
+          fetched: summary.fetched + Math.max(0, Number(child.fetched_count) || 0),
+          inserted: summary.inserted + Math.max(0, Number(child.inserted_count) || 0),
+          changed: summary.changed + Math.max(0, Number(child.changed_count) || 0),
+          unchanged: summary.unchanged + Math.max(0, Number(child.unchanged_count) || 0),
+          comments: summary.comments + Math.max(0, Number(child.comment_count) || 0)
+        }), { discovered: 0, stored: 0, fetched: 0, inserted: 0, changed: 0, unchanged: 0, comments: 0 });
+        const failedChildren = (siblings || []).filter(child => !['completed', 'completed_full', 'completed_authorized_scope'].includes(String(child.status || '').toLowerCase()));
+        const childErrors = failedChildren
+          .map(child => [child.error_code, child.error_message].filter(Boolean).join(': '))
+          .filter(Boolean);
+        const parentErrorCode = childErrors.length ? (parentStatus === 'partial' ? 'MULTISITE_PARTIAL_FAILURE' : 'MULTISITE_ALL_SITES_FAILED') : null;
+        const parentErrorMessage = childErrors.length ? childErrors.join('; ').slice(0, 1000) : null;
+        await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=?, stored_count=?, fetched_count=?, inserted_count=?, changed_count=?, unchanged_count=?, comment_count=?, error_code=?, error_message=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NULL AND status IN ('queued','running')", [parentStatus, totals.discovered, totals.stored, totals.fetched, totals.inserted, totals.changed, totals.unchanged, totals.comments, parentErrorCode, parentErrorMessage, parentRunId]);
+        const [parents] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [parentRunId]);
+        parent = parents[0] || null;
+      }
+      await conn.commit();
+      return { child: { id, status }, parent };
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+  }
   // A provider cooldown is not a terminal result. Keep this exact run queued so its
   // checkpoint can resume after the persisted UTC retry boundary.
   async deferSyncRun(id, { errorCode, errorMessage, nextRetryAt, leaseOwner, leaseEpoch } = {}) {
     if (!nextRetryAt) { const error = new Error('nextRetryAt is required when deferring a sync run'); error.code = 'SYNC_RUN_RETRY_AT_REQUIRED'; throw error; }
-    const result = await this.query("UPDATE po_sync_runs SET status='queued', finished_at=NULL, error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status='running' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [errorCode || null, errorMessage || null, nextRetryAt, id, leaseOwner, leaseEpoch]);
+    // Owner + epoch fence the update. Do not require an unexpired lease here:
+    // a provider cooldown can outlive the execution lease, and leaving the run
+    // in running would make it appear permanently stuck. A newer claimant has
+    // a newer epoch and still cannot be overwritten by this stale worker.
+    const result = await this.query("UPDATE po_sync_runs SET status='queued', finished_at=NULL, error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status='running' AND lease_owner=? AND lease_epoch=?", [errorCode || null, errorMessage || null, nextRetryAt, id, leaseOwner, leaseEpoch]);
     if (!result.affectedRows) return null;
     return this.getSyncRun(id, { status: 'queued' });
   }
-  async listSyncRunContents(runId, { accountId, sourceId, regionCode, gameId, communityId, syncScope = 'posts', after = 0, limit = 50 } = {}) { const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100); const params = [runId, syncScope, Number(after) || 0]; const clauses = ['rc.run_id=?', 'rc.sync_scope=?', 'rc.sequence_no>?']; for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); } if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); } params.push(safeLimit); return this.query(`SELECT rc.sequence_no, rc.change_type, rc.sync_scope, rc.fetched_at, c.id, c.external_id, c.content_type, c.community_id, c.platform_author_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0) AS comment_count FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id JOIN po_accounts a ON a.id=r.account_id JOIN po_games g ON g.id=a.game_id JOIN po_contents c ON c.id=rc.content_id AND c.account_id=a.id AND c.source_id=a.source_id AND c.game_id=a.game_id AND (c.community_id<=>a.community_id) WHERE ${clauses.join(' AND ')} ORDER BY rc.sequence_no ASC LIMIT ?`, params); }
+  async listSyncRunContents(runId, { accountId, sourceId, regionCode, gameId, communityId, syncScope = 'posts', after = 0, limit = 50 } = {}) { const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100); const params = [runId, syncScope, Number(after) || 0]; const clauses = ['rc.run_id=?', 'rc.sync_scope=?', 'rc.sequence_no>?']; for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); } if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); } params.push(safeLimit); return this.query(`SELECT rc.sequence_no, rc.change_type, rc.sync_scope, rc.fetched_at, c.id, c.external_id, c.content_type, c.community_id, c.platform_author_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, (SELECT m.feed_key FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS feed_key, (SELECT m.page_kind FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS page_kind, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0) AS comment_count FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id JOIN po_accounts a ON a.id=r.account_id JOIN po_games g ON g.id=a.game_id JOIN po_contents c ON c.id=rc.content_id AND c.account_id=a.id AND c.source_id=a.source_id AND c.game_id=a.game_id AND (c.community_id<=>a.community_id) WHERE ${clauses.join(' AND ')} ORDER BY rc.sequence_no ASC LIMIT ?`, params); }
 
   async importContentBatch({ sourceId, accountId, items = [], feeds = [] } = {}) {
     const source = (await this.query('SELECT * FROM po_sources WHERE id=? LIMIT 1', [sourceId]))[0] || null;
@@ -1328,20 +1587,23 @@ class Repository {
       await conn.query('SET SESSION innodb_lock_wait_timeout=?', [this.syncUpsertLockWaitSeconds]);
       await conn.beginTransaction(); transactionStarted = true;
       if (syncRunId) {
-        const leaseRows = await conn.query('SELECT r.id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE r.id=? AND r.account_id=? AND a.source_id=? AND r.status=\'running\' AND r.lease_owner=? AND r.lease_until>UTC_TIMESTAMP(3) FOR UPDATE', [syncRunId, account.id, account.source_id, leaseOwner || null]);
+        const leaseRows = await conn.query("SELECT r.id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE r.id=? AND r.account_id=? AND a.source_id=? AND r.status IN ('running','pausing','cancelling') AND r.lease_owner=? AND r.lease_until>UTC_TIMESTAMP(3) FOR UPDATE", [syncRunId, account.id, account.source_id, leaseOwner || null]);
         if (!leaseRows[0]?.[0]) { const error = new Error('sync run lease lost'); error.code = 'SYNC_RUN_LEASE_LOST'; throw error; }
       }
       let fetchedCount = 0; let insertedCount = 0; let changedCount = 0; let unchangedCount = 0; let commentCount = 0;
       const orderedItems = items.map((raw, index) => ({ raw, index })).sort((left, right) => String(left.raw.externalId || '').localeCompare(String(right.raw.externalId || '')) || left.index - right.index);
       for (const { raw, index: sourceIndex } of orderedItems) {
         const id = uuid();
-        const existingResult = await conn.query('SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, raw.externalId]);
+        const boardKey = raw.boardId || 'legacy';
+        const existingResult = raw.boardId
+          ? await conn.query('SELECT * FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1', [account.source_id, boardKey, raw.externalId])
+          : await conn.query('SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, raw.externalId]);
         const existingRows = Array.isArray(existingResult[0]) ? existingResult[0] : [];
         const existing = existingRows[0] && existingRows[0].external_id != null ? existingRows[0] : null;
         const rootExternalId = raw.rootPlatformContentId || (syncScope === 'posts' ? null : rootPlatformContentId);
         const parentExternalId = raw.platformParentId || (syncScope === 'comments' ? rootPlatformContentId : null);
-        const rootRow = rootExternalId ? (await conn.query('SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, rootExternalId]))[0]?.[0] : null;
-        const parentRow = parentExternalId ? (await conn.query('SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, parentExternalId]))[0]?.[0] : null;
+        const rootRow = rootExternalId ? (await conn.query(raw.boardId ? 'SELECT id FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1' : 'SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', raw.boardId ? [account.source_id, boardKey, rootExternalId] : [account.source_id, rootExternalId]))[0]?.[0] : null;
+        const parentRow = parentExternalId ? (await conn.query(raw.boardId ? 'SELECT id FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1' : 'SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', raw.boardId ? [account.source_id, boardKey, parentExternalId] : [account.source_id, parentExternalId]))[0]?.[0] : null;
         const contentType = raw.contentType || (syncScope === 'posts' ? 'post' : 'comment');
         const existingRawPayload = parseJson(existing?.raw_payload, null);
         const incomingRawPayload = parseJson(raw.rawPayload, null);
@@ -1352,16 +1614,16 @@ class Repository {
         const mediaValue = preserveEnrichedContent ? parseJson(existing.media, []) : (Array.isArray(raw.media) ? raw.media : []);
         const rawPayloadValue = preserveEnrichedContent ? existing.raw_payload : raw.rawPayload;
         const engagement = JSON.stringify(raw.engagement || {}); const media = JSON.stringify(Array.isArray(mediaValue) ? mediaValue : []); const rawPayload = rawPayloadValue == null ? null : (preserveEnrichedContent && typeof rawPayloadValue === 'string' ? rawPayloadValue : JSON.stringify(rawPayloadValue));
-        const comparable = [contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, comparableDate(raw.publishedAt), raw.sourceUrl || '', comparableJson(raw.engagement, {}), comparableJson(mediaValue, []), raw.fingerprint || null, comparableJson(rawPayloadValue, null)];
-        const previous = existing && [existing.content_type, existing.platform_author_id, existing.root_content_id, existing.parent_content_id, existing.platform_parent_id, Number(existing.content_depth || 0), Number(existing.is_deleted || 0), existing.author_name, existing.title, existing.body, comparableDate(existing.published_at), existing.source_url, comparableJson(existing.engagement, {}), comparableJson(existing.media, []), existing.fingerprint, comparableJson(existing.raw_payload, null)];
+        const comparable = [raw.boardId || null, raw.boardName || null, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, comparableDate(raw.publishedAt), raw.sourceUrl || '', comparableJson(raw.engagement, {}), comparableJson(mediaValue, []), raw.fingerprint || null, comparableJson(rawPayloadValue, null)];
+        const previous = existing && [existing.board_id || null, existing.board_name || null, existing.content_type, existing.platform_author_id, existing.root_content_id, existing.parent_content_id, existing.platform_parent_id, Number(existing.content_depth || 0), Number(existing.is_deleted || 0), existing.author_name, existing.title, existing.body, comparableDate(existing.published_at), existing.source_url, comparableJson(existing.engagement, {}), comparableJson(existing.media, []), existing.fingerprint, comparableJson(existing.raw_payload, null)];
         const change = !existing ? 'inserted' : JSON.stringify(previous) === JSON.stringify(comparable) ? 'unchanged' : 'changed';
         if (account.community_id) {
-          await conn.query('INSERT INTO po_contents (id, game_id, community_id, source_id, account_id, external_id, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), community_id=VALUES(community_id), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.community_id, account.source_id, account.id, raw.externalId, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, media, raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
+          await conn.query('INSERT INTO po_contents (id, game_id, community_id, source_id, account_id, external_id, board_id, board_name, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), community_id=VALUES(community_id), board_id=VALUES(board_id), board_name=VALUES(board_name), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.community_id, account.source_id, account.id, raw.externalId, raw.boardId || null, raw.boardName || null, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, media, raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
         } else {
-          await conn.query('INSERT INTO po_contents (id, game_id, source_id, account_id, external_id, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.source_id, account.id, raw.externalId, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, media, raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
+          await conn.query('INSERT INTO po_contents (id, game_id, source_id, account_id, external_id, board_id, board_name, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), board_id=VALUES(board_id), board_name=VALUES(board_name), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.source_id, account.id, raw.externalId, raw.boardId || null, raw.boardName || null, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, media, raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
         }
         if (change !== 'unchanged') storedCount += 1;
-        const row = (await conn.query('SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, raw.externalId]))[0]?.[0];
+        const row = (await conn.query(raw.boardId ? 'SELECT * FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1' : 'SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', raw.boardId ? [account.source_id, boardKey, raw.externalId] : [account.source_id, raw.externalId]))[0]?.[0];
         if (row) {
           contents[sourceIndex] = { content: row, change };
           if (feed?.feedKey && syncScope === 'posts') {
@@ -1570,7 +1832,8 @@ class Repository {
         EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND column_name='default_account_id' AND column_type='char(36)' AND is_nullable='YES') AS default_account_ready,
         (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND ((column_name='schedule_version' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO') OR (column_name='schedule_effective_at' AND column_type='datetime(3)' AND is_nullable='YES')))=2 AS source_schedule_columns_ready,
         (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_checkpoints' AND ((column_name='window_start' AND column_type='varchar(32)' AND is_nullable='NO') OR (column_name='window_end' AND column_type='varchar(32)' AND is_nullable='NO')))=2 AS checkpoint_window_columns_ready,
-        EXISTS(SELECT 1 FROM (SELECT index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='po_sync_checkpoints' AND index_name='po_sync_checkpoints_window_uk' GROUP BY index_name, non_unique) idx WHERE idx.non_unique=0 AND idx.columns_list='account_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end') AS checkpoint_window_index_ready,
+        EXISTS(SELECT 1 FROM (SELECT index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='po_sync_checkpoints' AND index_name='po_sync_checkpoints_window_uk' GROUP BY index_name, non_unique) idx WHERE idx.non_unique=0 AND idx.columns_list='account_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end') AS checkpoint_legacy_window_index_ready,
+        EXISTS(SELECT 1 FROM (SELECT index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='po_sync_checkpoints' AND index_name='po_sync_checkpoints_site_window_uk' GROUP BY index_name, non_unique) idx WHERE idx.non_unique=0 AND idx.columns_list='account_id,site_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end') AS checkpoint_site_window_index_ready,
         EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='source_id' AND column_type='char(36)' AND is_nullable='NO') AS run_source_ready,
         EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='trigger_type' AND column_type='varchar(32)' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='legacy') AS run_trigger_ready,
         EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='scheduled_at' AND column_type='datetime(3)' AND is_nullable='YES') AS run_schedule_column_ready,
@@ -1587,12 +1850,20 @@ class Repository {
         EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_worker_heartbeats') AS worker_heartbeat_table_ready,
         (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_worker_heartbeats' AND ((column_name='worker_id' AND column_type='varchar(160)' AND is_nullable='NO') OR (column_name='build_sha' AND column_type='varchar(80)' AND is_nullable='YES') OR (column_name='mode' AND column_type='varchar(30)' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='enabled') OR (column_name='last_seen_at' AND column_type='datetime(3)' AND is_nullable='NO') OR (column_name='scan_started_at' AND column_type='datetime(3)' AND is_nullable='YES') OR (column_name='scan_finished_at' AND column_type='datetime(3)' AND is_nullable='YES') OR (column_name='scan_status' AND column_type='varchar(30)' AND is_nullable='YES') OR (column_name='scan_error' AND column_type='varchar(500)' AND is_nullable='YES') OR (column_name='current_scan' AND column_type='varchar(255)' AND is_nullable='YES')))=9 AS worker_heartbeat_columns_ready`);
       const readiness = rows[0] || {};
-      if (Object.values(readiness).some(value => Number(value) !== 1)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'unified scheduler schema is not ready');
+      const { migration_table_ready: migrationTableReady, checkpoint_legacy_window_index_ready: legacyCheckpointIndexReady, checkpoint_site_window_index_ready: siteCheckpointIndexReady, ...baseReadiness } = readiness;
+      if (Number(migrationTableReady) !== 1) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'unified scheduler schema is not ready');
+      const [migrationRows] = await conn.query('SELECT version FROM po_schema_migrations WHERE version IN (?,?,?,?,?,?)', ['023_unified_source_scheduling.sql', '025_worker_scan_leases.sql', '026_scheduler_runtime_schema_reconciliation.sql', '027_bigplayer_multisite.sql', '028_bigplayer_scheduled_site_runs.sql', '029_bigplayer_site_run_evidence.sql']);
+      const appliedMigrations = new Set(migrationRows.map(row => row.version));
+      const multiSiteSchemaApplied = appliedMigrations.has('027_bigplayer_multisite.sql');
+      const checkpointIndexReady = multiSiteSchemaApplied ? siteCheckpointIndexReady : legacyCheckpointIndexReady;
+      if (Object.values({ ...baseReadiness, checkpointIndexReady }).some(value => Number(value) !== 1)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'unified scheduler schema is not ready');
       const [createRows] = await conn.query('SHOW CREATE TABLE po_sync_runs');
       const actualCheck = normalizedCheckDefinition(extractNamedCheck(createRows?.[0]?.['Create Table'], 'po_sync_runs_trigger_slot_chk'));
       const expectedChecks = [
         "(trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)",
-        "trigger_type IN ('legacy','manual') AND scheduled_at IS NULL OR trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL"
+        "trigger_type IN ('legacy','manual') AND scheduled_at IS NULL OR trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL",
+        "(trigger_type IN ('legacy','manual','scheduled_site') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)",
+        "trigger_type IN ('legacy','manual','scheduled_site') AND scheduled_at IS NULL OR trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL"
       ].map(normalizedCheckDefinition);
       if (!expectedChecks.includes(actualCheck)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'sync run trigger constraint is not ready');
       const requiredMigrations = new Set([
@@ -1600,9 +1871,11 @@ class Repository {
         '025_worker_scan_leases.sql',
         '026_scheduler_runtime_schema_reconciliation.sql'
       ]);
-      const [migrationRows] = await conn.query('SELECT version FROM po_schema_migrations WHERE version IN (?,?,?)', [...requiredMigrations]);
-      for (const row of migrationRows) requiredMigrations.delete(row.version);
+      if (multiSiteSchemaApplied) requiredMigrations.add('028_bigplayer_scheduled_site_runs.sql');
+      if (multiSiteSchemaApplied) requiredMigrations.add('029_bigplayer_site_run_evidence.sql');
+      for (const row of appliedMigrations) requiredMigrations.delete(row);
       if (requiredMigrations.size) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'required scheduler migrations are not applied');
+      if (!await bigPlayerBoardSchemaReady(conn)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'BigPlayer board schema migration 030 is not ready');
     } catch (error) {
       if (error.code === 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY') throw error;
       const wrapped = repositoryError('UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED', 'failed to verify unified scheduler schema');
@@ -1624,7 +1897,7 @@ class Repository {
     try {
       await conn.beginTransaction();
       await this.assertUnifiedSchedulerSchemaReady(conn);
-      const [sourceRows] = await conn.query(`SELECT s.id, s.game_id, s.community_id, s.platform, s.enabled, s.auth_status, s.auth_expire_at,
+      const [sourceRows] = await conn.query(`SELECT s.id, s.game_id, s.community_id, s.platform, s.enabled, s.auth_status, s.auth_expire_at, s.config,
         s.default_account_id, g.enabled AS game_enabled, c.status AS community_status,
         (s.auth_expire_at IS NOT NULL AND s.auth_expire_at<=UTC_TIMESTAMP(3)) AS source_auth_expired,
         UTC_TIMESTAMP(3) AS admission_anchor
@@ -1632,6 +1905,32 @@ class Repository {
         WHERE s.id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
       const source = sourceRows[0];
       if (!source) throw repositoryError('SOURCE_NOT_FOUND', 'source not found');
+      // A multi-site BigPlayer run is a parent-only envelope.  The actual work is
+      // represented by child runs, each bound to one persisted site registry row.
+      // Do not derive child identities from the request body: configuration saves
+      // and migration 027 are the authority for the enabled set.
+      let multiSites = [];
+      if (source.platform === 'bigplayer_h5') {
+        if (!boardIdOf(source)) throw repositoryError('BOARD_ID_REQUIRED', 'BigPlayer source boardId is required');
+        const rawConfig = parseConfig(source.config);
+        if (Array.isArray(rawConfig.siteUrls) && rawConfig.siteUrls.length > 1) {
+          const configured = normalizeSiteUrls(rawConfig);
+          let siteRows;
+          try {
+            [siteRows] = await conn.query('SELECT site_id, url, enabled FROM po_source_sites WHERE source_id=? AND enabled=1 ORDER BY site_id FOR UPDATE', [source.id]);
+          } catch (error) {
+            if (error?.code === 'ER_NO_SUCH_TABLE') throw repositoryError('MULTISITE_SCHEMA_NOT_READY', 'BigPlayer multi-site schema migration is not applied');
+            throw error;
+          }
+          const byId = new Map((siteRows || []).map(site => [String(site.site_id), site]));
+          multiSites = configured.siteUrls.filter(site => site.enabled !== false).map(site => {
+            const persisted = byId.get(String(site.siteId));
+            if (!persisted || String(persisted.url) !== site.url) throw repositoryError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer site registry does not match saved configuration');
+            return { siteId: String(site.siteId), url: site.url };
+          });
+          if (!multiSites.length) throw repositoryError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer has no enabled persisted sites');
+        }
+      }
       if (databaseAnchoredWindow) {
         if (source.platform !== 'bigplayer_h5') throw repositoryError('INVALID_INPUT', 'lookbackDays is only supported for BigPlayer backfill');
         boundedWindow = boundedBackfillWindowFromAnchor(source.admission_anchor, lookbackDays);
@@ -1658,6 +1957,22 @@ class Repository {
       if (account.auth_status !== 'authorized') throw repositoryError('ACCOUNT_UNAUTHORIZED', 'default account is not authorized');
       if (Number(account.account_auth_expired)) throw repositoryError('ACCOUNT_AUTH_EXPIRED', 'default account authorization is expired');
 
+      const siteWindows = new Map();
+      if (source.platform === 'bigplayer_h5' && !boundedWindow && syncMode === 'incremental') {
+        if (multiSites.length) {
+          const placeholders = multiSites.map(() => '?').join(',');
+          const [cursorRows] = await conn.query(`SELECT site_id,MAX(last_item_at) AS last_successful_cursor
+            FROM po_sync_checkpoints WHERE account_id=? AND site_id IN (${placeholders})
+              AND status='completed' AND last_item_at IS NOT NULL AND task_key LIKE ? GROUP BY site_id`, [account.id, ...multiSites.map(site => site.siteId), `board:${boardIdOf(source)}:%`]);
+          const cursorBySite = new Map((cursorRows || []).map(row => [String(row.site_id), row.last_successful_cursor]));
+          for (const site of multiSites) siteWindows.set(site.siteId, effectiveBigPlayerWindow(source.admission_anchor, cursorBySite.get(site.siteId) || null));
+          boundedWindow = effectiveBigPlayerWindow(source.admission_anchor, null);
+        } else {
+          const [cursorRows] = await conn.query("SELECT MAX(last_item_at) AS last_successful_cursor FROM po_sync_checkpoints WHERE account_id=? AND site_id IS NULL AND status='completed' AND last_item_at IS NOT NULL AND task_key LIKE ?", [account.id, `board:${boardIdOf(source)}:%`]);
+          boundedWindow = effectiveBigPlayerWindow(source.admission_anchor, cursorRows[0]?.last_successful_cursor || null);
+        }
+      }
+
       if (source.platform === 'bigplayer_h5') {
         const [credentialRows] = await conn.query(`SELECT id, status, expire_at,
           (expire_at IS NOT NULL AND expire_at<=UTC_TIMESTAMP(3)) AS credential_expired,
@@ -1674,10 +1989,13 @@ class Repository {
       const [scheduleRows] = await conn.query('SELECT source_id, lease_owner, lease_until, (lease_until IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)) AS lease_active FROM po_source_schedule_state WHERE source_id=? FOR UPDATE', [source.id]);
       const scheduleState = scheduleRows[0];
       if (!scheduleState) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'source scheduler state is missing');
+      const [controlledRuns] = await conn.query("SELECT id FROM po_sync_runs WHERE source_id=? AND account_id=? AND parent_run_id IS NULL AND status IN ('pausing','paused','cancelling') ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [source.id, account.id]);
+      if (controlledRuns[0]) throw repositoryError('PREVIOUS_RUN_ACTIVE', 'a paused or cancelling sync run already owns this source');
       if (!reset) {
         const windowPredicate = databaseAnchoredWindow ? 'window_start IS NOT NULL AND window_end IS NOT NULL AND TIMESTAMPDIFF(MICROSECOND,window_start,window_end)=?' : boundedWindow ? 'window_start=? AND window_end=?' : 'window_start IS NULL AND window_end IS NULL';
         const windowParams = databaseAnchoredWindow ? [MAX_BOUNDED_BACKFILL_MS * 1000] : boundedWindow ? [boundedWindow.windowStart, boundedWindow.windowEnd] : [];
-        const [manualRows] = await conn.query(`SELECT * FROM po_sync_runs WHERE source_id=? AND account_id=? AND trigger_type='manual' AND sync_mode=? AND ${windowPredicate} AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id, syncMode, ...windowParams]);
+        const parentClause = multiSites.length ? ' AND parent_run_id IS NULL' : '';
+        const [manualRows] = await conn.query(`SELECT * FROM po_sync_runs WHERE source_id=? AND account_id=? AND trigger_type='manual'${parentClause} AND sync_mode=? AND ${windowPredicate} AND status IN ('queued','running','pausing','paused','cancelling') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id, syncMode, ...windowParams]);
         if (manualRows[0]) {
           const persistedWindow = boundedBackfillWindowResponse(manualRows[0], boundedWindow);
           const persistedDuration = persistedWindow ? Date.parse(persistedWindow.publishedTo) - Date.parse(persistedWindow.publishedFrom) : NaN;
@@ -1689,7 +2007,8 @@ class Repository {
       }
       const activeWindowPredicate = boundedWindow ? 'window_start=? AND window_end=?' : 'window_start IS NULL AND window_end IS NULL';
       const activeWindowParams = boundedWindow ? [boundedWindow.windowStart, boundedWindow.windowEnd] : [];
-      const [activeRuns] = await conn.query(`SELECT id FROM po_sync_runs WHERE source_id=? AND account_id=? AND ${activeWindowPredicate} AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id, ...activeWindowParams]);
+      const parentClause = multiSites.length ? ' AND parent_run_id IS NULL' : '';
+      const [activeRuns] = await conn.query(`SELECT id FROM po_sync_runs WHERE source_id=? AND account_id=?${parentClause} AND ${activeWindowPredicate} AND status IN ('queued','running','pausing','paused','cancelling') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id, ...activeWindowParams]);
       if (activeRuns[0]) throw repositoryError('PREVIOUS_RUN_ACTIVE', 'another sync run is active');
       const [activeCheckpoints] = await conn.query(`SELECT cp.id FROM po_sync_checkpoints cp WHERE cp.account_id=? AND cp.window_start ${boundedWindow ? '=?' : 'IS NULL'} AND cp.window_end ${boundedWindow ? '=?' : 'IS NULL'} AND cp.status='running' AND (cp.lease_until IS NULL OR cp.lease_until>UTC_TIMESTAMP(3)) LIMIT 1 FOR UPDATE`, [account.id, ...activeWindowParams]);
       if (activeCheckpoints[0]) throw repositoryError('SYNC_CHECKPOINT_ACTIVE', 'a sync checkpoint is active');
@@ -1702,7 +2021,14 @@ class Repository {
         await conn.query('UPDATE po_accounts SET metadata=JSON_MERGE_PATCH(COALESCE(metadata,JSON_OBJECT()),?), updated_at=NOW() WHERE id=?', [JSON.stringify(metadata), account.id]);
       }
       const runId = uuid();
-      await conn.query("INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at) VALUES (?,?,?,'manual','queued',?,NULL,?,?,NULL)", [runId, source.id, account.id, syncMode, boundedWindow?.windowStart || null, boundedWindow?.windowEnd || null]);
+      const boardId = source.platform === 'bigplayer_h5' ? boardIdOf(source) : null;
+      const identity = boardId ? boardRunIdentity({ sourceId: source.id, communityId: source.community_id, boardId, windowStart: boundedWindow?.windowStart, windowEnd: boundedWindow?.windowEnd }) : null;
+      await conn.query("INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at, community_id, board_id, run_scope, board_run_identity) VALUES (?,?,?,'manual','queued',?,NULL,?,?,NULL,?,?,?,?)", [runId, source.id, account.id, syncMode, boundedWindow?.windowStart || null, boundedWindow?.windowEnd || null, boardId ? source.community_id : null, boardId, boardId ? 'collection' : null, identity]);
+      for (const site of multiSites) {
+        const childWindow = siteWindows.get(site.siteId) || boundedWindow;
+        const childIdentity = boardRunIdentity({ sourceId: source.id, communityId: source.community_id, boardId, scope: 'site', siteId: site.siteId, windowStart: childWindow?.windowStart, windowEnd: childWindow?.windowEnd });
+        await conn.query("INSERT INTO po_sync_runs (id, parent_run_id, site_id, site_url_snapshot, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at, community_id, board_id, run_scope, board_run_identity) VALUES (?,?,?,?,?,?,?,'queued',?,NULL,?,?,NULL,?,?,?,?)", [uuid(), runId, site.siteId, site.url, source.id, account.id, 'scheduled_site', syncMode, childWindow?.windowStart || null, childWindow?.windowEnd || null, source.community_id, boardId, 'site', childIdentity]);
+      }
       const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [runId]);
       await conn.commit();
       return { enabled: true, previouslyEnabled: true, reset, reused: false, run: runRows[0], window: boundedBackfillWindowResponse(runRows[0], boundedWindow) };
@@ -1746,8 +2072,9 @@ class Repository {
   async listManualDueSources() { return this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND s.collect_requested_at IS NOT NULL AND ${NOT_DELETED} ORDER BY s.collect_requested_at ASC`); }
   async clearManualRequest(sourceId) { await this.query('UPDATE po_sources SET collect_requested_at=NULL WHERE id=?', [sourceId]); }
 
-  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, discordConfig, frequencySeconds = 21600, activeWindow, accountName, sourceEnabled = false, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
-    const config = { baseUrl: baseUrl || '', startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(editionScope ? { editionScope } : {}), ...(board ? { board } : {}), ...(postsApiUrl ? { postsApiUrl } : {}), ...(commentsApiUrl ? { commentsApiUrl } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}) };
+  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, siteUrls, startPaths, editionScope, board, boardId, postsApiUrl, commentsApiUrl, discordConfig, frequencySeconds = 21600, activeWindow, accountName, sourceEnabled = false, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
+    const normalizedSites = Array.isArray(siteUrls) ? normalizeSiteUrls({ siteUrls }) : null;
+    const config = { baseUrl: normalizedSites?.baseUrl || baseUrl || '', ...(normalizedSites ? { siteUrls: normalizedSites.siteUrls } : {}), startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(editionScope ? { editionScope } : {}), ...(board ? { board } : {}), ...(boardId ? { boardId } : {}), ...(postsApiUrl ? { postsApiUrl } : {}), ...(commentsApiUrl ? { commentsApiUrl } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}) };
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -1760,6 +2087,7 @@ class Repository {
       const adoptable = account && String(account.platform_account_id || '').startsWith('legacy-source:') && !String(currentConfig.baseUrl || '').trim() && source.auth_status !== 'authorized';
       if (!adoptable) { const error = new Error('source already exists'); error.code = 'SOURCE_ALREADY_EXISTS'; throw error; }
       await conn.query('UPDATE po_sources SET source_type=?, display_name=?, enabled=?, frequency_seconds=?, config=?, active_window=?, auth_status=\'unconfigured\', auth_expire_at=NULL, updated_at=NOW() WHERE id=?', [sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null, sourceId]);
+      if (normalizedSites) await reconcileBigPlayerSourceSites(conn, sourceId, normalizedSites.siteUrls);
       await conn.query('UPDATE po_accounts SET account_name=?, enabled=1, auth_status=\'unconfigured\', auth_expire_at=NULL, metadata=?, updated_at=NOW() WHERE id=?', [accountName || displayName, JSON.stringify(metadata || {}), accountId]);
       if (credentialType && secretCipher) await conn.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status) VALUES (?,?,?,?,?,?,\'active\') ON DUPLICATE KEY UPDATE secret_cipher=VALUES(secret_cipher), secret_ref=\'\', status=\'active\', failure_reason=NULL, last_checked_at=NOW(), updated_at=NOW()', [uuid(), accountId, sourceId, credentialType, '', secretCipher]);
       await conn.commit();
@@ -1768,12 +2096,15 @@ class Repository {
   }
 
   // 新增采集源与默认账号使用同一事务，避免 OAuth 源创建后没有可授权账号。
-  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, editionScope, board, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 21600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
+  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, siteUrls, startPaths, editionScope, board, boardId, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 21600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
+    const normalizedSites = platform === 'bigplayer_h5' && Array.isArray(siteUrls) ? normalizeSiteUrls({ siteUrls }) : null;
     const config = {
-      baseUrl: baseUrl || '',
+      baseUrl: normalizedSites?.baseUrl || baseUrl || '',
+      ...(normalizedSites ? { siteUrls: normalizedSites.siteUrls } : {}),
       startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'],
       ...(editionScope ? { editionScope } : {}),
       ...(board ? { board } : {}),
+      ...(boardId ? { boardId } : {}),
       ...(postsApiUrl ? { postsApiUrl } : {}),
       ...(commentsApiUrl ? { commentsApiUrl } : {}),
       ...(Array.isArray(accountIds) && accountIds.length ? { accountIds } : {}),
@@ -1790,6 +2121,7 @@ class Repository {
           AND EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state')) AS unified_scheduler_ready`);
       const unifiedSchedulerReady = Number(schedulerSchemaRows?.[0]?.unified_scheduler_ready) === 1;
       await conn.query('INSERT INTO po_sources (id, game_id, community_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?,?)', [sourceId, gameId, communityId, platform, sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
+      if (normalizedSites) await reconcileBigPlayerSourceSites(conn, sourceId, normalizedSites.siteUrls);
       if (maskedLoginIdentifier) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, masked_login_identifier, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, maskedLoginIdentifier, JSON.stringify(metadata || {})]);
       else if (communityId) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
       else await conn.query('INSERT INTO po_accounts (id, game_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
@@ -1899,7 +2231,7 @@ class Repository {
   }
 
   // H5 配置与账号元数据、凭据必须原子提交；凭据为空时保留已有凭据。
-  async updateSourceConfiguration(sourceId, { displayName, baseUrl, siteUrls, frequencySeconds, syncMode, historyStart, enabled, credential, credentialCipher, accountIds, groupIds, discordConfig, scheduleTime } = {}) {
+  async updateSourceConfiguration(sourceId, { displayName, baseUrl, siteUrls, boardId, frequencySeconds, syncMode, historyStart, enabled, credential, credentialCipher, accountIds, groupIds, discordConfig, scheduleTime } = {}) {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -1911,9 +2243,11 @@ class Repository {
       if (!account) { const error = new Error('default account not found'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
       // 基础配置省略同步策略时保留既有元数据，避免保存站点或频率误改历史回溯语义。
       const sourceConfig = parseConfig(source.config); const accountMetadata = parseConfig(account.metadata);
-      const nextConfig = { ...sourceConfig, ...(baseUrl === undefined ? {} : { baseUrl }), ...(siteUrls === undefined ? {} : { siteUrls }), ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }), ...(Array.isArray(accountIds) ? { accountIds } : {}), ...(Array.isArray(groupIds) ? { groupIds } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}), ...(scheduleTime === undefined ? {} : scheduleTime ? { scheduleTime } : { scheduleTime: null }) };
+      const normalizedSites = source.platform === 'bigplayer_h5' && Array.isArray(siteUrls) ? normalizeSiteUrls({ siteUrls }) : null;
+      const nextConfig = { ...sourceConfig, ...(baseUrl === undefined && !normalizedSites ? {} : { baseUrl: normalizedSites?.baseUrl || baseUrl }), ...(normalizedSites ? { siteUrls: normalizedSites.siteUrls } : {}), ...(boardId === undefined ? {} : { boardId }), ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }), ...(Array.isArray(accountIds) ? { accountIds } : {}), ...(Array.isArray(groupIds) ? { groupIds } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}), ...(scheduleTime === undefined ? {} : scheduleTime ? { scheduleTime } : { scheduleTime: null }) };
       const targetChanged = facebookTargetChanged(source, baseUrl);
       await conn.query('UPDATE po_sources SET display_name=?, enabled=?, frequency_seconds=?, config=?, updated_at=NOW() WHERE id=?', [displayName, targetChanged ? 0 : (enabled === undefined ? source.enabled : enabled ? 1 : 0), Number(frequencySeconds), JSON.stringify(nextConfig), sourceId]);
+      if (normalizedSites) await reconcileBigPlayerSourceSites(conn, sourceId, normalizedSites.siteUrls);
       const metadata = { ...accountMetadata, ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }) };
       await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata), account.id]);
       if (credentialCipher) {
@@ -1974,4 +2308,4 @@ class Repository {
     return this.listKeywordRulesRaw(gameId, communityId, platform);
   }
 }
-module.exports = { Repository, uuid, isWithinActiveWindow, normalizeQualityCandidate, normalizeAlertWithIndependentReviews };
+module.exports = { Repository, uuid, isWithinActiveWindow, normalizeQualityCandidate, normalizeAlertWithIndependentReviews, effectiveBigPlayerWindow };

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const Status = require('./source-status');
+const SyncProgress = require('./source-sync-progress');
 
 test('authLabel exposes stable Chinese labels for verification states', () => {
   assert.equal(Status.authLabel('awaiting_manual_verification'), '待人工验证');
@@ -51,11 +52,14 @@ test('H5 credential summary recognizes all safe configured flags without plainte
     assert.equal(Status.h5CredentialMeta(source).hasToken || Boolean(source.account[field]), true, field);
   }
 });
-test('H5 credential update keeps confirmation-password validation', () => {
-  assert.deepEqual(Status.validateH5CredentialUpdate({ account: 'player', password: 'secret', confirmPassword: 'secret' }), {
-    credential: { credentialType: 'account_password', account: 'player', password: 'secret', confirmPassword: 'secret' }
+test('H5 credential update accepts one password and omits confirmation-password dependency', () => {
+  assert.deepEqual(Status.validateH5CredentialUpdate({ account: 'player', password: 'secret' }), {
+    credential: { credentialType: 'account_password', account: 'player', password: 'secret' }
   });
-  assert.equal(Status.validateH5CredentialUpdate({ account: 'player', password: 'secret', confirmPassword: 'wrong' }).error, '两次输入的密码不一致');
+  assert.deepEqual(Status.validateH5CredentialUpdate({ account: 'player', password: 'secret', confirmPassword: 'wrong' }), {
+    credential: { credentialType: 'account_password', account: 'player', password: 'secret' }
+  });
+  assert.equal(Status.validateH5CredentialUpdate({ account: 'player', password: '' }).error, '账号密码需同时填写');
 });
 
 function deferred() {
@@ -105,7 +109,7 @@ function loadSourcesHarness(fetch) {
     },
     SourceStatus: Status,
     SourceSyncProgress: {
-      isTerminal: () => false,
+      isTerminal: SyncProgress.isTerminal,
       sequenceOf: () => 0,
       createController: () => ({ state: {}, snapshot: () => ({ run: {}, items: [], visibleLimit: 0 }), stop() {}, open() {} })
     },
@@ -173,6 +177,19 @@ test('TapTap 验证列对标准值和展示别名均保留只读工作区', () =
   }
 });
 
+test('TapTap 已取消同步显示终态并保留取消原因', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const progress = api.syncProgressState({ status: 'cancelled', run: {
+    status: 'cancelled', fetched_count: 0, discovered_count: 0,
+    error_code: 'SYNC_RUN_CANCELLED', error_message: 'cancelled before worker claim'
+  } });
+  assert.equal(api.syncStatusLabel('cancelled'), '已取消');
+  assert.deepEqual({ ...progress }, {
+    label: '已取消', detail: 'cancelled before worker claim', percent: 0,
+    indeterminate: false, fetched: 0, total: 0
+  });
+});
+
 test('BigPlayer H5 站点配置使用独立 URL 行，不再渲染 textarea', () => {
   const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
   const panel = api.platformPanel({ platform: 'bigplayer_h5', config: { siteUrls: ['https://A.example.com/', 'https://b.example.com/path'] } });
@@ -202,6 +219,14 @@ test('BigPlayer H5 URL 行模板保留单行删除保护', () => {
   const multiple = api.siteUrlRowsMarkup(['https://a.example.com/', 'https://b.example.com/']);
   assert.equal((multiple.match(/data-remove-site-url/g) || []).length, 2);
   assert.doesNotMatch(multiple, /data-remove-site-url[^>]*disabled/);
+});
+
+test('BigPlayer H5 账密表单只展示一次密码输入', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  api.state.h5AuthMode = 'account_password';
+  const panel = api.platformPanel({ platform: 'bigplayer_h5', config: { siteUrls: ['https://a.example.com/'] }, account: { hasAccountPassword: false } });
+  assert.match(panel, /id="cfgH5Password"/);
+  assert.doesNotMatch(panel, /cfgH5PasswordConfirm|确认密码/);
 });
 
 test('所有采集源频率仅提供三档、默认 6 小时并正确回显', () => {
@@ -302,7 +327,7 @@ test('stale sources response cannot replace the latest scope result', async () =
     return { ok: true, status: 200, text: async () => JSON.stringify(body) };
   });
   let platform = 'bigplayer_h5';
-  api.state.scope = { query: () => new URLSearchParams({ regionCode: 'overseas', gameId: 'last-night', communityId: 'en', platform }) };
+  api.state.scope = { available: () => true, query: () => new URLSearchParams({ regionCode: 'overseas', gameId: 'last-night', communityId: 'en', platform }) };
 
   const olderLoad = api.loadSources();
   platform = 'taptap';

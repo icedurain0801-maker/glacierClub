@@ -114,7 +114,7 @@ test('Q1 discovery propagates cancellation through requests and auth refresh', a
     }
   });
   const controller = new AbortController();
-  const discovery = connector.discoverFeeds({ source: { config: { baseUrl: 'https://club.q1.com?env=web&gameId=game&gameVersion=1' } }, account: { id: 'a1' }, signal: controller.signal });
+  const discovery = connector.discoverFeeds({ source: { config: { baseUrl: 'https://club.q1.com?env=web&gameId=game&gameVersion=1', boardId: '2' } }, account: { id: 'a1' }, signal: controller.signal });
   await new Promise(resolve => setImmediate(resolve));
   controller.abort(Object.assign(new Error('lease lost'), { code: 'SYNC_RUN_LEASE_LOST' }));
   await assert.rejects(discovery, error => error.code === 'CONNECTOR_PAGE_FAILED' && error.cause?.code === 'SYNC_RUN_LEASE_LOST');

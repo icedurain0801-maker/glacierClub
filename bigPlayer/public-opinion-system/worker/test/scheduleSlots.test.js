@@ -68,6 +68,24 @@ test('already processed latest slot returns no due slot and keeps next slot', ()
   assert.equal(result.nextSlotAt, '2026-01-01T22:00:00.000Z');
 });
 
+test('MariaDB DATETIME schedule cursor is interpreted as UTC on Shanghai hosts', () => {
+  const previousTz = process.env.TZ;
+  process.env.TZ = 'Asia/Shanghai';
+  try {
+    const result = computeSchedule({
+      now: utc('2026-01-01T21:20:00.000Z'),
+      effectiveAt: utc('2025-12-31T18:00:01.000Z'),
+      lastProcessedScheduledAt: '2026-01-01 21:00:00.000',
+      frequencySeconds: 3600
+    });
+    assert.equal(result.dueSlotAt, null);
+    assert.equal(result.nextSlotAt, '2026-01-01T22:00:00.000Z');
+  } finally {
+    if (previousTz == null) delete process.env.TZ;
+    else process.env.TZ = previousTz;
+  }
+});
+
 test('02:00 first slot uses previous Beijing natural-day window across year boundary', () => {
   const slot = utc('2025-12-31T18:00:00.000Z'); // Beijing 2026-01-01 02:00
   assert.deepEqual(collectionWindowForSlot(slot), {

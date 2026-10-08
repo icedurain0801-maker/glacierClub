@@ -5,10 +5,13 @@ const { buildDeps, heartbeatWorkerId, runOnce, runUnifiedSchedulerSeam } = requi
 
 const NOW = new Date('2026-09-09T02:00:00.000Z');
 
-function schedulerSchemaConnection({ ready = true, missingColumn = false, missingUniqueIndex = false, missingRuntimeMigration = false, missingWorkerLease = false, missingHeartbeat = false, error = null } = {}) {
+function schedulerSchemaConnection({ ready = true, missingColumn = false, missingUniqueIndex = false, missingRuntimeMigration = false, missingMigration029 = false, missingSiteUrlSnapshot = false, missingLastRequestAt = false, missingWorkerLease = false, missingHeartbeat = false, error = null, boardSchema = {} } = {}) {
   return {
     async query(sql) {
       if (error) throw error;
+      if (sql.includes('/* board-schema-030 */')) return [[{
+        board_migration_ready: 1, board_run_columns_ready: 1, board_content_columns_ready: 1, board_run_index_ready: 1, board_content_index_ready: 1, ...boardSchema
+      }]];
       assert.match(sql, /information_schema\.tables/i);
       assert.match(sql, /information_schema\.columns/i);
       assert.match(sql, /information_schema\.statistics/i);
@@ -16,12 +19,16 @@ function schedulerSchemaConnection({ ready = true, missingColumn = false, missin
       assert.match(sql, /po_sync_runs_source_schedule_uk/i);
       assert.match(sql, /025_worker_scan_leases\.sql/i);
       assert.match(sql, /026_scheduler_runtime_schema_reconciliation\.sql/i);
+      assert.match(sql, /028_bigplayer_scheduled_site_runs\.sql/i);
+      assert.match(sql, /029_bigplayer_site_run_evidence\.sql/i);
+      assert.match(sql, /site_url_snapshot/i);
+      assert.match(sql, /last_request_at/i);
       assert.match(sql, /po_worker_leases/i);
       assert.match(sql, /po_worker_heartbeats/i);
       return [[{
-        required_migration_count: ready ? (missingRuntimeMigration ? 2 : 3) : 0,
+        required_migration_count: ready ? (missingRuntimeMigration || missingMigration029 ? 4 : 5) : 0,
         schedule_state_table: ready ? 1 : 0,
-        required_column_count: ready ? (missingColumn ? 21 : 22) : 0,
+        required_column_count: ready ? (missingColumn || missingSiteUrlSnapshot || missingLastRequestAt ? 23 : 24) : 0,
         worker_lease_table: ready && !missingWorkerLease ? 1 : 0,
         worker_lease_column_count: ready && !missingWorkerLease ? 4 : 0,
         worker_heartbeat_table: ready && !missingHeartbeat ? 1 : 0,
@@ -50,6 +57,7 @@ test('buildDeps wires the explicit scheduler mode, repository pool and real conn
     assert.equal(deps.unifiedScheduler.mode, 'enabled');
     assert.equal(deps.unifiedScheduler.recoverySourceId, 'recovery-source');
     assert.strictEqual(deps.unifiedScheduler.connection, deps.repo.pool);
+    assert.strictEqual(deps.connectors.bigplayer_h5.loginSessionClient, deps.loginSessionClient);
     assert.equal(deps.workerId, 'worker:service-slot-a');
     assert.notEqual(deps.workerId, deps.leaseOwner);
     assert.equal(typeof deps.unifiedScheduler.workerId, 'string');
@@ -233,6 +241,50 @@ test('scheduler admission rejects a missing runtime migration', async () => {
   assert.equal(called, 0);
 });
 
+test('scheduler admission rejects each missing board schema requirement before running work', async () => {
+  for (const flag of ['board_migration_ready', 'board_run_columns_ready', 'board_content_columns_ready', 'board_run_index_ready', 'board_content_index_ready']) {
+    let called = 0;
+    const result = await runUnifiedSchedulerSeam({ mode: 'enabled', connection: schedulerSchemaConnection({ boardSchema: { [flag]: 0 } }), workerId: 'worker-a', now: NOW, connectorCapabilities: {}, runJob: async () => { called += 1; } });
+    assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' }, flag);
+    assert.equal(called, 0, flag);
+  }
+});
+
+test('scheduler admission rejects missing migration 029 before the scheduler job', async () => {
+  let called = 0;
+  const result = await runUnifiedSchedulerSeam({
+    mode: 'enabled',
+    connection: schedulerSchemaConnection({ missingMigration029: true }),
+    workerId: 'worker-a',
+    now: NOW,
+    connectorCapabilities: {},
+    runJob: async () => { called += 1; }
+  });
+
+  assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' });
+  assert.equal(called, 0);
+});
+
+test('scheduler admission rejects either missing run evidence column before the scheduler job', async () => {
+  for (const connection of [
+    schedulerSchemaConnection({ missingSiteUrlSnapshot: true }),
+    schedulerSchemaConnection({ missingLastRequestAt: true })
+  ]) {
+    let called = 0;
+    const result = await runUnifiedSchedulerSeam({
+      mode: 'enabled',
+      connection,
+      workerId: 'worker-a',
+      now: NOW,
+      connectorCapabilities: {},
+      runJob: async () => { called += 1; }
+    });
+
+    assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' });
+    assert.equal(called, 0);
+  }
+});
+
 test('scheduler admission rejects missing worker lease and heartbeat contracts', async () => {
   for (const connection of [
     schedulerSchemaConnection({ missingWorkerLease: true }),
@@ -356,7 +408,7 @@ test('runOnce lets an admitted enabled scheduler exclusively own periodic source
   });
 
   assert.deepEqual(result, { queued: 0, manual: 0, scanned: 0 });
-  assert.deepEqual(calls, ['health', 'queued', 'manual']);
+  assert.deepEqual(calls, ['health', 'queued', 'manual', 'queued']);
   assert.equal(schedulerCalls, 1);
 });
 
@@ -385,7 +437,7 @@ test('runOnce does not fall back to legacy periodic sources after an admitted sc
   });
 
   assert.deepEqual(result, { queued: 0, manual: 0, scanned: 0 });
-  assert.deepEqual(calls, ['health', 'queued', 'manual']);
+  assert.deepEqual(calls, ['health', 'queued', 'manual', 'queued']);
 });
 
 test('runOnce shadow admission does not write and keeps the legacy periodic scanner', async () => {
@@ -465,4 +517,38 @@ test('runOnce recovery gate reads the flat repository source_id instead of the r
 
   assert.deepEqual(result, { queued: 1, manual: 0, scanned: 0 });
   assert.deepEqual(calls, [{ runId: 'manual-target-run', leaseOwner: undefined, leaseSeconds: undefined }]);
+});
+
+test('runOnce polls newly queued manual runs while a long source scan is in flight', async () => {
+  const source = { id: 'busy-source', enabled: 1, game_enabled: 1, platform: 'unknown' };
+  const lateSource = { id: 'late-source', enabled: 1, game_enabled: 1, platform: 'unknown' };
+  let listCalls = 0;
+  let releaseBusy;
+  let manualSeen = false;
+  const busyFinished = new Promise(resolve => { releaseBusy = resolve; });
+  const result = await runOnce({
+    repo: {
+      async health() {},
+      async listRunnableSyncRuns() {
+        listCalls += 1;
+        if (listCalls === 1) return [{ id: 'busy-run', source_id: source.id, trigger_type: 'scheduled', source }];
+        return [{ id: 'late-manual-run', source_id: lateSource.id, trigger_type: 'manual', source: lateSource }];
+      },
+      async listManualDueSources() { return []; },
+      async listDueSources() { return []; }
+    },
+    ai: { configured() { return false; } },
+    sourceConcurrency: 2,
+    queuePollIntervalMs: 250,
+    runSource: async (_deps, _source, syncRun) => {
+      if (syncRun.id === 'busy-run') return busyFinished;
+      manualSeen = true;
+      releaseBusy();
+      return { syncRunId: syncRun.id };
+    }
+  });
+
+  assert.equal(manualSeen, true);
+  assert.equal(listCalls >= 2, true);
+  assert.deepEqual(result, { queued: 2, manual: 0, scanned: 0 });
 });

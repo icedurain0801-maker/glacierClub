@@ -8,7 +8,7 @@ function capabilityStatusFromError(error) {
   return code;
 }
 
-const Q1_ALLOWED_HOSTS = new Set(['club.q1.com', 'club-en.q1.com']);
+const Q1_ALLOWED_HOSTS = new Set(['club.q1.com']);
 const Q1_MAX_BOUNDED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function hostOf(url) { try { return new URL(url).host; } catch { return ''; } }
 function q1SafeUrl(url) {
@@ -288,7 +288,7 @@ function q1FallbackPost(listItem, code) {
   return { ...listItem, _contentIntegrity: { status: 'summary_fallback', code } };
 }
 
-function q1Post(item, context) {
+function q1Post(item, context, endpointKind = 'post') {
   const id = item?.id;
   if (id == null) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 post id is required');
   const personality = item.user?.personality || {};
@@ -298,7 +298,7 @@ function q1Post(item, context) {
   detail.searchParams.set('source', '0');
   return {
     externalId: String(id),
-    contentType: 'post',
+    contentType: endpointKind === 'activity' ? 'activity' : 'post',
     title: String(item.title || '').trim(),
     body: q1Body(item.content),
     media: Array.isArray(item._contentMedia) ? item._contentMedia : q1Media(item.content),
@@ -335,6 +335,31 @@ function q1BoundedWindow(dailyBounded, publishedFrom, publishedTo, historyStart 
     throw new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 historyStart must match the bounded collection start');
   }
   return { fromMs, toMs };
+}
+function q1ObservationTime(value) {
+  const time = value == null ? NaN : new Date(value).getTime();
+  return Number.isFinite(time) ? { time, utc: new Date(time).toISOString() } : null;
+}
+function q1CandidateObservation({ items, boundedWindow, endpointKind, feedKey, httpStatus }) {
+  const candidates = Array.isArray(items) ? items : [];
+  const times = candidates.map(item => q1ObservationTime(item?.createTime));
+  const snapshot = (item, time) => item == null ? null : {
+    externalId: item.id == null ? null : String(item.id),
+    publishedAtUtc: time?.utc || null
+  };
+  const inWindowCount = boundedWindow
+    ? times.filter(item => item && item.time >= boundedWindow.fromMs && item.time < boundedWindow.toMs).length
+    : 0;
+  return {
+    endpointKind: String(endpointKind || ''),
+    feedKey: String(feedKey || ''),
+    candidateCount: candidates.length,
+    validCreateTimeCount: times.filter(Boolean).length,
+    inWindowCreateTimeCount: inWindowCount,
+    firstCandidate: snapshot(candidates[0], times[0]),
+    lastCandidate: snapshot(candidates.at(-1), times.at(-1)),
+    httpStatus: Number.isInteger(Number(httpStatus)) ? Number(httpStatus) : null
+  };
 }
 function q1BoundaryIncomplete(reason) {
   return new ConnectorError('COLLECTION_BOUNDARY_INCOMPLETE', `Q1 bounded collection could not prove complete traversal: ${reason}`, { reason });
@@ -526,7 +551,7 @@ async function q1ConcurrentMap(items, concurrency, mapper, signal) {
 }
 
 class BigPlayerH5Connector extends BaseConnector {
-  constructor(env = process.env, { credentialContext = null, fetchImpl = globalThis.fetch, authRefreshCoordinator = null } = {}) {
+  constructor(env = process.env, { credentialContext = null, fetchImpl = globalThis.fetch, authRefreshCoordinator = null, loginSessionClient = null } = {}) {
     super({ platform: 'bigplayer_h5', capabilities: ['posts', 'comments', 'owned_content'] });
     this.enabled = env.BIGPLAYER_H5_ENABLED === 'true' || env.BIGPLAYER_H5_ENABLED === '1';
     this.envBaseUrl = env.BIGPLAYER_H5_API_BASE_URL || env.BIGPLAYER_H5_BASE_URL || '';
@@ -534,6 +559,7 @@ class BigPlayerH5Connector extends BaseConnector {
     this.paths = { posts: env.BIGPLAYER_H5_POSTS_PATH || '/internal/opinion/posts', comments: env.BIGPLAYER_H5_COMMENTS_PATH || '/internal/opinion/posts/:postId/comments' };
     this.credentialContext = credentialContext;
     this.authRefreshCoordinator = authRefreshCoordinator;
+    this.loginSessionClient = loginSessionClient;
     this.fetchImpl = fetchImpl;
     this.cookie = env.BIGPLAYER_H5_AUTH_COOKIE || '';
     this.bearer = env.BIGPLAYER_H5_BEARER_TOKEN || '';
@@ -544,6 +570,8 @@ class BigPlayerH5Connector extends BaseConnector {
     this.feedNoNewPageBudget = Math.max(1, Number(env.BIGPLAYER_H5_FEED_NO_NEW_PAGE_BUDGET || 2));
     this.delayMs = Number(env.BIGPLAYER_H5_DELAY_MS || 500);
     this.timeoutMs = Number(env.BIGPLAYER_H5_TIMEOUT_MS || 15000);
+    this.loginPollIntervalMs = Math.max(0, Number(env.BIGPLAYER_H5_LOGIN_POLL_INTERVAL_MS || 250));
+    this.loginPollTimeoutMs = Math.max(1, Number(env.BIGPLAYER_H5_LOGIN_POLL_TIMEOUT_MS || 30000));
   }
   hostAllowed(url) { return safeHttpUrl(url) && sameHost(url, this.allowedHosts); }
   resolveBaseUrl(source) { return parseSourceConfig(source).baseUrl || this.envBaseUrl; }
@@ -584,11 +612,37 @@ class BigPlayerH5Connector extends BaseConnector {
   async loadApiToken(source, credentialContext = this.credentialContext, account = null) {
     if (!credentialContext) throw new ConnectorError('CREDENTIAL_CONTEXT_REQUIRED', 'account credential context is required');
     const credentialSubject = account || source?.account || source;
+    let passwordLoaded = null;
+    if (typeof credentialContext.load === 'function') {
+      try { passwordLoaded = await credentialContext.load(credentialSubject, 'account_password'); }
+      catch (error) {
+        if (error?.code !== 'CREDENTIAL_NOT_FOUND') throw error;
+      }
+    }
+    if (passwordLoaded) {
+      try {
+        const binding = { accountId: credentialSubject?.id, sourceId: source?.id, platform: source?.platform || this.platform };
+        if (typeof this.loginSessionClient?.startLogin !== 'function' || typeof this.loginSessionClient?.claimAuthResult !== 'function') {
+          throw new Error('LoginSessionClient login flow is unavailable');
+        }
+        if (typeof this.loginSessionClient.bindAccount === 'function') {
+          await this.loginSessionClient.bindAccount({ ...binding, credentialRef: `credential:${binding.accountId}:account_password` });
+        }
+        const started = await this.loginSessionClient.startLogin({ ...binding, credential: passwordLoaded, reason: 'api_authorization' });
+        await this.waitForLoginCompletion(binding, started);
+        const result = await this.loginSessionClient.claimAuthResult(binding);
+        const apiToken = result?.apiToken || result?.accessToken;
+        if (!apiToken) throw new Error('login session returned no API token');
+        return apiToken;
+      } catch (error) {
+        throw new ConnectorError('AUTHORIZATION_FAILED', 'BigPlayer API account login failed', { cause: error?.code || 'LOGIN_FAILED' });
+      }
+    }
     const loaded = typeof credentialContext.loadApiToken === 'function'
       ? await credentialContext.loadApiToken(credentialSubject, 'api_token')
       : typeof credentialContext.load === 'function' ? await credentialContext.load(credentialSubject, 'api_token') : credentialContext;
     const apiToken = typeof loaded === 'string' ? loaded : loaded?.apiToken;
-    if (!apiToken) throw new ConnectorError('CREDENTIAL_SECRET_MISSING', 'account API token is required');
+    if (!apiToken) throw new ConnectorError('AUTHORIZATION_MISSING', 'BigPlayer API authorization is missing');
     return apiToken;
   }
   async requestQ1(path, source, apiToken, params = {}, page = 1, capability = 'posts', authRefreshRetried = false, signal = null, requestContext = {}) {
@@ -599,6 +653,7 @@ class BigPlayerH5Connector extends BaseConnector {
     if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
     let response;
     try {
+      if (typeof source?.__recordHttpRequest === 'function') await source.__recordHttpRequest({ url: url.toString(), capability, page });
       response = await this.fetchImpl(url, {
         redirect: 'manual',
         headers: { accept: 'application/json', authorization: authorizationValue(apiToken), 'content-language': context.language, 'user-agent': 'PublicOpinionSystem/1.0' },
@@ -624,23 +679,77 @@ class BigPlayerH5Connector extends BaseConnector {
     let payload;
     try { payload = await response.json(); } catch { throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('MALFORMED_RESPONSE', 'H5 API returned invalid JSON')); }
     if (payload?.code != null && Number(payload.code) !== 0) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_API_ERROR', 'Q1 H5 API rejected the request', { providerCode: payload.code }));
+    if (payload && typeof payload === 'object') Object.defineProperty(payload, '__q1HttpStatus', { value: Number(response.status), enumerable: false });
     return payload;
   }
   async discoverFeeds({ source, account, credentialContext = this.credentialContext, signal = null } = {}) {
     const context = q1Context(source);
     if (!context.gameId || !context.gameVersion || !context.env) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', 'Q1 source URL must include env, gameId and gameVersion');
+    const configuredBoardId = String(parseSourceConfig(source).boardId || '').trim();
+    if (!/^[1-9]\d*$/.test(configuredBoardId)) throw new ConnectorError('BOARD_ID_REQUIRED', 'BigPlayer source boardId is required');
     const apiToken = await this.loadApiToken(source, credentialContext, account);
     const requestSource = { ...source, account: account || source?.account };
     const requestContext = { credentialContext, account: account || source?.account || null };
-    const boards = q1Boards(await this.requestQ1('/api/club/v1/auth/user/context', requestSource, apiToken, {}, 1, 'posts', false, signal, requestContext));
+    let boards;
+    try { boards = q1Boards(await this.requestQ1('/api/club/v1/auth/user/context', requestSource, apiToken, {}, 1, 'posts', false, signal, requestContext)); }
+    catch (error) {
+      if (error?.code === 'MALFORMED_RESPONSE' && /did not return a board/.test(error.message)) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not available to this source account`);
+      throw error;
+    }
+    const board = boards.find(item => item.id === configuredBoardId);
+    if (!board) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not available to this source account`);
     const feeds = [];
-    for (const board of boards) {
+    for (const selectedBoard of [board]) {
       if (signal?.aborted) throw abortedError(signal);
-      const schema = await this.requestQ1('/api/club/v2/auth/board', requestSource, apiToken, { id: board.id }, 1, 'posts', false, signal, requestContext);
-      feeds.push(...q1BoardFeeds(schema, board));
+      let schema;
+      try {
+        schema = await this.requestQ1('/api/club/v2/auth/board', requestSource, apiToken, { id: selectedBoard.id }, 1, 'posts', false, signal, requestContext);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        if (['PERMISSION_DENIED', 'H5_HTTP_404'].includes(error?.cause?.code || error?.code)) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not accessible`);
+        try { schema = await this.requestQ1('/api/club/v1/auth/board', requestSource, apiToken, { id: selectedBoard.id }, 1, 'posts', false, signal, requestContext); }
+        catch (fallbackError) {
+          if (['PERMISSION_DENIED', 'H5_HTTP_404'].includes(fallbackError?.cause?.code || fallbackError?.code)) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not accessible`);
+          throw fallbackError;
+        }
+      }
+      feeds.push(...q1BoardFeeds(schema, selectedBoard).map(feed => ({ ...feed, boardName: selectedBoard.name })));
     }
     if (!feeds.length) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 board schema did not expose any feeds');
     return feeds;
+  }
+  async waitForLoginCompletion(binding, started = {}) {
+    const statusOf = value => String(value?.status || '').trim().toLowerCase();
+    const terminalFailure = value => ['manual_verification', 'challenge', 'expired', 'invalid', 'revoked', 'failed'].includes(statusOf(value)) || Boolean(value?.failureCode || value?.errorCode);
+    if (statusOf(started) === 'active') return started;
+    if (terminalFailure(started)) {
+      const error = new Error('login session authorization failed');
+      error.code = started.failureCode || started.errorCode || 'LOGIN_FAILED';
+      error.details = started.diagnostics || null;
+      throw error;
+    }
+    if (typeof this.loginSessionClient?.getStatus !== 'function') {
+      const error = new Error('login session completion status is unavailable');
+      error.code = 'LOGIN_STATUS_UNAVAILABLE';
+      throw error;
+    }
+    const deadline = Date.now() + this.loginPollTimeoutMs;
+    let current = started;
+    while (Date.now() <= deadline) {
+      current = await this.loginSessionClient.getStatus(binding);
+      if (statusOf(current) === 'active') return current;
+      if (terminalFailure(current)) {
+        const error = new Error('login session authorization failed');
+        error.code = current.failureCode || current.errorCode || 'LOGIN_FAILED';
+        error.details = current.diagnostics || null;
+        throw error;
+      }
+      if (Date.now() >= deadline) break;
+      if (this.loginPollIntervalMs > 0) await new Promise(resolve => setTimeout(resolve, this.loginPollIntervalMs));
+    }
+    const timeout = new Error('login session authorization timed out');
+    timeout.code = 'AUTHORIZATION_TIMEOUT';
+    throw timeout;
   }
   async enrichQ1FeedItems({ items, source, account, credentialContext, apiToken, page, signal }) {
     const requestSource = { ...source, account: account || source?.account };
@@ -667,13 +776,16 @@ class BigPlayerH5Connector extends BaseConnector {
     const enriched = enrichedItems.filter(item => item?._contentIntegrity?.status === 'detail_enriched').length;
     return { items: enrichedItems, diagnostics: { attempted: items.length, enriched, fallback: items.length - enriched } };
   }
-  async listFeedContents({ source, account, credentialContext = this.credentialContext, signal = null, cursor, limit, feed, segmentId = null, publishedFrom = null, publishedTo = null, dailyBounded = false, historyStart = null, ...descriptor } = {}) {
+  async listFeedContents({ source, account, credentialContext = this.credentialContext, signal = null, cursor, limit, feed, segmentId = null, publishedFrom = null, publishedTo = null, dailyBounded = false, historyStart = null, captureCandidateObservation = false, ...descriptor } = {}) {
     const context = q1Context(source);
     if (!context.gameId || !context.gameVersion || !context.env) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', 'Q1 source URL must include env, gameId and gameVersion');
     const boundedWindow = q1BoundedWindow(dailyBounded, publishedFrom, publishedTo, historyStart);
     const currentFeed = feed && typeof feed === 'object' ? feed : descriptor;
     const endpoint = { merged: '/api/club/v1/auth/post/model/merged-list', info: '/api/club/v1/auth/post/list', activity: '/api/club/v1/auth/post/activity/list' }[currentFeed.endpointKind];
     const boardId = q1PositiveId(currentFeed.boardId);
+    const configuredBoardId = String(parseSourceConfig(source).boardId || '').trim();
+    if (!/^[1-9]\d*$/.test(configuredBoardId)) throw new ConnectorError('BOARD_ID_REQUIRED', 'BigPlayer source boardId is required');
+    if (boardId !== configuredBoardId) throw new ConnectorError('BOARD_SCOPE_MISMATCH', 'Q1 feed board does not match this source');
     const sectionId = currentFeed.sectionId == null ? null : String(currentFeed.sectionId);
     if (!endpoint || !boardId || !sectionId || currentFeed.feedKey !== q1FeedKey(currentFeed)) throw new ConnectorError('INVALID_FEED_DESCRIPTOR', 'Q1 feed descriptor is invalid');
     const pageSize = limit == null ? 20 : Number(limit);
@@ -712,9 +824,16 @@ class BigPlayerH5Connector extends BaseConnector {
     if (!result.items.length && result.total != null && current.offsetId < result.total) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 feed returned an empty page before total was reached');
     const consumedOffset = current.offsetId + result.items.length;
     const nextOffset = result.nextOffset == null ? consumedOffset : result.nextOffset;
-    const listedItems = result.items.map(item => q1Post(item, context));
+    const listedItems = result.items.map(item => q1Post(item, context, currentFeed.endpointKind));
     const timestamps = listedItems.map(item => item.publishedAt == null ? NaN : new Date(item.publishedAt).getTime());
-    if (boundedWindow && timestamps.some(value => !Number.isFinite(value))) throw new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 post is missing a usable published time');
+    const candidateObservation = captureCandidateObservation
+      ? q1CandidateObservation({ items: result.items, boundedWindow, endpointKind: currentFeed.endpointKind, feedKey: currentFeed.feedKey, httpStatus: payload?.__q1HttpStatus })
+      : null;
+    if (boundedWindow && timestamps.some(value => !Number.isFinite(value))) {
+      const error = new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 post is missing a usable published time');
+      if (candidateObservation) error.candidateObservation = candidateObservation;
+      throw error;
+    }
     const pageNewestToOldest = timestamps.every((value, index) => index === 0 || value <= timestamps[index - 1]);
     const previousOldestMs = current.previousOldestPublishedAt == null ? NaN : Date.parse(current.previousOldestPublishedAt);
     const crossPageNonIncreasing = Number.isFinite(previousOldestMs) && (timestamps.length === 0 || timestamps[0] <= previousOldestMs);
@@ -736,7 +855,7 @@ class BigPlayerH5Connector extends BaseConnector {
     const enrichment = duplicatePage
       ? { items: [], diagnostics: { attempted: 0, enriched: 0, fallback: 0 } }
       : await this.enrichQ1FeedItems({ items: selectedItems, source, account, credentialContext, apiToken, page: current.pageIndex, signal });
-    const items = enrichment.items.map(item => q1Post(item, context));
+    const items = enrichment.items.map(item => q1Post(item, context, currentFeed.endpointKind));
     const inWindow = items;
     const pagesFetched = current.pagesFetched + 1;
     const segmentPagesFetched = current.segmentPagesFetched + 1;
@@ -778,7 +897,7 @@ class BigPlayerH5Connector extends BaseConnector {
       nextCursor: hasMore ? JSON.stringify({ version: 2, endpointKind: currentFeed.endpointKind, feedKey: currentFeed.feedKey, pageIndex: currentFeed.endpointKind === 'merged' ? current.pageIndex + 1 : current.pageIndex, offsetId: nextOffset, previousFingerprint: fingerprint, previousOldestPublishedAt: Number.isFinite(timestamps.at(-1)) ? new Date(timestamps.at(-1)).toISOString() : current.previousOldestPublishedAt, timeOrderVerified, pagesFetched, segmentPagesFetched, segmentCount: current.segmentCount, segmentId: current.segmentId, consecutiveNoNewPages, repeatedPageRetries }) : null,
       hasMore,
       capability: 'authorized_scope',
-      raw: { ...payload, paginationDiagnostics }
+      raw: { ...payload, paginationDiagnostics, ...(candidateObservation ? { candidateObservation } : {}) }
     });
   }
   async listQ1Posts({ source, account, credentialContext = this.credentialContext, signal = null, cursor, limit, dailyBounded = false, publishedFrom = null, publishedTo = null, historyStart = null } = {}) {
@@ -825,7 +944,7 @@ class BigPlayerH5Connector extends BaseConnector {
     for (const [key, value] of Object.entries(params)) if (value != null && value !== '') url.searchParams.set(key, String(value));
     if (!this.hostAllowed(url.toString())) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'H5 API URL is outside allowed hosts');
     let response;
-    try { response = await this.fetchImpl(url, { redirect: 'manual', headers: { accept: 'application/json', authorization: authorizationValue(apiToken), 'user-agent': 'PublicOpinionSystem/1.0' }, signal: AbortSignal.timeout(this.timeoutMs) }); }
+    try { if (typeof source?.__recordHttpRequest === 'function') await source.__recordHttpRequest({ url: url.toString(), capability, page: params.cursor || 1 }); response = await this.fetchImpl(url, { redirect: 'manual', headers: { accept: 'application/json', authorization: authorizationValue(apiToken), 'user-agent': 'PublicOpinionSystem/1.0' }, signal: AbortSignal.timeout(this.timeoutMs) }); }
     catch (error) { throw new ConnectorPageError(this.platform, capability, params.cursor || 1, error); }
     if (response.url && !this.hostAllowed(response.url)) throw new ConnectorPageError(this.platform, capability, params.cursor || 1, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'H5 API redirected outside allowed hosts'));
     if (!response.ok && (response.status === 401 || response.status === 403) && this.authRefreshCoordinator && !authRefreshRetried) {

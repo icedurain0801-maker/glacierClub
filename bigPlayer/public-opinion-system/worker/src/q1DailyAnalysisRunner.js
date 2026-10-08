@@ -5,12 +5,19 @@ const { Repository } = require('../../server/src/db/repository');
 const { AiAnalyzer } = require('../../server/src/integrations/aiAnalyzer');
 const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
 const { matchRules } = require('../../server/src/pipeline/ruleEngine');
+const { normalizeSeverity, buildAnalysisReason } = require('../../server/src/services/riskSeverityNormalizer');
 const crypto = require('node:crypto');
 
 const ACTIVE = new Set(['pending', 'running', 'retryable']);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const parseJson = value => { if (!value) return []; if (typeof value === 'object') return value; try { return JSON.parse(value); } catch (_) { return []; } };
 const errorCode = error => error?.code || 'Q1_ANALYSIS_BATCH_FAILED';
+function sanitizeMessage(value) {
+  return String(value || '')
+    .replace(/((?:authorization|cookie|token|password|secret|api[-_ ]?key)\s*[:=]\s*)[^\s,;}&]+/gi, '$1[redacted]')
+    .replace(/Bearer\s+[^\s,;}]+/gi, 'Bearer [redacted]')
+    .slice(0, 500);
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -36,19 +43,22 @@ function shouldDeep(analysis, hit, options = {}) {
     || Number(analysis?.confidence) < confidenceThreshold);
 }
 function cacheKey(ai, job, profile) { return ai.cacheKey(job.content_fingerprint || job.fingerprint, ai.selectProfile(profile), job); }
-function normalizeAnalysis(value, profile, fingerprint) {
+function normalizeAnalysis(value, profile, fingerprint, context = {}) {
   const sentiment = ['positive', 'neutral', 'negative'].includes(String(value?.sentiment || '').toLowerCase())
     ? String(value.sentiment).toLowerCase() : 'neutral';
-  const severity = ['normal', 'attention', 'urgent'].includes(String(value?.severity || '').toLowerCase())
-    ? String(value.severity).toLowerCase() : 'normal';
+  const severity = String(value?.severity || '').toLowerCase();
   const bounded = (input, fallback = 0) => {
     const number = Number(input);
     return Number.isFinite(number) ? Math.min(1, Math.max(0, number)) : fallback;
   };
+  const normalizedSeverity = normalizeSeverity({ ...value, sentiment, severity, negativeScore: bounded(value?.negativeScore ?? value?.negative_score), confidence: bounded(value?.confidence), title: context.title, body: context.body, topics: value?.topics, reason: value?.reason });
   return {
     ...value,
     sentiment,
-    severity,
+    severity: normalizedSeverity.severity,
+    originalSeverity: normalizedSeverity.originalSeverity,
+    severityNormalizationReasons: normalizedSeverity.reasons,
+    analysisReason: buildAnalysisReason(value?.analysisReason ?? value?.analysis_reason ?? value?.reason, normalizedSeverity),
     negativeScore: bounded(value?.negativeScore ?? value?.negative_score),
     confidence: bounded(value?.confidence),
     qualityScore: bounded(value?.qualityScore ?? value?.quality_score),
@@ -111,8 +121,9 @@ class Q1AnalysisRunner {
         let cursor = 0; results = results.map(result => result || fresh[cursor++]);
       }
       for (let i = 0; i < jobs.length; i += 1) {
-        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint), analysisVersion: results[i]?.analysisVersion || spec.version, triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
+        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint, { title: job.title, body: job.body }), analysisVersion: results[i]?.analysisVersion || spec.version, triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
         await this.repo.insertAnalysis(job.content_id, analysis);
+        if (typeof this.repo.reconcilePositiveRiskAlerts === 'function') await this.repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: this.claimOwner });
         if (!cached.has(keys[i])) await this.repo.upsertAnalysisCache({ ...analysis, cacheKey: keys[i], contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
         if (profile === 'deep') { const quality = qualityOf(analysis); await this.repo.upsertQualityCandidate(job.content_id, { ...(quality || {}), body: job.body, sentiment: analysis.sentiment || '', analysisVersion: analysis.analysisVersion, modelName: analysis.modelName, contentFingerprint: analysis.contentFingerprint }); }
         await this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status: 'completed' });

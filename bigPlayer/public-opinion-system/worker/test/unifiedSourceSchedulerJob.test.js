@@ -48,6 +48,7 @@ test('loads candidates before scheduling and returns complete batch evidence', a
       if (normalized.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 3 }]];
       if (normalized.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-1' }]];
+      if (normalized.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at=')) return [{ affectedRows: 1 }];
       throw new Error(`unexpected SQL: ${normalized}`);
     }
   };
@@ -118,6 +119,7 @@ test('isolates a source adapter failure and preserves manual or legacy evidence'
       if (normalized.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 6 }]];
       if (normalized.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-2' }]];
+      if (normalized.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at=')) return [{ affectedRows: 1 }];
       throw new Error(`unexpected SQL: ${normalized}`);
     }
   };

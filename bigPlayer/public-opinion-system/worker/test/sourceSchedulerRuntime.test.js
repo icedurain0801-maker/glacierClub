@@ -52,6 +52,7 @@ test('composes scheduler and repository with injected connection, owner and cloc
       if (normalized.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 4 }]];
       if (normalized.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-1' }]];
+      if (normalized.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at')) return [{ affectedRows: 1 }];
       throw new Error(`unexpected SQL: ${normalized}`);
     }
   };
@@ -92,7 +93,7 @@ test('composes scheduler and repository with injected connection, owner and cloc
   });
   const acquire = calls.find(call => call.sql.includes('lease_epoch=lease_epoch+1'));
   assert.deepEqual(acquire.params, [
-    'run-1', 'worker-a', '2026-01-01 19:06:00.000', '2026-01-01 19:00:00.000', '2026-01-01 20:00:00.000', 'source-1', '2026-01-01 19:01:00.000'
+    'run-1', 'worker-a', '2026-01-01 19:06:00.000', 'source-1', '2026-01-01 19:01:00.000'
   ]);
 });
 
@@ -132,11 +133,12 @@ test('isolates one adapter failure and preserves manual or legacy evidence uncha
   const connection = {
     async query(sql, params = []) {
       const normalized = compact(sql);
-      if (normalized.includes('lease_epoch=lease_epoch+1') && params[5] === 'source-1') throw new Error('lease unavailable');
+      if (normalized.includes('lease_epoch=lease_epoch+1') && params[3] === 'source-1') throw new Error('lease unavailable');
       if (normalized.includes('lease_epoch=lease_epoch+1')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 9 }]];
       if (normalized.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-2' }]];
+      if (normalized.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at')) return [{ affectedRows: 1 }];
       throw new Error(`unexpected SQL: ${normalized}`);
     }
   };
@@ -183,6 +185,7 @@ test('preserves sanitized database error evidence for enqueue failure and contin
       if (normalized.includes('SET lease_run_id=NULL')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
       if (normalized.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-2' }]];
+      if (normalized.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at')) return [{ affectedRows: 1 }];
       throw new Error(`unexpected SQL: ${normalized}`);
     }
   };

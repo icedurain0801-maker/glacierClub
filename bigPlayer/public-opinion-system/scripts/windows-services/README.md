@@ -6,6 +6,7 @@
 
 - `PublicOpinionApi.xml`：WinSW 配置，入口 `server/src/app.js`。
 - `PublicOpinionWorker.xml`：WinSW 配置，入口 `worker/src/worker.js`，`WORKER_MODE=enabled`、`WORKER_INTERVAL_MS=60000`。
+- `PublicOpinionAnalysisWorker.xml`：独立分析消费服务，入口 `worker/src/analysisWorker.js`；与当前 Worker 复用同一 release 和 env，自动启动并按 5/30/60 秒恢复。
 - XML 中的 `APP_ROOT`、`NODE_EXE`、`SERVICE_ACCOUNT` 为部署时替换项，不填入密钥或连接串。
 
 ## 操作脚本
@@ -14,12 +15,24 @@
 - `build-worker-release.ps1` / `verify-worker-release.js`：构建并验证 Worker 独立版本化运行包、生产依赖闭包和 SHA-256 manifest。
 - `prepare-worker-preflight.ps1` / `worker-readiness.js`：在仓库 `.temp` 验证 Worker XML、ACL、Node/Python 入口，并以只允许 `SELECT`/`SHOW` 的连接检查 schema、lease、epoch 就绪状态。
 - `uninstall-services.cmd`：停止并卸载两个新服务；默认 dry-run，必须 `/apply`。
-- `status-services.cmd`：通过同名包装器查询两个服务；默认 dry-run，必须 `/query` 才执行只读查询。
+- `status-services.cmd`：通过同名包装器查询 API、Worker、AnalysisWorker 和 TranslationWorker；默认 dry-run，必须 `/query` 才执行只读查询。
+- `manage-analysis-worker.ps1`：默认 dry-run；`-Mode Preflight` 只读核对当前 Worker 和已安装的 AnalysisWorker，`-Mode Apply` 仅在未安装时复用 Worker 当前 release/env 安装并启动独立服务，已运行实例不重启。
 - `export-legacy-tasks.cmd`：只读导出旧任务 XML 到指定目录；默认 dry-run。
 - `disable-legacy-tasks.cmd`：显示待禁用任务；必须 `/apply` 才执行，绝不删除任务。
-- `rollback-services.cmd`：停止/卸载新服务并按导出 XML 恢复旧任务；必须 `/apply` 才执行。
+- `rollback-services.cmd`：默认 dry-run；仅受控 `/apply` 依次停止/卸载 API、Worker、AnalysisWorker，卸载失败或已安装服务缺少同名包装器时立即退出；旧任务仍须依据先前导出的 XML 手动恢复，不自动修改计划任务。
 
 Worker 阶段 B1 仍禁止执行安装、禁用旧任务、写机器环境变量或启动/重启 Worker。
+
+AnalysisWorker 管理命令（不包含在通用 `install-services.cmd` 中）：
+
+```powershell
+powershell -NoProfile -File scripts/windows-services/manage-analysis-worker.ps1
+powershell -NoProfile -File scripts/windows-services/manage-analysis-worker.ps1 -Mode Preflight
+# 仅在另行获得安装授权、服务尚未安装且使用管理员终端时执行：
+powershell -NoProfile -File scripts/windows-services/manage-analysis-worker.ps1 -Mode Apply
+```
+
+现有服务的 `Preflight` 只读核对服务配置、同版 Worker 包和 WinSW 哈希；脚本不会替换或重启健康实例。生产 env 的值不输出。`Apply` 不负责升级或切换版本，发现同名未注册工件时直接停止等待人工核对。
 
 安装脚本遵循 WinSW v2 同名发现规则：同一份已校验二进制分别部署为 `PublicOpinionApi.exe` 和 `PublicOpinionWorker.exe`，配置分别放在同目录的 `PublicOpinionApi.xml` 和 `PublicOpinionWorker.xml`；安装、卸载和状态命令不再传入 XML 路径。安装前脚本将模板转换为绝对入口、工作目录和独立日志目录；`NODE_EXE` 仅用于生成配置，不依赖机器环境变量。Worker 同时显式配置 `UNIFIED_SOURCE_SCHEDULER_MODE=enabled`。服务使用 `NT AUTHORITY\LocalService`；阶段 B 必须先验证该账户对应用、`.env` 的读取权限和独立日志目录的写入权限，不可为了运行而授予管理员权限。WinSW 应固定为 2.x 稳定版本并核验校验和，停止给予 60 秒收尾时间，超时后才允许包装器终止子进程。
 

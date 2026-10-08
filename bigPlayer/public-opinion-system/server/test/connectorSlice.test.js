@@ -10,8 +10,15 @@ const q1PostDetail916457 = require('./fixtures/q1-post-detail-916457.json');
 
 const keyEnv = { CREDENTIAL_ENC_KEY: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90' };
 function credentialContext(token = 'account-token', patch = {}) {
-  const row = { id: 'cr1', source_id: 's1', status: 'active', expire_at: '2030-01-01T00:00:00Z', secret_cipher: encrypt(token, keyEnv), ...patch };
-  return new CredentialContext({ repo: { getCredential: async () => row }, env: keyEnv, now: () => new Date('2026-08-07T00:00:00Z') });
+  const row = { id: 'cr1', source_id: 's1', status: 'active', credential_type: 'api_token', expire_at: '2030-01-01T00:00:00Z', secret_cipher: encrypt(token, keyEnv), ...patch };
+  return new CredentialContext({
+    repo: {
+      getCredentialByAccount: async (_accountId, credentialType) => row.credential_type === credentialType ? row : null,
+      getCredential: async () => row
+    },
+    env: keyEnv,
+    now: () => new Date('2026-08-07T00:00:00Z')
+  });
 }
 
 test('credential context decrypts active account token and does not leak it in errors', async () => {
@@ -55,12 +62,12 @@ test('H5 separates installation from account health and uses account token for J
     fetchImpl: async (url, options) => { request = { url: url.toString(), options }; const comments = url.toString().includes('/comments'); return { ok: true, json: async () => ({ data: { items: [{ id: 1 }], next_cursor: comments ? null : 'c2', has_more: comments ? false : true } }) }; }
   });
   assert.equal((await connector.installationHealth()).installed, true);
-  assert.equal((await connector.accountHealth({ id: 's1' })).authorized, true);
-  const page = await connector.listPosts({ source: { id: 's1' }, account: { platform_account_id: 'tenant/one' }, cursor: 'c1', limit: 5 });
+  assert.equal((await connector.accountHealth({ id: 's1', config: { boardId: '2' } })).authorized, true);
+  const page = await connector.listPosts({ source: { id: 's1', config: { boardId: '2' } }, account: { platform_account_id: 'tenant/one' }, cursor: 'c1', limit: 5 });
   assert.ok(page instanceof ConnectorPageResult);
   assert.deepEqual(page.items, [{ id: 1 }]); assert.equal(page.nextCursor, 'c2'); assert.equal(page.hasMore, true);
   assert.match(request.url, /\/internal\/opinion\/posts/); assert.match(request.url, /accountId=tenant%2Fone/); assert.match(request.url, /cursor=c1/); assert.equal(request.options.headers.authorization, 'Bearer db-account-token');
-  await connector.listComments({ source: { id: 's1' }, postId: 'post/1', cursor: 'c2' });
+  await connector.listComments({ source: { id: 's1', config: { boardId: '2' } }, postId: 'post/1', cursor: 'c2' });
   assert.match(request.url, /\/internal\/opinion\/posts\/post%2F1\/comments/); assert.doesNotMatch(request.url, /postId=/);
 });
 
@@ -90,7 +97,7 @@ test('Q1 H5 discovers schema feeds and uses endpoint-specific pagination', async
       return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [{ id, title: '签到', content: [{ type: 0, data: '8月签到' }], commentCount: 2, createTime: '2026-08-13T01:10:39Z', user: { account: { id: 5569432 }, personality: { nickName: '打发空闲' } } }], total: 2, hasMore: params.get('offsetId') === '0' } }) };
     }
   });
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS&lang=zh-CN' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS&lang=zh-CN', boardId: '2' } };
   const feeds = await connector.discoverFeeds({ source });
   assert.deepEqual(feeds.map(feed => [feed.pageKind, feed.endpointKind, feed.sectionId, feed.type, feed.tabName]), [
     ['home', 'merged', '0', null, '首页'],
@@ -132,6 +139,40 @@ test('Q1 H5 discovers schema feeds and uses endpoint-specific pagination', async
   await assert.rejects(() => connector.listComments({ source, postId: '907744', sortType: 3 }), error => error.code === 'INVALID_PAGINATION');
 });
 
+test('Q1 candidate observation is opt-in and contains only redacted candidate metadata', async () => {
+  let includeInvalid = false;
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
+    credentialContext: credentialContext(),
+    fetchImpl: async url => {
+      const href = String(url);
+      if (href.includes('/post/model/merged-list')) return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { list: [
+        { id: 101, title: 'first', content: [], createTime: '2026-09-20T00:05:00+08:00' },
+        ...(includeInvalid ? [{ id: 102, title: 'bad-time', content: [], createTime: 'not-a-date' }] : []),
+        { id: 103, title: 'last', content: [], createTime: '2026-09-20T01:05:00+08:00' }
+      ], total: includeInvalid ? 3 : 2, hasMore: false } }) };
+      if (href.includes('/api/club/v1/auth/post/')) return { ok: true, status: 200, url: href, json: async () => ({ code: 0, data: { id: Number(new URL(href).searchParams.get('postId')), content: [] } }) };
+      throw new Error(`unexpected request ${href}`);
+    }
+  });
+  const source = { id: 'source-observation', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS&lang=zh-CN', boardId: '2' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null, feedKey: '2:home:merged::0:::' };
+  const disabled = await connector.listFeedContents({ source, ...feed, limit: 20, dailyBounded: true, publishedFrom: '2026-09-19T16:00:00Z', publishedTo: '2026-09-20T16:00:00Z' });
+  assert.equal(disabled.raw.candidateObservation, undefined);
+  const page = await connector.listFeedContents({ source, ...feed, limit: 20, dailyBounded: true, publishedFrom: '2026-09-19T16:00:00Z', publishedTo: '2026-09-20T16:00:00Z', captureCandidateObservation: true });
+  assert.deepEqual(page.raw.candidateObservation, {
+    endpointKind: 'merged', feedKey: '2:home:merged::0:::', candidateCount: 2, validCreateTimeCount: 2, inWindowCreateTimeCount: 2,
+    firstCandidate: { externalId: '101', publishedAtUtc: '2026-09-19T16:05:00.000Z' },
+    lastCandidate: { externalId: '103', publishedAtUtc: '2026-09-19T17:05:00.000Z' }, httpStatus: 200
+  });
+  assert.deepEqual(Object.keys(page.raw.candidateObservation).sort(), ['candidateCount', 'endpointKind', 'feedKey', 'firstCandidate', 'httpStatus', 'inWindowCreateTimeCount', 'lastCandidate', 'validCreateTimeCount']);
+  assert.doesNotMatch(JSON.stringify(page.raw.candidateObservation), /authorization|token|content/i);
+  includeInvalid = true;
+  await assert.rejects(
+    () => connector.listFeedContents({ source, ...feed, limit: 20, dailyBounded: true, publishedFrom: '2026-09-19T16:00:00Z', publishedTo: '2026-09-20T16:00:00Z', captureCandidateObservation: true }),
+    error => error.code === 'COLLECTION_BOUNDARY_UNVERIFIED' && error.candidateObservation?.validCreateTimeCount === 2 && error.candidateObservation?.candidateCount === 3
+  );
+});
+
 test('credential context loads the active account api_token used by BigPlayer', async () => {
   const context = new CredentialContext({
     repo: {
@@ -149,7 +190,7 @@ test('credential context loads the active account api_token used by BigPlayer', 
 
 test('Q1 feed enriches 916457-shaped summaries from exact detail requests without changing order', async () => {
   const requests = [];
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS&lang=zh-CN' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS&lang=zh-CN', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const secondListItem = { id: 916458, title: '第二条摘要', content: [{ type: 0, data: '第二条列表摘要' }], createTime: '2026-09-10T08:16:00Z' };
@@ -197,7 +238,7 @@ test('Q1 feed enriches 916457-shaped summaries from exact detail requests withou
 });
 
 test('Q1 detail HTTP/JSON/structure failures preserve the list summary with stable fallback diagnostics', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const cases = [
@@ -237,7 +278,7 @@ test('Q1 detail HTTP/JSON/structure failures preserve the list summary with stab
 });
 
 test('Q1 detail preserves list metadata, unions media, and strips sensitive detail fields from raw payload', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const listItem = {
@@ -330,7 +371,7 @@ test('Q1 detail preserves list metadata, unions media, and strips sensitive deta
 });
 
 test('Q1 detail empty metadata and createTime drift cannot overwrite list identity or daily-window time', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const listItem = {
@@ -369,7 +410,7 @@ test('Q1 detail empty metadata and createTime drift cannot overwrite list identi
 });
 
 test('Q1 bounded feed rejects missing, invalid, reversed, and over-seven-day windows before any request', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   let requests = 0;
@@ -394,7 +435,7 @@ test('Q1 bounded feed rejects missing, invalid, reversed, and over-seven-day win
 });
 
 test('Q1 bounded feed fails closed on missing list createTime before detail enrichment', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   let detailRequests = 0;
@@ -414,7 +455,7 @@ test('Q1 bounded feed fails closed on missing list createTime before detail enri
 });
 
 test('Q1 bounded feed enriches and returns only posts inside the fixed window', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const detailIds = [];
@@ -440,7 +481,7 @@ test('Q1 bounded feed enriches and returns only posts inside the fixed window', 
 });
 
 test('Q1 listPosts validates and forwards the fixed window before discovery, credentials, or network', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const calls = { discover: 0, credential: 0, network: 0, feed: [] };
@@ -469,7 +510,7 @@ test('Q1 listPosts validates and forwards the fixed window before discovery, cre
 });
 
 test('Q1 detail enrichment propagates abort instead of returning a summary fallback', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const controller = new AbortController();
@@ -498,7 +539,7 @@ test('Q1 detail enrichment propagates abort instead of returning a summary fallb
 });
 
 test('Q1 detail worker pool propagates cancellation nested in ConnectorPageError and stops claiming work', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const account = { id: 'a1', platform: 'bigplayer_h5' };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
@@ -536,7 +577,7 @@ test('Q1 detail worker pool propagates cancellation nested in ConnectorPageError
 });
 
 test('Q1 detail worker pool aborts sibling requests for nested daily timeout without aborting the external signal', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const list = Array.from({ length: 8 }, (_, index) => ({ id: 940000 + index, content: [{ type: 0, data: `摘要-${index}` }] }));
@@ -591,7 +632,7 @@ test('Q1 detail worker pool aborts sibling requests for nested daily timeout wit
 });
 
 test('Q1 detail 401 refresh reuses the explicitly supplied credential context and account', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const account = { id: 'explicit-account', source_id: 's1', platform: 'bigplayer_h5' };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
@@ -636,7 +677,7 @@ test('Q1 detail 401 refresh reuses the explicitly supplied credential context an
 });
 
 test('Q1 detail enrichment uses a fixed concurrency limit of at most four', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const list = Array.from({ length: 9 }, (_, index) => ({ id: 920000 + index, title: `摘要-${index}`, content: [{ type: 0, data: `摘要-${index}` }] }));
@@ -682,7 +723,7 @@ test('Q1 comments omit top-level commentId, advance by last ID and schedule inco
       return { ok: true, status: 200, url: href, json: async () => ({ code: 0, total: 3, data: [{ id: 102, content: '下一页' }] }) };
     }
   });
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const first = await connector.listComments({ source, postId: '907744', limit: 1 });
   assert.doesNotMatch(requests[0], /commentId=/);
   assert.deepEqual(first.items.map(item => item.externalId), ['101']);
@@ -697,7 +738,7 @@ test('Q1 comments omit top-level commentId, advance by last ID and schedule inco
 });
 
 test('Q1 bounded comments and replies reject invalid windows before credentials or network', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const calls = { credential: 0, network: 0 };
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
     credentialContext: { async load() { calls.credential += 1; return { apiToken: 'must-not-load' }; } },
@@ -714,7 +755,7 @@ test('Q1 bounded comments and replies reject invalid windows before credentials 
 });
 
 test('Q1 bounded comments and replies filter by createTime before returning to the worker', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
     credentialContext: credentialContext('comment-window-token'),
     fetchImpl: async url => {
@@ -744,7 +785,7 @@ test('Q1 bounded comments and replies filter by createTime before returning to t
 });
 
 test('Q1 bounded comments fail closed when any returned comment lacks createTime', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
     credentialContext: credentialContext(),
     fetchImpl: async url => ({ ok: true, status: 200, url: String(url), json: async () => ({ code: 0, total: 1, hasMore: false, data: [{ id: 101, content: 'top', createTime: '2026-09-10T12:00:00Z', replies: [{ id: 201, content: 'missing time' }] }] }) })
@@ -757,7 +798,7 @@ test('Q1 bounded comments fail closed when any returned comment lacks createTime
 
 test('Q1 feed treats omitted hasMore as resumable', async () => {
   const requests = [];
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
@@ -785,7 +826,7 @@ test('Q1 feed treats omitted hasMore as resumable', async () => {
 
 test('Q1 feed continues after a 20-item first page and consumes the remaining page', async () => {
   const requests = [];
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const post = id => ({ id, title: `帖子-${id}`, content: [{ type: 0, data: `正文-${id}` }] });
@@ -833,7 +874,7 @@ test('Q1 feed continues after a 20-item first page and consumes the remaining pa
 });
 test('Q1 feed honors explicit hasMore when total is page-local', async () => {
   const requests = [];
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
@@ -857,7 +898,7 @@ test('Q1 feed honors explicit hasMore when total is page-local', async () => {
   assert.equal(requests.length, 2);
 });
 test('Q1 daily window continues through unordered old posts and exposes bounded diagnostics', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   let call = 0;
@@ -881,7 +922,7 @@ test('Q1 daily window continues through unordered old posts and exposes bounded 
 });
 
 test('Q1 bounded feed continues across two out-of-window pages and reaches a later in-window page', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   let feedPage = 0;
@@ -909,7 +950,7 @@ test('Q1 bounded feed continues across two out-of-window pages and reaches a lat
 });
 
 test('Q1 bounded feed stops after a verified page that is entirely before the window', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   let feedCalls = 0;
@@ -943,7 +984,7 @@ test('Q1 bounded feed stops after a verified page that is entirely before the wi
 });
 
 test('Q1 bounded feed does not stop when page timestamps jump backwards across pages', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   let feedCalls = 0;
@@ -972,7 +1013,7 @@ test('Q1 bounded feed does not stop when page timestamps jump backwards across p
 });
 
 test('Q1 bounded feed fails closed when provider explicitly reports more after an empty page', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, {
@@ -986,7 +1027,7 @@ test('Q1 bounded feed fails closed when provider explicitly reports more after a
 });
 
 test('Q1 bounded feed fails closed when page budget or repeated-page progress cannot prove completion', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const window = { dailyBounded: true, publishedFrom: '2026-09-10T00:00:00Z', publishedTo: '2026-09-11T00:00:00Z' };
@@ -1028,7 +1069,7 @@ test('Q1 bounded feed fails closed when page budget or repeated-page progress ca
 });
 
 test('Q1 bounded feed defaults to the provider offset ceiling instead of the generic crawler page budget', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const cursor = JSON.stringify({ version: 2, endpointKind: 'merged', feedKey: feed.feedKey, pageIndex: 100, offsetId: 4950, previousFingerprint: null, pagesFetched: 99, consecutiveNoNewPages: 0, repeatedPageRetries: 0 });
@@ -1050,7 +1091,7 @@ test('Q1 bounded feed defaults to the provider offset ceiling instead of the gen
 });
 
 test('Q1 bounded feed reports the provider offset ceiling as incomplete before credentials or network', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const calls = { credential: 0, network: 0 };
@@ -1067,7 +1108,7 @@ test('Q1 bounded feed reports the provider offset ceiling as incomplete before c
 });
 
 test('Q1 bounded feed returns the cursor that reaches the provider offset ceiling before worker failure', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   const cursor = JSON.stringify({ version: 2, endpointKind: 'merged', feedKey: feed.feedKey, pageIndex: 200, offsetId: 9950, previousFingerprint: null, pagesFetched: 199, consecutiveNoNewPages: 0, repeatedPageRetries: 0 });
@@ -1091,7 +1132,7 @@ test('Q1 bounded feed returns the cursor that reaches the provider offset ceilin
 });
 
 test('Q1 feed retries one repeated page and resumes when the provider advances', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
   feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
   let feedCall = 0;
@@ -1120,7 +1161,7 @@ test('Q1 feed retries one repeated page and resumes when the provider advances',
 });
 
 test('Q1 feed marks consecutive repeated pages incomplete and de-duplicates them', async () => {
-  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS' } };
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
   const response = url => ({ ok: true, status: 200, url: String(url), json: async () => ({ code: 0, total: 3, hasMore: true, data: [{ id: 101, content: '重复' }] }) });
   const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, { credentialContext: credentialContext(), fetchImpl: response });
   const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null };
@@ -1170,7 +1211,7 @@ test('H5 supports direct post and comment endpoints', async () => {
     credentialContext: credentialContext('direct-token'),
     fetchImpl: async (url, options) => { requests.push({ url: String(url), options }); return { ok: true, status: 200, url: String(url), headers: { get: () => null }, json: async () => ({ items: [], hasMore: false }) }; }
   });
-  const source = { id: 's1', config: { postsApiUrl: 'https://api.example.com/v1/posts', commentsApiUrl: 'https://api.example.com/v1/comments' } };
+  const source = { id: 's1', config: { postsApiUrl: 'https://api.example.com/v1/posts', commentsApiUrl: 'https://api.example.com/v1/comments', boardId: '2' } };
   const health = await connector.installationHealth(source);
   assert.equal(health.installed, true);
   assert.equal(health.endpoints.replies, undefined);
@@ -1186,7 +1227,7 @@ test('H5 recursively flattens children and legacy replies in parent-before-child
     credentialContext: credentialContext('token'),
     fetchImpl: async () => ({ ok: true, status: 200, url: 'https://api.example.com/comments', headers: { get: () => null }, json: async () => ({ items: [{ id: 'c1', children: [{ id: 'c2', replies: [{ id: 'c3' }] }] }], hasMore: false }) })
   });
-  const source = { id: 's1', config: { baseUrl: 'https://api.example.com', commentsApiUrl: 'https://api.example.com/comments' } };
+  const source = { id: 's1', config: { baseUrl: 'https://api.example.com', commentsApiUrl: 'https://api.example.com/comments', boardId: '2' } };
   const page = await connector.listComments({ source, postId: 'p1' });
   assert.deepEqual(page.items.map(item => [item.externalId, item.platformParentId, item.contentDepth]), [['c1', null, 1], ['c2', 'c1', 2], ['c3', 'c2', 3]]);
   await assert.rejects(() => connector.listComments({ source, postId: 'p1', limit: 0 }), error => error.code === 'INVALID_PAGINATION');

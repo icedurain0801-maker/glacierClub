@@ -17,6 +17,7 @@ function connConfig(env) {
 }
 
 const MIGRATION_023 = '023_unified_source_scheduling.sql';
+const MIGRATION_028 = '028_bigplayer_scheduled_site_runs.sql';
 const MIGRATION_023_CHECKS = [
   {
     table: 'po_translation_jobs',
@@ -32,6 +33,50 @@ const MIGRATION_023_CHECKS = [
     ]
   }
 ];
+const MIGRATION_028_CHECKS = [
+  {
+    table: 'po_sync_runs',
+    constraint: 'po_sync_runs_trigger_slot_chk',
+    definitions: [
+      "(`trigger_type` in ('legacy','manual','scheduled_site') and `scheduled_at` is null) or (`trigger_type` in ('scheduled','scheduled_catchup') and `scheduled_at` is not null)",
+      "`trigger_type` in ('legacy','manual','scheduled_site') and `scheduled_at` is null or `trigger_type` in ('scheduled','scheduled_catchup') and `scheduled_at` is not null"
+    ]
+  }
+];
+const MIGRATION_027_PREREQUISITES = [
+  ['po_sources', 'id', 'char(36)'],
+  ['po_accounts', 'source_id', 'char(36)'],
+  ['po_sync_runs', 'id', 'char(36)'],
+  ['po_sync_runs', 'source_id', 'char(36)'],
+  ['po_sync_checkpoints', 'account_id', 'char(36)'],
+  ['po_sync_checkpoints', 'task_kind', 'varchar(40)'],
+  ['po_sync_checkpoints', 'task_key', 'varchar(255)'],
+  ['po_sync_checkpoints', 'window_start', 'varchar(32)'],
+  ['po_sync_checkpoints', 'window_end', 'varchar(32)']
+];
+
+async function validateMigration027Prerequisites(connection, applied) {
+  const requiredVersions = [
+    '023_unified_source_scheduling.sql',
+    '025_worker_scan_leases.sql',
+    '026_scheduler_runtime_schema_reconciliation.sql'
+  ];
+  const missingVersions = requiredVersions.filter(version => !applied.has(version));
+  const [rows] = await connection.query(
+    `SELECT table_name, column_name, column_type FROM information_schema.columns
+     WHERE table_schema=DATABASE() AND table_name IN (?,?,?,?)`,
+    ['po_sources', 'po_accounts', 'po_sync_runs', 'po_sync_checkpoints']
+  );
+  const actual = new Map(rows.map(row => [`${row.table_name}.${row.column_name}`, row.column_type.toLowerCase()]));
+  const missingColumns = MIGRATION_027_PREREQUISITES
+    .filter(([table, column, type]) => !actual.has(`${table}.${column}`) || actual.get(`${table}.${column}`) !== type)
+    .map(([table, column, type]) => `${table}.${column}=${type}`);
+  if (missingVersions.length || missingColumns.length) {
+    const error = new Error(`027 prerequisites not ready; versions=${missingVersions.join(',') || 'ok'} columns=${missingColumns.join(',') || 'ok'}`);
+    error.code = 'MIGRATION_027_PREREQUISITE_NOT_READY';
+    throw error;
+  }
+}
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -115,8 +160,8 @@ function checkDefinitionMismatch(table, constraint) {
   return error;
 }
 
-async function validateMigration023Checks(connection) {
-  for (const expected of MIGRATION_023_CHECKS) {
+async function validateMigrationChecks(connection, checks = MIGRATION_023_CHECKS) {
+  for (const expected of checks) {
     const [rows] = await connection.query(`SHOW CREATE TABLE ${expected.table}`);
     const createTableSql = rows?.[0]?.['Create Table'];
     const actual = typeof createTableSql === 'string'
@@ -130,7 +175,8 @@ async function validateMigration023Checks(connection) {
 
 async function applyMigration({ connection, file, sql, logger = console }) {
   await connection.query(sql);
-  if (file === MIGRATION_023) await validateMigration023Checks(connection);
+  if (file === MIGRATION_023) await validateMigrationChecks(connection, MIGRATION_023_CHECKS);
+  if (file === MIGRATION_028) await validateMigrationChecks(connection, MIGRATION_028_CHECKS);
   await connection.query('INSERT INTO po_schema_migrations (version) VALUES (?)', [file]);
   logger.log(`migration applied: ${file}`);
 }
@@ -154,8 +200,10 @@ async function runMigrations({
     const files = only ? [path.basename(only)] : fileSystem.readdirSync(migrationsDir).filter(name => name.endsWith('.sql')).sort();
     for (const file of files) {
       if (applied.has(file)) { logger.log(`skip (already applied): ${file}`); continue; }
+      if (file === '027_bigplayer_multisite.sql') await validateMigration027Prerequisites(conn, applied);
       const sql = fileSystem.readFileSync(path.join(migrationsDir, file), 'utf8');
       await applyMigration({ connection: conn, file, sql, logger });
+      applied.add(file);
     }
   } catch (error) {
     primaryError = error;
@@ -176,7 +224,7 @@ async function main() {
   await runMigrations();
 }
 if (require.main === module) {
-  main().catch(error => { console.error(error.message); process.exitCode = 1; });
+  main().catch(error => { console.error(error.code ? `${error.code}: ${error.message}` : error.message); process.exitCode = 1; });
 }
 
 module.exports = { applyMigration, runMigrations };

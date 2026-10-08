@@ -33,7 +33,12 @@ function loadEnvFile(filePath, env = process.env) {
 function loadLocalEnvironment({ env = process.env, serviceDir = path.resolve(__dirname, '..') } = {}) {
   const systemDir = path.dirname(serviceDir);
   const loaded = [];
-  for (const filePath of [path.join(systemDir, '.env'), path.join(serviceDir, '.env')]) {
+  // A Windows service runs from an immutable release directory.  It must use
+  // the centrally managed environment file rather than relying on a sibling
+  // `.env` that would duplicate secrets into each release.
+  const configured = String(env.PUBLIC_OPINION_ENV_FILE || '').trim();
+  const candidates = [configured, path.join(systemDir, '.env'), path.join(serviceDir, '.env')].filter(Boolean);
+  for (const filePath of candidates) {
     if (loadEnvFile(filePath, env)) loaded.push(filePath);
   }
   if (env.PUBLIC_OPINION_SERVER_URL === undefined && env.LOGIN_SESSION_SERVER_URL === undefined) {

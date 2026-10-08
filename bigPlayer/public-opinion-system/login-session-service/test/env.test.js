@@ -32,3 +32,18 @@ test('loadLocalEnvironment loads parent system env before service env', () => {
   assert.equal(loaded.length, 2);
   assert.deepEqual(env, { SHARED: 'system', SYSTEM_ONLY: 'yes', SERVICE_ONLY: 'yes', PUBLIC_OPINION_SERVER_URL: 'http://127.0.0.1:4320' });
 });
+
+test('loadLocalEnvironment gives the managed service environment precedence', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'login-env-'));
+  const systemDir = path.join(dir, 'public-opinion-system');
+  const serviceDir = path.join(systemDir, 'login-session-service');
+  const managedFile = path.join(dir, 'public-opinion.env');
+  fs.mkdirSync(serviceDir, { recursive: true });
+  fs.writeFileSync(path.join(systemDir, '.env'), 'LOGIN_SESSION_PORT=4310\n');
+  fs.writeFileSync(path.join(serviceDir, '.env'), 'LOGIN_SESSION_PORT=4310\n');
+  fs.writeFileSync(managedFile, 'LOGIN_SESSION_PORT=4311\n');
+  const env = { PUBLIC_OPINION_ENV_FILE: managedFile };
+  const loaded = loadLocalEnvironment({ env, serviceDir });
+  assert.deepEqual(loaded, [managedFile, path.join(systemDir, '.env'), path.join(serviceDir, '.env')]);
+  assert.equal(env.LOGIN_SESSION_PORT, '4311');
+});

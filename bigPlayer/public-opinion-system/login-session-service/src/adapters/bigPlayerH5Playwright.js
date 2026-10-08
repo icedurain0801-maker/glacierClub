@@ -13,20 +13,23 @@ function loadPlaywright() {
 }
 
 class BigPlayerH5PlaywrightAutomation {
-  constructor({ credentialResolver, playwright, headless = true, timeoutMs = 30000, challengeTtlMs = 300000 } = {}) {
+  constructor({ credentialResolver, playwright, headless = true, timeoutMs = 30000, challengeTtlMs = 300000, executablePath = null } = {}) {
     if (typeof credentialResolver !== 'function') throw new TypeError('credentialResolver is required');
     this.credentialResolver = credentialResolver;
     this.playwright = playwright || loadPlaywright();
     this.headless = headless;
     this.timeoutMs = timeoutMs;
     this.challengeTtlMs = challengeTtlMs;
+    this.executablePath = executablePath || null;
     this.handles = new Map();
   }
 
   async login({ credentialRef, sourceId, accountId, credentials }) {
     const resolvedCredentials = credentials || await this.credentialResolver({ credentialRef, sourceId, accountId, platform: 'bigplayer_h5' });
     if (!resolvedCredentials?.baseUrl || !resolvedCredentials?.account || typeof resolvedCredentials.password !== 'string') throw new ServiceError('CREDENTIAL_RESOLVE_INVALID', 'Resolved BigPlayer credential is incomplete', 502);
-    const browser = await this.playwright.chromium.launch({ headless: this.headless });
+    const launchOptions = { headless: this.headless };
+    if (this.executablePath) launchOptions.executablePath = this.executablePath;
+    const browser = await this.playwright.chromium.launch(launchOptions);
     const context = await browser.newContext({ locale: 'zh-CN' });
     const page = await context.newPage();
     const close = async () => { await context.close().catch(() => {}); await browser.close().catch(() => {}); };
@@ -58,11 +61,20 @@ class BigPlayerH5PlaywrightAutomation {
         }
       }
       if (!loginFrame) throw new ServiceError('LOGIN_FRAME_NOT_FOUND', 'BigPlayer login frame was not found', 502);
-      await loginFrame.locator('input[name="account"]').first().click();
-      await this.fillInput(loginFrame.locator('input[name="account"]').first(), resolvedCredentials.account);
-      await loginFrame.locator('input[name="password"]').first().click();
-      await this.fillInput(loginFrame.locator('input[name="password"]').first(), resolvedCredentials.password);
-      await loginFrame.locator('button.submit-btn').first().click();
+      const accountInput = await this.firstAvailable(loginFrame, [
+        'input[name="account"]', 'input[name="username"]', 'input[name="userName"]', 'input[type="text"]'
+      ]);
+      const passwordInput = await this.firstAvailable(loginFrame, [
+        'input[name="password"]', 'input[type="password"]'
+      ]);
+      if (!accountInput || !passwordInput) throw new ServiceError('LOGIN_FORM_NOT_FOUND', 'BigPlayer login form fields were not found', 502);
+      await accountInput.click();
+      await this.fillInput(accountInput, resolvedCredentials.account);
+      await passwordInput.click();
+      await this.fillInput(passwordInput, resolvedCredentials.password);
+      const submit = await this.firstAvailable(loginFrame, ['button.submit-btn', 'button[type="submit"]', 'button:has-text("登录")']);
+      if (!submit) throw new ServiceError('LOGIN_SUBMIT_NOT_FOUND', 'BigPlayer login submit control was not found', 502);
+      await submit.click();
       await page.waitForTimeout(1000);
       return await this.finishOrChallenge({ page, loginFrame, close });
     } catch (error) { await close(); throw error; }
@@ -72,6 +84,14 @@ class BigPlayerH5PlaywrightAutomation {
     if (typeof locator.fill === 'function') return locator.fill(value);
     if (typeof locator.type === 'function') return locator.type(value, { delay: 15 });
     throw new ServiceError('AUTOMATION_PROTOCOL_INVALID', 'Login input does not support fill or type', 502);
+  }
+
+  async firstAvailable(frame, selectors) {
+    for (const selector of selectors) {
+      const locator = frame.locator(selector).first();
+      if (await locator.count() && await locator.isVisible()) return locator;
+    }
+    return null;
   }
 
   async finishOrChallenge({ page, loginFrame, close }) {
@@ -91,12 +111,12 @@ class BigPlayerH5PlaywrightAutomation {
       return { kind: 'challenge', challenge: { adapterChallengeRef: challengeId, type: 'image_captcha', displayRef: `data:image/png;base64,${buffer.toString('base64')}`, instruction: '请输入图片验证码', allowsTextSubmission: true, requiresPolling: false } };
     }
 
-    const state = await this.inspectLoginState(loginFrame);
+    const state = await this.inspectLoginState(loginFrame, page);
     await close();
     return { kind: 'failure', code: state.code };
   }
 
-  async inspectLoginState(loginFrame) {
+  async inspectLoginState(loginFrame, page = null) {
     try {
       const body = loginFrame.locator('body').first();
       if (await body.count() && typeof body.innerText === 'function') {
@@ -104,12 +124,31 @@ class BigPlayerH5PlaywrightAutomation {
         if (/(账号|用户名|密码).*(错误|不正确|无效)|登录失败|账号不存在/i.test(text)) {
           return { code: 'INVALID_CREDENTIALS' };
         }
-        if (/(短信|验证码|滑块|二维码|扫码|设备确认|安全验证|二次验证)/i.test(text)) {
+        if (/(短信|验证码|滑块|二维码|扫码|设备确认|安全验证|二次验证|风险控制)/i.test(text)) {
           return { code: 'LOGIN_CHALLENGE_REQUIRED' };
         }
+        if (/(登录中|正在登录|加载中)/i.test(text)) return { code: 'LOGIN_TIMEOUT' };
       }
     } catch {}
-    return { code: 'LOGIN_STATE_UNKNOWN' };
+    return { code: 'LOGIN_STATE_UNKNOWN', diagnostics: await this.loginDiagnostics(loginFrame, page) };
+  }
+
+  async loginDiagnostics(loginFrame, page) {
+    const safeUrl = value => { try { return new URL(value).host; } catch { return null; } };
+    try {
+      const text = await loginFrame.locator('body').first().innerText().catch(() => '');
+      const captcha = loginFrame.locator('#imgageCaptcha, img[src*="captcha"], [class*="captcha"]').first();
+      return {
+        pageHost: safeUrl(page?.url?.()),
+        frameHost: safeUrl(loginFrame.url?.()),
+        hasAccountField: Boolean(await this.firstAvailable(loginFrame, ['input[name="account"]', 'input[name="username"]', 'input[type="text"]'])),
+        hasPasswordField: Boolean(await this.firstAvailable(loginFrame, ['input[name="password"]', 'input[type="password"]'])),
+        hasCaptcha: Boolean(await captcha.count().catch(() => 0)),
+        textSignals: String(text).replace(/\s+/g, ' ').trim().slice(0, 160)
+      };
+    } catch {
+      return { pageHost: safeUrl(page?.url?.()), frameHost: safeUrl(loginFrame?.url?.()) };
+    }
   }
 
   async readToken(page) {

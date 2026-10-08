@@ -6,7 +6,7 @@ test('daily Q1 waits for an in-flight feed before closing the commit lane', asyn
   const calls = { upsert: 0, finish: [] };
   const source = {
     id: 'daily-q1-source', account_id: 'daily-q1-account', game_id: 'game-1', community_id: 'community-1',
-    region_code: 'domestic', platform: 'bigplayer_h5', display_name: 'BigPlayer'
+    region_code: 'domestic', platform: 'bigplayer_h5', display_name: 'BigPlayer', config: { boardId: '2' }
   };
   const repo = {
     async getDefaultAccount() { return { id: source.account_id, metadata: {} }; },

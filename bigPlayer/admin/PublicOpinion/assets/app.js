@@ -126,9 +126,10 @@ function renderTrend(items, sentiment) {
   const normalized = normalizeTrend(items);
   if (!normalized.length) { container.innerHTML = `<div class="module-state">${esc(scopeEmpty(`${periodLabel()}采集数据`))}</div>`; return; }
   const totals = normalizeSentiment(sentiment, normalized);
-  const total = Object.values(totals).reduce((sum, value) => sum + value, 0) || 1;
-  const negativeRate = totals.negative / total * 100;
-  const healthyRate = (totals.positive + totals.neutral) / total * 100;
+  const classifiedTotal = totals.positive + totals.neutral + totals.negative;
+  const positiveRate = classifiedTotal ? totals.positive / classifiedTotal * 100 : 0;
+  const negativeRate = classifiedTotal ? totals.negative / classifiedTotal * 100 : 0;
+  const neutralRate = classifiedTotal ? totals.neutral / classifiedTotal * 100 : 0;
   const max = Math.max(...normalized.map(day => Math.max(day.total, day.positive + day.negative + day.neutral)), 1);
   const barHeight = 150;
   const bar = value => {
@@ -138,7 +139,7 @@ function renderTrend(items, sentiment) {
   };
   const labelEvery = Math.max(1, Math.ceil(normalized.length / 8));
   const singlePoint = normalized.length === 1;
-  container.innerHTML = `<div class="emotion-summary"><div><strong>${healthyRate.toFixed(1)}%</strong><span>正向 / 中性内容</span></div><div class="danger"><strong>${negativeRate.toFixed(1)}%</strong><span>负面率 <b>${periodLabel()}</b></span></div></div><div class="trend-bars${singlePoint ? ' single-point' : ''}">${normalized.map((day, index) => { const positive = day.positive; const negative = day.negative; const label = index % labelEvery === 0 || index === normalized.length - 1 ? day.date.slice(5) : ''; return `<div class="trend-day-col" title="${esc(day.date)} · 正向 ${positive.toLocaleString()} · 负面 ${negative.toLocaleString()}"><div class="trend-bar-pair"><div class="trend-bar-group positive">${bar(positive)}<b>${positive > 0 ? positive.toLocaleString() : ''}</b></div><div class="trend-bar-group negative">${bar(negative)}<b>${negative > 0 ? negative.toLocaleString() : ''}</b></div></div><span class="trend-day-label">${esc(label)}</span></div>`; }).join('')}</div>`;
+  container.innerHTML = `<div class="emotion-summary"><div class="positive"><strong>${positiveRate.toFixed(1)}%</strong><span>正向率 <b>${periodLabel()}</b></span></div><div class="danger"><strong>${negativeRate.toFixed(1)}%</strong><span>负面率 <b>${periodLabel()}</b></span></div><div class="neutral"><strong>${neutralRate.toFixed(1)}%</strong><span>中性率 <b>${periodLabel()}</b></span></div></div><div class="trend-bars${singlePoint ? ' single-point' : ''}">${normalized.map((day, index) => { const positive = day.positive; const negative = day.negative; const neutral = day.neutral; const label = index % labelEvery === 0 || index === normalized.length - 1 ? day.date.slice(5) : ''; return `<div class="trend-day-col" title="${esc(day.date)} · 正向 ${positive.toLocaleString()} · 中性 ${neutral.toLocaleString()} · 负面 ${negative.toLocaleString()} · 共 ${day.total.toLocaleString()}"><div class="trend-bar-pair"><div class="trend-bar-group positive">${bar(positive)}<b>${positive > 0 ? positive.toLocaleString() : ''}</b></div><div class="trend-bar-group neutral">${bar(neutral)}<b>${neutral > 0 ? neutral.toLocaleString() : ''}</b></div><div class="trend-bar-group negative">${bar(negative)}<b>${negative > 0 ? negative.toLocaleString() : ''}</b></div></div><span class="trend-day-label">${esc(label)}</span></div>`; }).join('')}</div>`;
 }
 // 议题分布：一条内容可命中多个议题，因此各议题之和会大于内容总量，占比统一按内容总量计算。
 const PLATFORM_LABELS = { taptap: 'TapTap', bigplayer_h5: '大玩家 H5', douyin: '抖音', weibo: '微博', xueqiu: '雪球', tieba: '贴吧', nga: 'NGA', rednote: '小红书' };

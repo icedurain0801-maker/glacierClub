@@ -17,7 +17,7 @@ function makeHarness({ url = 'http://test/admin/PublicOpinion/index.html', sessi
   const window = { PUBLIC_OPINION_API: '/api/public-opinion', addEventListener(type, callback) { listeners.set(type, callback); }, dispatchEvent() {}, location };
   const context = { window, document, location, history, URL, URLSearchParams, AbortController, Intl, fetch: (requestUrl, options) => new Promise(resolve => pending.push({ requestUrl, options, resolve })), sessionStorage: { getItem(key) { return sessionValues.get(key) || null; }, setItem(key, value) { sessionValues.set(key, value); } }, CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail; } } };
   vm.runInNewContext(scopeSource, context, { filename: 'scope.js' });
-  return { scope: window.PublicOpinionScope, region, community, platform, pending, history, location, sessionValues, async resolve(index, communities) { pending[index].resolve({ ok: true, text: async () => JSON.stringify({ data: communities }) }); await Promise.resolve(); }, async popstate(next) { setLocation(next); await listeners.get('popstate')(); } };
+  return { scope: window.PublicOpinionScope, region, community, platform, pending, history, location, sessionValues, async resolve(index, communities) { pending[index].resolve({ ok: true, text: async () => JSON.stringify({ data: communities }) }); await Promise.resolve(); }, async reject(index, message = 'temporary failure') { pending[index].resolve({ ok: false, status: 503, text: async () => JSON.stringify({ error: { message } }) }); await Promise.resolve(); }, async popstate(next) { setLocation(next); await listeners.get('popstate')(); } };
 }
 
 test('page transport injects immutable scope, cancels stale reads and blocks empty scope', async () => {
@@ -43,6 +43,17 @@ test('absent URL community cannot mask a legal non-first session selection', asy
   const initialized = harness.scope.init();
   await harness.resolve(0, [{ id: 'one', name: 'One', status: 'enabled' }, { id: 'two', name: 'Two', status: 'enabled' }]);
   await initialized; assert.equal(harness.scope.selected().communityId, 'two');
+});
+
+test('community loading retries one transient read failure without changing the requested scope', async () => {
+  const harness = makeHarness({ url: 'http://test/admin/PublicOpinion/index.html?regionCode=domestic&communityId=one' });
+  const initializing = harness.scope.init();
+  await harness.reject(0, 'temporary gateway response');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(harness.pending.length, 2, 'first failed community read must make exactly one retry');
+  await harness.resolve(1, [{ id: 'one', name: 'One', status: 'enabled' }]); await initializing;
+  assert.equal(harness.scope.available(), true);
+  assert.equal(harness.scope.selected().communityId, 'one');
 });
 
 test('Scope validates URL/session, ignores stale community responses, and aborts active business work', async () => {

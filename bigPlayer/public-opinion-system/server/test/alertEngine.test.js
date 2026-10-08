@@ -50,6 +50,18 @@ test('AI 严重度可将规则 attention 升级为 urgent 触发 immediate', asy
   assert.equal(repo.calls.insertAlert[0].severity, 'urgent');
 });
 
+test('positive normal content never creates links or notifications even with urgent immediate keywords', async () => {
+  const repo = fakeRepo({ openAlert: { id: 'old-1', ding_talk_status: 'sent' } }); const ding = fakeDing();
+  const engine = new AlertEngine(repo, ding, {});
+  const hit = { hitGroups: [{ groupName: '风险攻略词', severity: 'urgent', triggerMode: 'immediate', windowSeconds: 600, thresholdCount: 1, keywords: ['崩溃'] }] };
+  const out = await engine.process({ game, content: { ...content, title: '崩溃流派通关攻略' }, hit, analysis: { sentiment: 'positive', severity: 'normal' } });
+  assert.deepEqual(out, []);
+  assert.equal(repo.calls.findOpenAlert.length, 0);
+  assert.equal(repo.calls.insertAlert.length, 0);
+  assert.equal(repo.calls.linkAlertContent.length, 0);
+  assert.equal(ding.calls.length, 0);
+});
+
 test('aggregate 达阈值才报', async () => {
   const belowRepo = fakeRepo({ windowHits: 2 });
   const engine1 = new AlertEngine(belowRepo, fakeDing(), {});

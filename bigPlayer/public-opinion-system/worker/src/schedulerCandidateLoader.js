@@ -20,6 +20,7 @@ function createSchedulerCandidateLoader(connection, { sourceAllowlist = null } =
          s.auth_expire_at AS source_auth_expire_at,
          s.default_account_id,
          s.frequency_seconds,
+         s.config,
          s.schedule_effective_at,
          s.schedule_version,
          s.active_window,
@@ -59,6 +60,7 @@ function createSchedulerCandidateLoader(connection, { sourceAllowlist = null } =
         auth_expire_at: row.source_auth_expire_at,
         default_account_id: row.default_account_id,
         frequency_seconds: row.frequency_seconds,
+        config: row.config,
         schedule_effective_at: row.schedule_effective_at,
         schedule_version: row.schedule_version,
         active_window: row.active_window

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { AuthRefreshCoordinator } = require('../src/services/authRefreshCoordinator');
 
-function setup(started, result = { apiToken: 'token-value' }) {
+function setup(started, result = { apiToken: 'token-value' }, bindError = null) {
   const updates = [];
   const repo = {
     async acquireAdvisoryLock() { return true; },
@@ -16,7 +16,7 @@ function setup(started, result = { apiToken: 'token-value' }) {
   };
   const loginSessionClient = {
     configured() { return true; },
-    async bindAccount() {},
+    async bindAccount() { if (bindError) throw Object.assign(new Error(bindError), { code: bindError }); },
     async startLogin() { return started; },
     async claimAuthResult() { return result; }
   };
@@ -41,3 +41,23 @@ test('auth refresh rejects an empty API token', async () => {
     error => error.code === 'AUTH_REFRESH_FAILED'
   );
 });
+
+for (const code of ['ACCOUNT_BINDING_CONFLICT', 'ACCOUNT_SCOPE_MISMATCH']) {
+  test(`auth refresh preserves ${code} from login session binding`, async () => {
+    const { coordinator } = setup({ status: 'active' }, undefined, code);
+    await assert.rejects(
+      () => coordinator.refresh({ source, account }),
+      error => error.code === code
+    );
+  });
+}
+
+for (const code of ['CREDENTIAL_RESOLVE_INVALID', 'CREDENTIAL_RESOLVE_FAILED', 'AUTOMATION_NOT_CONFIGURED']) {
+  test(`auth refresh preserves ${code} from login session setup`, async () => {
+    const { coordinator } = setup({ status: 'active' }, undefined, code);
+    await assert.rejects(
+      () => coordinator.refresh({ source, account }),
+      error => error.code === code
+    );
+  });
+}

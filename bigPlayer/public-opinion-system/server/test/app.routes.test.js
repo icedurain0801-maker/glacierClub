@@ -4,7 +4,18 @@ const { once } = require('node:events');
 
 // A4 写接口路由集成测试：起真实 server，用临时 game/source 落库验证契约。
 // 全程在独立 DB（public_opinion_test）跑，结束清场；凭据用固定测试密钥，明文不回显。
+require('../src/runtimeEnv').loadRuntimeEnv();
 process.env.DB_NAME = 'public_opinion_test';
+const testDatabaseUrl = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : new URL('mysql://127.0.0.1');
+if (!process.env.DATABASE_URL) {
+  testDatabaseUrl.hostname = process.env.DB_HOST || '127.0.0.1';
+  testDatabaseUrl.port = process.env.DB_PORT || '3306';
+  testDatabaseUrl.username = process.env.DB_USER || 'root';
+  testDatabaseUrl.password = process.env.DB_PASSWORD || '';
+}
+testDatabaseUrl.pathname = '/public_opinion_test';
+process.env.DATABASE_URL = testDatabaseUrl.toString();
+let testDatabaseVerified = false;
 process.env.CREDENTIAL_ENC_KEY = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
 // SSRF 白名单是唯一可信边界（env 控）。测试里指定一个允许域，用于验证 POST/PATCH baseUrl 校验。
 process.env.BIGPLAYER_H5_ALLOWED_HOSTS = 'community.bigplayer.com';
@@ -26,6 +37,9 @@ async function api(path, options = {}) {
 
 test.before(async () => {
   repo = new Repository();
+  const [identity] = await repo.query('SELECT DATABASE() AS name');
+  assert.equal(identity.name, 'public_opinion_test', 'refuse fixture writes outside test database');
+  testDatabaseVerified = true;
   // 建库 + 灌入最小 schema（复用迁移脚本不现实——这里是测试库，直接建两张要用的表即可）。
   await repo.query('CREATE TABLE IF NOT EXISTS po_games (id VARCHAR(64) PRIMARY KEY, name VARCHAR(120), kind VARCHAR(20) DEFAULT \'owned\', enabled TINYINT DEFAULT 1, dingtalk_webhook_ref VARCHAR(120), created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   await repo.query('CREATE TABLE IF NOT EXISTS po_sources (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), community_id VARCHAR(64) NULL, platform VARCHAR(40), source_type VARCHAR(20) DEFAULT \'owned_community\', display_name VARCHAR(120), enabled TINYINT DEFAULT 0, frequency_seconds INT DEFAULT 21600, config TEXT NULL, active_window TEXT NULL, auth_status VARCHAR(20) DEFAULT \'unconfigured\', auth_expire_at DATETIME NULL, collect_requested_at DATETIME NULL, last_success_at DATETIME NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
@@ -61,6 +75,11 @@ test.before(async () => {
   await repo.query('CREATE UNIQUE INDEX IF NOT EXISTS po_sync_checkpoints_test_task_uk ON po_sync_checkpoints (account_id, task_kind, task_key, sync_scope, root_platform_content_id)');  await repo.query('CREATE TABLE IF NOT EXISTS po_sync_runs (id VARCHAR(64) PRIMARY KEY, account_id VARCHAR(64), status VARCHAR(30) DEFAULT \'queued\', sync_mode VARCHAR(20) DEFAULT \'incremental\', requested_at DATETIME DEFAULT CURRENT_TIMESTAMP, started_at DATETIME NULL, finished_at DATETIME NULL, discovered_count INT DEFAULT 0, stored_count INT DEFAULT 0, fetched_count INT DEFAULT 0, inserted_count INT DEFAULT 0, changed_count INT DEFAULT 0, unchanged_count INT DEFAULT 0, comment_count INT DEFAULT 0, error_code VARCHAR(80) NULL, error_message TEXT NULL, lease_owner VARCHAR(160) NULL, lease_until DATETIME NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS requested_at DATETIME DEFAULT CURRENT_TIMESTAMP');
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  // Keep the route fixture aligned with the multisite projection. Legacy rows
+  // remain valid with a NULL parent; child rows can still carry their parent id.
+  await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS parent_run_id CHAR(36) NULL');
+  await repo.query('ALTER TABLE po_sync_runs MODIFY COLUMN parent_run_id CHAR(36) NULL');
+  await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS site_id VARCHAR(120) NULL');
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS fetched_count INT DEFAULT 0');
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS inserted_count INT DEFAULT 0');
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS changed_count INT DEFAULT 0');
@@ -69,8 +88,37 @@ test.before(async () => {
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS lease_owner VARCHAR(160) NULL');
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS lease_until DATETIME NULL');
   await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS window_start DATETIME(3) NULL');
+  await repo.query('ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS window_end DATETIME(3) NULL');
+  await repo.query(`CREATE TABLE IF NOT EXISTS po_source_sites (
+    id CHAR(36) PRIMARY KEY,
+    source_id VARCHAR(64) NOT NULL,
+    site_id VARCHAR(120) NOT NULL,
+    url TEXT NOT NULL,
+    url_hash CHAR(64) NOT NULL,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    auth_status VARCHAR(24) NOT NULL DEFAULT 'unknown',
+    capabilities JSON NOT NULL,
+    last_error_code VARCHAR(80) NULL,
+    last_error_message TEXT NULL,
+    last_checked_at DATETIME(3) NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    UNIQUE KEY po_source_sites_test_source_site_uk (source_id, site_id),
+    UNIQUE KEY po_source_sites_test_source_url_hash_uk (source_id, url_hash)
+  )`);
+  // Keep this hand-built integration fixture aligned with the unified scheduler
+  // projection and the BigPlayer board-scope migration.
+  for (const [column, definition] of [
+    ['source_id', 'VARCHAR(64) NULL'], ['community_id', 'VARCHAR(64) NULL'],
+    ['board_id', 'VARCHAR(32) NULL'], ['board_name', 'VARCHAR(255) NULL'], ['run_scope', 'VARCHAR(32) NULL'],
+    ['site_url_snapshot', 'TEXT NULL'], ['last_request_at', 'DATETIME NULL'], ['trigger_type', 'VARCHAR(32) NULL'],
+    ['finished_at', 'DATETIME NULL'], ['discovered_count', 'INT DEFAULT 0'], ['stored_count', 'INT DEFAULT 0'],
+    ['error_code', 'VARCHAR(80) NULL'], ['error_message', 'TEXT NULL'], ['next_retry_at', 'DATETIME NULL']
+  ]) await repo.query(`ALTER TABLE po_sync_runs ADD COLUMN IF NOT EXISTS ${column} ${definition}`);
   await repo.query('CREATE TABLE IF NOT EXISTS po_sync_run_contents (sequence_no BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, run_id VARCHAR(64) NOT NULL, content_id VARCHAR(64) NOT NULL, sync_scope VARCHAR(20) NOT NULL, change_type VARCHAR(20) NOT NULL, fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY po_sync_run_contents_test_uk (run_id, content_id, sync_scope))');
   await repo.query('CREATE TABLE IF NOT EXISTS po_contents (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), source_id VARCHAR(64), account_id VARCHAR(64) NULL, external_id VARCHAR(255), content_type VARCHAR(20), platform_author_id VARCHAR(255) NULL, author_name VARCHAR(160) NULL, title TEXT NULL, body TEXT NULL, published_at DATETIME NULL, source_url TEXT NULL, engagement TEXT NULL, raw_payload TEXT NULL, is_deleted TINYINT DEFAULT 0, UNIQUE KEY po_contents_test_identity_uk (source_id, external_id))');
+  await repo.query('CREATE TABLE IF NOT EXISTS po_content_feed_memberships (id CHAR(36) PRIMARY KEY, account_id CHAR(36) NOT NULL, content_id CHAR(36) NOT NULL, feed_key VARCHAR(255) NOT NULL, page_kind VARCHAR(40) NULL, section_id VARCHAR(255) NULL, feed_metadata JSON NOT NULL, first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY po_content_feed_memberships_test_identity_uk (account_id, content_id, feed_key))');
   await repo.query('CREATE INDEX IF NOT EXISTS po_contents_published_time_idx ON po_contents (published_at,id)');
   await repo.query(`CREATE TABLE IF NOT EXISTS po_alerts (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), severity VARCHAR(20), alert_type VARCHAR(20), title VARCHAR(255), trigger_detail TEXT, status VARCHAR(20) DEFAULT 'pending', assignee_id VARCHAR(64) NULL, resolution_note TEXT NULL, ding_talk_status VARCHAR(20) DEFAULT 'not_sent', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, resolved_at DATETIME NULL)`);
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
@@ -79,6 +127,8 @@ test.before(async () => {
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS parent_content_id VARCHAR(64) NULL');
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS content_depth INT NOT NULL DEFAULT 0');
   await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS collected_at DATETIME NULL');
+  await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS board_id VARCHAR(32) NULL');
+  await repo.query('ALTER TABLE po_contents ADD COLUMN IF NOT EXISTS board_name VARCHAR(255) NULL');
   await repo.query('CREATE INDEX IF NOT EXISTS po_contents_game_collected_idx ON po_contents (game_id, collected_at, id)');
   await repo.query('CREATE INDEX IF NOT EXISTS po_contents_source_collected_idx ON po_contents (source_id, collected_at, id)');
   await repo.query('ALTER TABLE po_alerts ADD COLUMN IF NOT EXISTS community_id VARCHAR(64) NULL');
@@ -129,21 +179,28 @@ test.before(async () => {
   await repo.query('DELETE FROM po_alerts WHERE id LIKE ?', ['alert-detail-%']);
   await repo.query('DELETE FROM po_analyses WHERE content_id LIKE ? OR content_id LIKE ?', ['alert-detail-%', 'quality-test-%']);
   await repo.query('DELETE FROM po_contents WHERE id LIKE ? OR id LIKE ?', ['alert-detail-%', 'quality-test-%']);
+  await repo.query('DELETE FROM po_sync_run_contents WHERE run_id=?', ['run-route-test']);
+  await repo.query('DELETE FROM po_contents WHERE id=?', ['run-comment-content']);
+  await repo.query('DELETE FROM po_sync_runs WHERE id IN (?,?)', ['run-route-test', 'run-list-safe']);
   await repo.query('DELETE FROM po_keyword_rules WHERE game_id=?', [gameId]);
   await repo.query('DELETE FROM po_credentials WHERE source_id=?', [sourceId]);
+  await repo.query('DELETE FROM po_source_sites WHERE source_id=?', [sourceId]);
   await repo.query('DELETE FROM po_accounts WHERE id=? OR game_id=?', ['a-test-1', gameId]);
   await repo.query('DELETE FROM po_sources WHERE id=? OR game_id=?', [sourceId, gameId]);
   await repo.query('DELETE FROM po_communities WHERE id=? OR game_id=?', ['c-test-1', gameId]);
   await repo.query('DELETE FROM po_games WHERE id=?', [gameId]);
   await repo.query('INSERT INTO po_games (id, name) VALUES (?,?)', [gameId, '测试游戏']);
   await repo.query('INSERT INTO po_communities (id, game_id, name) VALUES (?,?,?)', ['c-test-1', gameId, '测试社区']);
-  await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status) VALUES (?,?,?,?,?,?,?)', [sourceId, gameId, 'c-test-1', 'bigplayer_h5', '测试源', 1, 'authorized']);
+  await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status, config) VALUES (?,?,?,?,?,?,?,?)', [sourceId, gameId, 'c-test-1', 'bigplayer_h5', '测试源', 1, 'authorized', JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', boardId: '1' })]);
   await repo.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', ['a-test-1', gameId, 'c-test-1', sourceId, 'bigplayer_h5', 'tenant-test', '测试账号', 1, 'authorized', '{}']);
   await repo.query('UPDATE po_sources SET default_account_id=? WHERE id=?', ['a-test-1', sourceId]);
   const cipher = require('../src/integrations/credentialCipher').encrypt('test-account-token');
   await repo.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_cipher, status) VALUES (?,?,?,?,?,?)', ['cr-test-1', 'a-test-1', sourceId, 'api_token', cipher, 'active']);
 
   const mod = require('../src/app');
+  const [appIdentity] = await mod.repo.query('SELECT DATABASE() AS name');
+  assert.equal(appIdentity.name, 'public_opinion_test', 'refuse HTTP writes outside test database');
+  assert.strictEqual(mod.connectors.bigplayer_h5.loginSessionClient, mod.loginSessionClient);
   mod.loginSessionClient.configured = () => true;
   mod.loginSessionClient.bindAccount = async () => ({ bound: true });
   mod.loginSessionClient.startLogin = async () => ({ status: 'pending', sessionRef: 'test-session-ref' });
@@ -154,7 +211,8 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  try { await repo.query('DELETE FROM po_alert_contents WHERE alert_id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_quality_candidates WHERE id LIKE ?', ['quality-test-%']); await repo.query('DELETE FROM po_alerts WHERE id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_analyses WHERE content_id LIKE ? OR content_id LIKE ?', ['alert-detail-%', 'quality-test-%']); await repo.query('DELETE FROM po_contents WHERE id LIKE ? OR id LIKE ?', ['alert-detail-%', 'quality-test-%']); await repo.query('DELETE FROM po_keyword_rules WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sync_run_contents WHERE run_id IN (SELECT id FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?))', [gameId]); await repo.query('DELETE FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_credentials WHERE source_id IN (SELECT id FROM po_sources WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_accounts WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sources WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_games WHERE id=?', [gameId]); } catch {}
+  if (!testDatabaseVerified) { if (repo?.pool) await repo.pool.end(); return; }
+  try { await repo.query('DELETE FROM po_alert_contents WHERE alert_id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_quality_candidates WHERE id LIKE ?', ['quality-test-%']); await repo.query('DELETE FROM po_alerts WHERE id LIKE ?', ['alert-detail-%']); await repo.query('DELETE FROM po_analyses WHERE content_id LIKE ? OR content_id LIKE ?', ['alert-detail-%', 'quality-test-%']); await repo.query('DELETE FROM po_contents WHERE id LIKE ? OR id LIKE ?', ['alert-detail-%', 'quality-test-%']); await repo.query('DELETE FROM po_keyword_rules WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sync_run_contents WHERE run_id IN (SELECT id FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?))', [gameId]); await repo.query('DELETE FROM po_sync_runs WHERE account_id IN (SELECT id FROM po_accounts WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_credentials WHERE source_id IN (SELECT id FROM po_sources WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_source_sites WHERE source_id IN (SELECT id FROM po_sources WHERE game_id=?)', [gameId]); await repo.query('DELETE FROM po_accounts WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_sources WHERE game_id=?', [gameId]); await repo.query('DELETE FROM po_games WHERE id=?', [gameId]); } catch {}
   if (server) await new Promise(resolve => server.close(resolve));
   if (repo && repo.pool) await repo.pool.end();
   // app.js 内部另持一个模块级 repo 连接池，测试结束需一并关闭，否则进程不退出。
@@ -643,7 +701,7 @@ test('legacy PATCH repliesApiUrl is accepted and ignored while posts/comments re
   const res = await api('/sources', { method: 'POST', body: JSON.stringify({
     gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: 'legacy reply input', platformAccountId: 'tenant-legacy-reply',
     postsApiUrl: 'https://community.bigplayer.com/posts', commentsApiUrl: 'https://community.bigplayer.com/comments',
-    repliesApiUrl: 'https://evil.example.com/ignored', apiToken: 'test-token'
+    repliesApiUrl: 'https://evil.example.com/ignored', apiToken: 'test-token', boardId: '1'
   }) });
   assert.equal(res.status, 201);
   const cfg = typeof res.body.data.config === 'string' ? JSON.parse(res.body.data.config) : res.body.data.config;
@@ -664,8 +722,10 @@ test('BigPlayer check-capabilities always uses live detectCapabilities and persi
   const originalDetect = connector.detectCapabilities;
   const originalHealth = connector.accountHealth;
   let detectCalls = 0;
-  connector.detectCapabilities = async () => {
+  let detectInput;
+  connector.detectCapabilities = async input => {
     detectCalls += 1;
+    detectInput = input;
     return { posts: { status: 'available', probe: 'live' }, comments: { status: 'unsupported' } };
   };
   // Static accountHealth capabilities must never be used for BigPlayer detection.
@@ -675,6 +735,9 @@ test('BigPlayer check-capabilities always uses live detectCapabilities and persi
     const res = await api(`/sources/${sourceId}/check-capabilities`, { method: 'POST' });
     assert.equal(res.status, 200);
     assert.equal(detectCalls, 1);
+    assert.equal(detectInput.source.id, sourceId);
+    assert.equal(detectInput.source.account_id, 'a-test-1');
+    assert.equal(detectInput.account.id, 'a-test-1');
     assert.equal(res.body.data.capabilities.posts, 'authorized_scope');
     assert.equal(res.body.data.capabilities.comments, 'unsupported');
     const rows = await repo.query('SELECT capability,status,detail FROM po_source_capabilities WHERE source_id=? ORDER BY capability', [sourceId]);
@@ -686,9 +749,24 @@ test('BigPlayer check-capabilities always uses live detectCapabilities and persi
   }
 });
 
+test('BigPlayer 授权检测失败返回可理解的授权错误', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  connector.accountHealth = async () => { const error = new Error('refresh failed'); error.code = 'AUTH_REFRESH_FAILED'; throw error; };
+  try {
+    const res = await api(`/sources/${sourceId}/check-auth`, { method: 'POST' });
+    assert.equal(res.status, 503);
+    assert.equal(res.body.error.code, 'AUTH_REFRESH_FAILED');
+    assert.equal(res.body.error.message, '账号授权检测失败，请检查账号密码或登录会话服务');
+  } finally {
+    connector.accountHealth = originalHealth;
+  }
+});
+
 test('PATCH /sources/:id/configuration 原子保存 H5 配置并支持空凭据保留', async () => {
   const before = (await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', ['a-test-1', 'api_token']))[0].secret_cipher;
-  const res = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 原子配置', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 21600, syncMode: 'incremental', historyStart: null, enabled: false, credential: {} }) });
+  const res = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 原子配置', baseUrl: 'https://community.bigplayer.com/', boardId: '1', frequencySeconds: 21600, syncMode: 'incremental', historyStart: null, enabled: false, credential: {} }) });
   assert.equal(res.status, 200);
   assert.equal(res.body.data.display_name, 'H5 原子配置');
   assert.equal(res.body.data.frequency_seconds, 21600);
@@ -696,23 +774,42 @@ test('PATCH /sources/:id/configuration 原子保存 H5 配置并支持空凭据�
   const after = (await repo.query('SELECT secret_cipher FROM po_credentials WHERE account_id=? AND credential_type=?', ['a-test-1', 'api_token']))[0].secret_cipher;
   assert.equal(after, before);
   const legacyHistoryStart = '2026-08-01T00:00:00Z';
-  await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', syncMode: 'backfill', historyStart: legacyHistoryStart }), sourceId]);
+  await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', boardId: '1', syncMode: 'backfill', historyStart: legacyHistoryStart }), sourceId]);
   await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ syncMode: 'backfill', historyStart: legacyHistoryStart }), 'a-test-1']);
-  const preserved = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 基础配置', baseUrl: 'https://community.bigplayer.com/', frequencySeconds: 3600, credential: {} }) });
+  const preserved = await api(`/sources/${sourceId}/configuration`, { method: 'PATCH', body: JSON.stringify({ displayName: 'H5 基础配置', baseUrl: 'https://community.bigplayer.com/', boardId: '1', frequencySeconds: 3600, credential: {} }) });
   assert.equal(preserved.status, 200, '基础配置保存不应要求历史回溯字段');
   assert.equal(preserved.body.data.display_name, 'H5 基础配置');
   const preservedSourceConfig = JSON.parse((await repo.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0].config);
   const preservedAccountMetadata = JSON.parse((await repo.query('SELECT metadata FROM po_accounts WHERE id=?', ['a-test-1']))[0].metadata);
   assert.deepEqual({ syncMode: preservedSourceConfig.syncMode, historyStart: preservedSourceConfig.historyStart }, { syncMode: 'backfill', historyStart: legacyHistoryStart });
   assert.deepEqual({ syncMode: preservedAccountMetadata.syncMode, historyStart: preservedAccountMetadata.historyStart }, { syncMode: 'backfill', historyStart: legacyHistoryStart });
-  await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', syncMode: 'incremental', historyStart: null }), sourceId]);
+  await repo.query('UPDATE po_sources SET config=? WHERE id=?', [JSON.stringify({ baseUrl: 'https://community.bigplayer.com/', boardId: '1', syncMode: 'incremental', historyStart: null }), sourceId]);
   await repo.query('UPDATE po_accounts SET metadata=? WHERE id=?', [JSON.stringify({ syncMode: 'incremental', historyStart: null }), 'a-test-1']);
+});
+
+test('PATCH /sources/:id/configuration 境内 BigPlayer 账密仅需一次密码', async () => {
+  const password = 'patch-account-password-regression';
+  const res = await api(`/sources/${sourceId}/configuration`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      displayName: 'H5 账密配置',
+      baseUrl: 'https://community.bigplayer.com/',
+      boardId: '1',
+      frequencySeconds: 21600,
+      credential: { credentialType: 'account_password', account: 'patch-login-account', password }
+    })
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.data.account.hasAccountPassword, true);
+  assert.ok(!JSON.stringify(res.body).includes(password), '响应不得回显密码');
+  await repo.clearAccountCredential('a-test-1', 'account_password');
 });
 
 test('PATCH /sources/:id/configuration 保存并回显 BigPlayer 多站点，首站保持 baseUrl 兼容', async () => {
   const payload = {
     displayName: 'H5 多站点配置',
     baseUrl: 'https://community.bigplayer.com/',
+    boardId: '1',
     siteUrls: ['https://community.bigplayer.com/', 'https://community.bigplayer.com/secondary/'],
     frequencySeconds: 21600,
     credential: {}
@@ -757,8 +854,9 @@ test('PUT /sources/:id/credential 加密落库且响应不回显明文', async (
   assert.ok(!JSON.stringify(res.body).includes('top-secret-value'), '响应不得回显明文');
   // 库里存的是密文
   const rows = await repo.query('SELECT * FROM po_credentials WHERE account_id=?', ['a-test-1']);
-  assert.ok(rows[0].secret_cipher, '密文已落库');
-  assert.ok(!rows[0].secret_cipher.includes('top-secret-value'), '密文不含明文');
+  const credential = rows.find(row => row.credential_type === 'api_token');
+  assert.ok(credential?.secret_cipher, '密文已落库');
+  assert.ok(!credential.secret_cipher.includes('top-secret-value'), '密文不含明文');
 });
 
 test('PUT /sources/:id/credential 允许同一 source 保存多种账号级凭据并可重复更新', async () => {
@@ -768,7 +866,7 @@ test('PUT /sources/:id/credential 允许同一 source 保存多种账号级凭�
   const password = 'password-for-regression';
   const first = await api(`/sources/${sourceId}/credential`, {
     method: 'PUT',
-    body: JSON.stringify({ credentialType: 'account_password', account: 'test-login-account', password, confirmPassword: password })
+    body: JSON.stringify({ credentialType: 'account_password', account: 'test-login-account', password })
   });
   assert.equal(first.status, 200);
   assert.ok(!JSON.stringify(first.body).includes(password), '账号密码响应不得回显密码');
@@ -776,7 +874,7 @@ test('PUT /sources/:id/credential 允许同一 source 保存多种账号级凭�
   const secondPassword = 'updated-password-for-regression';
   const second = await api(`/sources/${sourceId}/credential`, {
     method: 'PUT',
-    body: JSON.stringify({ credentialType: 'account_password', account: 'test-login-account', password: secondPassword, confirmPassword: secondPassword })
+    body: JSON.stringify({ credentialType: 'account_password', account: 'test-login-account', password: secondPassword })
   });
   assert.equal(second.status, 200);
   assert.ok(!JSON.stringify(second.body).includes(secondPassword), '更新响应不得回显密码');
@@ -879,6 +977,20 @@ test('source and account login routes restore the in-memory binding before start
     assert.deepEqual(calls[3].payload, { ...binding, scenario: undefined, reason: 'start' });
   } finally {
     mod.loginSessionClient.bindAccount = originalBindAccount;
+    mod.loginSessionClient.startLogin = originalStartLogin;
+  }
+});
+
+test('BigPlayer login check normalizes automation failures to AUTH_REFRESH_FAILED', async () => {
+  const mod = require('../src/app');
+  const originalStartLogin = mod.loginSessionClient.startLogin;
+  mod.loginSessionClient.startLogin = async () => { throw new Error('login session internal failure'); };
+  try {
+    const response = await api(`/sources/${sourceId}/login/check`, { method: 'POST', body: '{}' });
+    assert.equal(response.status, 503);
+    assert.equal(response.body.error.code, 'AUTH_REFRESH_FAILED');
+    assert.equal(response.body.error.message, '账号授权检测失败，请检查账号密码或登录会话服务');
+  } finally {
     mod.loginSessionClient.startLogin = originalStartLogin;
   }
 });
@@ -986,6 +1098,31 @@ test('POST /sources/:id/sync 仅使用路径 source 精确入队，重复请求�
     mod.repo.startBoundedSourceBackfill = originalStartBoundedSourceBackfill;
     mod.repo.validateBoundedSourceBackfillWindow = originalValidateBoundedSourceBackfillWindow;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
+  }
+});
+
+test('BigPlayer account health preserves source identity while attaching the account', async () => {
+  const mod = require('../src/app');
+  const connector = mod.connectors.bigplayer_h5;
+  const originalHealth = connector.accountHealth;
+  const originalStartSourceSync = mod.repo.startSourceSync;
+  const observed = [];
+  connector.accountHealth = async input => {
+    observed.push(input);
+    return { authorized: true };
+  };
+  mod.repo.startSourceSync = async () => ({ enabled: true, reused: false, run: { id: 'run-source-identity', source_id: sourceId, account_id: 'a-test-1', status: 'queued', sync_mode: 'incremental' } });
+  try {
+    const response = await api(`/sources/${sourceId}/sync`, { method: 'POST', body: JSON.stringify({ mode: 'incremental' }) });
+    assert.equal(response.status, 200);
+    assert.equal(observed.length, 1);
+    assert.equal(observed[0].id, sourceId);
+    assert.equal(observed[0].account_id, 'a-test-1');
+    assert.equal(observed[0].account.id, 'a-test-1');
+    assert.equal(observed[0].platform, 'bigplayer_h5');
+  } finally {
+    connector.accountHealth = originalHealth;
+    mod.repo.startSourceSync = originalStartSourceSync;
   }
 });
 
@@ -1136,8 +1273,10 @@ test('GET sync run observability routes return latest state, enforce scope, and 
   const runId = 'run-route-test';
   await repo.query('DELETE FROM po_sync_runs WHERE id=?', [runId]);
   await repo.query(`INSERT INTO po_sync_runs
-    (id, account_id, status, sync_mode, fetched_count, inserted_count, changed_count, unchanged_count, comment_count)
-    VALUES (?,?,?,?,?,?,?,?,?)`, [runId, 'a-test-1', 'completed', 'incremental', 3, 2, 1, 0, 7]);
+    (id, account_id, status, sync_mode, window_start, window_end, fetched_count, inserted_count, changed_count, unchanged_count, comment_count)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [runId, 'a-test-1', 'completed', 'incremental', '2026-09-14 16:00:09.000', '2026-09-21 16:01:09.000', 3, 2, 1, 0, 7]);
+  await repo.query('INSERT INTO po_contents (id, game_id, community_id, source_id, account_id, external_id, content_type, author_name, body, published_at) VALUES (?,?,?,?,?,?,\'comment\',?,?,?)', ['run-comment-content', gameId, 'c-test-1', sourceId, 'a-test-1', 'run-comment-external', '评论作者', '真实评论正文', '2026-09-20 10:00:00']);
+  await repo.query('INSERT INTO po_sync_run_contents (run_id, content_id, sync_scope, change_type) VALUES (?,?,?,?)', [runId, 'run-comment-content', 'comments', 'inserted']);
 
   const correctScope = `regionCode=domestic&gameId=${gameId}&communityId=c-test-1&sourceId=${sourceId}`;
   for (const path of [
@@ -1157,6 +1296,10 @@ test('GET sync run observability routes return latest state, enforce scope, and 
   assert.equal(detail.body.data.id, runId);
   assert.equal(detail.body.data.source_id, sourceId);
   assert.equal(detail.body.data.fetched_count, 3);
+  assert.equal(detail.body.data.window_start, '2026-09-14 16:00:09.000');
+  assert.equal(detail.body.data.window_end, '2026-09-21 16:01:09.000');
+  assert.equal(detail.body.data.windowStart, '2026-09-14 16:00:09.000');
+  assert.equal(detail.body.data.windowEnd, '2026-09-21 16:01:09.000');
   assert.equal(JSON.stringify(detail.body.data).includes('secret'), false);
   assert.equal(JSON.stringify(detail.body.data).includes('raw_payload'), false);
 
@@ -1168,10 +1311,16 @@ test('GET sync run observability routes return latest state, enforce scope, and 
   assert.equal(empty.status, 200);
   assert.deepEqual(empty.body.data, []);
   assert.equal(empty.body.meta.nextAfter, 0);
+  const comments = await api(`/sync-runs/${runId}/contents?scope=comments&after=0&limit=50&${correctScope}`);
+  assert.equal(comments.status, 200);
+  assert.equal(comments.body.meta.scope, 'comments');
+  assert.equal(comments.body.data.length, 1);
+  assert.equal(comments.body.data[0].content_type, 'comment');
+  assert.equal(comments.body.data[0].body, '真实评论正文');
 
   const preview = await api(`/sync-runs/${runId}/delete-preview?${correctScope}`);
   assert.equal(preview.status, 200);
-  assert.equal(preview.body.data.associationCount, 0);
+  assert.equal(preview.body.data.associationCount, 1);
   assert.equal(preview.body.data.confirmationSuffix, runId.slice(-6));
 
   for (const query of ['scope=replies', 'after=-1', 'after=1.5', 'limit=0', 'limit=101', 'extra=1']) {
@@ -1185,6 +1334,8 @@ test('GET sync run observability routes return latest state, enforce scope, and 
   assert.equal(detailQuery.status, 400);
   const missing = await api('/sync-runs/missing-run');
   assert.equal(missing.status, 404);
+  await repo.query('DELETE FROM po_sync_run_contents WHERE run_id=?', [runId]);
+  await repo.query('DELETE FROM po_contents WHERE id=?', ['run-comment-content']);
   await repo.query('DELETE FROM po_sync_runs WHERE id=?', [runId]);
 });
 
@@ -1224,6 +1375,24 @@ test('POST /sources/:id/sync 授权失败时不启用也不入队', async () => 
     mod.repo.startSourceSync = originalStartSourceSync;
     await repo.query('UPDATE po_sources SET enabled=1, collect_requested_at=NULL WHERE id=?', [sourceId]);
   }
+});
+
+test('scheduled-site parent、child 与 legacy run 均路由至统一控制器', async () => {
+  const app = require('../src/app'); const originalGet = app.repo.getSyncRun; const originalControl = app.repo.requestSyncRunControl; const controls = [];
+  app.repo.getSyncRun = async id => id === 'parent-scheduled' ? { id, runRole: 'parent', hasScheduledSiteChildren: 1 } : { id, runRole: id === 'child-site' ? 'site' : 'single', hasScheduledSiteChildren: 0, status: 'queued' };
+  app.repo.requestSyncRunControl = async (id, action) => { controls.push({ id, action }); return { id, status: action === 'cancel' ? 'cancelled' : 'paused' }; };
+  try {
+    for (const action of ['pause', 'cancel']) {
+      const response = await api(`/sync-runs/parent-scheduled/${action}`, { method: 'POST', body: '{}' });
+      assert.equal(response.status, 200); assert.equal(response.body.data.id, 'parent-scheduled');
+    }
+    assert.deepEqual(controls, [{ id: 'parent-scheduled', action: 'pause' }, { id: 'parent-scheduled', action: 'cancel' }]);
+    for (const id of ['child-site', 'legacy-single']) {
+      const response = await api(`/sync-runs/${id}/pause`, { method: 'POST', body: '{}' });
+      assert.equal(response.status, 200); assert.equal(response.body.data.id, id);
+    }
+    assert.deepEqual(controls, [{ id: 'parent-scheduled', action: 'pause' }, { id: 'parent-scheduled', action: 'cancel' }, { id: 'child-site', action: 'pause' }, { id: 'legacy-single', action: 'pause' }]);
+  } finally { app.repo.getSyncRun = originalGet; app.repo.requestSyncRunControl = originalControl; }
 });
 
 test('Discord check-auth 成功回写 source/account 授权状态后允许 bounded 入队，失败仍保持 fail-closed', async () => {
@@ -1538,11 +1707,15 @@ test('POST /sources 拒绝不存在游戏、未知平台、非法频率和缺失
   assert.equal(noHistory.status, 400);
 });
 
-test('POST /sources 白名单内 baseUrl + Token 新增成功（BigPlayer 默认启用，config 落 URL+起始路径）', async () => {
+test('POST /sources writes authoritative ordered BigPlayer siteUrls with compatible baseUrl', async () => {
   const token = 'single-url-token';
+  const siteUrls = [
+    'https://community.bigplayer.com/?env=web&gameId=100&gameVersion=1.0&lang=%E4%B8%AD%E6%96%87',
+    'https://community.bigplayer.com/secondary?redirect=%2Fhome%3Fa%3D1%26b%3D2&amp;label=%E4%B8%AD%E6%96%87'
+  ];
   const res = await api('/sources', { method: 'POST', body: JSON.stringify({
     gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '新增社区源',
-    baseUrl: 'https://community.bigplayer.com/', apiToken: token, startPaths: '/forum, /news'
+    baseUrl: siteUrls[0], siteUrls, apiToken: token, boardId: '1', startPaths: '/forum, /news'
   }) });
   assert.equal(res.status, 201);
   assert.equal(res.body.data.display_name, '新增社区源');
@@ -1550,7 +1723,8 @@ test('POST /sources 白名单内 baseUrl + Token 新增成功（BigPlayer 默认
   assert.equal(res.body.data.frequency_seconds, 21600, '新增采集源默认 6 小时');
   assert.match(res.body.data.account.platform_account_id, /^pending:/);
   const cfg = typeof res.body.data.config === 'string' ? JSON.parse(res.body.data.config) : res.body.data.config;
-  assert.equal(cfg.baseUrl, 'https://community.bigplayer.com/');
+  assert.equal(cfg.baseUrl, siteUrls[0]);
+  assert.deepEqual(cfg.siteUrls.map(site => site.url), siteUrls);
   assert.deepEqual(cfg.startPaths, ['/forum', '/news']);
   assert.equal(cfg.postsApiUrl, undefined);
   assert.equal(cfg.commentsApiUrl, undefined);
@@ -1565,7 +1739,7 @@ test('POST /sources 接管未配置 legacy H5 源并复用 source/account ID', a
   const token = 'legacy-adopt-token';
   await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status, config) VALUES (?,?,?,?,?,?,?,?)', [legacySourceId, gameId, 'c-test-1', 'bigplayer_h5', '待接管社区源', 1, 'unauthorized', '{}']);
   await repo.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', [legacyAccountId, gameId, 'c-test-1', legacySourceId, 'bigplayer_h5', `legacy-source:${legacySourceId}`, '旧账号', 1, 'unauthorized', '{}']);
-  const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '待接管社区源', baseUrl: 'https://community.bigplayer.com/', apiToken: token }) });
+  const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '待接管社区源', baseUrl: 'https://community.bigplayer.com/', apiToken: token, boardId: '1' }) });
   assert.equal(res.status, 200);
   assert.equal(res.body.meta.adopted, true);
   assert.equal(res.body.data.id, legacySourceId);
@@ -1585,7 +1759,7 @@ test('POST /sources 普通重复源返回 typed 409 而不暴露 SQL', async () 
   await repo.query('DELETE FROM po_sources WHERE id=?', [duplicateId]);
   await repo.query('INSERT INTO po_sources (id, game_id, community_id, platform, display_name, enabled, auth_status) VALUES (?,?,?,?,?,?,?)', [duplicateId, gameId, 'c-test-1', 'bigplayer_h5', displayName, 0, 'unconfigured']);
   try {
-    const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName, baseUrl: 'https://community.bigplayer.com/', apiToken: 'duplicate-token' }) });
+    const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName, baseUrl: 'https://community.bigplayer.com/', apiToken: 'duplicate-token', boardId: '1' }) });
     assert.equal(res.status, 409);
     assert.equal(res.body.error.code, 'SOURCE_ALREADY_EXISTS');
     assert.doesNotMatch(res.body.error.message, /Duplicate entry|po_sources_/i);
@@ -1595,7 +1769,7 @@ test('POST /sources 普通重复源返回 typed 409 而不暴露 SQL', async () 
 });
 
 test('POST /sources 单地址模式缺 Token 返回 400', async () => {
-  const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '缺 Token', baseUrl: 'https://community.bigplayer.com/' }) });
+  const res = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '缺 Token', baseUrl: 'https://community.bigplayer.com/', boardId: '1' }) });
   assert.equal(res.status, 400);
   assert.equal(res.body.error.code, 'INVALID_INPUT');
 });
@@ -1858,7 +2032,7 @@ test('Facebook baseUrl 变化原子失效旧目标状态，规范化未变化时
 });
 
 test('DELETE /sources/:id 软删除：列表消失但 DB 行仍在（历史数据保留）', async () => {
-  const created = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '待删源', baseUrl: 'https://community.bigplayer.com/', apiToken: 'delete-token' }) });
+  const created = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '待删源', baseUrl: 'https://community.bigplayer.com/', apiToken: 'delete-token', boardId: '1' }) });
   const delId = created.body.data.id;
   const accountId = created.body.data.account.id;
   const contentId = 'alert-detail-delete-source-content'; const alertId = 'alert-detail-delete-source-alert';
@@ -1887,7 +2061,7 @@ test('DELETE /sources/:id 软删除：列表消失但 DB 行仍在（历史数�
 });
 
 test('DELETE /sources/:id 在运行任务存在时返回 409 且不发生半删除', async () => {
-  const created = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '运行中待删源', baseUrl: 'https://community.bigplayer.com/', apiToken: 'delete-running-token' }) });
+  const created = await api('/sources', { method: 'POST', body: JSON.stringify({ gameId, communityId: 'c-test-1', platform: 'bigplayer_h5', displayName: '运行中待删源', baseUrl: 'https://community.bigplayer.com/', apiToken: 'delete-running-token', boardId: '1' }) });
   const id = created.body.data.id; const accountId = created.body.data.account.id; const runId = `delete-running-${Date.now()}`;
   try {
     await repo.query("INSERT INTO po_sync_runs (id,account_id,status,sync_mode,lease_owner,lease_until) VALUES (?,?,'running','incremental','delete-test',DATE_ADD(NOW(), INTERVAL 1 HOUR))", [runId, accountId]);

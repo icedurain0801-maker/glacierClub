@@ -268,6 +268,26 @@ try {
     $env:SERVICE_LOG_ROOT = $previousLogRoot
 }
 
+function Get-AccessControlCompat {
+    param([Parameter(Mandatory)][System.IO.FileSystemInfo]$Item)
+
+    # Windows PowerShell has instance methods; pwsh 7.6 uses static extension
+    # methods. Select by API capability so each runtime keeps its supported path.
+    if (@($Item.PSObject.Methods.Match('GetAccessControl')).Count -gt 0) {
+        return $Item.GetAccessControl([System.Security.AccessControl.AccessControlSections]::Access)
+    }
+    if ($Item -is [System.IO.DirectoryInfo]) {
+        return [System.IO.FileSystemAclExtensions]::GetAccessControl(
+            [System.IO.DirectoryInfo]$Item,
+            [System.Security.AccessControl.AccessControlSections]::Access
+        )
+    }
+    return [System.IO.FileSystemAclExtensions]::GetAccessControl(
+        [System.IO.FileInfo]$Item,
+        [System.Security.AccessControl.AccessControlSections]::Access
+    )
+}
+
 function Assert-AllowedAcl {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -279,37 +299,48 @@ function Assert-AllowedAcl {
 
     $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $allowedSids = @('S-1-5-18', 'S-1-5-19', 'S-1-5-32-544', $currentSid)
-    $acl = $item.GetAccessControl([System.Security.AccessControl.AccessControlSections]::Access)
-    foreach ($rule in $acl.Access) {
-        if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
+    $acl = Get-AccessControlCompat -Item $item
+    # FileSystemSecurity.Access is empty when the ACL was read through the
+    # PowerShell 7 compatible static overload above.  GetAccessRules is the
+    # canonical rule collection and includes both explicit and inherited ACEs.
+    $aclRules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+    foreach ($rule in $aclRules) {
         try {
             $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
         } catch {
             throw "Cannot resolve ACL identity $($rule.IdentityReference) on $Path"
         }
-        if ($sid -notin $allowedSids) { throw "Unauthorized allow ACE $sid on $Path" }
+        if ($sid -notin $allowedSids) { throw "Unauthorized $($rule.AccessControlType) ACE $sid on $Path" }
     }
 
-    function Get-AllowRights([string]$Sid) {
-        $rights = [System.Security.AccessControl.FileSystemRights]0
-        foreach ($rule in $acl.Access) {
-            if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
+    function Get-EffectiveRights([string]$Sid) {
+        [Int64]$allowedRights = 0
+        [Int64]$deniedRights = 0
+        foreach ($rule in $aclRules) {
             try { $ruleSid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { continue }
-            if ($ruleSid -eq $Sid) { $rights = $rights -bor $rule.FileSystemRights }
+            if ($ruleSid -ne $Sid) { continue }
+            if ($rule.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow) {
+                $allowedRights = $allowedRights -bor [Int64]$rule.FileSystemRights
+            } elseif ($rule.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny) {
+                # A deny ACE must remove the covered bits after all allowed
+                # fragments are combined; accepting an arbitrary allow ACE is
+                # not sufficient evidence of effective access.
+                $deniedRights = $deniedRights -bor [Int64]$rule.FileSystemRights
+            }
         }
-        return $rights
+        return [System.Security.AccessControl.FileSystemRights]($allowedRights -band (-bnot $deniedRights))
     }
 
     $fullControl = [System.Security.AccessControl.FileSystemRights]::FullControl
     foreach ($sid in @('S-1-5-18', 'S-1-5-32-544')) {
-        $rights = Get-AllowRights $sid
+        $rights = Get-EffectiveRights $sid
         if (($rights -band $fullControl) -ne $fullControl) { throw "FullControl missing for $sid on $Path" }
     }
-    $operatorRights = Get-AllowRights $currentSid
+    $operatorRights = Get-EffectiveRights $currentSid
     $readExecute = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute
     if (($operatorRights -band $readExecute) -ne $readExecute) { throw "Operator ReadAndExecute missing on $Path" }
 
-    $localServiceRights = Get-AllowRights 'S-1-5-19'
+    $localServiceRights = Get-EffectiveRights 'S-1-5-19'
     $requiredLocalServiceRights = if ($Profile -eq 'Writable') { [System.Security.AccessControl.FileSystemRights]::Modify } else { $readExecute }
     if (($localServiceRights -band $requiredLocalServiceRights) -ne $requiredLocalServiceRights) { throw "LocalService $Profile rights missing on $Path" }
     $writeCapableRights = [System.Security.AccessControl.FileSystemRights]::Write `
@@ -335,16 +366,16 @@ if ($DeploymentRoot) {
     $resolvedDataRoot = (Resolve-Path -LiteralPath $DataRoot).Path.TrimEnd('\')
     $resolvedLogRoot = (Resolve-Path -LiteralPath $LogRoot).Path.TrimEnd('\')
     $effectiveSourceRoot = if ($SourceRoot) { (Resolve-Path -LiteralPath $SourceRoot).Path.TrimEnd('\') } else { $projectRoot.TrimEnd('\') }
-    foreach ($item in @(Get-Item -LiteralPath $resolvedReleaseRoot -Force) + @(Get-ChildItem -LiteralPath $resolvedReleaseRoot -Force -Recurse)) { Assert-AllowedAcl -Path $item.FullName -Profile ReadOnly }
+    foreach ($item in @(Get-Item -LiteralPath $resolvedReleaseRoot -Force -ErrorAction Stop) + @(Get-ChildItem -LiteralPath $resolvedReleaseRoot -Force -Recurse -ErrorAction Stop)) { Assert-AllowedAcl -Path $item.FullName -Profile ReadOnly }
     Assert-AllowedAcl -Path $resolvedDeploymentRoot -Profile ReadOnly
     Assert-AllowedAcl -Path (Split-Path -Parent $resolvedConfigFile) -Profile ReadOnly
     Assert-AllowedAcl -Path $resolvedConfigFile -Profile ReadOnly
     Assert-AllowedAcl -Path $resolvedLogRoot -Profile Writable
     foreach ($serviceName in $(if ($TargetService -eq 'All') { $serviceNames } else { @($TargetService) })) {
         $serviceLogRoot = Join-Path $resolvedLogRoot $serviceName
-        foreach ($item in @(Get-Item -LiteralPath $serviceLogRoot -Force) + @(Get-ChildItem -LiteralPath $serviceLogRoot -Force -Recurse)) { Assert-AllowedAcl -Path $item.FullName -Profile Writable }
+        foreach ($item in @(Get-Item -LiteralPath $serviceLogRoot -Force -ErrorAction Stop) + @(Get-ChildItem -LiteralPath $serviceLogRoot -Force -Recurse -ErrorAction Stop)) { Assert-AllowedAcl -Path $item.FullName -Profile Writable }
     }
-    foreach ($item in @(Get-Item -LiteralPath $resolvedDataRoot -Force) + @(Get-ChildItem -LiteralPath $resolvedDataRoot -Force -Recurse)) { Assert-AllowedAcl -Path $item.FullName -Profile Writable }
+    foreach ($item in @(Get-Item -LiteralPath $resolvedDataRoot -Force -ErrorAction Stop) + @(Get-ChildItem -LiteralPath $resolvedDataRoot -Force -Recurse -ErrorAction Stop)) { Assert-AllowedAcl -Path $item.FullName -Profile Writable }
     $deployedServiceNames = if ($TargetService -eq 'All') { $serviceNames } else { @($TargetService) }
     $deployedFiles = foreach ($serviceName in $deployedServiceNames) {
         foreach ($extension in @('.exe', '.xml')) {

@@ -112,8 +112,19 @@ class LoginSessionService {
     } else {
       transition(record, STATES.VERIFYING, this.now());
     }
-    const credentials = this.credentialResolver && binding.platform === 'bigplayer_h5' ? await this.credentialResolver({ ...binding, credentialType: 'account_password', credentialRef: record.credentialRef }) : null;
-    const result = await adapter.login({ scenario: input.scenario, credentialRef: record.credentialRef, ...(credentials ? { ...binding, credentials } : {}) });
+    let result;
+    try {
+      const credentials = this.credentialResolver && binding.platform === 'bigplayer_h5' ? await this.credentialResolver({ ...binding, credentialType: 'account_password', credentialRef: record.credentialRef }) : null;
+      result = await adapter.login({ scenario: input.scenario, credentialRef: record.credentialRef, ...(credentials ? { ...binding, credentials } : {}) });
+    } catch (error) {
+      this.exchangeStore.clearResult(binding);
+      this.sessionStore.revoke(record);
+      record.status = STATES.EXPIRED;
+      record.failureCode = error.code || 'LOGIN_FAILED';
+      record.updatedAt = new Date(this.now()).toISOString();
+      if (error instanceof ServiceError) throw error;
+      throw new ServiceError(record.failureCode, 'Login automation failed', 502);
+    }
     try {
       return this.applyLoginResult(record, binding, result);
     } catch (error) {

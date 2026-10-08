@@ -67,11 +67,38 @@ test('renewSyncRunLease only renews an owned running run', async () => {
   const repo = stubRepo(() => ({ affectedRows: 1 }));
   const renewed = await repo.renewSyncRunLease('run-1', 'owner-1', 45, 3);
   assert.equal(renewed, true);
-  assert.match(repo.calls[0].sql, /status='running'/);
+  assert.match(repo.calls[0].sql, /status IN \('running','pausing','cancelling'\)/);
   assert.match(repo.calls[0].sql, /lease_owner=\?/);
   assert.match(repo.calls[0].sql, /UTC_TIMESTAMP\(3\)/);
   assert.doesNotMatch(repo.calls[0].sql, /NOW\(\)/);
   assert.deepEqual(repo.calls[0].params, [45, 'run-1', 'owner-1', 3]);
+});
+
+test('sync run controls use requested states and worker lease fencing', async () => {
+  const repo = stubRepo(sql => {
+    if (sql.startsWith('UPDATE po_sync_runs')) return { affectedRows: 1 };
+    if (sql.startsWith('SELECT r.id,')) return [{ id: 'run-1', account_id: 'a1', source_id: 's1', game_id: 'g1', status: 'pausing' }];
+    if (sql.startsWith('SELECT id,status,lease_owner')) return [{ id: 'run-1', status: 'pausing', lease_owner: 'owner-1', lease_epoch: 3 }];
+    if (sql.startsWith('INSERT INTO po_audit_events')) return { affectedRows: 1 };
+    if (sql.startsWith('SELECT * FROM po_audit_events')) return [{ id: 'audit-1' }];
+    return [];
+  });
+  const paused = await repo.requestSyncRunControl('run-1', 'pause');
+  assert.equal(paused.status, 'pausing');
+  const pauseUpdate = repo.calls.find(call => call.sql.startsWith('UPDATE po_sync_runs SET status=CASE'));
+  assert.match(pauseUpdate.sql, /status='queued'.*'paused'.*'pausing'/);
+  assert.match(pauseUpdate.sql, /lease_until>UTC_TIMESTAMP\(3\)/);
+  assert.ok(repo.calls.some(call => call.sql.includes('INSERT INTO po_audit_events')));
+  repo.calls.length = 0;
+  const control = await repo.getSyncRunControl('run-1', { leaseOwner: 'owner-1', leaseEpoch: 3 });
+  assert.equal(control.status, 'pausing');
+  assert.match(repo.calls[0].sql, /lease_owner=\? AND lease_epoch=\?.*lease_until>UTC_TIMESTAMP\(3\)/);
+  repo.calls.length = 0;
+  const settled = await repo.settleSyncRunControl('run-1', { status: 'paused', leaseOwner: 'owner-1', leaseEpoch: 3 });
+  assert.equal(settled.status, 'pausing');
+  const settleUpdate = repo.calls.find(call => call.sql.startsWith('UPDATE po_sync_runs'));
+  assert.match(settleUpdate.sql, /status=\? AND lease_owner=\? AND lease_epoch=\?/);
+  await assert.rejects(() => repo.requestSyncRunControl('run-1', 'retry'), error => error.code === 'INVALID_INPUT');
 });
 
 test('claimSyncRun uses one UTC database clock and only reclaims queued or expired running work', async () => {
@@ -100,6 +127,13 @@ test('listRunnableSyncRuns compares expired running leases with the UTC database
   assert.match(repo.calls[0].sql, /r\.status='queued'.*r\.status='running'/);
   assert.match(repo.calls[0].sql, /r\.next_retry_at IS NULL OR r\.next_retry_at<=UTC_TIMESTAMP\(3\)/);
   assert.doesNotMatch(repo.calls[0].sql, /status='failed'|status='partial'|NOW\(\)/);
+});
+
+test('listRunnableSyncRuns excludes multi-site parents while retaining their child runs and legacy roots', async () => {
+  const repo = stubRepo(() => []);
+  await repo.listRunnableSyncRuns({ limit: 10 });
+  assert.match(repo.calls[0].sql, /NOT EXISTS \(SELECT 1 FROM po_sync_runs child WHERE child\.parent_run_id=r\.id\)/);
+  assert.match(repo.calls[0].sql, /r\.status='queued'/);
 });
 
 test('listWorkerAlerts suppresses legacy restart identities after stable identities exist', async () => {
@@ -785,20 +819,20 @@ test('checkpoint identity isolates exact collection windows and preserves same-w
   const rows = new Map();
   const repo = stubRepo((sql, params) => {
     if (sql.startsWith('INSERT IGNORE')) {
-      const key = params.slice(1, 8).join('|');
+      const key = [params[1], params[2] || '', ...params.slice(3, 9)].join('|');
       if (!rows.has(key)) rows.set(key, { id: `cp-${rows.size + 1}`, status: 'idle', cursor: null });
       return { affectedRows: 1 };
     }
     if (sql.startsWith('UPDATE po_sync_checkpoints SET status=')) {
-      const key = params.slice(3, 10).join('|');
+      const key = [params[3], '', ...params.slice(4, 10)].join('|');
       const row = rows.get(key); row.status = 'running'; row.lease_owner = params[0]; return { affectedRows: 1 };
     }
-    if (sql.startsWith('SELECT * FROM po_sync_checkpoints')) return [rows.get(params.join('|'))];
+    if (sql.startsWith('SELECT * FROM po_sync_checkpoints')) return [rows.get([params[0], '', ...params.slice(1)].join('|'))];
     return { affectedRows: 1 };
   });
   const base = { accountId: 'a1', taskKind: 'q1_feed', taskKey: 'home', syncScope: 'posts', leaseOwner: 'worker-1' };
   const first = await repo.claimSyncCheckpoint({ ...base, windowStart: '2026-09-04T16:00:00.000Z', windowEnd: '2026-09-05T16:00:00.000Z' });
-  rows.get('a1|q1_feed|home|posts||2026-09-04T16:00:00.000Z|2026-09-05T16:00:00.000Z').cursor = 'page-2';
+  rows.get('a1||q1_feed|home|posts||2026-09-04T16:00:00.000Z|2026-09-05T16:00:00.000Z').cursor = 'page-2';
   const resumed = await repo.claimSyncCheckpoint({ ...base, windowStart: '2026-09-04T16:00:00.000Z', windowEnd: '2026-09-05T16:00:00.000Z' });
   const nextDate = await repo.claimSyncCheckpoint({ ...base, windowStart: '2026-09-05T16:00:00.000Z', windowEnd: '2026-09-06T16:00:00.000Z' });
   assert.equal(resumed.id, first.id);
@@ -850,6 +884,53 @@ test('listSyncParents only schedules comments from posts', async () => {
   const replies = await repo.listSyncParents('a1', 'replies');
   assert.deepEqual(replies, []);
   assert.equal(repo.calls.length, 1, '不得为 replies 主动查询调度父节点');
+});
+
+test('listDomesticBigPlayerCommentGaps returns the 920098-shaped domestic BigPlayer gap without writes', async () => {
+  const sample = {
+    source_id: '5c21f78d-5f67-4467-963d-dcdeb5e26cab',
+    account_id: 'account-bigplayer-domestic',
+    root_platform_content_id: '920098',
+    post_platform_id: '920098',
+    declared_comment_count: 1,
+    stored_top_level_comment_count: 0,
+    checkpoint_status: null
+  };
+  const repo = stubRepo(() => [sample]);
+  const rows = await repo.listDomesticBigPlayerCommentGaps();
+  assert.deepEqual(rows, [sample]);
+  const query = repo.calls[0];
+  assert.match(query.sql, /s\.platform=\?/);
+  assert.match(query.sql, /g\.region_code=\?/);
+  assert.match(query.sql, /declared_comment_count|JSON_EXTRACT\(c\.engagement,'\$\.comments'\)/);
+  assert.match(query.sql, /content_depth=1/);
+  assert.match(query.sql, /cp_pending\.status IN \('idle','failed'\)/);
+  assert.match(query.sql, /cp_pending\.lease_until<UTC_TIMESTAMP\(3\)/);
+  assert.match(query.sql, /NOT \(EXISTS \(SELECT 1 FROM po_sync_checkpoints cp_active/);
+  assert.match(query.sql, /cp_active\.lease_until>UTC_TIMESTAMP\(3\)/);
+  assert.doesNotMatch(query.sql, /cp_any/, '缺少 checkpoint 不能让无评论缺口的帖子入队');
+  assert.deepEqual(query.params, ['bigplayer_h5', 'domestic', 100]);
+  assert.ok(repo.calls.every(call => !/^(INSERT|UPDATE|DELETE)\b/i.test(call.sql)), '缺口扫描不得写库');
+  assert.doesNotMatch(query.sql, /po_outbox|po_notifications/i, '缺口扫描不得触碰通知/outbox');
+});
+
+test('listDomesticBigPlayerCommentGaps exposes declared gaps or pending checkpoints and excludes active leases', async () => {
+  const repo = stubRepo(() => []);
+  await repo.listDomesticBigPlayerCommentGaps({ limit: 7 });
+  const query = repo.calls[0];
+  assert.match(query.sql, /JSON_EXTRACT\(c\.engagement,'\$\.comment(s)?'\)/);
+  assert.match(query.sql, /cc\.root_content_id=c\.id/);
+  assert.match(query.sql, /cc\.content_type='comment'/);
+  assert.match(query.sql, /cc\.is_deleted=0/);
+  assert.match(query.sql, /OR EXISTS \(SELECT 1 FROM po_sync_checkpoints cp_pending/);
+  assert.match(query.sql, /cp_pending\.status='running'/);
+  assert.match(query.sql, /cp_pending\.lease_until IS NULL/);
+  assert.match(query.sql, /cp_pending\.lease_until<UTC_TIMESTAMP\(3\)/);
+  assert.doesNotMatch(query.sql, /cp_any/, '无 checkpoint 本身不是缺口条件');
+  assert.match(query.sql, /cp_active\.status='running'/);
+  assert.match(query.sql, /cp_active\.lease_until>UTC_TIMESTAMP\(3\)/);
+  assert.match(query.sql, /LIMIT \?/);
+  assert.deepEqual(query.params, ['bigplayer_h5', 'domestic', 7]);
 });
 
 test('listContentTree includes root content and uses analysis alias filters', async () => {
@@ -913,7 +994,7 @@ test('upsertContentPage validates active sync-run lease before writing content',
   const lease = repo.calls.find(call => call.sql.includes('FROM po_sync_runs'));
   assert.match(lease.sql, /r\.account_id=\?/);
   assert.match(lease.sql, /a\.source_id=\?/);
-  assert.match(lease.sql, /r\.status='running'/);
+  assert.match(lease.sql, /r\.status IN \('running','pausing','cancelling'\)/);
   assert.match(lease.sql, /r\.lease_owner=\?/);
   assert.match(lease.sql, /r\.lease_until>UTC_TIMESTAMP\(3\)/);
   assert.doesNotMatch(lease.sql, /NOW\(\)/);
@@ -959,12 +1040,12 @@ test('upsertContentPage persists explicit comment root parent and depth', async 
     items: [{ externalId: 'reply1', rootPlatformContentId: 'post1', platformParentId: 'comment1', contentDepth: 2, body: 'nested' }]
   });
   const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_contents'));
-  assert.equal(insert.params[8], 'post-db');
-  assert.equal(insert.params[9], 'comment-db');
-  assert.equal(insert.params[10], 'comment1');
-  assert.equal(insert.params[11], 2);
-  assert.equal(insert.params.length, 22);
-  assert.match(insert.sql, /VALUES \(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,NOW\(\),NOW\(\)\)/);
+  assert.equal(insert.params[10], 'post-db');
+  assert.equal(insert.params[11], 'comment-db');
+  assert.equal(insert.params[12], 'comment1');
+  assert.equal(insert.params[13], 2);
+  assert.equal(insert.params.length, 24);
+  assert.match(insert.sql, /board_id, board_name/);
 });
 test('upsertContentPage updates content type when an existing external ID is reclassified', async () => {
   const executed = [];
@@ -1009,22 +1090,24 @@ function contentIntegrityHarness() {
           source_id: params[2],
           account_id: params[3],
           external_id: params[4],
-          content_type: params[5],
-          platform_author_id: params[6],
-          root_content_id: params[7],
-          parent_content_id: params[8],
-          platform_parent_id: params[9],
-          content_depth: params[10],
-          is_deleted: params[11],
-          author_name: params[12],
-          title: params[13],
-          body: params[14],
-          media: JSON.parse(params[15]),
-          published_at: params[16],
-          source_url: params[17],
-          engagement: JSON.parse(params[18]),
-          fingerprint: params[19],
-          raw_payload: params[20] == null ? null : JSON.parse(params[20])
+          board_id: params[5],
+          board_name: params[6],
+          content_type: params[7],
+          platform_author_id: params[8],
+          root_content_id: params[9],
+          parent_content_id: params[10],
+          platform_parent_id: params[11],
+          content_depth: params[12],
+          is_deleted: params[13],
+          author_name: params[14],
+          title: params[15],
+          body: params[16],
+          media: JSON.parse(params[17]),
+          published_at: params[18],
+          source_url: params[19],
+          engagement: JSON.parse(params[20]),
+          fingerprint: params[21],
+          raw_payload: params[22] == null ? null : JSON.parse(params[22])
         };
         return { affectedRows: 1 };
       }
@@ -1310,7 +1393,7 @@ test('checkpoint identity includes task kind and task key', async () => {
   const repo = stubRepo((sql) => sql.startsWith('SELECT * FROM po_sync_checkpoints') ? [{ id: 'cp1', status: 'running', lease_owner: 'worker-1' }] : { affectedRows: 1 });
   await repo.claimSyncCheckpoint({ accountId: 'a1', taskKind: 'source_sync', taskKey: 'run-1', syncScope: 'posts', leaseOwner: 'worker-1' });
   assert.match(repo.calls[0].sql, /task_kind, task_key/);
-  assert.deepEqual(repo.calls[0].params.slice(1, 4), ['a1', 'source_sync', 'run-1']);
+  assert.deepEqual(repo.calls[0].params.slice(1, 5), ['a1', null, 'source_sync', 'run-1']);
   assert.match(repo.calls[1].sql, /task_kind=\? AND task_key=\?/);
   assert.deepEqual(repo.calls[1].params.slice(3, 6), ['a1', 'source_sync', 'run-1']);
 });
@@ -1319,25 +1402,39 @@ function manualSyncHarness(overrides = {}) {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   const executed = [];
   const source = { id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', source_auth_expired: 0, admission_anchor: '2026-09-11 08:30:00.000', default_account_id: 'a1', game_enabled: 1, community_status: 'enabled', ...(overrides.source || {}) };
+  if (source.platform === 'bigplayer_h5') source.config = JSON.stringify({ boardId: '2', ...(typeof source.config === 'string' ? JSON.parse(source.config) : source.config || {}) });
+  const siteRows = overrides.siteRows || [];
   const account = { id: 'a1', source_id: 's1', game_id: 'g1', community_id: 'c1', platform: 'bigplayer_h5', enabled: 1, auth_status: 'authorized', account_auth_expired: 0, ...(overrides.account || {}) };
   const credential = { id: 'credential-1', status: 'active', credential_expired: 0, has_secret_cipher: 1, ...(overrides.credential || {}) };
-  const schema = { migration_table_ready: 1, default_account_ready: 1, source_schedule_columns_ready: 1, checkpoint_window_columns_ready: 1, checkpoint_window_index_ready: 1, run_source_ready: 1, run_trigger_ready: 1, run_schedule_column_ready: 1, run_window_columns_ready: 1, run_lease_epoch_ready: 1, run_slot_ready: 1, run_trigger_constraint_ready: 1, run_source_fk_ready: 1, schedule_state_ready: 1, schedule_state_columns_ready: 1, schedule_state_fk_ready: 1, worker_lease_table_ready: 1, worker_lease_columns_ready: 1, worker_heartbeat_table_ready: 1, worker_heartbeat_columns_ready: 1, ...(overrides.schema || {}) };
+  const schema = { migration_table_ready: 1, default_account_ready: 1, source_schedule_columns_ready: 1, checkpoint_window_columns_ready: 1, checkpoint_legacy_window_index_ready: 1, checkpoint_site_window_index_ready: 1, checkpoint_window_index_ready: 1, run_source_ready: 1, run_trigger_ready: 1, run_schedule_column_ready: 1, run_window_columns_ready: 1, run_lease_epoch_ready: 1, run_slot_ready: 1, run_trigger_constraint_ready: 1, run_source_fk_ready: 1, schedule_state_ready: 1, schedule_state_columns_ready: 1, schedule_state_fk_ready: 1, worker_lease_table_ready: 1, worker_lease_columns_ready: 1, worker_heartbeat_table_ready: 1, worker_heartbeat_columns_ready: 1, ...(overrides.schema || {}) };
   const conn = {
     async query(sql, params = []) {
       executed.push({ sql, params });
       if (overrides.schemaError && sql.includes('information_schema')) throw overrides.schemaError;
+      if (sql.includes('/* board-schema-030 */')) return [[{
+        board_migration_ready: overrides.migrationMissing || (overrides.missingMigrations || [overrides.missingMigration]).includes('030_bigplayer_board_scope.sql') ? 0 : 1,
+        board_run_columns_ready: 1, board_content_columns_ready: 1, board_run_index_ready: 1, board_content_index_ready: 1,
+        ...(overrides.boardSchema || {})
+      }]];
       if (sql.includes('information_schema')) return [[schema]];
       if (sql === 'SHOW CREATE TABLE po_sync_runs') return [[{ 'Create Table': overrides.checkDdl || "CREATE TABLE po_sync_runs (CONSTRAINT po_sync_runs_trigger_slot_chk CHECK ((trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)))" }]];
       if (sql.startsWith('SELECT version FROM po_schema_migrations')) return [overrides.migrationMissing ? [] : [
         { version: '023_unified_source_scheduling.sql' },
         { version: '025_worker_scan_leases.sql' },
-        { version: '026_scheduler_runtime_schema_reconciliation.sql' }
-      ].filter(row => row.version !== overrides.missingMigration)];
+        { version: '026_scheduler_runtime_schema_reconciliation.sql' },
+        { version: '027_bigplayer_multisite.sql' },
+        { version: '028_bigplayer_scheduled_site_runs.sql' },
+        { version: '029_bigplayer_site_run_evidence.sql' }
+      ].filter(row => !(overrides.missingMigrations || [overrides.missingMigration]).filter(Boolean).includes(row.version))];
       if (sql.includes('FROM po_sources s LEFT JOIN')) return [[source]];
       if (sql.includes('FROM po_accounts a WHERE a.id=')) return [[overrides.accountMissing ? undefined : account].filter(Boolean)];
       if (sql.includes('FROM po_credentials WHERE source_id=')) return [[overrides.credentialMissing ? undefined : credential].filter(Boolean)];
+      if (sql.startsWith('SELECT site_id, url, enabled FROM po_source_sites')) return [siteRows];
+      if (sql.startsWith('SELECT site_id,MAX(last_item_at)')) return [overrides.siteCursors || []];
+      if (sql.startsWith('SELECT MAX(last_item_at)')) return [[{ last_successful_cursor: overrides.lastSuccessfulCursor || null }]];
       if (sql.startsWith('SELECT source_id, lease_owner')) return [[overrides.scheduleMissing ? undefined : { source_id: 's1', lease_active: overrides.leaseActive ? 1 : 0 }].filter(Boolean)];
       if (sql.startsWith('SELECT * FROM po_sync_runs WHERE source_id=')) return [[overrides.manualRun].filter(Boolean)];
+      if (sql.includes("status IN ('pausing','paused','cancelling')")) return [[overrides.controlledRun].filter(Boolean)];
       if (sql.startsWith('SELECT id FROM po_sync_runs WHERE source_id=')) return [[overrides.activeRun || overrides.manualRun].filter(Boolean)];
       if (sql.startsWith('SELECT cp.id FROM po_sync_checkpoints')) return [[overrides.activeCheckpoint].filter(Boolean)];
       if (sql.startsWith('SELECT * FROM po_sync_runs WHERE id=')) return [[{ id: params[0], source_id: 's1', account_id: 'a1', trigger_type: 'manual', status: 'queued', sync_mode: params[0] ? (overrides.createdMode || 'incremental') : 'incremental' }]];
@@ -1409,6 +1506,24 @@ test('enqueueSyncRun locks the source and active runs before one legacy insert',
   assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
 });
 
+test('deferSyncRun can requeue a rate-limited run after its lease expires while retaining owner fencing', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const calls = [];
+  repo.query = async (sql, params) => {
+    calls.push({ sql, params });
+    if (sql.startsWith('UPDATE po_sync_runs SET status=\'queued\'')) return { affectedRows: 1 };
+    return [{ id: 'discord-rate-run', status: 'queued' }];
+  };
+  const run = await repo.deferSyncRun('discord-rate-run', {
+    errorCode: 'RATE_LIMITED', errorMessage: 'provider cooldown', nextRetryAt: '2026-09-23T09:00:00.000Z',
+    leaseOwner: 'worker-a', leaseEpoch: 7
+  });
+  assert.equal(run.status, 'queued');
+  const update = calls[0];
+  assert.match(update.sql, /lease_owner=\? AND lease_epoch=\?/);
+  assert.doesNotMatch(update.sql, /lease_until>UTC_TIMESTAMP/);
+});
+
 test('enqueueSyncRun preserves the pre-023 legacy insert when scheduler state table is absent', async () => {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   const executed = [];
@@ -1454,6 +1569,69 @@ test('startSourceSync locks the source/default account and creates exactly one q
   assert.equal(executed.at(-2).sql, 'COMMIT');
 });
 
+test('BigPlayer multi-site manual sync creates one parent and one queued child per enabled persisted site', async () => {
+  const sites = [
+    { siteId: 'site-2', url: 'https://club-en.q1.com/?env=web&gameId=2162&gameVersion=2162-US-ZS&lang=ja-jp&languageId=2', enabled: true },
+    { siteId: 'site-9', url: 'https://club-en.q1.com/?env=web&gameId=2162&gameVersion=2162-US-ZS&lang=ja-jp&languageId=9', enabled: true },
+    { siteId: 'site-16', url: 'https://club-en.q1.com/?env=web&gameId=2162&gameVersion=2162-US-ZS&lang=ja-jp&languageId=16', enabled: true }
+  ];
+  const { repo, executed } = manualSyncHarness({
+    source: { config: JSON.stringify({ baseUrl: sites[0].url, siteUrls: sites }) },
+    siteRows: sites.map(site => ({ site_id: site.siteId, url: site.url, enabled: 1 })),
+    siteCursors: [
+      { site_id: 'site-2', last_successful_cursor: '2026-09-11 07:00:00.000' },
+      { site_id: 'site-9', last_successful_cursor: '2026-09-10 20:00:00.000' }
+    ]
+  });
+  const result = await repo.startSourceSync({ sourceId: 's1' });
+  const inserts = executed.filter(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.equal(result.run.id.length > 0, true);
+  assert.equal(inserts.length, 4, 'one parent plus three children');
+  assert.doesNotMatch(inserts[0].sql, /parent_run_id/);
+  for (const [index, site] of sites.entries()) {
+    assert.match(inserts[index + 1].sql, /parent_run_id, site_id/);
+    assert.equal(inserts[index + 1].params[2], site.siteId);
+    assert.equal(inserts[index + 1].params[3], site.url);
+    assert.equal(inserts[index + 1].params[4], 's1');
+  }
+  assert.deepEqual(inserts.slice(1).map(call => call.params[8]), ['2026-09-11 07:00:00.000', '2026-09-10 20:00:00.000', '2026-09-04 08:30:00.000']);
+  const registry = executed.find(call => call.sql.startsWith('SELECT site_id, url, enabled FROM po_source_sites'));
+  assert.deepEqual(registry.params, ['s1']);
+});
+
+test('BigPlayer multi-site manual sync fails closed when registry and saved siteUrls disagree', async () => {
+  const url = 'https://club-en.q1.com/?env=web&gameId=2162&gameVersion=2162-US-ZS&lang=ja-jp&languageId=2';
+  const { repo, executed } = manualSyncHarness({
+    source: { config: JSON.stringify({ baseUrl: url, siteUrls: [{ siteId: 'site-2', url }, { siteId: 'site-9', url: `${url}&x=9` }] }) },
+    siteRows: [{ site_id: 'site-2', url, enabled: 1 }]
+  });
+  await assert.rejects(() => repo.startSourceSync({ sourceId: 's1' }), error => error.code === 'MULTISITE_SITE_REGISTRY_MISMATCH');
+  assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+});
+
+test('site-aware checkpoint identity keeps same task and window independent per BigPlayer site', async () => {
+  const repo = stubRepo(sql => {
+    if (sql.startsWith('UPDATE po_sync_checkpoints')) return { affectedRows: 1 };
+    if (sql.startsWith('SELECT * FROM po_sync_checkpoints')) return [{ id: 'cp-site-2', status: 'running', lease_owner: 'worker-1' }];
+    return { affectedRows: 1 };
+  });
+  const checkpoint = await repo.claimSyncCheckpoint({
+    accountId: 'a1', siteId: 'site-2', syncScope: 'posts', taskKind: 'q1_feed', taskKey: 'feed-1',
+    rootPlatformContentId: '', syncMode: 'incremental', leaseOwner: 'worker-1', leaseSeconds: 60
+  });
+  assert.equal(checkpoint.id, 'cp-site-2');
+  const insert = repo.calls.find(call => call.sql.startsWith('INSERT IGNORE INTO po_sync_checkpoints'));
+  const claim = repo.calls.find(call => call.sql.startsWith('UPDATE po_sync_checkpoints'));
+  assert.match(insert.sql, /account_id, site_id, task_kind/);
+  assert.equal(insert.params[2], 'site-2');
+  assert.match(claim.sql, /site_id=\?/);
+  assert.ok(claim.params.includes('site-2'));
+  const legacy = stubRepo(() => []);
+  await legacy.getSyncCheckpoint({ accountId: 'a1', syncScope: 'posts', taskKind: 'q1_feed', taskKey: 'feed-1' });
+  assert.match(legacy.calls[0].sql, /site_id IS NULL/);
+});
+
 test('startBoundedSourceBackfill stores one exact UTC window without mutating account metadata or checkpoints', async () => {
   const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
   const result = await repo.startBoundedSourceBackfill({
@@ -1464,9 +1642,11 @@ test('startBoundedSourceBackfill stores one exact UTC window without mutating ac
   assert.equal(result.reused, false);
   const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
   assert.match(insert.sql, /window_start, window_end/);
-  assert.deepEqual(insert.params.slice(1), [
+  assert.deepEqual(insert.params.slice(1, 6), [
     's1', 'a1', 'backfill', '2026-09-04 08:30:00.000', '2026-09-11 08:30:00.000'
   ]);
+  assert.deepEqual(insert.params.slice(6, 9), ['c1', '2', 'collection']);
+  assert.match(insert.params[9], /^[a-f0-9]{64}$/);
   assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_accounts SET metadata=')));
   assert.ok(!executed.some(call => call.sql.startsWith('UPDATE po_sync_checkpoints')));
   assert.ok(!executed.some(call => /frequency_seconds/.test(call.sql)));
@@ -1482,7 +1662,7 @@ test('BigPlayer bounded backfill accepts a window shorter than seven days agains
     publishedTo: '2026-09-11T08:30:00.000Z'
   });
   const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
-  assert.deepEqual(insert.params.slice(-2), ['2026-09-10 08:30:00.000', '2026-09-11 08:30:00.000']);
+  assert.deepEqual(insert.params.slice(4, 6), ['2026-09-10 08:30:00.000', '2026-09-11 08:30:00.000']);
 });
 
 test('BigPlayer bounded backfill rejects historical and future windows without persistent writes', async () => {
@@ -1507,7 +1687,7 @@ test('startRecentSourceBackfill derives and persists one exact seven-day window 
   const { repo, executed } = manualSyncHarness({ createdMode: 'backfill' });
   const result = await repo.startRecentSourceBackfill({ sourceId: 's1', lookbackDays: 7 });
   const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
-  assert.deepEqual(insert.params.slice(-2), ['2026-09-04 08:30:00.000', '2026-09-11 08:30:00.000']);
+  assert.deepEqual(insert.params.slice(4, 6), ['2026-09-04 08:30:00.000', '2026-09-11 08:30:00.000']);
   assert.deepEqual(result.window, { publishedFrom: '2026-09-04T08:30:00.000Z', publishedTo: '2026-09-11T08:30:00.000Z' });
   assert.equal(Date.parse(result.window.publishedTo) - Date.parse(result.window.publishedFrom), 7 * 24 * 60 * 60 * 1000);
   assert.match(executed.find(call => call.sql.includes('FROM po_sources s LEFT JOIN')).sql, /UTC_TIMESTAMP\(3\) AS admission_anchor/);
@@ -1716,7 +1896,7 @@ test('manual sync fails closed for old or unverifiable unified scheduler schema'
   for (const [overrides, code] of [
     [{ schema: { run_source_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { checkpoint_window_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
-    [{ schema: { checkpoint_window_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ schema: { checkpoint_site_window_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_window_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_lease_epoch_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schema: { run_slot_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
@@ -1730,6 +1910,11 @@ test('manual sync fails closed for old or unverifiable unified scheduler schema'
     [{ migrationMissing: true }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ missingMigration: '025_worker_scan_leases.sql' }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ missingMigration: '026_scheduler_runtime_schema_reconciliation.sql' }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ missingMigration: '030_bigplayer_board_scope.sql' }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ boardSchema: { board_run_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ boardSchema: { board_content_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ boardSchema: { board_run_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ boardSchema: { board_content_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schemaError: Object.assign(new Error('denied'), { code: 'ER_ACCESS_DENIED_ERROR' }) }, 'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED']
   ]) {
     const { repo, executed } = manualSyncHarness(overrides);
@@ -1737,6 +1922,23 @@ test('manual sync fails closed for old or unverifiable unified scheduler schema'
     assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
     assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
   }
+});
+
+test('manual sync uses the site-aware checkpoint index after 027 without requiring the legacy index', async () => {
+  const { repo, executed } = manualSyncHarness({ schema: { checkpoint_legacy_window_index_ready: 0, checkpoint_site_window_index_ready: 1 } });
+  const result = await repo.startSourceSync({ sourceId: 's1' });
+  assert.equal(result.reused, false);
+  assert.ok(executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+});
+
+test('manual sync uses the legacy checkpoint index before 027 is applied', async () => {
+  const { repo, executed } = manualSyncHarness({
+    missingMigrations: ['027_bigplayer_multisite.sql', '028_bigplayer_scheduled_site_runs.sql'],
+    schema: { checkpoint_legacy_window_index_ready: 1, checkpoint_site_window_index_ready: 0 }
+  });
+  const result = await repo.startSourceSync({ sourceId: 's1' });
+  assert.equal(result.reused, false);
+  assert.ok(executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
 });
 
 test('manual sync accepts MariaDB equivalent trigger constraint precedence', async () => {
@@ -1802,6 +2004,10 @@ test('sync run reads are scoped through account and source', async () => {
   await repo.listSyncRunContents('run-1', { accountId: 'a1', sourceId: 's1', after: 10, limit: 500 });
   assert.match(repo.calls[1].sql, /c\.account_id=a\.id AND c\.source_id=a\.source_id/);
   assert.match(repo.calls[1].sql, /rc\.sequence_no>\?/);
+  assert.match(repo.calls[1].sql, /po_content_feed_memberships/);
+  assert.match(repo.calls[1].sql, /AS feed_key/);
+  assert.match(repo.calls[1].sql, /AS page_kind/);
+  assert.match(repo.calls[1].sql, /m\.last_seen_at<=rc\.fetched_at/);
   assert.deepEqual(repo.calls[1].params, ['run-1', 'posts', 10, 'a1', 's1', 100]);
 });
 
@@ -1837,8 +2043,23 @@ test('latest source run prioritizes queued or running work', async () => {
   const repo = stubRepo(() => [{ id: 'run-active' }]);
   const run = await repo.getLatestSyncRunForSource('s1', { accountId: 'a1' });
   assert.equal(run.id, 'run-active');
-  assert.match(repo.calls[0].sql, /CASE WHEN r\.status IN \('queued','running'\) THEN 0 ELSE 1 END/);
+  assert.match(repo.calls[0].sql, /child_latest\.parent_run_id=r\.id/);
+  assert.match(repo.calls[0].sql, /WHEN r\.status IN \('queued','running'\) THEN 1 ELSE 2 END/);
   assert.deepEqual(repo.calls[0].params, ['s1', 'a1']);
+});
+
+test('sync run projections expose parent/site role trigger and readable site progress without changing legacy controls', async () => {
+  const repo = stubRepo(sql => sql.includes('COUNT(*) AS total') ? [{ total: 1 }] : [{ id: 'parent-1', run_role: 'parent', trigger_type: 'scheduled', site_total: 3, site_terminal: 2, site_succeeded: 1, site_failed: 1 }]);
+  const detail = await repo.getSyncRun('parent-1', { sourceId: 's1' });
+  assert.equal(detail.run_role, 'parent');
+  const detailSql = repo.calls[0].sql;
+  for (const field of ['r.parent_run_id', 'r.site_id', 'r.trigger_type', 'AS runRole', 'AS site_total', 'AS site_terminal', 'AS site_succeeded', 'AS site_failed']) assert.match(detailSql, new RegExp(field.replace(/[.]/g, '\\.'), 'i'));
+  await repo.getLatestSyncRunForSource('s1');
+  assert.match(repo.calls[1].sql, /child_latest\.parent_run_id=r\.id/);
+  assert.match(repo.calls[1].sql, /THEN 0 WHEN r\.status IN \('queued','running'\) THEN 1/);
+  const listed = await repo.listSyncRuns({ sourceId: 's1' });
+  assert.equal(listed.items[0].run_role, 'parent');
+  assert.match(repo.calls[3].sql, /AS runRole/);
 });
 
 test('finishSyncRun preserves accumulated counters and enforces lease ownership', async () => {
@@ -1862,7 +2083,8 @@ test('deferSyncRun requeues an owned rate-limited run without a terminal timesta
   assert.match(update.sql, /finished_at=NULL/);
   assert.match(update.sql, /next_retry_at=\?/);
   assert.match(update.sql, /lease_owner=NULL, lease_until=NULL/);
-  assert.match(update.sql, /status='running' AND lease_owner=\? AND lease_epoch=\? AND lease_until>UTC_TIMESTAMP\(3\)/);
+  assert.match(update.sql, /status='running' AND lease_owner=\? AND lease_epoch=\?/);
+  assert.doesNotMatch(update.sql, /lease_until>UTC_TIMESTAMP/);
   assert.deepEqual(update.params, ['RATE_LIMITED', 'retry evidence', nextRetryAt, 'run-rate-limited', 'worker-1', 4]);
 });
 
@@ -1880,6 +2102,73 @@ test('finishSyncRun returns null when stale worker no longer owns the lease', as
   const repo = stubRepo(sql => sql.startsWith('UPDATE') ? { affectedRows: 0 } : [{ id: 'run-1', status: 'completed_full' }]);
   assert.equal(await repo.finishSyncRun('run-1', { status: 'completed_full', leaseOwner: 'worker-stale' }), null);
   assert.equal(repo.calls.length, 1, 'stale owner must not read another worker final result');
+});
+
+test('finishScheduledSiteRun fences child leases, aggregates final parent totals and remains idempotent', async () => {
+  const calls = []; const children = [
+    { id: 'child-failed', parent_run_id: 'parent-1', status: 'running', discovered_count: 3, stored_count: 2, error_code: null, error_message: null, lease_owner: 'worker-1', lease_epoch: 7 },
+    { id: 'child-ok-1', parent_run_id: 'parent-1', status: 'completed_full', discovered_count: 5, stored_count: 4, error_code: null, error_message: null },
+    { id: 'child-ok-2', parent_run_id: 'parent-1', status: 'completed_full', discovered_count: 7, stored_count: 6, error_code: null, error_message: null }
+  ];
+  const parent = { id: 'parent-1', status: 'running' };
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const conn = {
+    async beginTransaction() { calls.push({ sql: 'BEGIN' }); }, async commit() { calls.push({ sql: 'COMMIT' }); }, async rollback() { calls.push({ sql: 'ROLLBACK' }); }, release() {},
+    async query(sql, params = []) {
+      calls.push({ sql, params });
+      if (sql.startsWith('UPDATE po_sync_runs SET status=?') && sql.includes("trigger_type='scheduled_site'")) {
+        const child = children.find(row => row.id === params[6]);
+        if (!child || child.status !== 'running' || child.lease_owner !== params[7] || child.lease_epoch !== params[8]) return [{ affectedRows: 0 }];
+        Object.assign(child, { status: params[0], discovered_count: params[1], stored_count: params[2], error_code: params[3], error_message: params[4] });
+        return [{ affectedRows: 1 }];
+      }
+      if (sql.startsWith('SELECT parent_run_id,status FROM po_sync_runs')) return [[children.find(row => row.id === params[0])]];
+      if (sql.startsWith('SELECT id,status,discovered_count')) return [[...children]];
+      if (sql.startsWith('UPDATE po_sync_runs SET status=?') && sql.includes('parent_run_id IS NULL')) { Object.assign(parent, { status: params[0], discovered_count: params[1], stored_count: params[2], error_code: params[8], error_message: params[9] }); return [{ affectedRows: 1 }]; }
+      if (sql.startsWith('SELECT * FROM po_sync_runs WHERE id=?')) return [[parent]];
+      throw new Error(`unexpected SQL: ${sql}`);
+    }
+  };
+  repo.pool = { async getConnection() { return conn; } };
+  const result = await repo.finishScheduledSiteRun('child-failed', { status: 'failed', discoveredCount: 3, storedCount: 2, errorCode: 'SITE_TIMEOUT', errorMessage: 'first site timed out', leaseOwner: 'worker-1', leaseEpoch: 7 });
+  assert.equal(result.parent.status, 'partial');
+  assert.deepEqual([parent.discovered_count, parent.stored_count, parent.error_code], [15, 12, 'MULTISITE_PARTIAL_FAILURE']);
+  assert.match(parent.error_message, /SITE_TIMEOUT: first site timed out/);
+  const aggregateUpdates = calls.filter(call => call.sql.includes('parent_run_id IS NULL'));
+  assert.equal(aggregateUpdates.length, 1);
+  assert.match(calls.find(call => call.sql.includes("trigger_type='scheduled_site'")).sql, /lease_owner=\? AND lease_epoch=\? AND lease_until>UTC_TIMESTAMP\(3\)/);
+  const repeated = await repo.finishScheduledSiteRun('child-failed', { status: 'failed', leaseOwner: 'worker-1', leaseEpoch: 7 });
+  assert.equal(repeated, null);
+  assert.equal(calls.filter(call => call.sql.includes('parent_run_id IS NULL')).length, 1, '重复终态不得再次聚合父 Run');
+  const stale = await repo.finishScheduledSiteRun('child-failed', { status: 'failed', leaseOwner: 'stale', leaseEpoch: 8 });
+  assert.equal(stale, null);
+  assert.equal(calls.filter(call => call.sql.includes('parent_run_id IS NULL')).length, 1, '旧 owner/epoch 不得聚合父 Run');
+});
+
+test('finishScheduledSiteRun marks an all-failed parent with summed counts and child failure evidence', async () => {
+  const calls = []; const children = [
+    { id: 'child-last', parent_run_id: 'parent-failed', status: 'running', discovered_count: 4, stored_count: 1, error_code: null, error_message: null, lease_owner: 'worker-2', lease_epoch: 3 },
+    { id: 'child-first', parent_run_id: 'parent-failed', status: 'failed', discovered_count: 6, stored_count: 2, error_code: 'HTTP_500', error_message: 'upstream error' }
+  ]; const parent = { id: 'parent-failed', status: 'running' };
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const conn = {
+    async beginTransaction() { calls.push({ sql: 'BEGIN' }); }, async commit() { calls.push({ sql: 'COMMIT' }); }, async rollback() { calls.push({ sql: 'ROLLBACK' }); }, release() {},
+    async query(sql, params = []) {
+      calls.push({ sql, params });
+      if (sql.includes("trigger_type='scheduled_site'")) { const child = children[0]; Object.assign(child, { status: params[0], discovered_count: params[1], stored_count: params[2], error_code: params[3], error_message: params[4] }); return [{ affectedRows: 1 }]; }
+      if (sql.startsWith('SELECT parent_run_id,status')) return [[children[0]]];
+      if (sql.startsWith('SELECT id,status,discovered_count')) return [[...children]];
+      if (sql.includes('parent_run_id IS NULL')) { Object.assign(parent, { status: params[0], discovered_count: params[1], stored_count: params[2], error_code: params[8], error_message: params[9] }); return [{ affectedRows: 1 }]; }
+      if (sql.startsWith('SELECT * FROM po_sync_runs')) return [[parent]];
+      throw new Error(`unexpected SQL: ${sql}`);
+    }
+  }; repo.pool = { async getConnection() { return conn; } };
+  const result = await repo.finishScheduledSiteRun('child-last', { status: 'failed', discoveredCount: 4, storedCount: 1, errorCode: 'SITE_DOWN', errorMessage: 'connection refused', leaseOwner: 'worker-2', leaseEpoch: 3 });
+  assert.equal(result.parent.status, 'failed');
+  assert.deepEqual([parent.discovered_count, parent.stored_count, parent.error_code], [10, 3, 'MULTISITE_ALL_SITES_FAILED']);
+  assert.match(parent.error_message, /HTTP_500: upstream error/);
+  assert.match(parent.error_message, /SITE_DOWN: connection refused/);
+  assert.ok(calls.some(call => call.sql === 'COMMIT'));
 });
 test('upsertContentPage records sync-run progress and links content idempotently', async () => {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
@@ -2109,6 +2398,9 @@ test('listSyncRuns uses bounded pagination, joined safe fields, and parameterize
   const result = await repo.listSyncRuns({ gameId: 'g1', platform: 'douyin', status: 'failed', syncMode: 'backfill', page: 2, pageSize: 500 });
   assert.equal(result.total, 7); assert.equal(result.pageSize, 100); assert.equal(result.items[0].id, 'run-1');
   assert.match(repo.calls[1].sql, /JOIN po_sources/); assert.match(repo.calls[1].sql, /JOIN po_games/);
+  assert.match(repo.calls[1].sql, /window_start.*window_end/);
+  assert.match(repo.calls[1].sql, /advertised_comment_count/);
+  assert.match(repo.calls[1].sql, /actual_comment_body_count/);
   assert.doesNotMatch(repo.calls[1].sql, /secret|raw_payload|config/);
   assert.deepEqual(repo.calls[1].params, ['g1', 'douyin', 'failed', 'backfill', 100, 100]);
 });
@@ -2158,4 +2450,44 @@ test('upsertContentPage writes feed membership in the same transaction', async (
   assert.match(membership.sql, /ON DUPLICATE KEY UPDATE/);
   assert.ok(executed.findIndex(call => call.sql.startsWith('INSERT INTO po_contents')) < executed.findIndex(call => call.sql.startsWith('INSERT INTO po_content_feed_memberships')));
   assert.equal(executed.at(-1).sql, 'COMMIT');
+});
+
+test('reconcilePositiveRiskAlerts closes only linked active alerts and audits once', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  const executed = []; let active = true;
+  const connection = {
+    async beginTransaction() { executed.push({ sql: 'BEGIN' }); },
+    async query(sql, params = []) {
+      executed.push({ sql, params });
+      if (sql.startsWith('SELECT game_id,source_id')) return [[{ game_id: 'g1', source_id: 's1' }], []];
+      if (sql.startsWith('SELECT a.id FROM po_alerts')) return [active ? [{ id: 'a-pending' }, { id: 'a-processing' }] : [], []];
+      if (sql.startsWith('UPDATE po_alerts')) { active = false; return [{ affectedRows: 2 }, []]; }
+      if (sql.startsWith('INSERT INTO po_audit_events')) return [{ affectedRows: 1 }, []];
+      throw new Error(`unexpected SQL: ${sql}`);
+    },
+    async commit() { executed.push({ sql: 'COMMIT' }); },
+    async rollback() { executed.push({ sql: 'ROLLBACK' }); },
+    release() { executed.push({ sql: 'RELEASE' }); }
+  };
+  repo.pool = { async getConnection() { return connection; } };
+  const analysis = { sentiment: 'positive', severity: 'normal', originalSeverity: 'attention', severityNormalizationReasons: ['positive_forced_normal'] };
+  const first = await repo.reconcilePositiveRiskAlerts('content-1', analysis, { runId: 'run-1' });
+  const second = await repo.reconcilePositiveRiskAlerts('content-1', analysis, { runId: 'run-1' });
+  assert.deepEqual(first.alertIds, ['a-pending', 'a-processing']);
+  assert.equal(second.reconciled, false);
+  const update = executed.find(call => call.sql.startsWith('UPDATE po_alerts'));
+  assert.match(update.sql, /status='false_positive'/);
+  assert.match(update.sql, /status IN \('pending','processing'\)/);
+  assert.ok(executed.some(call => call.sql.startsWith('SELECT a.id FROM po_alerts') && call.sql.endsWith('FOR UPDATE')));
+  assert.deepEqual(update.params.slice(1), ['a-pending', 'a-processing']);
+  const audits = executed.filter(call => call.sql.startsWith('INSERT INTO po_audit_events'));
+  assert.equal(audits.length, 1);
+  assert.deepEqual(JSON.parse(audits[0].params.at(-1)), { contentId: 'content-1', alertIds: ['a-pending', 'a-processing'], originalSeverity: 'attention', finalSeverity: 'normal', reasons: ['positive_forced_normal'], runId: 'run-1' });
+});
+
+test('reconcilePositiveRiskAlerts ignores non-positive or non-normal analysis without opening a transaction', async () => {
+  const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
+  repo.pool = { async getConnection() { throw new Error('must not open a transaction'); } };
+  assert.deepEqual(await repo.reconcilePositiveRiskAlerts('content-1', { sentiment: 'negative', severity: 'normal' }, { runId: 'run-1' }), { reconciled: false, alertIds: [] });
+  assert.deepEqual(await repo.reconcilePositiveRiskAlerts('content-1', { sentiment: 'positive', severity: 'attention' }, { runId: 'run-1' }), { reconciled: false, alertIds: [] });
 });

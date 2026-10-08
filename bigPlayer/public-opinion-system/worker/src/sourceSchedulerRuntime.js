@@ -84,10 +84,18 @@ function createSourceSchedulerRuntime({
         const atomic = atomicResults.get(intent.sourceId);
         if (atomic) return atomic;
         try {
-          return await repository.enqueueScheduled({
+          const result = await repository.enqueueScheduled({
             ...intent,
             runId: intent.leaseToken?.runId
           });
+          if (result?.created && typeof repository.advanceLease === 'function' && intent.leaseToken) {
+            await repository.advanceLease({
+              ...intent.leaseToken,
+              scheduledAt: intent.scheduledAt,
+              nextSlotAt: intent.nextSlotAt
+            });
+          }
+          return result;
         } catch (error) {
           const attempt = attempts.get(intent.sourceId);
           if (attempt) attempt.databaseError = sanitizeDatabaseError(error);

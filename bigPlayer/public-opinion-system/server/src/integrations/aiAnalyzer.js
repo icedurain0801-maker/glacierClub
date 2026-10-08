@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const SENTIMENTS = new Set(['positive', 'neutral', 'negative']);
 const SEVERITIES = new Set(['normal', 'attention', 'urgent']);
 const PROFILES = new Set(['light', 'deep']);
-const PROMPT_SCHEMA_VERSION = 'sentiment-quality-context-severity-exclusive-v3';
+const PROMPT_SCHEMA_VERSION = 'sentiment-quality-context-severity-exclusive-v4';
 
 function truncate(text, max) { const s = String(text || '').replace(/\s+/g, ' ').trim(); return s.length > max ? s.slice(0, max) : s; }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -124,7 +124,7 @@ class AiAnalyzer {
       plat: it.platform || 'legacy-unassigned'
     }));
     const user = `分析以下${items.length}条游戏相关内容：\n${JSON.stringify(payload)}`;
-    const severityRules = 'severity 必须互斥单选，按 urgent→attention→normal 顺序判断：urgent（负面待处理）仅用于存在明确需立即处理的风险；不满足 urgent 时，attention（关注级）仅用于值得关注但不需立即处理的风险；其余为 normal（正常）。每条内容只能选择一个等级，不得叠加等级，不得依据 sentiment 或 negative_score 猜测等级，一般负向表达不得自动判为 attention。';
+    const severityRules = 'severity 必须互斥单选，按 urgent→attention→normal 顺序判断：positive 必须为 normal；negative 至少为 attention；明确游戏问题（如崩溃、闪退、卡死、无法登录、奖励异常、充值/支付异常、外挂或安全风险）必须为 urgent；negative_score≥0.60 且 confidence≥0.60 的负面内容可判为 urgent；其余 negative 为 attention；neutral 保持基于内容的模型判断。不得依据互动量、点赞量或评论量升级等级，不得叠加等级。';
     return [{ role: 'system', content: `${system}${severityRules}` }, { role: 'user', content: user }];
   }
 

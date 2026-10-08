@@ -37,6 +37,7 @@ class AlertEngine {
   //  hit: ruleEngine.matchRules 的产出（含 hitGroups/triggerModes/ruleSeverity）
   //  analysis: aiAnalyzer 的产出（含 sentiment/severity/negativeScore）
   async process({ game, content, hit, analysis }) {
+    if (analysis?.sentiment === 'positive' && analysis?.severity === 'normal') return [];
     if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（关键词口径）
     if (!hit || !hit.hitGroups?.length) return [];
     const created = [];
@@ -48,6 +49,7 @@ class AlertEngine {
   }
 
   async processAiUrgent({ game, content, analysis }) {
+    if (analysis?.sentiment === 'positive' && analysis?.severity === 'normal') return [];
     if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（AI urgent 口径）
     if (analysis?.severity !== 'urgent') return [];
     const alertType = 'ai_urgent';

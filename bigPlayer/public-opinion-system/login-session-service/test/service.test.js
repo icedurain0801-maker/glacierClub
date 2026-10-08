@@ -175,6 +175,18 @@ test('bigplayer_h5 adapter uses an injected automation contract and validates it
   await assert.rejects(() => new (require('../src/adapters/productionAdapters').BigPlayerH5LoginAdapter)({ automation: { async login() { return { kind: 'unknown' }; } } }).login({}), error => error.code === 'ADAPTER_PROTOCOL_UNSUPPORTED');
 });
 
+test('login automation failures settle the session and preserve the adapter code', async () => {
+  const account = { sourceId: 'source-failure', accountId: 'account-failure', platform: 'failure-mock' };
+  const service = createService({}, {
+    adapters: { 'failure-mock': { async login() { throw Object.assign(new Error('browser missing'), { code: 'AUTOMATION_NOT_CONFIGURED' }); } } }
+  });
+  service.bindAccount({ ...account, credentialRef: 'credential-ref' });
+  await assert.rejects(() => service.startLogin(account), error => error.code === 'AUTOMATION_NOT_CONFIGURED' && error.status === 502);
+  const status = service.getStatus(account);
+  assert.equal(status.status, 'session_expired');
+  assert.equal(status.failureCode, 'AUTOMATION_NOT_CONFIGURED');
+});
+
 test('H5 authorization result is scoped, short-lived, and claimable only once', async () => {
   let current = Date.UTC(2026, 7, 12, 0, 0, 0);
   const now = () => current;
@@ -200,6 +212,7 @@ test('BigPlayer automation opens the H5 login entry and accepts login1.q1.com', 
   const frameLocator = selector => ({
     first() { return this; },
     async count() { return selector === 'input[name="account"]' || selector === 'input[name="password"]' || selector === 'button.submit-btn' ? 1 : 0; },
+    async isVisible() { return true; },
     async fill(value) { calls.fills.push([selector, value]); },
     async click() { calls.clicks.push(selector); },
     async screenshot() { return Buffer.from('unused'); }
@@ -215,14 +228,17 @@ test('BigPlayer automation opens the H5 login entry and accepts login1.q1.com', 
     async evaluate() { return 'top-level-token'; }
   };
   const context = { async newPage() { return page; }, async close() {} };
-  const playwright = { chromium: { async launch() { return { async newContext() { return context; }, async close() {} }; } } };
+  let launchOptions;
+  const playwright = { chromium: { async launch(options) { launchOptions = options; return { async newContext() { return context; }, async close() {} }; } } };
   const automation = new BigPlayerH5PlaywrightAutomation({
     credentialResolver: async () => ({ baseUrl: 'https://example.test', account: 'private-account', password: 'private-password' }),
-    playwright
+    playwright,
+    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
   });
 
   const result = await automation.login({ credentialRef: 'credential-ref', sourceId: 'source-h5', accountId: 'account-h5' });
   assert.deepEqual(result, { kind: 'success', apiToken: 'top-level-token' });
+  assert.equal(launchOptions.executablePath, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
   assert.deepEqual(calls.clicks, ['我的', '去登录', 'input[name="account"]', 'input[name="password"]', 'button.submit-btn']);
   assert.deepEqual(calls.fills, [
     ['input[name="account"]', 'private-account'],
@@ -235,10 +251,10 @@ test('BigPlayer automation ignores a hidden captcha instead of timing out on a s
   let screenshotCount = 0;
   const locator = selector => ({
     first() { return this; },
-    async count() { return selector === '#imgageCaptcha' ? 1 : 0; },
+    async count() { return ['#imgageCaptcha', 'input[name="account"]', 'input[name="password"]', 'button.submit-btn'].includes(selector) ? 1 : 0; },
     async fill() {},
     async click() {},
-    async isVisible() { return false; },
+    async isVisible() { return selector !== '#imgageCaptcha'; },
     async screenshot() { screenshotCount += 1; return Buffer.from('hidden-captcha'); }
   });
   const frame = { url: () => 'https://login1.q1.com/h5/account.html', locator };
@@ -265,7 +281,7 @@ test('BigPlayer automation ignores a hidden captcha instead of timing out on a s
 
 test('BigPlayer automation classifies explicit credential errors', async () => {
   const { BigPlayerH5PlaywrightAutomation } = require('../src/adapters/bigPlayerH5Playwright');
-  const locator = selector => ({ first() { return this; }, async count() { return selector === '#imgageCaptcha' ? 0 : 1; }, async innerText() { return '账号或密码错误'; }, async fill() {}, async click() {} });
+  const locator = selector => ({ first() { return this; }, async count() { return selector === '#imgageCaptcha' ? 0 : 1; }, async isVisible() { return true; }, async innerText() { return '账号或密码错误'; }, async fill() {}, async click() {} });
   const frame = { url: () => 'https://login1.q1.com/h5/account.html', locator };
   const page = { frames: () => [frame], async goto() {}, async waitForTimeout() {}, async evaluate() { return null; } };
   const context = { async newPage() { return page; }, async close() {} };
@@ -286,8 +302,8 @@ test('fake Playwright browser completes captcha and exposes a one-time token cla
   const state = { token: null, captcha: true };
   const locator = selector => ({
     first() { return this; },
-    async count() { return selector === '#imgageCaptcha' && state.captcha ? 1 : 0; },
-    async isVisible() { return selector === '#imgageCaptcha' && state.captcha; },
+    async count() { return selector === '#imgageCaptcha' ? Number(state.captcha) : Number(['input[name="account"]', 'input[name="password"]', 'button', '#verifyImageCode'].includes(selector)); },
+    async isVisible() { return selector === '#imgageCaptcha' ? state.captcha : true; },
     async fill(value) { calls.fills.push([selector, value]); },
     async click() { if (selector === 'button' && calls.fills.some(([name, value]) => name === '#verifyImageCode' && value === 'ABCD')) state.token = 'fake-h5-token'; },
     async screenshot() { return Buffer.from('fake-captcha'); }

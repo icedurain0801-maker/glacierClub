@@ -42,8 +42,17 @@ ALTER TABLE po_sync_runs
 ALTER TABLE po_sync_runs
   ADD INDEX IF NOT EXISTS po_sync_runs_parent_site_idx (parent_run_id, site_id),
   ADD INDEX IF NOT EXISTS po_sync_runs_site_status_idx (site_id, status);
-ALTER TABLE po_sync_runs
-  ADD CONSTRAINT po_sync_runs_parent_fk FOREIGN KEY (parent_run_id) REFERENCES po_sync_runs(id) ON DELETE SET NULL;
+-- DDL is not transactional. If an interrupted run added the FK before its
+-- migration-ledger row, the rerun must resume instead of failing duplicate.
+SET @add_parent_fk := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE po_sync_runs ADD CONSTRAINT po_sync_runs_parent_fk FOREIGN KEY (parent_run_id) REFERENCES po_sync_runs(id) ON DELETE SET NULL',
+    'SELECT 1')
+  FROM information_schema.table_constraints
+  WHERE constraint_schema=DATABASE() AND table_name='po_sync_runs'
+    AND constraint_name='po_sync_runs_parent_fk' AND constraint_type='FOREIGN KEY'
+);
+PREPARE stmt FROM @add_parent_fk; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 ALTER TABLE po_sync_checkpoints
   ADD COLUMN IF NOT EXISTS site_id VARCHAR(120) NULL;

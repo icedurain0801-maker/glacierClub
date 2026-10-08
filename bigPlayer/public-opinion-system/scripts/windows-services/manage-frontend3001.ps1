@@ -3,7 +3,8 @@ param(
     [string]$ConfirmApply,
     [string]$WinSWSource = (Join-Path $PSScriptRoot 'winsw.exe'),
     [string]$NodeExe = (Join-Path $env:ProgramFiles 'nodejs\node.exe'),
-    [string]$ProgramDataRoot = (Join-Path $env:ProgramData 'PublicOpinion\frontend3001')
+    [string]$ProgramDataRoot = (Join-Path $env:ProgramData 'PublicOpinion\frontend3001'),
+    [ValidateSet(3000, 3001)][int]$ListenPort = 3001
 )
 $ErrorActionPreference = 'Stop'
 $serviceName = 'PublicOpinionFrontend3001'
@@ -63,16 +64,18 @@ function Assert-LocalServiceAcl([string]$Path, [System.Security.AccessControl.Fi
     $writeRights = [System.Security.AccessControl.FileSystemRights](2 -bor 4 -bor 16 -bor 64 -bor 256 -bor 65536 -bor 262144 -bor 524288)
     if (-not $Writable -and ($rights -band $writeRights) -ne 0) { throw "LocalService write-capable rights are forbidden on $Path" }
 }
-function Write-FrontendConfig([string]$Path) {
-    $payload = [ordered]@{ listenHost = '::'; listenPort = 3001; upstreamOrigin = 'http://127.0.0.1:4320' }
+function Write-FrontendConfig([string]$Path, [int]$ExpectedListenPort) {
+    $listenHost = if ($ExpectedListenPort -eq 3000) { '127.0.0.1' } else { '::' }
+    $payload = [ordered]@{ listenHost = $listenHost; listenPort = $ExpectedListenPort; upstreamOrigin = 'http://127.0.0.1:4320' }
     [System.IO.File]::WriteAllText($Path, (($payload | ConvertTo-Json) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
 }
-function Assert-FrontendConfig([string]$Path) {
+function Assert-FrontendConfig([string]$Path, [int]$ExpectedListenPort) {
     $item = Get-Item -LiteralPath $Path -Force
     if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Frontend config must not be a reparse point' }
     $value = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-    if ([string]$value.listenHost -ne '::' -or [int]$value.listenPort -ne 3001 -or [string]$value.upstreamOrigin -ne 'http://127.0.0.1:4320') {
-        throw 'Frontend config must bind :::3001 and use http://127.0.0.1:4320'
+    $expectedHost = if ($ExpectedListenPort -eq 3000) { '127.0.0.1' } else { '::' }
+    if ([string]$value.listenHost -ne $expectedHost -or [int]$value.listenPort -ne $ExpectedListenPort -or [string]$value.upstreamOrigin -ne 'http://127.0.0.1:4320') {
+        throw "Frontend config must bind ${expectedHost}:$ExpectedListenPort and use http://127.0.0.1:4320"
     }
 }
 function Render-ServiceXml([string]$RuntimeRoot, [string]$ConfigFile, [string]$ServiceRoot, [string]$LogRoot, [string]$ResolvedNode) {
@@ -105,7 +108,7 @@ function Assert-Artifacts([string]$RuntimeRoot, [string]$ConfigFile, [string]$Se
     $configEnv = @($xml.service.env | Where-Object { [string]$_.name -eq 'FRONTEND3001_CONFIG_FILE' })
     if ($configEnv.Count -ne 1 -or [string]$configEnv[0].value -ne $ConfigFile) { throw 'Frontend3001 config environment mismatch' }
     if ((Get-Content -LiteralPath $xmlPath -Raw) -match '%(?:NODE_EXE|RUNTIME_ROOT|CONFIG_FILE|LOG_ROOT)%') { throw 'Unresolved placeholder remains in Frontend3001 XML' }
-    Assert-FrontendConfig $ConfigFile
+    Assert-FrontendConfig $ConfigFile $ListenPort
     $read = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute
     $modify = [System.Security.AccessControl.FileSystemRights]::Modify
     foreach ($readOnlyPath in @($RuntimeRoot, $ConfigFile, $wrapper, $xmlPath)) { Assert-LocalServiceAcl $readOnlyPath $read $false }
@@ -115,6 +118,7 @@ function Assert-Artifacts([string]$RuntimeRoot, [string]$ConfigFile, [string]$Se
 if ($Mode -eq 'DryRun') {
     Write-Output "[dry-run] service=$serviceName"
     Write-Output "[dry-run] ProgramDataRoot=$ProgramDataRoot"
+    Write-Output "[dry-run] ListenPort=$ListenPort upstreamOrigin=http://127.0.0.1:4320"
     Write-Output '[dry-run] Would create an immutable release, independent config/services/logs, strict LocalService ACLs, and a WinSW automatic service.'
     Write-Output '[dry-run] No file, ACL, service, task, listener, process, or production configuration was changed.'
     return
@@ -122,6 +126,7 @@ if ($Mode -eq 'DryRun') {
 if ($Mode -eq 'Apply' -and $ConfirmApply -cne 'INSTALL-AND-START-PUBLIC-OPINION-FRONTEND-3001') {
     throw 'Apply requires -ConfirmApply INSTALL-AND-START-PUBLIC-OPINION-FRONTEND-3001'
 }
+if ($Mode -eq 'Apply' -and $ListenPort -ne 3001) { throw 'Apply only supports the resident frontend port 3001; port 3000 is isolated QA only' }
 
 $resolvedWinSW = (Resolve-Path -LiteralPath $WinSWSource).Path
 $resolvedNode = (Resolve-Path -LiteralPath $NodeExe).Path
@@ -161,8 +166,8 @@ try {
     $logRoot = Join-Path $effectiveRoot 'logs'
     Assert-DirectChild $runtimeRoot $releaseBase 'RuntimeRoot'
     New-Item -ItemType Directory -Path $releaseBase, $configRoot, $serviceRoot, $logRoot -Force | Out-Null
-    if ($Mode -eq 'Preflight' -or -not (Test-Path -LiteralPath $configFile)) { Write-FrontendConfig $configFile }
-    Assert-FrontendConfig $configFile
+    if ($Mode -eq 'Preflight' -or -not (Test-Path -LiteralPath $configFile)) { Write-FrontendConfig $configFile $ListenPort }
+    Assert-FrontendConfig $configFile $ListenPort
     & (Join-Path $PSScriptRoot 'build-frontend3001-release.ps1') -SourceRoot $sourceRoot -RuntimeRoot $runtimeRoot
     $runtimeCreated = $true
     $wrapper = Join-Path $serviceRoot "$serviceName.exe"

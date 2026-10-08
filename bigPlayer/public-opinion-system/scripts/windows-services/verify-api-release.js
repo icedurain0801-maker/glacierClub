@@ -31,7 +31,7 @@ function files(root) {
 function allowed(relative) {
   const value = relative.replaceAll('\\', '/');
   return value === 'package.json' || value === 'package-lock.json' || value === manifestName ||
-    value === 'shared/riskModes.js' ||
+    value === 'shared/riskModes.js' || value === 'shared/bigPlayerBoard.js' ||
     value.startsWith('server/src/') || value.startsWith('node_modules/');
 }
 function digest(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }

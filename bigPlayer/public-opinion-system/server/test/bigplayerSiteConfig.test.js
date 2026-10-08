@@ -32,3 +32,15 @@ test('rejects unsafe, disallowed, and empty site URLs', () => {
   assert.throws(() => normalizeUrl('https://a.example.com', { allowedHosts: ['b.example.com'] }), error => error.code === 'SITE_URL_HOST_NOT_ALLOWED');
   assert.throws(() => normalizeSiteUrls({}), error => error.code === 'SITE_URL_REQUIRED');
 });
+
+test('keeps ordered complex query parameters without HTML-entity or percent double encoding', () => {
+  const result = normalizeSiteUrls({ siteUrls: [
+    'https://community.bigplayer.com/?env=web&gameId=100&gameVersion=1.0&lang=%E4%B8%AD%E6%96%87',
+    'https://community.bigplayer.com/second?redirect=%2Fhome%3Fa%3D1%26b%3D2&amp;label=%E4%B8%AD%E6%96%87'
+  ] }, { allowedHosts: ['community.bigplayer.com'] });
+  assert.deepEqual(result.siteUrls.map(site => site.url), [
+    'https://community.bigplayer.com/?env=web&gameId=100&gameVersion=1.0&lang=%E4%B8%AD%E6%96%87',
+    'https://community.bigplayer.com/second?redirect=%2Fhome%3Fa%3D1%26b%3D2&amp;label=%E4%B8%AD%E6%96%87'
+  ]);
+  assert.equal(result.baseUrl, result.siteUrls[0].url);
+});

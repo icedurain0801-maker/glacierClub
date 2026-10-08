@@ -1,5 +1,8 @@
 const MARIA_DB_DATETIME3 = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}$/;
 const EXPLICIT_TIMEZONE = /(?:Z|[+-]\d{2}:\d{2})$/i;
+const { randomUUID } = require('node:crypto');
+const { normalizeSiteUrls } = require('../../server/src/services/bigplayerSiteConfig');
+const { boardIdOf, boardRunIdentity } = require('../../shared/bigPlayerBoard');
 
 function toMariaDbDateTime(value, { nullable = false, name = 'timestamp' } = {}) {
   if (value == null) {
@@ -18,6 +21,41 @@ function toMariaDbDateTime(value, { nullable = false, name = 'timestamp' } = {})
   return date.toISOString().replace('T', ' ').slice(0, 23);
 }
 
+function multisiteError(code, message) {
+  const error = new Error(message); error.code = code; return error;
+}
+
+async function lockedScheduledSites(query, sourceId) {
+  const [sourceRows] = await query('SELECT platform, config FROM po_sources WHERE id=? FOR UPDATE', [sourceId]);
+  const source = sourceRows?.[0];
+  if (!source || source.platform !== 'bigplayer_h5') throw multisiteError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer scheduled source configuration is unavailable');
+  let configured;
+  try { configured = normalizeSiteUrls(typeof source.config === 'string' ? JSON.parse(source.config) : source.config); }
+  catch { throw multisiteError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer scheduled source site configuration is invalid'); }
+  if (configured.siteUrls.length < 2) throw multisiteError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer scheduled source no longer has multiple sites');
+  let rows;
+  try { [rows] = await query('SELECT site_id, url, enabled FROM po_source_sites WHERE source_id=? AND enabled=1 ORDER BY site_id FOR UPDATE', [sourceId]); }
+  catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') throw multisiteError('MULTISITE_SCHEMA_NOT_READY', 'BigPlayer multi-site schema migration is not applied');
+    throw error;
+  }
+  const persisted = new Map((rows || []).map(site => [String(site.site_id), site]));
+  const enabledSites = configured.siteUrls.filter(site => site.enabled !== false);
+  if (!enabledSites.length) throw multisiteError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer has no enabled configured sites');
+  return enabledSites.map(site => {
+    const row = persisted.get(String(site.siteId));
+    if (!row || String(row.url) !== site.url) throw multisiteError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer site registry does not match saved configuration');
+    return { siteId: String(site.siteId), url: site.url };
+  });
+}
+
+function siteWindow(windowStartAtDb, windowEndAtDb, cursor) {
+  if (!windowStartAtDb || !windowEndAtDb) return { windowStart: windowStartAtDb, windowEnd: windowEndAtDb };
+  const parse = value => Date.parse(`${String(value).replace(' ', 'T')}Z`);
+  const start = parse(windowStartAtDb); const end = parse(windowEndAtDb); const last = cursor == null ? NaN : parse(cursor);
+  return { windowStart: Number.isFinite(last) && last > start && last < end ? toMariaDbDateTime(new Date(last)) : windowStartAtDb, windowEnd: windowEndAtDb };
+}
+
 function createSchedulerRepositoryAdapter(connection) {
   if (!connection || typeof connection.query !== 'function') {
     throw new TypeError('connection.query is required');
@@ -32,7 +70,7 @@ function createSchedulerRepositoryAdapter(connection) {
     scheduledAt,
     windowStartAt = null,
     windowEndAt = null,
-    scheduleVersion
+    scheduleVersion, communityId = null, boardId = null
   } = {}) {
     if (!['scheduled', 'scheduled_catchup'].includes(triggerType)) {
       throw new TypeError('triggerType must be scheduled or scheduled_catchup');
@@ -43,8 +81,14 @@ function createSchedulerRepositoryAdapter(connection) {
     const scheduledAtDb = toMariaDbDateTime(scheduledAt, { name: 'scheduledAt' });
     const windowStartAtDb = toMariaDbDateTime(windowStartAt, { nullable: true, name: 'windowStartAt' });
     const windowEndAtDb = toMariaDbDateTime(windowEndAt, { nullable: true, name: 'windowEndAt' });
+    const boardIdentity = boardId ? boardRunIdentity({ sourceId, communityId, boardId, windowStart: windowStartAtDb, windowEnd: windowEndAtDb }) : null;
 
-    await connection.query(
+    if (boardId) await connection.query(
+      `INSERT INTO po_sync_runs (id, source_id, account_id, status, sync_mode, trigger_type, scheduled_at, window_start, window_end, schedule_version, started_at, community_id, board_id, run_scope, board_run_identity)
+      VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE id=id`,
+      [runId, sourceId, accountId, syncMode, triggerType, scheduledAtDb, windowStartAtDb, windowEndAtDb, scheduleVersion, communityId, boardId, 'collection', boardIdentity]
+    );
+    else await connection.query(
       `INSERT INTO po_sync_runs (
         id, source_id, account_id, status, sync_mode, trigger_type,
         scheduled_at, window_start, window_end, schedule_version, started_at
@@ -68,7 +112,7 @@ function createSchedulerRepositoryAdapter(connection) {
   async function scheduleSlotAtomic({
     runId, sourceId, accountId, syncMode = 'incremental', triggerType,
     scheduledAt, windowStartAt = null, windowEndAt = null, scheduleVersion,
-    ownerId, leaseUntil, nextSlotAt
+    ownerId, leaseUntil, nextSlotAt, multiSite = false, communityId = null, boardId = null
   } = {}) {
     if (!runId || !sourceId || !accountId || !ownerId || !scheduledAt || !nextSlotAt) throw new TypeError('scheduleSlotAtomic requires run/source/account/owner/times');
     if (!['scheduled', 'scheduled_catchup'].includes(triggerType)) throw new TypeError('triggerType must be scheduled or scheduled_catchup');
@@ -86,19 +130,56 @@ function createSchedulerRepositoryAdapter(connection) {
       const [lease] = await q(`UPDATE po_source_schedule_state s
         SET lease_run_id=?, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=?
         WHERE s.source_id=? AND (s.lease_until IS NULL OR s.lease_until<=UTC_TIMESTAMP(3))
-          AND NOT EXISTS (SELECT 1 FROM po_sync_runs r WHERE r.source_id=s.source_id AND r.status IN ('queued','running'))`,
+          AND NOT EXISTS (SELECT 1 FROM po_sync_runs r WHERE r.source_id=s.source_id AND r.status IN ('queued','running','pausing','paused','cancelling'))`,
         [runId, ownerId, leaseUntilDb, sourceId]);
-      if (lease?.affectedRows !== 1) { await rollback(); return { acquired: false }; }
+      if (lease?.affectedRows !== 1) {
+        const [blockedRows] = await q(`SELECT s.lease_until,
+            (s.lease_until IS NOT NULL AND s.lease_until>UTC_TIMESTAMP(3)) AS active_lease,
+            (SELECT r.status FROM po_sync_runs r
+              WHERE r.source_id=s.source_id AND r.status IN ('queued','running','pausing','paused','cancelling')
+              ORDER BY r.id LIMIT 1) AS active_run_status
+          FROM po_source_schedule_state s WHERE s.source_id=? FOR UPDATE`, [sourceId]);
+        const blocked = blockedRows?.[0] || {};
+        const reasonCode = blocked.active_run_status
+          ? `RUN_${String(blocked.active_run_status).toUpperCase()}`
+          : (Number(blocked.active_lease) === 1 ? 'LEASE_ACTIVE' : 'SCHEDULE_STATE_UNAVAILABLE');
+        await q('UPDATE po_source_schedule_state SET last_reason_code=? WHERE source_id=?', [reasonCode, sourceId]);
+        await commit();
+        return { acquired: false, leaseToken: null, reasonCode };
+      }
       const [epochRows] = await q('SELECT lease_epoch FROM po_source_schedule_state WHERE source_id=? AND lease_run_id=? AND lease_owner=? FOR UPDATE', [sourceId, runId, ownerId]);
       const epoch = epochRows?.[0]?.lease_epoch;
       if (!Number.isInteger(epoch)) throw new Error('lease epoch was not found after acquisition');
-      await q(`INSERT INTO po_sync_runs (id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
+      if (boardId) {
+        const [sourceRows] = await q('SELECT community_id, config FROM po_sources WHERE id=? FOR UPDATE', [sourceId]);
+        if (String(sourceRows?.[0]?.community_id) !== String(communityId) || boardIdOf(sourceRows?.[0]) !== boardId) throw multisiteError('BOARD_CONFIGURATION_CHANGED', 'BigPlayer board configuration changed during scheduling');
+      }
+      const boardIdentity = boardId ? boardRunIdentity({ sourceId, communityId, boardId, windowStart: windowStartAtDb, windowEnd: windowEndAtDb }) : null;
+      if (boardId) await q(`INSERT INTO po_sync_runs (id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at,community_id,board_id,run_scope,board_run_identity)
+        VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?) ON DUPLICATE KEY UPDATE id=id`,
+        [runId, sourceId, accountId, 'queued', syncMode, triggerType, scheduledAtDb, windowStartAtDb, windowEndAtDb, scheduleVersion, communityId, boardId, 'collection', boardIdentity]);
+      else await q(`INSERT INTO po_sync_runs (id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,NULL) ON DUPLICATE KEY UPDATE id=id`,
         [runId, sourceId, accountId, 'queued', syncMode, triggerType, scheduledAtDb, windowStartAtDb, windowEndAtDb, scheduleVersion]);
       const [winnerRows] = await q('SELECT id FROM po_sync_runs WHERE source_id=? AND scheduled_at=? FOR UPDATE', [sourceId, scheduledAtDb]);
       const winningRunId = winnerRows?.[0]?.id;
       if (!winningRunId) throw new Error('scheduled run was not found after enqueue');
       if (winningRunId !== runId) { await rollback(); return { acquired: false, created: false, runId: winningRunId, existingRunId: winningRunId }; }
+      if (multiSite) {
+        const sites = await lockedScheduledSites(q, sourceId);
+        for (const site of sites) {
+          const [cursorRows] = await q(`SELECT MAX(last_item_at) AS last_successful_cursor FROM po_sync_checkpoints WHERE account_id=? AND site_id=? AND status='completed' AND last_item_at IS NOT NULL${boardId ? ' AND task_key LIKE ?' : ''}`, [accountId, site.siteId, ...(boardId ? [`board:${boardId}:%`] : [])]);
+          const window = siteWindow(windowStartAtDb, windowEndAtDb, cursorRows?.[0]?.last_successful_cursor || null);
+          if (boardId) {
+            const childIdentity = boardRunIdentity({ sourceId, communityId, boardId, scope: 'site', windowStart: window.windowStart, windowEnd: window.windowEnd, siteId: site.siteId });
+            await q(`INSERT INTO po_sync_runs (id,parent_run_id,site_id,site_url_snapshot,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at,community_id,board_id,run_scope,board_run_identity)
+              VALUES (?,?,?,?,?,?,'queued',?,'scheduled_site',NULL,?,?,?,NULL,?,?,?,?)`,
+            [randomUUID(), runId, site.siteId, site.url, sourceId, accountId, syncMode, window.windowStart, window.windowEnd, scheduleVersion, communityId, boardId, 'site', childIdentity]);
+          } else await q(`INSERT INTO po_sync_runs (id,parent_run_id,site_id,site_url_snapshot,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
+            VALUES (?,?,?,?,?,?,'queued',?,'scheduled_site',NULL,?,?,?,NULL)`,
+          [randomUUID(), runId, site.siteId, site.url, sourceId, accountId, syncMode, window.windowStart, window.windowEnd, scheduleVersion]);
+        }
+      }
       await q('UPDATE po_source_schedule_state SET last_scheduled_at=?, next_scheduled_at=? WHERE source_id=? AND lease_run_id=? AND lease_owner=? AND lease_epoch=?', [scheduledAtDb, toMariaDbDateTime(nextSlotAt, { name: 'nextSlotAt' }), sourceId, runId, ownerId, epoch]);
       await commit();
       return { acquired: true, created: true, runId, leaseToken: { sourceId, runId, ownerId, epoch, leaseUntil } };
@@ -109,21 +190,34 @@ function createSchedulerRepositoryAdapter(connection) {
   async function acquireLease({ sourceId, runId, ownerId, now, leaseUntil, scheduledAt, nextSlotAt } = {}) {
     const nowDb = toMariaDbDateTime(now, { name: 'now' });
     const leaseUntilDb = toMariaDbDateTime(leaseUntil, { name: 'leaseUntil' });
-    const hasScheduleState = scheduledAt != null && nextSlotAt != null;
-    const scheduledAtDb = hasScheduleState ? toMariaDbDateTime(scheduledAt, { name: 'scheduledAt' }) : null;
-    const nextSlotAtDb = hasScheduleState ? toMariaDbDateTime(nextSlotAt, { name: 'nextSlotAt' }) : null;
-    const stateSet = hasScheduleState ? ', last_scheduled_at=?, next_scheduled_at=?' : '';
     const [result] = await connection.query(
       `UPDATE po_source_schedule_state s
-       SET lease_run_id=?, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=?${stateSet}
+       SET lease_run_id=?, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=?
        WHERE s.source_id=? AND (lease_until IS NULL OR lease_until<=?)
          AND NOT EXISTS (
            SELECT 1 FROM po_sync_runs r
-           WHERE r.source_id=s.source_id AND r.status IN ('queued','running')
+            WHERE r.source_id=s.source_id AND r.status IN ('queued','running','pausing','paused','cancelling')
          )`,
-      [runId, ownerId, leaseUntilDb, ...(hasScheduleState ? [scheduledAtDb, nextSlotAtDb] : []), sourceId, nowDb]
+      [runId, ownerId, leaseUntilDb, sourceId, nowDb]
     );
-    if (result?.affectedRows !== 1) return { acquired: false, leaseToken: null };
+    if (result?.affectedRows !== 1) {
+      let reasonCode = 'LEASE_OR_RUN_ACTIVE';
+      try {
+        const [rows] = await connection.query(
+          `SELECT s.lease_until, EXISTS (
+             SELECT 1 FROM po_sync_runs r
+              WHERE r.source_id=s.source_id AND r.status IN ('queued','running','pausing','paused','cancelling')
+           ) AS active_run
+           FROM po_source_schedule_state s WHERE s.source_id=? LIMIT 1`, [sourceId]
+        );
+        const state = rows?.[0];
+        reasonCode = Number(state?.active_run) === 1
+          ? 'PREVIOUS_RUN_ACTIVE'
+          : (state?.lease_until != null ? 'LEASE_ACTIVE' : 'SCHEDULE_STATE_UNAVAILABLE');
+        await connection.query('UPDATE po_source_schedule_state SET last_reason_code=? WHERE source_id=?', [reasonCode, sourceId]);
+      } catch {}
+      return { acquired: false, leaseToken: null, reasonCode };
+    }
 
     const [rows] = await connection.query(
       `SELECT lease_epoch FROM po_source_schedule_state
@@ -136,6 +230,18 @@ function createSchedulerRepositoryAdapter(connection) {
       acquired: true,
       leaseToken: { sourceId, runId, ownerId, epoch, leaseUntil }
     };
+  }
+
+  async function advanceLease({ sourceId, runId, ownerId, epoch, scheduledAt, nextSlotAt } = {}) {
+    const scheduledAtDb = toMariaDbDateTime(scheduledAt, { name: 'scheduledAt' });
+    const nextSlotAtDb = toMariaDbDateTime(nextSlotAt, { name: 'nextSlotAt' });
+    const [result] = await connection.query(
+      `UPDATE po_source_schedule_state
+       SET last_scheduled_at=?, next_scheduled_at=?
+       WHERE source_id=? AND lease_run_id=? AND lease_owner=? AND lease_epoch=?`,
+      [scheduledAtDb, nextSlotAtDb, sourceId, runId, ownerId, epoch]
+    );
+    return { advanced: result?.affectedRows === 1 };
   }
 
   async function renewLease({ sourceId, runId, ownerId, epoch, now, leaseUntil } = {}) {
@@ -222,7 +328,7 @@ function createSchedulerRepositoryAdapter(connection) {
     return rows || [];
   }
 
-  return { enqueueScheduled, scheduleSlotAtomic, acquireLease, renewLease, releaseLease, finalizeLease, upsertWorkerHeartbeat, listWorkerAlerts };
+  return { enqueueScheduled, scheduleSlotAtomic, acquireLease, advanceLease, renewLease, releaseLease, finalizeLease, upsertWorkerHeartbeat, listWorkerAlerts };
 }
 
 module.exports = { createSchedulerRepositoryAdapter };

@@ -12,6 +12,7 @@ function source(overrides = {}) {
     community_id: 'community-1',
     region_code: 'domestic',
     platform: 'bigplayer',
+    config: { boardId: '2' },
     enabled: true,
     game_enabled: true,
     community_status: 'enabled',
@@ -126,6 +127,44 @@ test('scheduled BigPlayer catchup carries a bounded seven-day UTC window', async
   assert.equal(result.decisions[0].status, 'enqueued');
   assert.equal(Date.parse(intent.windowEndAt), NOW.getTime());
   assert.equal(Date.parse(intent.windowEndAt) - Date.parse(intent.windowStartAt), 7 * 24 * 60 * 60 * 1000);
+});
+
+test('scheduled BigPlayer catchup extends a natural-day window to the actual execution cutoff', async () => {
+  const now = new Date('2026-09-21T18:01:09.000Z'); // Beijing 9/22 02:01:09
+  const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+  const result = await scheduleSources({ sources: [source({ platform: 'bigplayer_h5', frequency_seconds: 86400 })], now, ...inputs });
+  const intent = inputs.enqueued[0];
+  assert.equal(result.decisions[0].triggerType, 'scheduled_catchup');
+  assert.equal(intent.windowStartAt, '2026-09-20T16:00:00.000Z');
+  assert.equal(intent.windowEndAt, now.toISOString());
+});
+
+test('Discord and TapTap windows are not extended by the BigPlayer cutoff rule', async () => {
+  for (const platform of ['discord', 'taptap']) {
+    const now = new Date('2026-09-21T18:01:09.000Z');
+    const inputs = deps({
+      accounts: [account({ platform })],
+      connectorCapabilities: { [platform]: { available: true, supportsScheduling: true } }
+    });
+    await scheduleSources({ sources: [source({ platform, region_code: platform === 'discord' ? 'overseas' : 'domestic' })], now, ...inputs });
+    assert.notEqual(inputs.enqueued[0].windowEndAt, now.toISOString(), platform);
+  }
+});
+
+test('configured multi-site source stays parent-plus-children when only one site is enabled', async () => {
+  const inputs = deps({
+    accounts: [account({ platform: 'bigplayer_h5' })],
+    connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } }
+  });
+  const configured = source({
+    platform: 'bigplayer_h5',
+    config: JSON.stringify({ boardId: '2', siteUrls: [
+      { siteId: 'enabled', url: 'https://club.q1.com/?gameId=1', enabled: true },
+      { siteId: 'disabled', url: 'https://club.q1.com/?gameId=2', enabled: false }
+    ] })
+  });
+  await scheduleSources({ sources: [configured], now: NOW, ...inputs });
+  assert.equal(inputs.enqueued[0].multiSite, true);
 });
 
 test('non-BigPlayer scheduled sources keep their connector-defined window', async () => {

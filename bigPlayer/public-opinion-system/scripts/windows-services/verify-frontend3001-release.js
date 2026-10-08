@@ -34,7 +34,15 @@ for (const required of [
   const target = path.join(releaseRoot, required);
   if (!fs.existsSync(target) || !fs.statSync(target).isFile()) fail(`required release file missing: ${required}`);
 }
-new Function(fs.readFileSync(path.join(releaseRoot, 'frontend3001-server.js'), 'utf8'));
+const serverSource = fs.readFileSync(path.join(releaseRoot, 'frontend3001-server.js'), 'utf8');
+new Function(serverSource);
+if (!serverSource.includes("requestUrl.pathname === '/health'") || !serverSource.includes("requestUrl.pathname.startsWith('/api/')")) {
+  fail('frontend proxy must route /health and /api/*');
+}
+if (!serverSource.includes("upstream.port !== '4320'") || !serverSource.includes('http://127.0.0.1:4320')) {
+  fail('frontend proxy must pin upstream to http://127.0.0.1:4320');
+}
+if (serverSource.includes('4321')) fail('stale frontend upstream port 4321 is forbidden');
 const releaseFiles = files(releaseRoot).filter(file => path.basename(file) !== manifestName);
 for (const file of releaseFiles) {
   const relative = path.relative(releaseRoot, file).replaceAll('\\', '/');

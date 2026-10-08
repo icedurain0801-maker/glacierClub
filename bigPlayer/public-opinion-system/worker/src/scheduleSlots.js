@@ -8,7 +8,14 @@ function timestamp(value, name, { optional = false } = {}) {
     if (optional) return null;
     throw new TypeError(`${name} must be a valid UTC Date or ISO timestamp`);
   }
-  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  // MariaDB DATETIME(3) values are stored without timezone but the scheduler
+  // contract treats them as UTC. Appending Z prevents host-local timezone
+  // interpretation (for example Asia/Shanghai shifting the value by +8h).
+  const text = typeof value === 'string' ? value.trim() : '';
+  const canonical = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,3})?$/.test(text)
+    ? `${text.replace(' ', 'T')}Z`
+    : value;
+  const time = value instanceof Date ? value.getTime() : new Date(canonical).getTime();
   if (!Number.isFinite(time)) throw new TypeError(`${name} must be a valid UTC Date or ISO timestamp`);
   return time;
 }

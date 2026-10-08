@@ -7,7 +7,9 @@ $ErrorActionPreference = 'Stop'
 $source = (Resolve-Path -LiteralPath $SourceRoot).Path
 $runtime = [System.IO.Path]::GetFullPath($RuntimeRoot)
 $runtimeParent = Split-Path -Parent $runtime
-$stage = Join-Path $runtimeParent ('.api-release-' + [guid]::NewGuid().ToString('N'))
+$stageParent = Join-Path ([System.IO.Path]::GetTempPath()) 'public-opinion-api-staging'
+New-Item -ItemType Directory -Path $stageParent -Force | Out-Null
+$stage = Join-Path $stageParent ('.api-release-' + [guid]::NewGuid().ToString('N'))
 
 function Test-Inside([string]$Root, [string]$Candidate) {
     $rootPath = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
@@ -41,7 +43,7 @@ function Copy-Tree([string]$From, [string]$To) {
 }
 
 try {
-    New-Item -ItemType Directory -Path (Join-Path $stage 'server') -Force | Out-Null
+    New-Item -ItemType Directory -Path $stage, (Join-Path $stage 'server') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $source 'package.json') -Destination $stage
     Copy-Item -LiteralPath (Join-Path $source 'package-lock.json') -Destination $stage
     Copy-Item -LiteralPath (Join-Path $source 'server\package.json') -Destination (Join-Path $stage 'server')
@@ -55,6 +57,7 @@ try {
     Copy-Tree (Join-Path $source 'server\src') (Join-Path $stage 'server\src')
     New-Item -ItemType Directory -Path (Join-Path $stage 'shared') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $source 'shared\riskModes.js') -Destination (Join-Path $stage 'shared\riskModes.js')
+    Copy-Item -LiteralPath (Join-Path $source 'shared\bigPlayerBoard.js') -Destination (Join-Path $stage 'shared\bigPlayerBoard.js')
     Remove-Item -LiteralPath (Join-Path $stage 'server\package.json') -Force
 
     & node.exe (Join-Path $PSScriptRoot 'verify-api-release.js') $stage $source --write-manifest
@@ -68,9 +71,9 @@ try {
 } finally {
     if (Test-Path -LiteralPath $stage) {
         $resolvedStage = (Resolve-Path -LiteralPath $stage).Path
-        $resolvedParent = [System.IO.Path]::GetFullPath($runtimeParent).TrimEnd('\')
-        if (-not $resolvedStage.StartsWith("$resolvedParent\", [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw "Refusing release cleanup outside runtime parent: $resolvedStage"
+        $resolvedStageParent = [System.IO.Path]::GetFullPath($stageParent).TrimEnd('\')
+        if (-not $resolvedStage.StartsWith("$resolvedStageParent\", [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing release cleanup outside API staging root: $resolvedStage"
         }
         & node.exe -e "require('node:fs').rmSync(process.argv[1], { recursive: true, force: true, maxRetries: 3 })" $resolvedStage
         if ($LASTEXITCODE -ne 0) { throw "Release staging cleanup failed with exit code $LASTEXITCODE" }
