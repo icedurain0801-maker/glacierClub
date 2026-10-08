@@ -1,7 +1,7 @@
 'use strict';
 
 const { LastNightIsolatedStore } = require('./lastNightIsolatedStore');
-const { collectIsolated, consumeIsolatedAnalysis } = require('./lastNightIsolatedPipeline');
+const { assertCollectionAdmission, collectIsolated, consumeIsolatedAnalysis } = require('./lastNightIsolatedPipeline');
 
 function fail(code) { const error = new Error(code); error.code = code; throw error; }
 
@@ -14,6 +14,7 @@ async function executeIsolatedFixture({ mode, store, sites, configHash, source, 
     fail('PRODUCTION_EXECUTION_DISABLED');
   }
   if (!ai || typeof deepPolicy !== 'function') fail('LAST_NIGHT_ISOLATED_EXECUTOR_DEPS_INVALID');
+  assertCollectionAdmission({ source, account, sites, connector, publishedFrom, publishedTo });
   await store.freezeSites({ sites, configHash });
   const collection = await collectIsolated({ source, account, sites, connector,
     credentialContext, store, publishedFrom, publishedTo, pageSize,

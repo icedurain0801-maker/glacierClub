@@ -2,7 +2,9 @@
 
 const { boardIdOf } = require('../../shared/bigPlayerBoard');
 const { flattenCommentTree } = require('../../server/src/connectors/baseConnector');
+const { BigPlayerH5Connector } = require('../../server/src/connectors/bigPlayerH5Connector');
 const { SOURCE_ID, GAME_ID, COMMUNITY_ID, BOARD_ID } = require('./lastNightOverseasDailyJob');
+const fixtureConnectors = new WeakSet();
 
 function reject(code) { const error = new Error(code); error.code = code; throw error; }
 
@@ -35,6 +37,31 @@ function scopedSource(source, site) {
     config: { ...config, baseUrl: site.url } };
 }
 
+function registerIsolatedFixtureConnector(connector) {
+  if (!connector || typeof connector !== 'object' || connector instanceof BigPlayerH5Connector) {
+    reject('LAST_NIGHT_FIXTURE_CONNECTOR_INVALID');
+  }
+  fixtureConnectors.add(connector);
+  return connector;
+}
+
+function assertConnectorSiteIdentity(connector, sites) {
+  if (fixtureConnectors.has(connector)) return;
+  if (!(connector instanceof BigPlayerH5Connector)) reject('LAST_NIGHT_FIXTURE_CONNECTOR_REQUIRED');
+  const signatures = sites.map(site => {
+    const url = new URL('/api/club/v1/auth/user/context', site.url);
+    const language = new URL(site.url).searchParams.get('lang') || 'zh-Hans';
+    return JSON.stringify([url.origin, url.pathname, url.search, language]);
+  });
+  if (new Set(signatures).size !== sites.length) reject('LAST_NIGHT_UPSTREAM_SITE_COLLISION');
+  reject('LAST_NIGHT_UPSTREAM_SITE_IDENTITY_UNVERIFIED');
+}
+
+function assertCollectionAdmission({ source, account, sites, connector, publishedFrom, publishedTo }) {
+  assertScope({ source, account, sites, publishedFrom, publishedTo });
+  assertConnectorSiteIdentity(connector, sites);
+}
+
 function assertPage(page, cursor) {
   if (!page || !Array.isArray(page.items) || typeof page.hasMore !== 'boolean' ||
     (page.hasMore && (!page.nextCursor || page.nextCursor === cursor)) ||
@@ -60,14 +87,15 @@ async function pages({ load, commit, renew, maxPages, state = null }) {
 
 async function collectIsolated({ source, account, sites, connector, credentialContext, store,
   publishedFrom, publishedTo, pageSize = 20, maxPagesPerFeed = 100, maxCommentPages = 100,
-  retryFailed = false, signal } = {}) {
-  assertScope({ source, account, sites, publishedFrom, publishedTo });
+  retryFailed = false, heartbeatMs = 30000, signal } = {}) {
+  assertCollectionAdmission({ source, account, sites, connector, publishedFrom, publishedTo });
   if (!connector?.discoverFeeds || !connector?.listFeedContents || !connector?.listComments ||
     !store?.startRun || !store?.loadPageState || !store?.commitPage ||
     !store?.finishRun || !store?.failRun || !store?.renewRunLease ||
     !store?.registerFeeds || !store?.registerTask ||
     !Number.isInteger(pageSize) || pageSize < 1 || !Number.isInteger(maxPagesPerFeed) || maxPagesPerFeed < 1 ||
-    !Number.isInteger(maxCommentPages) || maxCommentPages < 1) reject('LAST_NIGHT_ISOLATED_DEPS_INVALID');
+    !Number.isInteger(maxCommentPages) || maxCommentPages < 1 ||
+    !Number.isInteger(heartbeatMs) || heartbeatMs < 10 || heartbeatMs > 60000) reject('LAST_NIGHT_ISOLATED_DEPS_INVALID');
   const result = [];
   for (const site of sites) {
     if (signal?.aborted) reject('LAST_NIGHT_ISOLATED_ABORTED');
@@ -79,8 +107,19 @@ async function collectIsolated({ source, account, sites, connector, credentialCo
       result.push({ siteId: site.siteId, runId: run.id, status: 'completed' });
       continue;
     }
+    let heartbeatFailure = null;
+    let pendingHeartbeat = Promise.resolve();
+    const renew = async () => {
+      await pendingHeartbeat;
+      if (heartbeatFailure) throw heartbeatFailure;
+      await store.renewRunLease(run.id, run.leaseEpoch);
+    };
+    const heartbeat = setInterval(() => {
+      pendingHeartbeat = pendingHeartbeat.then(() => store.renewRunLease(run.id, run.leaseEpoch))
+        .catch(error => { heartbeatFailure = error; });
+    }, heartbeatMs);
+    heartbeat.unref?.();
     try {
-      const renew = () => store.renewRunLease(run.id, run.leaseEpoch);
       const feeds = await connector.discoverFeeds({ source: siteSource, account, credentialContext, signal });
       if (!Array.isArray(feeds) || !feeds.length || feeds.some(feed => String(feed.boardId) !== BOARD_ID) ||
         new Set(feeds.map(feed => feed.feedKey)).size !== feeds.length) reject('LAST_NIGHT_ISOLATED_FEEDS_INVALID');
@@ -94,7 +133,9 @@ async function collectIsolated({ source, account, sites, connector, credentialCo
             feed, cursor, limit: pageSize, dailyBounded: true, publishedFrom, publishedTo, signal }),
           commit: async (page, cursor) => {
             for (const post of page.items) {
-              if (!post.externalId || post.contentType !== 'post') reject('LAST_NIGHT_ISOLATED_POST_INVALID');
+              if (!post.externalId || !['post', 'activity'].includes(post.contentType)) {
+                reject('LAST_NIGHT_ISOLATED_POST_INVALID');
+              }
               const commentKey = { runId: run.id, scope: 'comments', feedKey: feed.feedKey,
                 rootPostId: post.externalId };
               await store.registerTask({ ...commentKey, leaseEpoch: run.leaseEpoch });
@@ -136,10 +177,13 @@ async function collectIsolated({ source, account, sites, connector, credentialCo
               nextCursor: page.nextCursor, hasMore: page.hasMore, items: page.items });
           } });
       }
+      clearInterval(heartbeat);
       await renew();
       await store.finishRun(run.id, run.leaseEpoch);
       result.push({ siteId: site.siteId, runId: run.id, status: 'completed' });
     } catch (error) {
+      clearInterval(heartbeat);
+      await pendingHeartbeat;
       await store.failRun(run.id, run.leaseEpoch,
         error.cause?.code || error.details?.cause || error.code || 'LAST_NIGHT_ISOLATED_FAILED');
       throw error;
@@ -148,28 +192,59 @@ async function collectIsolated({ source, account, sites, connector, credentialCo
   return { status: 'collected', sourceId: SOURCE_ID, siteRuns: result };
 }
 
-async function consumeIsolatedAnalysis({ store, ai, deepPolicy, limit = 20 } = {}) {
-  if (!store?.claimAnalysisJobs || !store?.completeAnalysisJob || !store?.failAnalysisJob ||
+async function consumeIsolatedAnalysis({ store, ai, deepPolicy, limit = 20, heartbeatMs = 30000 } = {}) {
+  if (!store?.claimAnalysisJobs || !store?.renewAnalysisJobLease ||
+    !store?.completeAnalysisJob || !store?.failAnalysisJob ||
     !ai?.analyzeBatch || !ai?.configured || typeof deepPolicy !== 'function' ||
-    !Number.isInteger(limit) || limit < 1) reject('LAST_NIGHT_ISOLATED_ANALYSIS_DEPS_INVALID');
+    !Number.isInteger(limit) || limit < 1 || limit > 100 ||
+    !Number.isInteger(heartbeatMs) || heartbeatMs < 10 || heartbeatMs > 60000) {
+    reject('LAST_NIGHT_ISOLATED_ANALYSIS_DEPS_INVALID');
+  }
   if (!ai.configured('light')) reject('LAST_NIGHT_ISOLATED_AI_UNAVAILABLE');
   const jobs = await store.claimAnalysisJobs({ sourceId: SOURCE_ID, limit });
-  for (const job of jobs) {
-    if (String(job.sourceId) !== SOURCE_ID || String(job.boardId) !== BOARD_ID ||
-      !['light', 'deep'].includes(job.profile)) reject('LAST_NIGHT_ISOLATED_AI_SCOPE_MISMATCH');
-    try {
+  const active = new Map(jobs.map(job => [job.id, job]));
+  let heartbeatFailure = null;
+  let pendingHeartbeat = Promise.resolve();
+  const heartbeat = setInterval(() => {
+    pendingHeartbeat = pendingHeartbeat.then(async () => {
+      for (const job of active.values()) await store.renewAnalysisJobLease(job.id, job.leaseEpoch);
+    }).catch(error => { heartbeatFailure = error; });
+  }, heartbeatMs);
+  heartbeat.unref?.();
+  try {
+    for (const job of jobs) {
+      if (String(job.sourceId) !== SOURCE_ID || String(job.boardId) !== BOARD_ID ||
+        !['light', 'deep'].includes(job.profile)) reject('LAST_NIGHT_ISOLATED_AI_SCOPE_MISMATCH');
+      await pendingHeartbeat;
+      if (heartbeatFailure) throw heartbeatFailure;
       if (!ai.configured(job.profile)) reject('LAST_NIGHT_ISOLATED_AI_UNAVAILABLE');
       const [analysis] = await ai.analyzeBatch([job.content], job.profile);
       if (!analysis) reject('LAST_NIGHT_ISOLATED_AI_INCOMPLETE');
-      await store.completeAnalysisJob(job.id, job.leaseEpoch, analysis, {
-        queueDeep: job.profile === 'light' && ai.configured('deep') && deepPolicy(analysis, job.content)
-      });
-    } catch (error) {
-      await store.failAnalysisJob(job.id, job.leaseEpoch, error.code || 'LAST_NIGHT_ISOLATED_AI_FAILED');
-      throw error;
+      await pendingHeartbeat;
+      if (heartbeatFailure) throw heartbeatFailure;
+      active.delete(job.id);
+      try {
+        await store.completeAnalysisJob(job.id, job.leaseEpoch, analysis, {
+          queueDeep: job.profile === 'light' && ai.configured('deep') && deepPolicy(analysis, job.content)
+        });
+      } catch (error) {
+        await store.failAnalysisJob(job.id, job.leaseEpoch,
+          error.code || 'LAST_NIGHT_ISOLATED_AI_FAILED');
+        throw error;
+      }
     }
+  } catch (error) {
+    clearInterval(heartbeat);
+    await pendingHeartbeat;
+    await Promise.allSettled([...active.values()].map(job => store.failAnalysisJob(job.id,
+      job.leaseEpoch, error.code || 'LAST_NIGHT_ISOLATED_AI_FAILED')));
+    throw error;
+  } finally {
+    clearInterval(heartbeat);
+    await pendingHeartbeat;
   }
   return { status: 'processed', jobs: jobs.length };
 }
 
-module.exports = { assertScope, collectIsolated, consumeIsolatedAnalysis };
+module.exports = { assertScope, assertCollectionAdmission, registerIsolatedFixtureConnector,
+  collectIsolated, consumeIsolatedAnalysis };

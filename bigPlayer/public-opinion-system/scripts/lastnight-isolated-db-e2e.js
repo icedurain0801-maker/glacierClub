@@ -8,7 +8,9 @@ const { spawn } = require('node:child_process');
 const mysql = require('mysql2/promise');
 const { LastNightIsolatedStore, grantsAreIsolated } = require('../worker/src/lastNightIsolatedStore');
 const { executeIsolatedFixture } = require('../worker/src/lastNightIsolatedExecutor');
-const { collectIsolated, consumeIsolatedAnalysis } = require('../worker/src/lastNightIsolatedPipeline');
+const { collectIsolated, consumeIsolatedAnalysis,
+  registerIsolatedFixtureConnector } = require('../worker/src/lastNightIsolatedPipeline');
+const { createLastNightConnector } = require('../worker/src/lastNightIsolatedAuth');
 const { SOURCE_ID, GAME_ID, COMMUNITY_ID, BOARD_ID } = require('../worker/src/lastNightOverseasDailyJob');
 
 const root = path.resolve(__dirname, '../../..', '.temp/po-closeout-20261008');
@@ -171,13 +173,23 @@ async function main(argv = process.argv) {
     if (!mixedScopeRejected || !outsideWindowRejected ||
       (await store.loadPageState(page)).nextCursor !== 'p2') throw fail('ISOLATED_SCOPE_ROLLBACK_FAILED');
     await store.commitPage({ ...page, cursor: 'p2', nextCursor: null, hasMore: false,
-      items: [{ externalId: 'post-2', contentType: 'post',
-        publishedAt: '2026-10-07T12:00:00.000Z' }] });
+      items: [{ externalId: 'post-2', contentType: 'activity',
+        published_at: '2026-10-07T12:00:00.000Z' }] });
+    const [[snakeCaseDate]] = await control.query(`SELECT published_at,content_type FROM ln_last_night.ln_contents
+      WHERE source_id=? AND external_id='post-2'`, [SOURCE_ID]);
+    if (!snakeCaseDate?.published_at || snakeCaseDate.content_type !== 'activity') {
+      throw fail('ISOLATED_ACTIVITY_OR_DATE_LOST');
+    }
     await store.finishRun(run.id, run.leaseEpoch);
     const duplicate = await store.startRun(input);
     if (duplicate.status !== 'completed' || duplicate.id !== run.id) throw fail('ISOLATED_RUN_NOT_IDEMPOTENT');
     const jobs = await store.claimAnalysisJobs({ sourceId: SOURCE_ID, limit: 10 });
     if (jobs.length !== 2) throw fail('ISOLATED_OUTBOX_MISMATCH');
+    await store.renewAnalysisJobLease(jobs[0].id, jobs[0].leaseEpoch);
+    let staleAiLeaseRejected = false;
+    try { await store.renewAnalysisJobLease(jobs[0].id, jobs[0].leaseEpoch + 1); }
+    catch (error) { staleAiLeaseRejected = error.code === 'LAST_NIGHT_STORE_AI_LEASE_LOST'; }
+    if (!staleAiLeaseRejected) throw fail('ISOLATED_STALE_AI_LEASE_ACCEPTED');
     for (const job of jobs) await store.completeAnalysisJob(job.id, job.leaseEpoch,
       { sentiment: 'neutral', modelName: 'fixture' }, { queueDeep: true });
     const deepJobs = await store.claimAnalysisJobs({ sourceId: SOURCE_ID, limit: 10 });
@@ -190,7 +202,7 @@ async function main(argv = process.argv) {
         region_code: 'overseas', platform: 'bigplayer_h5', config: { boardId: BOARD_ID } },
       account: { id: input.accountId, source_id: SOURCE_ID, platform: 'bigplayer_h5' },
       publishedFrom: '2026-10-06T00:00:00.000Z', publishedTo: input.publishedFrom,
-      connector: {
+      connector: registerIsolatedFixtureConnector({
         async discoverFeeds() { return [{ boardId: BOARD_ID, feedKey: 'merged' }]; },
         async listFeedContents({ source, cursor }) {
           if (cursor) throw fail('ISOLATED_FIXTURE_CURSOR_UNEXPECTED');
@@ -208,7 +220,7 @@ async function main(argv = process.argv) {
             replyTargets: [{ postId, commentId: `fixture-comment-${source.siteId}` }],
             hasMore: false, nextCursor: null, capability: 'authorized_scope' };
         }
-      },
+      }),
       ai: { configured: () => true, async analyzeBatch(items) {
         return items.map(() => ({ sentiment: 'neutral', modelName: 'fixture' }));
       } }, deepPolicy: () => true });
@@ -249,7 +261,7 @@ async function main(argv = process.argv) {
       region_code: 'overseas', platform: 'bigplayer_h5', config: { boardId: BOARD_ID }
     }, account: { id: input.accountId, source_id: SOURCE_ID, platform: 'bigplayer_h5' },
     sites, store: resumedStore, ...crashWindow,
-    connector: {
+    connector: registerIsolatedFixtureConnector({
       async discoverFeeds() { return [{ boardId: BOARD_ID, feedKey: 'merged' }]; },
       async listFeedContents({ source }) {
         return { items: source.siteId === sites[0].siteId
@@ -264,7 +276,7 @@ async function main(argv = process.argv) {
           publishedAt: '2026-10-05T12:00:00.000Z' }],
           hasMore: false, capability: 'authorized_scope' };
       }
-    } });
+    }) });
     const resumedPage = await resumedStore.loadPageState({ runId: crashRuns[0].id,
       scope: 'comments', feedKey: 'merged', rootPostId: 'crash-post' });
     if (recovery.siteRuns.length !== 3 || resumedCursors.length !== 1 ||
@@ -287,6 +299,76 @@ async function main(argv = process.argv) {
       Number(finalCounts.jobs) !== 28 || Number(finalCounts.results) !== 28) {
       throw fail('ISOLATED_CRASH_PERSISTENCE_MISMATCH');
     }
+    const connectorRequests = [];
+    const credentialContext = { async loadApiToken() { return 'fixture-token'; } };
+    const connector = createLastNightConnector({ credentialContext,
+      fetchImpl: async (requestUrl, options) => {
+        const url = new URL(String(requestUrl));
+        if (url.origin !== 'https://club-en.q1.com' || options.redirect !== 'manual' ||
+          options.headers.authorization !== 'Bearer fixture-token') {
+          throw fail('ISOLATED_CONNECTOR_REQUEST_UNSAFE');
+        }
+        connectorRequests.push(url.pathname);
+        let payload;
+        if (url.pathname === '/api/club/v1/auth/user/context') {
+          payload = { code: 0, data: { boards: [{ id: Number(BOARD_ID), name: 'fixture' }] } };
+        } else if (url.pathname === '/api/club/v2/auth/board') {
+          payload = { code: 0, data: { groups: [{ id: Number(BOARD_ID), type: 1, name: 'circle' }] } };
+        } else if (url.pathname === '/api/club/v1/auth/post/activity/list' &&
+          url.searchParams.get('type') === '3') {
+          payload = { code: 0, total: 1, hasMore: false, data: { list: [
+            { id: 9001, title: 'fixture activity', createTime: '2026-10-04T12:00:00Z',
+              content: [{ type: 0, data: 'fixture body' }] }] } };
+        } else if (['/api/club/v1/auth/post/model/merged-list',
+          '/api/club/v1/auth/post/activity/list'].includes(url.pathname)) {
+          payload = { code: 0, total: 0, hasMore: false, data: { list: [] } };
+        } else if (url.pathname === '/api/club/v1/auth/post/' &&
+          url.searchParams.get('postId') === '9001') {
+          payload = { code: 0, data: { id: 9001, createTime: '2026-10-04T12:00:00Z',
+            content: [{ type: 0, data: 'fixture detail' }] } };
+        } else if (url.pathname === '/api/club/v1/auth/comment/9001') {
+          payload = { code: 0, total: 0, hasMore: false, data: [] };
+        } else throw fail('ISOLATED_CONNECTOR_PATH_UNEXPECTED');
+        return { ok: true, status: 200, url: url.toString(), json: async () => payload };
+      } });
+    const connectorWindow = { publishedFrom: '2026-10-04T00:00:00.000Z',
+      publishedTo: '2026-10-05T00:00:00.000Z' };
+    const connectorSource = {
+      id: SOURCE_ID, game_id: GAME_ID, community_id: COMMUNITY_ID,
+      region_code: 'overseas', platform: 'bigplayer_h5', config: { boardId: BOARD_ID }
+    };
+    const connectorAccount = { id: input.accountId, source_id: SOURCE_ID,
+      platform: 'bigplayer_h5' };
+    let collisionRejected = false;
+    try {
+      await collectIsolated({ source: connectorSource, account: connectorAccount,
+        sites, store: resumedStore, connector, credentialContext, ...connectorWindow });
+    } catch (error) { collisionRejected = error.code === 'LAST_NIGHT_UPSTREAM_SITE_COLLISION'; }
+    const [connectorRuns] = await control.query(`SELECT id FROM ln_last_night.ln_runs
+      WHERE window_start=? AND window_end=?`,
+    [utcSql(connectorWindow.publishedFrom), utcSql(connectorWindow.publishedTo)]);
+    if (!collisionRejected || connectorRequests.length || connectorRuns.length) {
+      throw fail('ISOLATED_UPSTREAM_COLLISION_NOT_CLOSED');
+    }
+    const oneSiteSource = { ...connectorSource,
+      config: { boardId: BOARD_ID, baseUrl: sites[0].url } };
+    const feeds = await connector.discoverFeeds({ source: oneSiteSource,
+      account: connectorAccount, credentialContext });
+    const activityFeed = feeds.find(feed => feed.endpointKind === 'activity' && feed.type === 3);
+    if (!activityFeed) throw fail('ISOLATED_CONNECTOR_ACTIVITY_FEED_MISSING');
+    const activityPage = await connector.listFeedContents({ source: oneSiteSource,
+      account: connectorAccount, credentialContext, feed: activityFeed,
+      limit: 20, dailyBounded: true, ...connectorWindow });
+    const commentPage = await connector.listComments({ source: oneSiteSource,
+      account: connectorAccount, credentialContext, postId: '9001',
+      limit: 20, dailyBounded: true, ...connectorWindow });
+    if (activityPage.items.length !== 1 || activityPage.items[0].contentType !== 'activity' ||
+      commentPage.items.length !== 0 ||
+      !connectorRequests.includes('/api/club/v1/auth/post/activity/list') ||
+      !connectorRequests.includes('/api/club/v1/auth/post/') ||
+      !connectorRequests.includes('/api/club/v1/auth/comment/9001')) {
+      throw fail('ISOLATED_ONE_SITE_CONNECTOR_CONTRACT_FAILED');
+    }
     await pool.end();
     pool = null;
     result = { status: 'PASS_ISOLATED_DB_E2E', code: 'PERSISTENCE_AND_ROLLBACK_VERIFIED',
@@ -297,7 +379,11 @@ async function main(argv = process.argv) {
       fixtureGrantsVerified: true, rollbackConfirmed, mixedScopeRejected,
       outsideWindowRejected, staleLeaseRejected,
       incompleteTasksRejected, schemaSha256: shaFile(schemaPath),
-      storeSha256: shaFile(path.resolve(__dirname, '../worker/src/lastNightIsolatedStore.js')) };
+      storeSha256: shaFile(path.resolve(__dirname, '../worker/src/lastNightIsolatedStore.js')),
+      connectorCollisionRejected: true,
+      connectorFixtureSiteRuns: 0,
+      connectorFixtureActivities: activityPage.items.length,
+      connectorFixtureRequests: connectorRequests.length };
   } catch (error) {
     result = { status: 'NO_GO_ISOLATED_DB', code: /^[A-Z0-9_]+$/.test(error?.code || '')
       ? error.code : 'ISOLATED_DB_FAILED', productionTouched: false };
