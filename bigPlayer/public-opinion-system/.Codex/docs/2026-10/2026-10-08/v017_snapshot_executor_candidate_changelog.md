@@ -1,6 +1,6 @@
 # 同快照执行器本地候选变更记录
 
-Status: local-candidate-isolated-e2e-pass-production-no-go
+Status: isolated-qa-pass-production-no-go
 
 ## 已完成
 
@@ -15,7 +15,8 @@ Status: local-candidate-isolated-e2e-pass-production-no-go
 
 ## 待验证与边界
 
-- 正式执行器的正常路径已用真实隔离 dump/restore 跑通；大负载接线、abort/子进程退出故障注入、文件 ACL 与测试负责人独立 QA 仍待验收。当前 v017 哈希已冻结，需由测试负责人基于本次哈希独立复验。
+- 测试负责人已基于冻结哈希独立复验并回报 `PASS_ISOLATED_EXECUTOR_FROZEN_CANDIDATE`：CLI、Executor、Gate、Manifest SHA256 全部匹配；只读脚本测试 `3/3`、服务端全量 `572/572` 通过；43317 隔离 E2E 的真实 dump/严格恢复、artifact 绑定、数据及对象变异拒绝、子进程清理和端口释放通过。此 PASS 仅限隔离范围。
+- 正式执行器的正常路径已用真实隔离 dump/restore 跑通；大负载接线、abort/子进程退出故障注入及文件 ACL 仍待验收。
 - 生产只读评估缺独立最小权限账号，当前 DB 容量/活跃写入/事务/租约新鲜证据未取得；即使取得两次短时写入采样也不等于已排空。生产锁库、备份、恢复、029/030、排空、切换和真实 Run 均保持 `NO_GO`。
 - 供项目经理决策的最小账号方案：单独观察账号仅授予目标库 `SELECT` 与全局 `PROCESS`；凭据通过受控安全注入，禁止写入仓库或日志；观察窗口结束后撤权。当前仅提出方案，未执行 `CREATE USER`、`GRANT` 或 root 正式评估。
 - 本候选未推送；先前用户确认的推送只含离线准入回归，不含此模块。
