@@ -92,7 +92,7 @@ async function main() {
     await admin.query(`CREATE USER '${user}'@'127.0.0.1' ACCOUNT LOCK`);
     result.phases.push('CREATE_LOCKED_USER');
     try {
-      await connect({ user, password: 'deliberately-not-a-secret', database });
+      await connect({ user, database });
       throw failure('LOCKED_ACCOUNT_LOGIN_SUCCEEDED');
     } catch (error) {
       if (error.code === 'LOCKED_ACCOUNT_LOGIN_SUCCEEDED') throw error;
