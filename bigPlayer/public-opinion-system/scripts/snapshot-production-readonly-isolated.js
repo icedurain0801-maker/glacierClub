@@ -100,10 +100,7 @@ async function main() {
     }
     phase = 'SET_PASSWORD';
     generatedPassword = crypto.randomBytes(32).toString('base64url');
-    const passwordHash = `*${crypto.createHash('sha1').update(
-      crypto.createHash('sha1').update(generatedPassword).digest()
-    ).digest('hex').toUpperCase()}`;
-    await admin.execute(`SET PASSWORD FOR '${user}'@'127.0.0.1' = ?`, [passwordHash]);
+    await admin.execute(`ALTER USER '${user}'@'127.0.0.1' IDENTIFIED BY ?`, [generatedPassword]);
     phase = 'PASSWORD_EXPIRE';
     await admin.query(`ALTER USER '${user}'@'127.0.0.1' PASSWORD EXPIRE INTERVAL 1 DAY`);
     await admin.query(`ALTER USER '${user}'@'127.0.0.1' ACCOUNT UNLOCK`);
