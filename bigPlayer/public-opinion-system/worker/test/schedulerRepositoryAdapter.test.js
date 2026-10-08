@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { createSchedulerRepositoryAdapter } = require('../src/schedulerRepositoryAdapter');
+const { derivedSiteId } = require('../../server/src/services/bigplayerSiteConfig');
 
 function compact(sql) {
   return sql.replace(/\s+/g, ' ').trim();
@@ -209,6 +210,86 @@ test('atomic BigPlayer multi-site slot rolls back when every configured site is 
   );
   assert.equal(calls.some(call => call.sql === 'ROLLBACK'), true);
   assert.equal(calls.some(call => call.sql === 'COMMIT'), false);
+});
+
+test('overseas BigPlayer production-shaped site identity mismatch rolls back; legacy-aligned registry keeps its cursor', async () => {
+  const urls = ['https://community.example.test/?gameId=one', 'https://community.example.test/?gameId=two', 'https://community.example.test/?gameId=three'];
+  const legacyId = derivedSiteId(urls[0], 'legacy');
+  const siteIds = urls.map(url => derivedSiteId(url, 'site'));
+  const initialConfig = { boardId: '100017', siteUrls: urls.map((url, index) => ({ siteId: siteIds[index], url, enabled: true })) };
+  const alignedConfig = { ...initialConfig, siteUrls: [
+    { siteId: legacyId, url: urls[0], enabled: true },
+    ...initialConfig.siteUrls.slice(1)
+  ] };
+  const existingRegistry = [{ site_id: legacyId, url: urls[0], enabled: 1 }];
+  const alignedRegistry = [
+    ...existingRegistry,
+    { site_id: siteIds[1], url: urls[1], enabled: 1 },
+    { site_id: siteIds[2], url: urls[2], enabled: 1 }
+  ];
+
+  async function runWith(config, registry) {
+    const calls = [];
+    const tx = {
+      async beginTransaction() { calls.push({ sql: 'BEGIN', params: [] }); },
+      async commit() { calls.push({ sql: 'COMMIT', params: [] }); },
+      async rollback() { calls.push({ sql: 'ROLLBACK', params: [] }); },
+      release() {},
+      async query(sql, params = []) {
+        const call = { sql: compact(sql), params }; calls.push(call);
+        if (call.sql.startsWith('UPDATE po_source_schedule_state s')) return [{ affectedRows: 1 }];
+        if (call.sql.startsWith('SELECT lease_epoch')) return [[{ lease_epoch: 8 }]];
+        if (call.sql.startsWith('SELECT community_id, config FROM po_sources')) return [[{ community_id: 'community-overseas', config: JSON.stringify(config) }]];
+        if (call.sql.startsWith('INSERT INTO po_sync_runs')) return [{ affectedRows: 1 }];
+        if (call.sql.startsWith('SELECT id FROM po_sync_runs')) return [[{ id: 'run-parent' }]];
+        if (call.sql.startsWith('SELECT platform, config FROM po_sources')) return [[{ platform: 'bigplayer_h5', config: JSON.stringify(config) }]];
+        if (call.sql.startsWith('SELECT site_id, url, enabled FROM po_source_sites')) return [registry];
+        if (call.sql.startsWith('SELECT MAX(last_item_at)')) return [[{
+          last_successful_cursor: call.params[1] === legacyId ? '2026-09-08 12:00:00.000' : null
+        }]];
+        if (call.sql.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at')) return [{ affectedRows: 1 }];
+        throw new Error(`unexpected SQL: ${call.sql}`);
+      }
+    };
+    const adapter = createSchedulerRepositoryAdapter({
+      async getConnection() { return tx; },
+      async query() { throw new Error('root connection must not be used'); }
+    });
+    const intent = {
+      ...scheduledIntent({ runId: 'run-parent', sourceId: 'source-overseas', accountId: 'account-overseas' }),
+      communityId: 'community-overseas', boardId: '100017', ownerId: 'scheduler-a',
+      leaseUntil: '2026-09-08T18:04:00.000Z', nextSlotAt: '2026-09-08T19:00:00.000Z', multiSite: true
+    };
+    return { calls, execute: () => adapter.scheduleSlotAtomic(intent) };
+  }
+
+  const mismatched = await runWith(initialConfig, existingRegistry);
+  await assert.rejects(mismatched.execute(), error => error.code === 'MULTISITE_SITE_REGISTRY_MISMATCH');
+  assert.equal(mismatched.calls.some(call => call.sql === 'ROLLBACK'), true);
+  assert.equal(mismatched.calls.some(call => call.sql === 'COMMIT'), false);
+  assert.equal(mismatched.calls.filter(call => call.sql.includes("'scheduled_site'")).length, 0);
+  assert.equal(mismatched.calls.some(call => call.sql.startsWith('UPDATE po_source_schedule_state SET last_scheduled_at')), false);
+
+  const aligned = await runWith(alignedConfig, alignedRegistry);
+  const result = await aligned.execute();
+  assert.equal(result.created, true);
+  const parent = aligned.calls.find(call => call.sql.startsWith('INSERT INTO po_sync_runs') && !call.sql.includes("'scheduled_site'"));
+  const children = aligned.calls.filter(call => call.sql.startsWith('INSERT INTO po_sync_runs') && call.sql.includes("'scheduled_site'"));
+  assert.ok(parent);
+  assert.equal(children.length, 3);
+  assert.equal(parent.params[11], '100017');
+  assert.deepEqual(children.map(call => [call.params[2], call.params[3]]), [
+    [legacyId, urls[0]], [siteIds[1], urls[1]], [siteIds[2], urls[2]]
+  ]);
+  assert.deepEqual(children.map(call => call.params[11]), ['100017', '100017', '100017']);
+  assert.deepEqual(aligned.calls.filter(call => call.sql.startsWith('SELECT MAX(last_item_at)')).map(call => call.params), [
+    ['account-overseas', legacyId, 'board:100017:%'],
+    ['account-overseas', siteIds[1], 'board:100017:%'],
+    ['account-overseas', siteIds[2], 'board:100017:%']
+  ]);
+  assert.equal(children[0].params[7], '2026-09-08 12:00:00.000');
+  assert.deepEqual(children.slice(1).map(call => call.params[7]), ['2026-09-07 16:00:00.000', '2026-09-07 16:00:00.000']);
+  assert.equal(aligned.calls.at(-1).sql, 'COMMIT');
 });
 
 test('manual and legacy runs cannot enter the scheduled-slot merge path', async () => {

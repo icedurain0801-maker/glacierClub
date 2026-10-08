@@ -1610,6 +1610,68 @@ test('BigPlayer multi-site manual sync fails closed when registry and saved site
   assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
 });
 
+test('overseas BigPlayer manual admission rejects three configured site IDs against one historical legacy ID', async () => {
+  const urls = [1, 2, 3].map(languageId => `https://community.example.invalid/?gameId=2162&languageId=${languageId}`);
+  const configuredSites = urls.map((url, index) => ({ siteId: `site-${index + 1}`, url, enabled: true }));
+  const { repo, executed } = manualSyncHarness({
+    source: { config: JSON.stringify({ boardId: '100017', baseUrl: urls[0], siteUrls: configuredSites }) },
+    siteRows: [{ site_id: 'legacy-original', url: urls[0], enabled: 1 }]
+  });
+
+  await assert.rejects(() => repo.startSourceSync({ sourceId: 's1' }), error => error.code === 'MULTISITE_SITE_REGISTRY_MISMATCH');
+  const registryRead = executed.find(call => call.sql.startsWith('SELECT site_id, url, enabled FROM po_source_sites'));
+  assert.ok(registryRead, '必须读取已持久化的站点身份');
+  assert.deepEqual(registryRead.params, ['s1']);
+  assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+  assert.ok(!executed.some(call => call.sql === 'COMMIT'));
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')), '身份不匹配时零 Run 插入');
+});
+
+test('overseas BigPlayer aligned sites retain legacy identity and checkpoint cursor while creating three board-scoped children', async () => {
+  const urls = [1, 2, 3].map(languageId => `https://community.example.invalid/?gameId=2162&languageId=${languageId}`);
+  const alignedSites = [
+    { siteId: 'legacy-original', url: urls[0], enabled: true },
+    { siteId: 'site-2', url: urls[1], enabled: true },
+    { siteId: 'site-3', url: urls[2], enabled: true }
+  ];
+  const historicalCursor = '2026-09-11 07:00:00.000';
+  const { repo, executed } = manualSyncHarness({
+    source: { config: JSON.stringify({ boardId: '100017', baseUrl: urls[0], siteUrls: alignedSites }) },
+    siteRows: alignedSites.map(site => ({ site_id: site.siteId, url: site.url, enabled: 1 })),
+    siteCursors: [{ site_id: 'legacy-original', last_successful_cursor: historicalCursor }]
+  });
+
+  const result = await repo.startSourceSync({ sourceId: 's1' });
+  assert.equal(result.reused, false);
+  const inserts = executed.filter(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+  assert.equal(inserts.length, 4, '一个父 Run 加三个站点子 Run');
+  assert.equal(inserts[0].params[7], '100017', '父 Run 保留已核实的 boardId');
+  assert.deepEqual(inserts.slice(1).map(call => call.params[2]), alignedSites.map(site => site.siteId));
+  assert.deepEqual(inserts.slice(1).map(call => call.params[3]), urls);
+  assert.deepEqual(inserts.slice(1).map(call => call.params[11]), ['100017', '100017', '100017']);
+  assert.equal(inserts[1].params[8], historicalCursor, '原 legacy 站点继续使用原 checkpoint 游标');
+  const cursorRead = executed.find(call => call.sql.startsWith('SELECT site_id,MAX(last_item_at)'));
+  assert.deepEqual(cursorRead.params.slice(1, 4), alignedSites.map(site => site.siteId));
+  assert.ok(!executed.some(call => /^(UPDATE|DELETE)\s+po_(?:sync_runs|sync_checkpoints|source_sites)\b/i.test(call.sql)), '历史 Run、checkpoint 和 registry 身份不得重键或删除');
+  assert.ok(executed.some(call => call.sql === 'COMMIT'));
+});
+
+test('second overseas BigPlayer source without boardId remains blocked before site or Run mutation', async () => {
+  const url = 'https://community.example.invalid/?gameId=2162&languageId=1';
+  const { repo, executed } = manualSyncHarness({
+    source: { config: JSON.stringify({ boardId: null, baseUrl: url, siteUrls: [
+      { siteId: 'site-1', url, enabled: true },
+      { siteId: 'site-2', url: `${url}-2`, enabled: true }
+    ] }) },
+    siteRows: [{ site_id: 'legacy-original', url, enabled: 1 }]
+  });
+
+  await assert.rejects(() => repo.startSourceSync({ sourceId: 's1' }), error => error.code === 'BOARD_ID_REQUIRED');
+  assert.ok(executed.some(call => call.sql === 'ROLLBACK'));
+  assert.ok(!executed.some(call => call.sql.startsWith('INSERT INTO po_sync_runs')));
+  assert.ok(!executed.some(call => /^(UPDATE|DELETE)\s+po_(?:sync_runs|sync_checkpoints|source_sites)\b/i.test(call.sql)));
+});
+
 test('site-aware checkpoint identity keeps same task and window independent per BigPlayer site', async () => {
   const repo = stubRepo(sql => {
     if (sql.startsWith('UPDATE po_sync_checkpoints')) return { affectedRows: 1 };

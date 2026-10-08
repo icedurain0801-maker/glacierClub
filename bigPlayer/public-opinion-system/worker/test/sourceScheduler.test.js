@@ -120,6 +120,47 @@ test('admits Last Light BigPlayer after stale state recovery and advances its ne
   assert.equal(result.decisions[0].nextSlotAt, '2026-01-01T20:00:00.000Z');
 });
 
+test('second overseas BigPlayer source without config.boardId stops before atomic scheduling or run creation', async () => {
+  const sourceId = '8c690d6e-12ea-4ad3-b434-d941276c4906';
+  let atomicCalls = 0;
+  let enqueueCalls = 0;
+  const inputs = deps({
+    accounts: [account({ id: 'account-overseas-2', source_id: sourceId, game_id: 'game-overseas-2', community_id: 'community-overseas-2', platform: 'bigplayer_h5' })],
+    connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } },
+    leaseAdapter: {
+      async acquire() { atomicCalls += 1; throw new Error('atomic scheduling must not be reached'); },
+      async release() {}
+    },
+    async enqueue() { enqueueCalls += 1; throw new Error('parent/child enqueue must not be reached'); }
+  });
+  const result = await scheduleSources({
+    sources: [source({
+      id: sourceId,
+      default_account_id: 'account-overseas-2',
+      game_id: 'game-overseas-2',
+      community_id: 'community-overseas-2',
+      region_code: 'overseas',
+      platform: 'bigplayer_h5',
+      config: JSON.stringify({ siteUrls: [
+        { siteId: 'site-one', url: 'https://community.example.test/?gameId=one' },
+        { siteId: 'site-two', url: 'https://community.example.test/?gameId=two' }
+      ] })
+    })],
+    now: NOW,
+    ...inputs
+  });
+
+  assert.deepEqual(result.decisions.map(item => [item.sourceId, item.status, item.reasonCode]), [
+    [sourceId, 'rejected', 'BOARD_ID_REQUIRED']
+  ]);
+  assert.equal(atomicCalls, 0);
+  assert.equal(enqueueCalls, 0);
+  assert.equal(inputs.enqueued.length, 0);
+  assert.deepEqual(result.evidence.map(item => [item.status, item.reasonCode]), [
+    ['rejected', 'BOARD_ID_REQUIRED']
+  ]);
+});
+
 test('scheduled BigPlayer catchup carries a bounded seven-day UTC window', async () => {
   const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
   const result = await scheduleSources({ sources: [source({ platform: 'bigplayer_h5' })], now: NOW, ...inputs });
