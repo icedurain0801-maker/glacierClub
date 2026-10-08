@@ -27,8 +27,8 @@ test('real connector collision and unregistered wrapper fail before freezeSites'
   const connector = new BigPlayerH5Connector({}, {
     fetchImpl: async () => { requests += 1; }
   });
-  const sites = [1, 2, 3].map(index => ({ siteId: `site-${index}`,
-    url: `https://club-en.q1.com/?env=web&site=${index}` }));
+  const sites = ['2', '9', '16'].map((languageId, index) => ({ siteId: `site-${index}`,
+    url: `https://club-en.q1.com/?env=web&gameId=2177&gameVersion=2177-US-ZS&lang=en-US&languageId=${languageId}` }));
   const input = { mode: 'isolated-test', store, sites, connector,
     source: { id: SOURCE_ID, game_id: GAME_ID, community_id: COMMUNITY_ID,
       region_code: 'overseas', platform: 'bigplayer_h5', config: { boardId: BOARD_ID } },

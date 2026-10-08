@@ -144,6 +144,14 @@ test('real connector rejects identical upstream requests before any I/O', async 
     { code: 'LAST_NIGHT_UPSTREAM_SITE_COLLISION' });
   assert.equal(requests, 0);
   assert.equal(store.writes, 0);
+  const languageIdSites = ['2', '9', '16'].map((languageId, index) => ({
+    siteId: `language-site-${index}`,
+    url: `https://club-en.q1.com/?env=web&gameId=2177&gameVersion=2177-US-ZS&lang=en-US&languageId=${languageId}`
+  }));
+  await assert.rejects(collectIsolated({ source, account, sites: languageIdSites,
+    store, connector, ...window }), { code: 'LAST_NIGHT_UPSTREAM_SITE_COLLISION' });
+  assert.equal(requests, 0);
+  assert.equal(store.writes, 0);
   const wrapped = {
     discoverFeeds: (...args) => connector.discoverFeeds(...args),
     listFeedContents: (...args) => connector.listFeedContents(...args),
