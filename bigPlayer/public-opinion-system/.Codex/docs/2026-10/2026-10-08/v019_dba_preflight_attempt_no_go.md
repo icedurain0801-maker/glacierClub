@@ -30,3 +30,9 @@ Date: 2026-10-08
 ## 未执行事项
 
 两次准备尝试均先将受限 `public-opinion.env` 读入进程内存，包括 `DB_PASSWORD` 字段；没有输出或写盘该值。未建立数据库连接、未执行任何生产 SQL；未使用 `PO_READONLY_DB_*`；未改变服务、任务、数据库、锁、备份、迁移、切换或真实 Run 状态。v018 的生产入口仍为 `PRODUCTION_EXECUTION_DISABLED`。
+
+## 重新授权后的单次尝试
+
+项目经理会话在用户明确重新授权后转达：只允许一次现有 DBA 身份的 2–5 分钟生产只读预检。执行前复核脚本 SHA256 仍为 `888073d986c1eac48424be359221238dfbafbe57b4c02d0dac387260e34c1b08`，工作树中的脚本未变，固定目标为 `LIUFUYI-2-48:3306/public_opinion`；受限 env 文件与审计根目录存在。执行 `node scripts/snapshot-production-dba-preflight.js` 恰好一次，退出码 1，在 `TARGET_CONFIG_MISMATCH` 失败关闭：env 的 host 配置与冻结目标不符，port 与 database 匹配。该检查在 `mysql.createConnection` 之前，故数据库连接 0、生产查询 0；未继续修改配置或重试。此次尝试读取了服务 env 到进程内存，但没有输出或写盘凭据。
+
+脱敏结果位于 `C:/ProgramData/PublicOpinion/audit/dba-preflight-1791463744824-30444/result.json`，SHA256 `89310a245a28642a768211931722b43d9b5dd5922de3f29d25e20d52af70a52f`；仅包含白名单顶层字段与 `NO_GO/TARGET_CONFIG_MISMATCH`，无凭据字段、原始 SQL 或业务行，且身份/进程聚合为空。新审计子目录 ACL 无继承，仅当前操作者、Administrators、SYSTEM 三类 FullControl。结果已交测试负责人独立验收并回报项目经理；本次单次授权已耗尽，生产继续 `NO_GO`，不得将其表述为只读预检通过。
