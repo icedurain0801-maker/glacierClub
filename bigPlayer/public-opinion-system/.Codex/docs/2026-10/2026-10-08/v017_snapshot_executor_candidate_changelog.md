@@ -66,6 +66,28 @@ DROP USER 'po_snapshot_observer_<ticket>'@'127.0.0.1';
 
 候选威胁模型：明文 SQL/客户端命令行会把口令暴露给 SQL 审计、general log、进程列表或 shell 历史；直接更新 `mysql.user` 需要系统表写权限并绕过正常授权审计；使用 root 冒充观察账号会掩盖真实最小权限边界；无口令解锁会产生可登录窗口。上述路径均排除。MariaDB 10.4 客户端预处理只绑定数据参数，不能绑定账户认证属性，因此不能作为安全口令注入 API。
 
+## 客户端协议调研与不扩权替代方案
+
+### 调研来源与结论
+
+- 本机 MariaDB 版本：`10.4.14-MariaDB`，客户端 `mysql2` 的 `node_modules/mysql2/lib/packets/change_user.js:9-33,41-81` 仅实现 `COM_CHANGE_USER` 会话切换和认证 token 序列化；它不修改服务端账户认证属性，也没有“管理口令”协议命令。
+- 本机 `C:/xampp/mysql/bin/mysqladmin.exe --help` 明确提供 `password [new-password]`，新口令属于命令参数，违反命令行/进程列表门禁，排除。
+- 本机 `C:/xampp/mysql/share/fill_help_tables.sql` 的 MariaDB 10.4 帮助资料（Account Locking、Authentication from MariaDB 10.4、SET PASSWORD、ALTER USER）只定义 SQL 管理语句；其中 `SET PASSWORD` 需要口令或已加密字符串文本，`ALTER USER` 的认证属性同样是 SQL 语法。隔离实测的两条预处理候选均已 `ER_PARSE_ERROR` 失败关闭。
+- 直接写 `mysql.global_priv`/`mysql.user` 不是客户端管理接口，需要系统表写权限，绕过正常授权审计和插件语义，排除。
+
+结论：在当前 MariaDB 10.4.14 与客户端栈中，没有已证明可用、既不把口令放进 SQL/命令行/审计又能完成账户认证配置的管理 API。该缺口不是继续换 SQL 拼法可以解决的；生产账号创建与授权继续 `NO_GO`。
+
+### 不新增全局 PROCESS 的排空证据方案
+
+若项目经理选择不扩大权限，可仅使用已有、已批准身份对 `public_opinion` 执行有限聚合，并把缺项显式写入证据：
+
+1. 通过 `CURRENT_USER()`、TCP 来源、角色和 `SHOW GRANTS` 验证身份；只接受目标库 `SELECT`，拒绝 root、继承角色、全局权限和写权限。
+2. 读取目标库表规模、`po_sync_runs` 活跃状态、`po_source_schedule_state`/`po_worker_leases` 租约、`po_worker_heartbeats` 新鲜度，以及可访问范围内的写入计数；所有查询限时并只输出聚合值。
+3. 将 `information_schema.innodb_trx`、全局 `PROCESSLIST`、全局写入计数和其他数据库线程视为不可见项；缺失项写入 `blindSpots`，不得按零填充。
+4. 证据结论固定为 `NO_GO`，因为该方案不能证明跨库活动、未提交事务、无租约直写、触发器/外部任务写入或 OS 定时任务已排空；它只能作为不扩权的风险盘点，不能替代生产窗口准入。
+
+最短可审计路径是：先由项目经理/QA 认可上述盲区口径；若仍需完整排空证明，必须另行提供经过审计的受控凭据注入设施和权限变更审批，之前不得创建观察账号或执行生产评估。
+
 ### 不扩大权限的安全替代
 
 在不创建账号、不增加授权的前提下，只能使用现有已批准服务身份执行脚本允许的目标库聚合查询；脚本必须把 `CURRENT_USER()`、TCP 来源、角色状态和现有授权作为前置门禁，任何 root、继承角色、额外全局/库权限或缺失 `PROCESS` 的情况均失败关闭。该替代无法补齐跨库进程可见性，也不能证明生产排空，因此输出仍为 `NO_GO`，并且不生成正式生产规模证据。最短下一步是由项目经理确认是否存在已批准的受控凭据注入 API；在确认前保持当前候选冻结，不创建生产账号、不授权、不执行正式只读评估。
