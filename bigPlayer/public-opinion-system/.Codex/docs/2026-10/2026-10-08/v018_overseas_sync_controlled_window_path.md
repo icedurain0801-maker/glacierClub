@@ -1,6 +1,6 @@
 # 海外 BigPlayer 同步修复：受控窗口可行路径（只读盘点）
 
-Status: design-only-production-no-go  
+Status: design-only-production-no-go
 Date: 2026-10-08
 
 本页仅供项目经理与测试负责人评估；未连接生产数据库、未读取凭据值，未停服务/禁任务/备份/锁库/迁移/切换/真实 Run。
