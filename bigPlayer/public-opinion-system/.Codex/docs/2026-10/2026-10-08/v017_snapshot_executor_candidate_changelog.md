@@ -62,7 +62,7 @@ DROP USER 'po_snapshot_observer_<ticket>'@'127.0.0.1';
 
 ### 隔离生命周期兼容性结论
 
-`scripts/snapshot-production-readonly-isolated.js` 在 MariaDB 10.4.14、43318 隔离实例上验证了 `ACCOUNT LOCK`：锁定账号在设置口令前登录被拒绝，证明不存在可登录的无口令窗口；随后尝试通过客户端参数化设置口令（`SET PASSWORD` 与 `ALTER USER ... IDENTIFIED BY ?`，SQL 文本均不含口令）时，MariaDB 均返回 `ER_PARSE_ERROR`。未改用明文 SQL、默认口令或弱随机兜底，脚本以 `PASSWORD_INJECTION_UNSUPPORTED` 失败关闭并确认实例、账号和端口清理。最新脱敏证据目录为仓库上级 `.temp/po-closeout-20261008/snapshot-readonly-lifecycle-DZnFJ5/`，结果仅包含阶段、错误码、`productionTouched:false`、实例停止和端口释放；未包含口令或完整 SQL。结论：在找到能证明口令不进入 SQL/审计的受控注入 API 前，不得申请或执行生产账号创建与授权。
+`scripts/snapshot-production-readonly-isolated.js`（冻结 SHA256 `F44988C9B32E78A2C258DF4D8B2B92346BF4A010E96870F4C20288C37E6FD145`）在 MariaDB 10.4.14、43318 隔离实例上验证了 `ACCOUNT LOCK`：锁定账号在设置口令前登录被拒绝，证明不存在可登录的无口令窗口。本轮分别执行两个显式候选：默认 `alter-user` 的脱敏证据为 `.temp/po-closeout-20261008/snapshot-readonly-lifecycle-RhFZo3/`，`--probe-set-password` 的脱敏证据为 `.temp/po-closeout-20261008/snapshot-readonly-lifecycle-xppF7N/`；两者均在 `SET_PASSWORD` 阶段返回 `ER_PARSE_ERROR`，最终 `PASSWORD_INJECTION_UNSUPPORTED`，实例、账号和端口清理通过。结果仅包含候选名、阶段、错误码、`productionTouched:false`、实例停止和端口释放；未包含口令或完整 SQL。结论：在找到能证明口令不进入 SQL/审计的受控注入 API 前，不得申请或执行生产账号创建与授权。
 
 候选威胁模型：明文 SQL/客户端命令行会把口令暴露给 SQL 审计、general log、进程列表或 shell 历史；直接更新 `mysql.user` 需要系统表写权限并绕过正常授权审计；使用 root 冒充观察账号会掩盖真实最小权限边界；无口令解锁会产生可登录窗口。上述路径均排除。MariaDB 10.4 客户端预处理只绑定数据参数，不能绑定账户认证属性，因此不能作为安全口令注入 API。
 
