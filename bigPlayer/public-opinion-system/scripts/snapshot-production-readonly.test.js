@@ -6,7 +6,7 @@ const { readConfig, grantsAreMinimal, assessProduction } = require('./snapshot-p
 
 const env = {
   PO_READONLY_DB_HOST: '127.0.0.1', PO_READONLY_DB_PORT: '3306',
-  PO_READONLY_DB_NAME: 'public_opinion', PO_READONLY_DB_USER: 'po_observer',
+  PO_READONLY_DB_NAME: 'public_opinion', PO_READONLY_DB_USER: 'po_snapshot_observer_test',
   PO_READONLY_DB_PASSWORD: 'fixture-password'
 };
 
@@ -23,15 +23,21 @@ test('missing or privileged credentials fail before connecting', async () => {
   assert.equal(connected, 0);
 });
 
-test('only database SELECT plus global PROCESS is accepted', () => {
-  const narrow = [{ Grants: "GRANT PROCESS ON *.* TO 'po_observer'@'localhost'" },
-    { Grants: "GRANT SELECT ON `public_opinion`.* TO 'po_observer'@'localhost'" }];
-  assert.equal(grantsAreMinimal(narrow), true);
+test('only exact TCP account with database SELECT plus global PROCESS is accepted', () => {
+  const narrow = [{ Grants: "GRANT PROCESS ON *.* TO 'po_snapshot_observer_test'@'127.0.0.1'" },
+    { Grants: "GRANT SELECT ON `public_opinion`.* TO 'po_snapshot_observer_test'@'127.0.0.1'" }];
+  assert.equal(grantsAreMinimal(narrow, env.PO_READONLY_DB_USER), true);
   for (const extra of ['EXECUTE', 'LOCK TABLES', 'GRANT OPTION', 'SELECT']) {
     const global = extra === 'GRANT OPTION' ?
-      "GRANT PROCESS ON *.* TO 'po_observer'@'localhost' WITH GRANT OPTION" :
-      `GRANT ${extra} ON *.* TO 'po_observer'@'localhost'`;
-    assert.equal(grantsAreMinimal([...narrow, { Grants: global }]), false);
+      "GRANT PROCESS ON *.* TO 'po_snapshot_observer_test'@'127.0.0.1' WITH GRANT OPTION" :
+      `GRANT ${extra} ON *.* TO 'po_snapshot_observer_test'@'127.0.0.1'`;
+    assert.equal(grantsAreMinimal([...narrow, { Grants: global }], env.PO_READONLY_DB_USER), false);
+  }
+  for (const extra of ["GRANT SELECT ON `other_db`.* TO 'po_snapshot_observer_test'@'127.0.0.1'",
+    "GRANT `readonly_role` TO 'po_snapshot_observer_test'@'127.0.0.1'",
+    "SET DEFAULT ROLE `readonly_role` FOR 'po_snapshot_observer_test'@'127.0.0.1'",
+    "GRANT SELECT ON `public_opinion`.* TO 'po_snapshot_observer_test'@'localhost'"]) {
+    assert.equal(grantsAreMinimal([...narrow, { Grants: extra }], env.PO_READONLY_DB_USER), false);
   }
 });
 
@@ -42,9 +48,10 @@ test('read-only assessment emits only aggregates and remains NO_GO', async () =>
     async query({ sql }) {
       queries.push(sql);
       if (sql === 'SHOW GRANTS') return [[
-        { Grants: "GRANT PROCESS ON *.* TO 'po_observer'@'localhost'" },
-        { Grants: "GRANT SELECT ON `public_opinion`.* TO 'po_observer'@'localhost'" }
+        { Grants: "GRANT PROCESS ON *.* TO 'po_snapshot_observer_test'@'127.0.0.1'" },
+        { Grants: "GRANT SELECT ON `public_opinion`.* TO 'po_snapshot_observer_test'@'127.0.0.1'" }
       ]];
+      if (sql.includes('CURRENT_USER()')) return [[{ authenticatedUser: 'po_snapshot_observer_test@127.0.0.1', activeRole: null }]];
       if (sql.includes('@@hostname')) return [[{ hostname: 'LIUFUYI-2-48', port: 3306, serverId: 1,
         version: '10.4.14-MariaDB', db: 'public_opinion', capturedAt: '2026-10-08 12:00:00.000' }]];
       if (sql.includes('information_schema.tables')) return [[{ table_name: 'po_items', table_type: 'BASE TABLE',

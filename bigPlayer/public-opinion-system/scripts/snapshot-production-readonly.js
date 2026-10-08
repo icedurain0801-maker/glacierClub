@@ -9,23 +9,28 @@ const evidenceRoot = path.resolve(__dirname, '../../..', '.temp/po-closeout-2026
 const required = ['PO_READONLY_DB_HOST', 'PO_READONLY_DB_PORT', 'PO_READONLY_DB_NAME', 'PO_READONLY_DB_USER', 'PO_READONLY_DB_PASSWORD'];
 const noGo = code => ({ status: 'NO_GO', code, productionTouched: false });
 
-function readConfig(env = process.env) {
-  if (required.some(key => !env[key]) || env.PO_READONLY_DB_USER.toLowerCase() === 'root') return null;
+function readConfig(env = process.env, { isolated = false } = {}) {
+  if (required.some(key => !env[key]) || !/^po_snapshot_observer_[a-z0-9_]+$/.test(env.PO_READONLY_DB_USER)) return null;
   const port = Number(env.PO_READONLY_DB_PORT);
-  if (env.PO_READONLY_DB_HOST !== '127.0.0.1' || port !== 3306 || env.PO_READONLY_DB_NAME !== 'public_opinion') return null;
+  if (env.PO_READONLY_DB_HOST !== '127.0.0.1' || (!isolated && port !== 3306) ||
+    (isolated && ![43318].includes(port)) || env.PO_READONLY_DB_NAME !== 'public_opinion') return null;
   return { host: env.PO_READONLY_DB_HOST, port, database: env.PO_READONLY_DB_NAME,
     user: env.PO_READONLY_DB_USER, password: env.PO_READONLY_DB_PASSWORD };
 }
 
-function grantsAreMinimal(rows) {
+function grantsAreMinimal(rows, user) {
   let select = false;
   let process = false;
+  const account = `'${user}'@'127.0.0.1'`.toUpperCase();
+  if (!Array.isArray(rows) || rows.length < 2) return false;
   for (const row of rows) {
     const grant = String(Object.values(row)[0] || '').toUpperCase();
-    const match = grant.match(/^GRANT (.+?) ON (.+?) TO /);
-    if (!match || grant.includes('WITH GRANT OPTION')) return false;
+    const match = grant.match(/^GRANT (.+?) ON (.+?) TO ('[^']+'@'[^']+')(.*)$/);
+    if (!match || match[3] !== account || grant.includes('WITH GRANT OPTION')) return false;
     const privileges = match[1].split(',').map(value => value.trim());
     const scope = match[2].replace(/`/g, '');
+    if (match[4] && !(privileges.length === 1 && privileges[0] === 'USAGE' && scope === '*.*' &&
+      /^ IDENTIFIED BY PASSWORD '\*[A-F0-9]+'$/.test(match[4]))) return false;
     for (const privilege of privileges) {
       if (privilege === 'USAGE' && scope === '*.*') continue;
       if (privilege === 'PROCESS' && scope === '*.*') { process = true; continue; }
@@ -36,8 +41,9 @@ function grantsAreMinimal(rows) {
   return select && process;
 }
 
-async function assessProduction({ env = process.env, connect = mysql.createConnection, intervalMs = 10000 } = {}) {
-  const config = readConfig(env);
+async function assessProduction({ env = process.env, connect = mysql.createConnection, intervalMs = 10000,
+  isolated = false, expectedIdentity = { hostname: 'LIUFUYI-2-48', port: 3306, serverId: 1, version: '10.4.14-MariaDB' } } = {}) {
+  const config = readConfig(env, { isolated });
   if (!config) return noGo('READONLY_CREDENTIALS_MISSING_OR_INVALID');
   let connection;
   let timedOut = false;
@@ -58,10 +64,15 @@ async function assessProduction({ env = process.env, connect = mysql.createConne
   try {
     connection = await connect({ ...config, connectTimeout: 5000, dateStrings: true, timezone: 'Z' });
     const grants = await query('SHOW GRANTS');
-    if (!grantsAreMinimal(grants)) return noGo('READONLY_GRANTS_NOT_MINIMAL');
+    if (!grantsAreMinimal(grants, config.user)) return noGo('READONLY_GRANTS_NOT_MINIMAL');
+    const [session] = await query('SELECT CURRENT_USER() AS authenticatedUser,CURRENT_ROLE() AS activeRole');
+    if (session?.authenticatedUser !== `${config.user}@127.0.0.1` ||
+      (session.activeRole !== null && session.activeRole !== undefined && session.activeRole !== 'NONE')) {
+      return noGo('READONLY_SESSION_IDENTITY_MISMATCH');
+    }
     const [identity] = await query('SELECT @@hostname AS hostname,@@port AS port,@@server_id AS serverId,VERSION() AS version,DATABASE() AS db,@@read_only AS readOnly,UTC_TIMESTAMP(3) AS capturedAt');
-    if (identity?.hostname !== 'LIUFUYI-2-48' || Number(identity.port) !== 3306 ||
-      Number(identity.serverId) !== 1 || identity.version !== '10.4.14-MariaDB' || identity.db !== 'public_opinion') {
+    if (identity?.hostname !== expectedIdentity.hostname || Number(identity.port) !== expectedIdentity.port ||
+      Number(identity.serverId) !== expectedIdentity.serverId || identity.version !== expectedIdentity.version || identity.db !== 'public_opinion') {
       return noGo('PRODUCTION_IDENTITY_MISMATCH');
     }
     const tables = await query('SELECT table_name,table_type,engine,table_rows,data_length,index_length FROM information_schema.tables WHERE table_schema=DATABASE() ORDER BY table_name');

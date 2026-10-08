@@ -28,22 +28,26 @@ Status: isolated-qa-pass-production-no-go
 ### 账号生命周期
 
 ```sql
-CREATE USER 'po_snapshot_observer_<ticket>'@'localhost'
-  IDENTIFIED BY '<injected-at-runtime-secret>'
+CREATE USER 'po_snapshot_observer_<ticket>'@'127.0.0.1' ACCOUNT LOCK;
+-- 仅在已证明不把口令写入 SQL/审计的受控凭据 API 中设置口令；
+-- MariaDB 10.4 参数化 SET PASSWORD 已在隔离环境返回 ER_PARSE_ERROR，当前不得执行生产替代语句。
+ALTER USER 'po_snapshot_observer_<ticket>'@'127.0.0.1'
   PASSWORD EXPIRE INTERVAL 1 DAY;
 GRANT SELECT ON `public_opinion`.*
-  TO 'po_snapshot_observer_<ticket>'@'localhost';
+  TO 'po_snapshot_observer_<ticket>'@'127.0.0.1';
 GRANT PROCESS
   ON *.*
-  TO 'po_snapshot_observer_<ticket>'@'localhost';
-SHOW GRANTS FOR 'po_snapshot_observer_<ticket>'@'localhost';
+  TO 'po_snapshot_observer_<ticket>'@'127.0.0.1';
+-- 仅在口令已安全设置后解锁：
+ALTER USER 'po_snapshot_observer_<ticket>'@'127.0.0.1' ACCOUNT UNLOCK;
+SHOW GRANTS FOR 'po_snapshot_observer_<ticket>'@'127.0.0.1';
 -- 观察窗口结束后执行：
 REVOKE SELECT ON `public_opinion`.*
-  FROM 'po_snapshot_observer_<ticket>'@'localhost';
+  FROM 'po_snapshot_observer_<ticket>'@'127.0.0.1';
 REVOKE PROCESS
   ON *.*
-  FROM 'po_snapshot_observer_<ticket>'@'localhost';
-DROP USER 'po_snapshot_observer_<ticket>'@'localhost';
+  FROM 'po_snapshot_observer_<ticket>'@'127.0.0.1';
+DROP USER 'po_snapshot_observer_<ticket>'@'127.0.0.1';
 ```
 
 执行约束：账号仅允许本机连接，用户名必须绑定工单和失效时间；密码只通过受控进程环境/凭据管道注入 `PO_READONLY_DB_*`，不得写入仓库、命令行参数、日志或证据文件。授权前后均需保存脱敏 `SHOW GRANTS` 结果，并由脚本门禁验证目标库 `SELECT` 与全局 `PROCESS` 恰好存在且没有全局 `SELECT`、`INSERT`、`UPDATE`、`DELETE`、`CREATE`、`DROP`、`ALTER`、`GRANT OPTION` 等额外权限。
@@ -55,3 +59,11 @@ DROP USER 'po_snapshot_observer_<ticket>'@'localhost';
 ### 负权限验证
 
 在任何生产只读评估前，使用独立连接执行 `SHOW GRANTS` 并让 `scripts/snapshot-production-readonly.js` 拒绝以下任一情况：账号为 root 或其他管理员、目标库 `SELECT` 缺失、全局 `PROCESS` 缺失（若选择 PROCESS 方案）、出现任意写权限/DDL 权限/全局 `SELECT`/`GRANT OPTION`、凭据来自未批准变量。验证失败时必须在连接业务查询前返回 `READONLY_CREDENTIALS_MISSING_OR_INVALID`，且不产生生产证据。
+
+### 隔离生命周期兼容性结论
+
+`scripts/snapshot-production-readonly-isolated.js` 在 MariaDB 10.4.14、43318 隔离实例上验证了 `ACCOUNT LOCK`：锁定账号在设置口令前登录被拒绝，证明不存在可登录的无口令窗口；随后尝试通过客户端参数化设置口令（SQL 文本不含口令）时，MariaDB 返回 `ER_PARSE_ERROR`。未改用明文 SQL、默认口令或弱随机兜底，脚本以 `PASSWORD_INJECTION_UNSUPPORTED` 失败关闭并确认实例、账号和端口清理。最新脱敏证据目录为仓库上级 `.temp/po-closeout-20261008/snapshot-readonly-lifecycle-3Euyt1/`，结果仅包含阶段、错误码、`productionTouched:false`、实例停止和端口释放；未包含口令或完整 SQL。结论：在找到能证明口令不进入 SQL/审计的受控注入 API 前，不得申请或执行生产账号创建与授权。
+
+### 不扩大权限的安全替代
+
+在不创建账号、不增加授权的前提下，只能使用现有已批准服务身份执行脚本允许的目标库聚合查询；脚本必须把 `CURRENT_USER()`、TCP 来源、角色状态和现有授权作为前置门禁，任何 root、继承角色、额外全局/库权限或缺失 `PROCESS` 的情况均失败关闭。该替代无法补齐跨库进程可见性，也不能证明生产排空，因此输出仍为 `NO_GO`，并且不生成正式生产规模证据。最短下一步是由项目经理确认是否存在已批准的受控凭据注入 API；在确认前保持当前候选冻结，不创建生产账号、不授权、不执行正式只读评估。
