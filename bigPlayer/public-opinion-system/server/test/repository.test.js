@@ -22,7 +22,12 @@ function stubRepo(handler) {
     async end() {}
   };
   repo.calls = [];
-  repo.query = async (sql, params = []) => { repo.calls.push({ sql, params }); return handler ? handler(sql, params) : []; };
+  repo.query = async (sql, params = []) => {
+    if (sql.startsWith("SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='po_sync_runs'")) {
+      return ['community_id', 'board_id', 'board_name', 'run_scope', 'site_url_snapshot', 'last_request_at'].map(column_name => ({ column_name }));
+    }
+    repo.calls.push({ sql, params }); return handler ? handler(sql, params) : [];
+  };
   return repo;
 }
 
