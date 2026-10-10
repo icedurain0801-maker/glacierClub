@@ -120,6 +120,12 @@ const SIDEBAR_DATA = [
             label: '草稿箱',
             version: '',
             href: 'client/domestic/publish/drafts.html'
+          },
+          {
+            type: 'item',
+            label: '创作者中心',
+            version: 'v3.1.4',
+            href: 'client/domestic/profile/CreatorCenter.html'
           }
         ]
       },
@@ -238,6 +244,18 @@ const SIDEBAR_DATA = [
                 label: '楼层抽奖',
                 version: 'v3.1.0',
                 href: 'admin/community/FloorLotteryManage.html'
+              }
+            ]
+          },
+          {
+            type: 'dir',
+            label: '表情包管理',
+            children: [
+              {
+                type: 'item',
+                label: '表情包管理',
+                version: 'v3.1.5',
+                href: 'admin/community/EmojiPackManage.html'
               }
             ]
           }
