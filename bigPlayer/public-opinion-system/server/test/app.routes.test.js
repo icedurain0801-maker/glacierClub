@@ -369,16 +369,19 @@ test('GET /overview 统一按关联内容 published_at 的北京时间半开区�
     assert.ok(result.body.data.hotAttention.every(item => item.severity === 'attention' && contentIds.slice(0, 2).includes(item.id)), '关注级列表排除窗口外内容且仅含关注级');
     assert.deepEqual(result.body.data.activeAlerts.map(item => item.id).sort(), [alertIds[0], alertIds[1]].sort(), '只保留 pending/processing，告警按关联内容发布时间过滤且聚合去重');
     assert.equal(Number(result.body.data.metrics.activeAlertCount), result.body.data.activeAlerts.length, '当前告警卡片与处置列表共用同一告警总数');
+    assert.equal(Number(result.body.data.metrics.urgentAlertCount), 1, '紧急告警指标与当前告警列表中的 P0 告警一致');
 
     await repo.query("UPDATE po_alerts SET status='resolved' WHERE id=?", [alertIds[1]]);
     const afterResolve = await api(`/overview?gameId=${gameId}&communityId=c-test-1&from=2026-09-01T00%3A00%3A00%2B08%3A00&to=2026-09-02T00%3A00%3A00%2B08%3A00&fresh=1`);
     assert.deepEqual(afterResolve.body.data.activeAlerts.map(item => item.id), [alertIds[0]], '告警处置为 resolved 后列表同步减少');
     assert.equal(Number(afterResolve.body.data.metrics.activeAlertCount), 1, '告警处置为 resolved 后卡片同步减少');
+    assert.equal(Number(afterResolve.body.data.metrics.urgentAlertCount), 1, '处理其他级别告警时紧急告警指标保持一致');
 
     await repo.query("UPDATE po_alerts SET status='resolved' WHERE id=?", [alertIds[0]]);
     const empty = await api(`/overview?gameId=${gameId}&communityId=c-test-1&from=2026-09-01T00%3A00%3A00%2B08%3A00&to=2026-09-02T00%3A00%3A00%2B08%3A00&fresh=1`);
     assert.deepEqual(empty.body.data.activeAlerts, [], '没有 pending/processing 告警时返回空列表');
     assert.equal(Number(empty.body.data.metrics.activeAlertCount), 0, '没有当前告警时卡片归零');
+    assert.equal(Number(empty.body.data.metrics.urgentAlertCount), 0, '没有当前紧急告警时指标归零');
   } finally {
     await repo.query(`DELETE FROM po_alert_contents WHERE alert_id IN (${alertIds.map(() => '?').join(',')})`, alertIds);
     await repo.query(`DELETE FROM po_alerts WHERE id IN (${alertIds.map(() => '?').join(',')})`, alertIds);

@@ -366,7 +366,8 @@ class Repository {
     ]);
     const hotFields = ['id', 'game_id', 'community_id', 'content_type', 'title', 'body', 'source_url', 'author_name', 'source_id', 'published_at', 'platform', 'game_name', 'region_code', 'community_name', 'community_status', 'sentiment', 'negative_score', 'severity', 'topics', 'matched_keywords', 'summary'];
     const hotItems = rows => rows.map(row => ({ ...Object.fromEntries(hotFields.map(field => [field, row[field]])), display_type: contentDisplayType(row), engagement: Number(row.engagement_score ?? row.engagement) || 0 }));
-    return { metrics: { ...metrics[0], negative: contentStats.negative, attention: contentStats.attention, activeAlertCount: alerts.length }, sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, trend, hotNegative: hotItems(hotNegative), hotAttention: hotItems(hotAttention), topicDistribution: topics };
+    const urgentAlertCount = alerts.filter(alert => alert.severity === 'urgent').length;
+    return { metrics: { ...metrics[0], negative: contentStats.negative, attention: contentStats.attention, urgentAlertCount, activeAlertCount: alerts.length }, sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, trend, hotNegative: hotItems(hotNegative), hotAttention: hotItems(hotAttention), topicDistribution: topics };
   }
   async listContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, riskMode, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20, sort } = {}) {
     ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));

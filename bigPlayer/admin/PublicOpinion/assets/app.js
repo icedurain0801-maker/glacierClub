@@ -81,7 +81,7 @@ function syncPeriodUrl() {
 }
 function renderMetrics(metrics) {
   metrics = metrics || {};
-  const cards = [[`${periodLabel()}发布内容`, Number(metrics.newCount ?? metrics.total ?? 0).toLocaleString(), '当前筛选范围内新增', '总'], ['负面内容', Number(metrics.negativeCount ?? metrics.negative ?? 0).toLocaleString(), '已识别的负面内容', '负'], ['关注级内容', Number(metrics.attention ?? 0).toLocaleString(), '已识别的关注级内容', '注'], ['当前告警', Number(metrics.activeAlertCount ?? 0).toLocaleString(), '当前待处理告警', '警']];
+  const cards = [[`${periodLabel()}发布内容`, Number(metrics.newCount ?? metrics.total ?? 0).toLocaleString(), '当前筛选范围内新增', '总'], ['负面内容', Number(metrics.negativeCount ?? metrics.negative ?? 0).toLocaleString(), '已识别的负面内容', '负'], ['关注级内容', Number(metrics.attention ?? 0).toLocaleString(), '已识别的关注级内容', '注'], ['紧急告警', Number(metrics.urgentAlertCount ?? 0).toLocaleString(), '当前待处理的 AI 紧急告警', '警']];
   const accent = index => index === 1 ? ' accent-red' : index >= 2 ? ' accent-orange' : '';
   const metricsEl = $('#metrics'); if (!metricsEl) return;
   metricsEl.innerHTML = cards.map(([label, value, foot, icon], index) => `<div class="metric${accent(index)}"><div class="metric-head"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot ${index > 0 ? 'up' : ''}">${foot}</div></div>`).join('');
