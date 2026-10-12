@@ -33,7 +33,7 @@ const origin = 'https://club-opinion.q1.com';
       results.push({ code, progressVisible: true, latest });
       await page.unroute(origin + syncPath + '*');
     }
-    if (!process.env.PO_SOURCES_CANDIDATE) {
+    if (!process.env.PO_SOURCES_CANDIDATE && process.env.PO_SYNC_SKIP_REAL_CLICK !== '1') {
       await page.goto(origin + '/admin/PublicOpinion/sources.html?regionCode=overseas&communityId=8b1f0000000000000000000000100016&platform=bigplayer_h5', { waitUntil: 'networkidle' });
       const pending = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname === syncPath);
       await page.locator(`[data-sync-source="${sourceId}"]`).click();

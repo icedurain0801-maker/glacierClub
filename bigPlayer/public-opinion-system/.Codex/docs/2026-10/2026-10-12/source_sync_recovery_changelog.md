@@ -1,6 +1,6 @@
 # 境外 X-Clash 开始同步失败修复
 
-Status: API/frontend deployed, worker fix tested
+Status: API/frontend/worker deployed and verified; collection still running/queued
 
 采集源 `8c690d6e-12ea-4ad3-b434-d941276c4906` 的配置包含 3 个站点，而持久化登记只有第一个站点的 legacy ID。配置中该站点使用新派生 ID，准入检查报 `MULTISITE_SITE_REGISTRY_MISMATCH`，API 未映射该异常，用户看到 500 / internal server error。
 
@@ -24,4 +24,8 @@ Status: API/frontend deployed, worker fix tested
 
 API/前端正式浏览器验收 4 项通过，包括真实点击返回 200 并创建手动父任务 `4aa135a2-bd15-4355-bbb0-b6e93ba64bd5`。API release `release-20261012-sync-fix-1791808947943`，前端 release `release-20261012-sync-fix-1791809298142` 保留最新用户菜单。
 
-持续观察发现第二个执行缺陷：三个子任务共用一个账号，拿不到账号 advisory lock 的任务已领取租约却直接返回 skipped，等待超时回收，最终可能 SYNC_RUN_POISONED。`worker/src/worker.js` 在该路径通过原 finishOnce/deferSyncRun 使用 owner+epoch fencing 返回 queued，10 秒后重试；零采集、零断点写入。新增隔离测试和租约回归 11/11 通过，候选实际 Worker 模块同样通过。Worker 发布以现役运行包补丁此路径，需重启采集 Worker；不修改历史失败任务，不重置断点，不重启分析/翻译 Worker。
+持续观察发现第二个执行缺陷：三个子任务共用一个账号，拿不到账号 advisory lock 的任务已领取租约却直接返回 skipped，等待超时回收，最终可能 SYNC_RUN_POISONED。`worker/src/worker.js` 在该路径通过原 finishOnce/deferSyncRun 使用 owner+epoch fencing 返回 queued，10 秒后重试；零采集、零断点写入。新增隔离测试 2 项和租约回归 10 项全部通过，候选实际 Worker 模块同样通过。Worker 发布以现役运行包补丁此路径，只重启采集 Worker；不修改历史失败任务，不重置断点，不重启分析/翻译 Worker。
+
+首次 Worker 修复在真实运行暴露旧采集审计表不接受 queued 状态；已修正为审计记录 partial，同步任务保持 queued，候选默认 finishOnce 路径测试覆盖这一兼容性。最终 Worker release 为 `worker-release-20261012-account-lock-1791809888195`，manifest 验证通过。2026-10-12T13:02:16Z 开始的新扫描在 13:03:39Z 完成，处理 5 个排队任务；三个新子任务已安全返回 queued / SYNC_ACCOUNT_BUSY，没有新增审计约束错误。
+
+最新只读运行证据见 `sync-recovery-runtime.json`：站点登记为 3 个，真实内容已有新增/变更；手动任务的语言 9 和 16 子任务均完成授权范围采集，各抓取 326 条，首站点仍运行，其余任务排队。这不表示整个历史采集批次已完成，旧失败任务保持原样。正式浏览器后续三类冲突复测通过，使用 skip 标志避免再次真实提交；首次真实点击 200 证据另存 `sync-recovery-browser-submission.json`。
