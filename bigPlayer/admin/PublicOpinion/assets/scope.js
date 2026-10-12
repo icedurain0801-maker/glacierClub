@@ -6,6 +6,15 @@
     overseas: [{ value: 'bigplayer_h5', label: 'BigPlayer社区' }, { value: 'discord', label: 'Discord' }, { value: 'facebook', label: 'Facebook' }, { value: 'x', label: 'X' }, { value: 'lounge', label: 'Lounge' }]
   };
   const ALL_PLATFORMS = [...new Map(Object.values(PLATFORM_GROUPS).flat().map(item => [item.value, item])).values()];
+  const COMMUNITY_NAMES = { domestic: ['超能世界国服版', '圣魂纷争', '我要当老祖', '欢乐战三国'], overseas: ['X-Clash', 'Last Light', 'Hero Clash'] };
+  const canonicalCommunityName = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  function visibleCommunities(items, regionCode) {
+    const names = COMMUNITY_NAMES[regionCode] || COMMUNITY_NAMES[DEFAULT_REGION];
+    const rank = new Map(names.map((name, index) => [canonicalCommunityName(name), index]));
+    return items.filter(item => item?.id && rank.has(canonicalCommunityName(item.name))
+      && (!item.regionCode && !item.region_code || (item.regionCode || item.region_code) === regionCode))
+      .sort((a, b) => rank.get(canonicalCommunityName(a.name)) - rank.get(canonicalCommunityName(b.name)));
+  }
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const normalizePlatform = value => String(value || '').trim().toLowerCase() === 'xhs' ? 'xiaohongshu' : String(value || '').trim().toLowerCase();
   const state = { regionCode: DEFAULT_REGION, communityId: '', platform: DEFAULT_PLATFORM, communities: [], controls: null, platformControl: null, epoch: 0, controller: null, activeRequests: new Set(), loadError: '', onChange: null, initialized: false };
@@ -105,7 +114,7 @@
     }
     if (result === undefined) throw lastError;
     if (epoch !== state.epoch || state.controller.signal.aborted) return [];
-    state.communities = Array.isArray(result) ? result : result.items || []; state.communityId = String(defaultCommunity(state.regionCode, preferred)?.id || '');
+    state.communities = visibleCommunities(Array.isArray(result) ? result : result.items || [], state.regionCode); state.communityId = String(defaultCommunity(state.regionCode, preferred)?.id || '');
     return state.communities;
   }
   async function normalize({ preferredRegion, preferredCommunity, preferredPlatform, reason, urlMode, notifyChange }) {
