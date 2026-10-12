@@ -24,4 +24,12 @@
 
 只提交本次增量，保留工作区已有改动。前端候选包从现役 release 复制并应用本次增量，发布时只切换 `PublicOpinionFrontend3001` 的运行目录并重启该服务。保留原 release 与服务 XML；启动或验收失败时切回原目录。
 
-线上验收结果以 `refresh-frequency-live.json` 为准；未产生该证据前不认定已上线通过。
+## 线上验收结果
+
+- 已发布：`release-20261012-comment-kind-filter-r2-refresh-frequency`，最终运行包 35 个文件通过 manifest 校验。
+- 发布期间现役版本有并发更新，因此重新基于最新版本应用增量并复核。
+- 发现旧版独立 Node 残留进程占用 3001，导致单纯服务健康检查无法辨别实际响应版本。已核对端口归属与旧进程完整命令行，仅停止该旧前端进程并重启前端服务。
+- 实际 3001 监听进程命令行指向新 release；外网 HTML 已包含 `refreshFrequency` 与本次缓存版本。
+- 真实线上 Chromium（不拦截请求）验证境外 BigPlayer、重新加载、境内 BigPlayer、切换 TapTap；四次 `/sources` 核对均 HTTP 200，分别显示每6小时、每6小时、每6小时、每24小时，概览正常，页面脚本错误 0。
+- 线上八组显示边界通过；证据：`.tests/2026-10/2026-10-12/refresh-frequency-live.json`、`refresh-frequency-live.png`。
+- 发布验收须同时核对 SCM 状态、3001 端口所属进程、新版资源标识与真实浏览器结果，避免旧监听进程造成假通过。
