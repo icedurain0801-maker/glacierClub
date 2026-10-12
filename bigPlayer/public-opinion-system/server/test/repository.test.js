@@ -1560,6 +1560,7 @@ function manualSyncHarness(overrides = {}) {
         board_run_columns_ready: 1, board_content_columns_ready: 1, board_run_index_ready: 1, board_content_index_ready: 1, board_legacy_indexes_removed: 1,
         ...(overrides.boardSchema || {})
       }]];
+      if (sql.startsWith('SELECT column_name FROM information_schema.columns')) return [(overrides.runColumns || []).map(column_name => ({ column_name }))];
       if (sql.includes('information_schema')) return [[schema]];
       if (sql === 'SHOW CREATE TABLE po_sync_runs') return [[{ 'Create Table': overrides.checkDdl || "CREATE TABLE po_sync_runs (CONSTRAINT po_sync_runs_trigger_slot_chk CHECK ((trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)))" }]];
       if (sql.startsWith('SELECT version FROM po_schema_migrations')) return [overrides.migrationMissing ? [] : [
@@ -1782,7 +1783,8 @@ test('overseas BigPlayer aligned sites retain legacy identity and checkpoint cur
   const { repo, executed } = manualSyncHarness({
     source: { config: JSON.stringify({ boardId: '100017', baseUrl: urls[0], siteUrls: alignedSites }) },
     siteRows: alignedSites.map(site => ({ site_id: site.siteId, url: site.url, enabled: 1 })),
-    siteCursors: [{ site_id: 'legacy-original', last_successful_cursor: historicalCursor }]
+    siteCursors: [{ site_id: 'legacy-original', last_successful_cursor: historicalCursor }],
+    runColumns: ['community_id', 'board_id', 'run_scope', 'board_run_identity']
   });
 
   const result = await repo.startSourceSync({ sourceId: 's1' });

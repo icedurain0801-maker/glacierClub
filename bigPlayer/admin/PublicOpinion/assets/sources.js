@@ -928,14 +928,15 @@ async function startSync(source, button, mode = source && sourceMode(source)) {
     clearToast();
     if (normalizedPlatform(source) === 'facebook') { toast(facebookErrorMessage(error)); return; }
     const unknownOutcome = !error.status || error.status >= 500 || ['UPSTREAM_TIMEOUT', 'UPSTREAM_UNAVAILABLE', 'INVALID_RESPONSE'].includes(error.code);
-    if (unknownOutcome) {
+    const activeConflict = error.status === 409 && ['PREVIOUS_RUN_ACTIVE', 'SYNC_CHECKPOINT_ACTIVE', 'SOURCE_SCHEDULE_LEASE_ACTIVE'].includes(error.code);
+    if (unknownOutcome || activeConflict) {
       try {
         const latest = await api(`/sources/${encodeURIComponent(source.id)}/sync-runs/latest`);
         if (serial !== state.syncSerial) return;
         const run = latest?.run || latest; const latestId = pick(run, 'id', 'runId', 'run_id');
         if (latestId && String(pick(run, 'sourceId', 'source_id') || source.id) === String(source.id) && ['queued', 'running', 'pausing', 'cancelling'].includes(pick(run, 'status', 'state', 'syncStatus', 'sync_status'))) {
           openSyncPanel(source.id, latestId, pick(run, 'status', 'state', 'syncStatus', 'sync_status'));
-          toast('本次提交结果尚未确认，已打开该来源现有任务进度'); return;
+          toast(activeConflict ? '该来源已有同步任务，已打开现有任务进度' : '本次提交结果尚未确认，已打开该来源现有任务进度'); return;
         }
       } catch (_) { /* Keep the original error; never retry the write automatically. */ }
     }
