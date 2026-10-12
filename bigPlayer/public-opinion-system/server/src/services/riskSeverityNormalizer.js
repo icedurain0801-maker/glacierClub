@@ -1,7 +1,8 @@
 const SEVERITY_RANK = Object.freeze({ normal: 0, attention: 1, negative: 2, urgent: 3 });
 const { factualClauses, hasConcreteCrashReport, verifiedSeriousImpact } = require('./gameRiskEvidence');
+const { POLICY_VERSION, LEVELS, evaluateRiskDecision } = require('./riskDecisionTree');
 const NEGATIVE_SCORE_PENDING_THRESHOLD = 0.5;
-const RISK_POLICY_VERSION = 'game-impact-evidence-v7';
+const RISK_POLICY_VERSION = POLICY_VERSION;
 
 // 仅在负面内容上识别游戏问题，避免正面攻略里的“闪退解决方法”等词触发风险升级。
 const GAME_ISSUE_PATTERNS = Object.freeze([
@@ -43,6 +44,8 @@ function hasGameIssueSignal(input = {}) {
 }
 
 function normalizeSeverity(input = {}) {
+  const decision = evaluateRiskDecision(input);
+  if (decision) return { severity: LEVELS[decision.level], originalSeverity: normalizeEnum(input.rawAnalysis?.severity ?? input.severity, 'normal'), reasons: [decision.gate_result], gameIssueMatched: ['L2', 'L3'].includes(decision.level), seriousImpact: null, decision };
   const sentiment = String(input.sentiment || '').toLowerCase();
   const rawSeverity = String(input.severity || '').toLowerCase();
   const validOriginalSeverity = Object.prototype.hasOwnProperty.call(SEVERITY_RANK, rawSeverity);
@@ -56,7 +59,7 @@ function normalizeSeverity(input = {}) {
     ? input.gameComplaint : hasGameIssueSignal(input)));
   const experienceRelated = eligible && (input.gameExperienceRelated === true || gameIssueMatched);
   const inAttention = sentiment === 'negative' || (sentiment === 'neutral' && experienceRelated);
-  const inNegative = inAttention && (negativeScore > NEGATIVE_SCORE_PENDING_THRESHOLD || gameIssueMatched);
+  const inNegative = inAttention && gameIssueMatched;
   // Only a model decision can promote a qualifying issue to urgent. Repeated
   // normalization uses the original decision, never a previous policy upgrade.
   const modelSeverity = input.rawAnalysis?.severity ?? input.originalSeverity ?? originalSeverity;
@@ -73,9 +76,6 @@ function normalizeSeverity(input = {}) {
     if (gameIssueMatched) {
       severity = 'negative';
       reasons.push('game_issue_upgrade');
-    } else if (inNegative) {
-      severity = 'negative';
-      reasons.push('negative_score_upgrade');
     }
     if (inNegative && modelSeverity === 'urgent' && seriousImpact) {
       severity = 'urgent';
@@ -97,7 +97,12 @@ function normalizeAnalysisResult(analysis, context = {}) {
     try { persistedContext = JSON.parse(persistedContext); } catch (_) { persistedContext = {}; }
   }
   analysis = { ...persistedContext, ...analysis };
-  const normalized = normalizeSeverity({ ...analysis, title: context.title ?? analysis.title, body: context.body ?? analysis.body ?? analysis.rawAnalysis?.verifiedEvidenceText });
+  const storedDecision = analysis.riskDecision ?? analysis.rawAnalysis?.riskDecision;
+  const normalized = normalizeSeverity({ ...analysis, riskDecision: storedDecision,
+    title: context.title ?? analysis.title,
+    body: context.body ?? analysis.body ?? storedDecision?.verifiedSourceText ?? analysis.rawAnalysis?.verifiedEvidenceText,
+    evidenceTypes: context.evidenceTypes ?? storedDecision?.verifiedEvidenceTypes,
+    riskMetadata: context.riskMetadata ?? storedDecision?.verifiedRiskMetadata });
   const rawAnalysis = { ...(analysis.rawAnalysis || {
     sentiment: analysis.sentiment, severity: analysis.originalSeverity ?? analysis.severity,
     negativeScore: analysis.negativeScore ?? analysis.negative_score, confidence: analysis.confidence,
@@ -114,15 +119,20 @@ function normalizeAnalysisResult(analysis, context = {}) {
   // A verified source excerpt travels with cache/persistence, which may lack body.
   // An explicitly supplied current body always takes precedence on revalidation.
   if (normalized.seriousImpact) rawAnalysis.verifiedEvidenceText = normalized.seriousImpact.evidence;
+  if (normalized.decision) {
+    rawAnalysis.originalRiskDecision ??= analysis.riskDecision ?? null;
+    rawAnalysis.riskDecision = normalized.decision;
+  }
   return {
     ...analysis, severity: normalized.severity, rawAnalysis,
+    ...(normalized.decision ? { riskDecision: normalized.decision, reason: normalized.decision.reason, analysisReason: normalized.decision.reason, needsDeep: analysis.needsDeep || normalized.decision.confidence < 0.6 || normalized.decision.need_clarification || Boolean(normalized.decision.downgrade_suggest) } : {}),
     urgentImpact: normalized.seriousImpact?.category || 'none', urgentEvidence: normalized.seriousImpact?.evidence || '',
     gameComplaint: normalized.gameIssueMatched,
     gameExperienceRelated: analysis.gameExperienceRelated ?? normalized.gameIssueMatched,
     originalSeverity: analysis.originalSeverity ?? normalized.originalSeverity,
     severityNormalizationReasons: [...new Set([...(analysis.severityNormalizationReasons || []), ...normalized.reasons])],
     riskPolicyVersion: RISK_POLICY_VERSION,
-    analysisReason: analysis.analysisReason ?? analysis.analysis_reason ?? analysis.reason ?? null
+    analysisReason: normalized.decision?.reason ?? analysis.analysisReason ?? analysis.analysis_reason ?? analysis.reason ?? null
   };
 }
 
@@ -137,6 +147,20 @@ function buildAnalysisReason(reason, normalized, maxLength = 255) {
   return baseLimit > 0 && base ? `${base.slice(0, baseLimit)}${separator}${audit}` : audit;
 }
 
+function retainVerifiedUrgent(current, previous, context = {}) {
+  if (!previous || current.severity === 'urgent') return current;
+  let saved = previous.risk_context || {};
+  if (typeof saved === 'string') { try { saved = JSON.parse(saved); } catch { return current; } }
+  if ((previous.riskPolicyVersion ?? saved.riskPolicyVersion) !== RISK_POLICY_VERSION
+    || !previous.content_fingerprint || previous.content_fingerprint !== current.contentFingerprint) return current;
+  const prior = normalizeAnalysisResult(previous, context);
+  if (prior.severity !== 'urgent' || !prior.riskDecision) return current;
+  const riskDecision = { ...prior.riskDecision,
+    downgrade_suggest: `后续分析建议${current.riskDecision?.level_name || current.severity}，保留紧急待人工复核` };
+  return normalizeAnalysisResult({ ...current, riskDecision, needsDeep: true,
+    rawAnalysis: { ...current.rawAnalysis, riskDecision, subsequentReview: current.riskDecision || null } }, context);
+}
+
 module.exports = {
   SEVERITY_RANK,
   NEGATIVE_SCORE_PENDING_THRESHOLD,
@@ -145,5 +169,6 @@ module.exports = {
   hasGameIssueSignal,
   normalizeSeverity,
   normalizeAnalysisResult,
-  buildAnalysisReason
+  buildAnalysisReason,
+  retainVerifiedUrgent
 };

@@ -1,8 +1,10 @@
 # 舆情风险等级判定规则
 
-Status: implemented
+Status: superseded
 Updated: 2026-10-12
 Policy: game-impact-evidence-v7
+
+本文件保留 v7 历史设计。2026-10-12 后续用户批准的 v8 串行决策树见 [feature-risk-serial-gates.md](feature-risk-serial-gates.md)，负面分数不再单独升级，且按新低置信与紧急复核规则执行。
 
 ## 等级定义
 

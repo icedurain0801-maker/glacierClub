@@ -46,11 +46,11 @@ test('game issue samples 919167 and 919098 enter negative pending', () => {
   }
 });
 
-test('negative score upgrade is strict above 0.50 without a confidence gate', () => {
+test('negative score alone never bypasses the verifiable-issue gate', () => {
   for (const confidence of [0, 0.2, 0.599, 0.6, 1]) {
     assert.equal(normalizeSeverity({ sentiment: 'negative', severity: 'attention', negativeScore: 0.499, confidence }).severity, 'attention');
     assert.equal(normalizeSeverity({ sentiment: 'negative', severity: 'attention', negativeScore: 0.5, confidence }).severity, 'attention');
-    for (const negativeScore of [0.501, 0.86]) assert.equal(normalizeSeverity({ sentiment: 'negative', severity: 'attention', negativeScore, confidence }).severity, 'negative');
+    for (const negativeScore of [0.501, 0.86]) assert.equal(normalizeSeverity({ sentiment: 'negative', severity: 'attention', negativeScore, confidence }).severity, 'attention');
   }
 });
 

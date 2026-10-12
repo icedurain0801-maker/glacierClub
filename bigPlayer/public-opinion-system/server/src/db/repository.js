@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 const ContentHandling = require('../services/contentHandling');
 const crypto = require('node:crypto');
-const { normalizeAnalysisResult } = require('../services/riskSeverityNormalizer');
+const { normalizeAnalysisResult, retainVerifiedUrgent } = require('../services/riskSeverityNormalizer');
 const { contentDisplayType } = require('../services/contentDisplayType');
 const { normalizeFacebookPageUrl } = require('../services/sourceValidators');
 const { normalizeSiteUrls } = require('../services/bigplayerSiteConfig');
@@ -686,7 +686,7 @@ class Repository {
         const [previous] = await conn.query('SELECT * FROM po_analyses WHERE content_id=? FOR UPDATE', [contentId]);
         previousAnalysis = previous[0] || null;
       }
-      const analysis = normalizeAnalysisResult(input, content);
+      const analysis = retainVerifiedUrgent(normalizeAnalysisResult(input, content), previousAnalysis, content);
       await write(conn, analysis);
       const riskContext = JSON.stringify({ gameComplaint: analysis.gameComplaint, gameComplaintEvidence: analysis.gameComplaintEvidence, gameExperienceRelated: analysis.gameExperienceRelated, originalSeverity: analysis.originalSeverity, rawAnalysis: analysis.rawAnalysis, riskPolicyVersion: analysis.riskPolicyVersion });
       if (contentId) await conn.query('UPDATE po_analyses SET risk_context=? WHERE content_id=?', [riskContext, contentId]);
