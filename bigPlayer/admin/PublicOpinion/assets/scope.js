@@ -147,7 +147,7 @@
   }
   function loadSyncRunDock() {
     if (window.PublicOpinionSyncDock || document.querySelector('script[data-public-opinion-sync-dock]')) return;
-    const script = document.createElement('script'); script.src = 'assets/sync-run-dock.js?v=3'; script.async = false; if (script.dataset) script.dataset.publicOpinionSyncDock = 'true'; else script.setAttribute?.('data-public-opinion-sync-dock', 'true'); document.head.appendChild(script);
+    const script = document.createElement('script'); script.src = 'assets/sync-run-dock.js?v=4'; script.async = false; if (script.dataset) script.dataset.publicOpinionSyncDock = 'true'; else script.setAttribute?.('data-public-opinion-sync-dock', 'true'); document.head.appendChild(script);
   }
   loadSyncRunDock();
   const style = document.createElement('style');

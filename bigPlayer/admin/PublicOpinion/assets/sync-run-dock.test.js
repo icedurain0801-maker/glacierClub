@@ -1,6 +1,35 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Dock = require('./sync-run-dock.js');
+test('polling strips unsupported platform filter and advances queued run to terminal', async () => {
+  const prior = globalThis.PublicOpinionScope;
+  globalThis.PublicOpinionScope = { query: () => new URLSearchParams({ regionCode: 'domestic', communityId: 'community-1', platform: 'bigplayer_h5' }) };
+  const calls = [];
+  const dock = Dock.create({ storage: { getItem: () => null, setItem() {}, removeItem() {} }, document: null,
+    fetch: async url => { calls.push(url); return { ok: true, text: async () => JSON.stringify({ data: { id: 'run-1', status: calls.length === 1 ? 'running' : 'partial', fetched_count: 35 } }) }; } });
+  try {
+    dock.track({ id: 'run-1', status: 'queued' });
+    await dock.refresh();
+    assert.equal(dock.snapshot().status, 'running');
+    await dock.refresh();
+    assert.equal(dock.snapshot().status, 'partial');
+    assert.equal(dock.snapshot().fetched, 35);
+    for (const url of calls) {
+      const params = new URL(url, 'https://fixture.test').searchParams;
+      assert.equal(params.has('platform'), false);
+      assert.equal(params.get('communityId'), 'community-1');
+    }
+  } finally { dock.clear(); globalThis.PublicOpinionScope = prior; }
+});
+test('polling errors display a retry message', async () => {
+  const dock = Dock.create({ storage: { getItem: () => null, setItem() {}, removeItem() {} }, document: null,
+    fetch: async () => ({ ok: false, status: 503, text: async () => JSON.stringify({ error: { message: 'temporarily unavailable' } }) }) });
+  try {
+    dock.track({ id: 'run-1', status: 'queued' });
+    await dock.refresh();
+    assert.match(dock.snapshot().message, /状态刷新失败.*正在重试/);
+  } finally { dock.clear(); }
+});
 test('normalizes an active run and permits only valid controls', () => { const run = Dock.normalize({ run_id: 'run-1', source_id: 'source-1', status: 'running', fetched_count: 3, discovered_count: 7 }); assert.deepEqual({ id: run.id, sourceId: run.sourceId, status: run.status, fetched: run.fetched, discovered: run.discovered }, { id: 'run-1', sourceId: 'source-1', status: 'running', fetched: 3, discovered: 7 }); assert.equal(Dock.canControl('running', 'pause'), true); assert.equal(Dock.canControl('running', 'resume'), false); assert.equal(Dock.canControl('paused', 'resume'), true); assert.equal(Dock.canControl('cancelled', 'cancel'), false); });
 test('normalizes multi-site projection while keeping legacy runs single-site', () => {
   const parent = Dock.normalize({ id: 'parent-1', runRole: 'parent', triggerType: 'scheduled', site_total: 3, site_terminal: 2, site_succeeded: 1, site_failed: 1 });

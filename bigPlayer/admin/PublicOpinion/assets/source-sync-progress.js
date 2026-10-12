@@ -12,6 +12,20 @@
   const statusOf = run => String(pick(run, 'status', 'state', 'syncStatus', 'sync_status') || 'running').toLowerCase();
   const sequenceOf = item => number(pick(item, 'sequenceNo', 'sequence_no', 'sequence', 'seq', 'syncSequence', 'sync_sequence'));
 
+  function completionMessage(run) {
+    const message = pick(run, 'message', 'errorMessage', 'error_message') || '';
+    if (!message) return '';
+    try {
+      const diagnostics = JSON.parse(message);
+      if (!Array.isArray(diagnostics)) return message;
+      return [...new Set(diagnostics.map(item => {
+        if (item.code === 'COLLECTION_BOUNDARY_INCOMPLETE' && String(item.message).includes('provider_offset_ceiling')) return '部分入口达到站点分页上限，已保存本次可获取的内容';
+        if (item.code === 'CAPABILITY_UNSUPPORTED') return '部分入口不支持采集，已保存其他入口的内容';
+        return item.message || item.code || '部分入口未完成';
+      }))].join('；');
+    } catch (_) { return message; }
+  }
+
   function normalizeRun(raw, fallback = {}) {
     const run = raw?.run || raw?.syncRun || raw?.sync_run || raw || {};
     return {
@@ -140,5 +154,5 @@
     return { state, snapshot, open, stop, poll, loadMore, isTerminal: status => TERMINAL.has(String(status || '').toLowerCase()) };
   }
 
-  return { RETRY_DELAYS, normalizeRun, normalizeContents, mergeBySequence, sequenceOf, isTerminal: status => TERMINAL.has(String(status || '').toLowerCase()), createController };
+  return { RETRY_DELAYS, normalizeRun, normalizeContents, mergeBySequence, sequenceOf, completionMessage, isTerminal: status => TERMINAL.has(String(status || '').toLowerCase()), createController };
 }));

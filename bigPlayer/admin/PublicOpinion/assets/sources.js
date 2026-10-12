@@ -404,10 +404,11 @@ function syncProgressState(progress) {
   if (terminal) {
     if (status === 'cancelled' || status === 'canceled') return { label: '已取消', detail: message || '任务已取消', percent: 0, indeterminate: false, fetched, total };
     if (status === 'failed') return { label: '同步失败', detail: message || '', percent: 0, indeterminate: false, fetched, total };
-    return { label: '已完成', detail: status === 'partial' ? '部分完成' : status === 'awaiting_manual_verification' ? '待人工验证' : '', percent: 100, indeterminate: false, fetched, total };
+    return { label: status === 'partial' ? '爬取结束（部分完成）' : status === 'awaiting_manual_verification' ? '爬取暂停（待人工验证）' : '爬取完成', detail: '', percent: 100, indeterminate: false, fetched, total };
   }
-  if (total > 0) return { label: '抓取中', detail: '', percent: Math.min(99, Math.max(0, Math.round((fetched / total) * 100))), indeterminate: false, fetched, total };
-  return { label: '抓取中', detail: '', percent: 0, indeterminate: true, fetched, total };
+  const labels = { queued: '等待执行', pending: '等待执行', paused: '已暂停', pausing: '正在暂停', cancelling: '正在取消' };
+  const detail = ['queued', 'pending'].includes(status) ? '等待采集任务启动，状态将自动刷新' : status === 'running' ? '正在检查采集入口、帖子和评论；已采集数量不代表全部任务已结束' : '';
+  return { label: labels[status] || '同步中', detail, percent: 0, indeterminate: !['paused', 'pausing', 'cancelling'].includes(status), fetched, total };
 }
 function syncItemValue(item, ...keys) { return pick(item, ...keys) || '-'; }
 function renderSyncPanel() {
@@ -420,15 +421,16 @@ function renderSyncPanel() {
   }).join('');
   const canLoadMore = progress.items.length > progress.visibleLimit || progress.hasMore;
   const actualPosts = pick(run, 'postCount', 'post_count', 'posts', 'fetched') || 0;
-  const actualComments = pick(run, 'actualCommentCount', 'actual_comment_count', 'commentsFetched', 'comments_fetched') || 0;
+  const actualCommentBodies = Number(pick(run, 'actual_comment_body_count', 'actualCommentBodyCount') || 0);
+  const actualComments = pick(run, 'actualCommentCount', 'actual_comment_count', 'commentsFetched', 'comments_fetched') ?? Math.max(0, actualCommentBodies - Number(pick(run, 'replyCount', 'reply_count') || 0));
   const actualReplies = pick(run, 'replyCount', 'reply_count', 'repliesFetched', 'replies_fetched') || 0;
   const advertisedComments = pick(run, 'advertisedCommentCount', 'advertised_comment_count', 'comments') || 0;
   const progressState = syncProgressState(progress);
   if (progressState.percent === 100 && !progress.error && !run.message) clearToast();
-  const progressValue = progressState.total > 0 ? `${progressState.fetched} / ${progressState.total}` : `${progressState.fetched} 个`;
+  const progressValue = `已采集 ${actualPosts} 条帖子、${Number(actualComments) + Number(actualReplies)} 条评论（含回复）`;
   const progressBar = `<div class="sync-progress-meta"><div><span class="sync-progress-status ${progressState.indeterminate ? 'is-running' : progressState.percent === 100 ? 'is-complete' : 'is-running'}">${progressState.label}</span>${progressState.detail ? `<span class="subline sync-progress-detail">${esc(progressState.detail)}</span>` : ''}</div><span class="sync-progress-value">${esc(progressValue)}${progressState.indeterminate ? '' : ` · ${progressState.percent}%`}</span></div><div class="sync-progress-bar${progressState.indeterminate ? ' indeterminate' : ''}" role="progressbar" aria-label="当前抓取进度" aria-valuemin="0" aria-valuemax="100"${progressState.indeterminate ? '' : ` aria-valuenow="${progressState.percent}"`}><span class="sync-progress-fill" style="width:${progressState.indeterminate ? '35' : progressState.percent}%"></span></div>`;
   const facebook = normalizedPlatform(state.sources.find(source => String(source.id) === String(progress.sourceId))) === 'facebook';
-  return `<tr class="sync-progress-row"><td colspan="8"><section class="sync-progress"><header><div><b>实时同步进度</b><span class="pill ${esc(run.status)}">${esc(syncStatusLabel(run.status))}</span><span class="subline sync-run-id">运行 #${esc(progress.runId)}</span></div><button class="sync-close" data-collapse-sync title="收起同步进度">×</button></header>${progressBar}<div class="sync-counts"><span>帖子 <b>${esc(actualPosts)}</b></span><span>顶层评论 <b>${esc(actualComments)}</b></span><span>回复 <b>${esc(actualReplies)}</b></span><span>帖子声明评论总数 <b>${esc(advertisedComments)}</b></span><span>新增 <b>${esc(run.created || 0)}</b></span><span>变更 <b>${esc(run.updated || 0)}</b></span><span>未变化 <b>${esc(run.unchanged || 0)}</b></span></div>${progress.error ? `<div class="sync-error">连接暂时中断：${esc(facebook ? facebookErrorMessage(progress.error) : progress.error)}，${esc([3, 5, 10][Math.min(Math.max(progress.retryCount - 1, 0), 2)])} 秒后重试</div>` : ''}${run.message ? `<div class="sync-error">${esc(facebook ? facebookErrorMessage(run.errorCode || run.error_code) : run.message)}</div>` : ''}<div class="sync-limit">${facebook ? '仅采集 Facebook 官方授权范围内的帖子、顶层评论和回复；分页未完成时显示部分完成。' : '同步范围包含首页、资讯页、玩家圈全部动态 Tab。该站点当前仅提供评论数量，评论内容接口暂不支持。未完成入口会明确显示为部分完成。'}</div><div class="sync-content-wrap"><table class="sync-content-table"><thead><tr><th>序号</th><th>标题 / 正文</th><th>平台</th><th>发帖人 ID / 昵称</th><th>发布时间</th><th>声明评论数</th><th>变化</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="sync-empty">${progress.loading ? '正在读取本次同步内容…' : '本次同步暂未产生内容'}</td></tr>`}</tbody></table></div>${canLoadMore ? `<button class="row-action sync-more" data-sync-load-more ${progress.loading ? 'disabled' : ''}>加载更多（每次最多 100 条）</button>` : ''}</section></td></tr>`;
+  return `<tr class="sync-progress-row"><td colspan="8"><section class="sync-progress"><header><div><b>实时同步进度</b><span class="pill ${esc(run.status)}">${esc(syncStatusLabel(run.status))}</span><span class="subline sync-run-id">运行 #${esc(progress.runId)}</span></div><button class="sync-close" data-collapse-sync title="收起同步进度">×</button></header>${progressBar}<div class="sync-counts"><span>帖子 <b>${esc(actualPosts)}</b></span><span>顶层评论 <b>${esc(actualComments)}</b></span><span>回复 <b>${esc(actualReplies)}</b></span><span>帖子声明评论总数 <b>${esc(advertisedComments)}</b></span><span>新增 <b>${esc(run.created || 0)}</b></span><span>变更 <b>${esc(run.updated || 0)}</b></span><span>未变化 <b>${esc(run.unchanged || 0)}</b></span></div>${progress.error ? `<div class="sync-error">连接暂时中断：${esc(facebook ? facebookErrorMessage(progress.error) : progress.error)}，${esc([3, 5, 10][Math.min(Math.max(progress.retryCount - 1, 0), 2)])} 秒后重试</div>` : ''}${run.message ? `<div class="sync-error">${esc(facebook ? facebookErrorMessage(run.errorCode || run.error_code) : SyncProgress.completionMessage(run))}</div>` : ''}<div class="sync-limit">${facebook ? '仅采集 Facebook 官方授权范围内的帖子、顶层评论和回复；分页未完成时显示部分完成。' : '同步范围包含首页、资讯页、玩家圈动态及支持获取的评论。帖子与评论分别计数；所有入口检查结束后显示完成，受限入口会说明部分完成原因。'}</div><div class="sync-content-wrap"><table class="sync-content-table"><thead><tr><th>序号</th><th>标题 / 正文</th><th>平台</th><th>发帖人 ID / 昵称</th><th>发布时间</th><th>声明评论数</th><th>变化</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="sync-empty">${progress.loading ? '正在读取本次同步内容…' : '本次同步暂未产生内容'}</td></tr>`}</tbody></table></div>${canLoadMore ? `<button class="row-action sync-more" data-sync-load-more ${progress.loading ? 'disabled' : ''}>加载更多（每次最多 100 条）</button>` : ''}</section></td></tr>`;
 }
 function bindSyncPanelActions() { const collapse = $('[data-collapse-sync]'); if (collapse) collapse.onclick = collapseSyncPanel; const more = $('[data-sync-load-more]'); if (more) more.onclick = () => syncController.loadMore(); }
 
@@ -772,7 +774,13 @@ const syncController = SyncProgress.createController({
     const params = new URLSearchParams({ scope: 'posts', after: String(args.after || 0), limit: String(args.limit || 50) });
     return api(`/sync-runs/${encodeURIComponent(args.runId)}/contents?${params}`);
   },
-  onChange: renderRows,
+  onChange: progress => {
+    renderRows();
+    const dock = window.PublicOpinionSyncDock;
+    if (progress.run?.fetched_count !== undefined && dock?.snapshot()?.id === progress.runId) {
+      dock.track({ ...progress.run, sourceId: progress.sourceId });
+    }
+  },
   onTerminal: async () => { await loadSources(); }
 });
 function updateSyncDeepLink(sourceId, runId) { const params = new URLSearchParams(window.location.search); if (sourceId) params.set('syncSourceId', sourceId); else params.delete('syncSourceId'); if (runId) params.set('syncRunId', runId); else params.delete('syncRunId'); history.replaceState(null, '', `${window.location.pathname}${params.toString() ? `?${params}` : ''}`); }
