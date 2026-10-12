@@ -52,12 +52,12 @@
   }
 
   function renderRelatedContents(alert, esc) {
-    const threads = Array.isArray(alert.related_threads) ? alert.related_threads : [];
-    if (threads.length) return `<div class="related-list">${threads.map(thread => {
-      const matchedIds = new Set(thread.matched_content_ids || []);
-      const comments = Array.isArray(thread.comments) ? thread.comments : [];
-      return `<section class="related-thread">${renderContentNode(thread.root, matchedIds, '原帖', esc)}<div class="comment-section"><div class="comment-heading">评论与回复（${comments.length}）</div>${comments.length ? comments.map(item => `<div class="comment-node depth-${Math.min(Number(item.content_depth || 1), 3)}">${renderContentNode(item, matchedIds, '', esc)}</div>`).join('') : '<div class="detail-empty">该帖子暂无已采集评论</div>'}</div></section>`;
-    }).join('')}</div>`;
+    const contents = Array.isArray(alert.related_contents) ? alert.related_contents : [];
+    const uniqueContents = [...new Map(contents.filter(item => item && item.id).map(item => [item.id, item])).values()];
+    if (uniqueContents.length) {
+      const matchedIds = new Set(uniqueContents.map(item => item.id));
+      return `<div class="related-list independent-contents">${uniqueContents.map(item => renderContentNode(item, matchedIds, '', esc)).join('')}</div>`;
+    }
     const statusText = alert.relation_status === 'ambiguous' ? '历史告警匹配到多条候选原文，已停止自动关联以避免错绑' : '该告警缺少原文关联 ID，且未能在内容库中唯一回溯';
     return `<div class="detail-empty">${esc(statusText)}</div>`;
   }

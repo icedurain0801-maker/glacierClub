@@ -54,7 +54,7 @@ class AlertEngine {
     if (analysis?.severity !== 'urgent') return [];
     const alertType = 'ai_urgent';
     const communityId = this.assertScope(game, content);
-    const open = await this.repo.findOpenAlert({ gameId: game.id, communityId, alertType, cooldownSeconds: this.cooldownSeconds });
+    const open = await this.repo.findOpenAlert({ gameId: game.id, communityId, alertType, cooldownSeconds: this.cooldownSeconds, contentId: content.id });
     if (open) { await this.repo.linkAlertContent(open.id, content.id); return [{ alertId: open.id, reused: true, dingStatus: open.ding_talk_status }]; }
     const title = `【${game.name}】AI 识别紧急舆情`;
     const severityNote = analysis._lightSeverity && analysis._lightSeverity !== analysis.severity

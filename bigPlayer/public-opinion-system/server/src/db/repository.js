@@ -627,15 +627,8 @@ class Repository {
         await this.linkAlertContent(id, recovered[0].id);
       } else if (recovered.length > 1) relationStatus = 'ambiguous';
     }
-    const matchedIds = new Set(relatedContents.map(item => item.id));
-    const rootIds = [...new Set(relatedContents.map(item => item.root_content_id || item.id))];
+    // 告警原文只返回命中内容，不展开所属帖子及其他评论。
     const relatedThreads = [];
-    for (const rootId of rootIds) {
-      const rows = await this.query('SELECT c.*, c.platform_author_id AS author_id FROM po_contents c WHERE c.id=? OR c.root_content_id=? ORDER BY c.content_depth, c.published_at ASC, c.id ASC', [rootId, rootId]);
-      const root = rows.find(item => item.id === rootId);
-      if (!root) continue;
-      relatedThreads.push({ root, comments: rows.filter(item => item.id !== rootId), matched_content_ids: [...matchedIds].filter(contentId => contentId === rootId || rows.some(item => item.id === contentId)) });
-    }
     const independentReviews = (await this.listAlertQualityCandidates([id], scope)).map(({ alertId, ...candidate }) => candidate);
     return normalizeAlertWithIndependentReviews({ ...alert, relation_status: relationStatus, related_contents: relatedContents, related_threads: relatedThreads, independent_reviews: independentReviews });
   }
@@ -1785,10 +1778,13 @@ class Repository {
   }
 
   // 查找同游戏 + 同类型未闭环告警（去重防轰炸；cooldownSeconds 内的最近一条）
-  async findOpenAlert({ gameId, communityId, alertType, cooldownSeconds }) {
+  async findOpenAlert({ gameId, communityId, alertType, cooldownSeconds, contentId }) {
     const scope = communityId ? ' AND community_id=?' : '';
     const params = communityId ? [gameId, communityId, alertType, Number(cooldownSeconds || 0)] : [gameId, alertType, Number(cooldownSeconds || 0)];
-    const rows = await this.query(`SELECT * FROM po_alerts WHERE game_id=?${scope} AND alert_type=? AND status NOT IN ('resolved','false_positive') AND created_at >= (NOW() - INTERVAL ? SECOND) ORDER BY created_at DESC LIMIT 1`, params);
+    // 单条内容告警仅复用同一内容，历史混合告警不作为复用目标。
+    const contentScope = contentId ? ' AND EXISTS (SELECT 1 FROM po_alert_contents own WHERE own.alert_id=po_alerts.id AND own.content_id=?) AND NOT EXISTS (SELECT 1 FROM po_alert_contents other WHERE other.alert_id=po_alerts.id AND other.content_id<>?)' : '';
+    if (contentId) params.push(contentId, contentId);
+    const rows = await this.query(`SELECT * FROM po_alerts WHERE game_id=?${scope} AND alert_type=? AND status NOT IN ('resolved','false_positive') AND created_at >= (NOW() - INTERVAL ? SECOND)${contentScope} ORDER BY created_at DESC LIMIT 1`, params);
     return rows[0] || null;
   }
 
