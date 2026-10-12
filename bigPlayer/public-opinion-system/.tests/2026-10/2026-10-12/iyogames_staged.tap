@@ -1,0 +1,106 @@
+TAP version 13
+# Subtest: login selector skips absent and hidden Locators and returns a visible fallback
+ok 1 - login selector skips absent and hidden Locators and returns a visible fallback
+  ---
+  duration_ms: 1.0921
+  type: 'test'
+  ...
+# Subtest: AUTH-01 uses LoginSessionClient when account password exists
+ok 2 - AUTH-01 uses LoginSessionClient when account password exists
+  ---
+  duration_ms: 1.8887
+  type: 'test'
+  ...
+# Subtest: AUTH-02 login failure is terminal and does not fall back to token
+ok 3 - AUTH-02 login failure is terminal and does not fall back to token
+  ---
+  duration_ms: 0.6256
+  type: 'test'
+  ...
+# Subtest: AUTH-02 claimAuthResult failure is terminal and does not fall back to token
+ok 4 - AUTH-02 claimAuthResult failure is terminal and does not fall back to token
+  ---
+  duration_ms: 0.2921
+  type: 'test'
+  ...
+# Subtest: AUTH-03 uses configured token only when password is absent
+ok 5 - AUTH-03 uses configured token only when password is absent
+  ---
+  duration_ms: 0.217
+  type: 'test'
+  ...
+# Subtest: AUTH-04 reports authorization_missing when neither password nor token exists
+ok 6 - AUTH-04 reports authorization_missing when neither password nor token exists
+  ---
+  duration_ms: 0.3129
+  type: 'test'
+  ...
+# Subtest: HOST-01/02 use club.q1.com only and fail before network for unsafe Q1 origins
+ok 7 - HOST-01/02 use club.q1.com only and fail before network for unsafe Q1 origins
+  ---
+  duration_ms: 1.0412
+  type: 'test'
+  ...
+# Subtest: BOARD-01/02 falls back to V1 after a V2 server error and returns all 23 fixture feeds
+ok 8 - BOARD-01/02 falls back to V1 after a V2 server error and returns all 23 fixture feeds
+  ---
+  duration_ms: 3.5459
+  type: 'test'
+  ...
+# Subtest: board HTTP 403 fails closed without requesting a fallback
+ok 9 - board HTTP 403 fails closed without requesting a fallback
+  ---
+  duration_ms: 1.5192
+  type: 'test'
+  ...
+# Subtest: board HTTP 404 fails closed without requesting a fallback
+ok 10 - board HTTP 404 fails closed without requesting a fallback
+  ---
+  duration_ms: 0.459
+  type: 'test'
+  ...
+# Subtest: TYPE/WIN/PAGE use separate activity endpoint, preserve activity type, and enforce [from,to)
+ok 11 - TYPE/WIN/PAGE use separate activity endpoint, preserve activity type, and enforce [from,to)
+  ---
+  duration_ms: 3.1391
+  type: 'test'
+  ...
+# Subtest: COMMENT-01/02/04 include post and activity roots with reply linkage and declared/actual counts separated
+ok 12 - COMMENT-01/02/04 include post and activity roots with reply linkage and declared/actual counts separated
+  ---
+  duration_ms: 5.8027
+  type: 'test'
+  ...
+# Subtest: COMMENT-03 filters replies by their own timestamp using the same half-open UTC window
+ok 13 - COMMENT-03 filters replies by their own timestamp using the same half-open UTC window
+  ---
+  duration_ms: 0.7814
+  type: 'test'
+  ...
+# Subtest: mainland alternate origin passes source validation; overseas-only scope stays restricted
+ok 14 - mainland alternate origin passes source validation; overseas-only scope stays restricted
+  ---
+  duration_ms: 2.6654
+  type: 'test'
+  ...
+# Subtest: alternate origin uses Q1 board discovery and comment contracts with same-origin enforcement
+ok 15 - alternate origin uses Q1 board discovery and comment contracts with same-origin enforcement
+  ---
+  duration_ms: 4.203
+  type: 'test'
+  ...
+# Subtest: login iframe supports exact iyogames host and rejects lookalikes
+ok 16 - login iframe supports exact iyogames host and rejects lookalikes
+  ---
+  duration_ms: 0.2601
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 597.983

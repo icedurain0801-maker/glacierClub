@@ -8,7 +8,7 @@ function capabilityStatusFromError(error) {
   return code;
 }
 
-const Q1_ALLOWED_HOSTS = new Set(['club.q1.com']);
+const Q1_ALLOWED_HOSTS = new Set(['club.q1.com', 'club.iyogames.cn']);
 const Q1_MAX_BOUNDED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function hostOf(url) { try { return new URL(url).host; } catch { return ''; } }
 function q1SafeUrl(url) {
@@ -556,6 +556,8 @@ class BigPlayerH5Connector extends BaseConnector {
     this.enabled = env.BIGPLAYER_H5_ENABLED === 'true' || env.BIGPLAYER_H5_ENABLED === '1';
     this.envBaseUrl = env.BIGPLAYER_H5_API_BASE_URL || env.BIGPLAYER_H5_BASE_URL || '';
     this.allowedHosts = parseList(env.BIGPLAYER_H5_ALLOWED_HOSTS, hostOf(this.envBaseUrl) ? [hostOf(this.envBaseUrl)] : []);
+    // Add the verified mainland alternate only to mainland-enabled instances.
+    if (this.allowedHosts.includes('club.q1.com') && !this.allowedHosts.includes('club.iyogames.cn')) this.allowedHosts.push('club.iyogames.cn');
     this.paths = { posts: env.BIGPLAYER_H5_POSTS_PATH || '/internal/opinion/posts', comments: env.BIGPLAYER_H5_COMMENTS_PATH || '/internal/opinion/posts/:postId/comments' };
     this.credentialContext = credentialContext;
     this.authRefreshCoordinator = authRefreshCoordinator;
@@ -573,7 +575,8 @@ class BigPlayerH5Connector extends BaseConnector {
     this.loginPollIntervalMs = Math.max(0, Number(env.BIGPLAYER_H5_LOGIN_POLL_INTERVAL_MS || 250));
     this.loginPollTimeoutMs = Math.max(1, Number(env.BIGPLAYER_H5_LOGIN_POLL_TIMEOUT_MS || 30000));
   }
-  hostAllowed(url) { return safeHttpUrl(url) && sameHost(url, this.allowedHosts); }
+  hostAllowed(url) { return safeHttpUrl(url) && sameHost(url, this.allowedHosts)
+    && (hostOf(url) !== 'club.iyogames.cn' || q1SafeUrl(url)); }
   resolveBaseUrl(source) { return parseSourceConfig(source).baseUrl || this.envBaseUrl; }
   endpointFor(capability, source, pathParams = {}) {
     const config = parseSourceConfig(source);
@@ -660,7 +663,7 @@ class BigPlayerH5Connector extends BaseConnector {
         signal: combinedSignal(signal, this.timeoutMs)
       });
     } catch (error) { throw new ConnectorPageError(this.platform, capability, page, signal?.aborted ? abortedError(signal) : error); }
-    if (response.url && !q1SafeUrl(response.url)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'Q1 API redirected outside approved HTTPS origins'));
+    if (response.url && (!q1SafeUrl(response.url) || new URL(response.url).origin !== context.baseUrl.origin)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'Q1 API redirected outside approved HTTPS origins'));
     if (!response.ok && (response.status === 401 || response.status === 403) && this.authRefreshCoordinator && !authRefreshRetried) {
       const refreshAccount = requestContext.account || source.account || (source.account_id ? { id: source.account_id, platform: source.platform } : null);
       const refreshCredentialContext = requestContext.credentialContext || this.credentialContext;

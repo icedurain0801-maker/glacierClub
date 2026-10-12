@@ -8,6 +8,17 @@ const TOKEN_KEY_PATTERN = /^clubApp@web-[^@]+@token$/;
 // 兼容旧导出（外部可能引用）
 const TOKEN_KEY = 'clubApp@web-default@token';
 
+function isBigPlayerLoginUrl(value) {
+  try {
+    const url = new URL(value);
+    const production = url.protocol === 'https:' && (!url.port || url.port === '443')
+      && /^login\d*\.(?:q1\.com|iyogames\.cn)$/.test(url.hostname);
+    const existingDev = ['http:', 'https:'].includes(url.protocol) && !url.port
+      && /^login\d*\.dev\.q1\.com$/.test(url.hostname);
+    return !url.username && !url.password && (production || existingDev);
+  } catch { return false; }
+}
+
 function loadPlaywright() {
   try { return require('playwright'); } catch { throw new ServiceError('AUTOMATION_NOT_CONFIGURED', 'Playwright is not available', 503); }
 }
@@ -35,7 +46,7 @@ class BigPlayerH5PlaywrightAutomation {
     const close = async () => { await context.close().catch(() => {}); await browser.close().catch(() => {}); };
     try {
       await page.goto(resolvedCredentials.baseUrl, { waitUntil: 'load', timeout: this.timeoutMs });
-      let loginFrame = page.frames().find(frame => /login\d*(?:\.dev)?\.q1\.com/i.test(frame.url()));
+      let loginFrame = page.frames().find(frame => isBigPlayerLoginUrl(frame.url()));
       if (!loginFrame && typeof page.getByText === 'function') {
         let loginEntry = page.getByText('去登录', { exact: true }).first();
         if (!(await loginEntry.count())) {
@@ -54,7 +65,7 @@ class BigPlayerH5PlaywrightAutomation {
           await loginEntry.click();
           const frameDeadline = Date.now() + Math.min(this.timeoutMs, 10000);
           do {
-            loginFrame = page.frames().find(frame => /login\d*(?:\.dev)?\.q1\.com/i.test(frame.url()));
+            loginFrame = page.frames().find(frame => isBigPlayerLoginUrl(frame.url()));
             if (loginFrame) break;
             await page.waitForTimeout(100);
           } while (Date.now() < frameDeadline);
@@ -205,4 +216,4 @@ class BigPlayerH5PlaywrightAutomation {
   async disposeChallenge({ challenge, adapterChallengeRef } = {}) { const ref = adapterChallengeRef || challenge?.adapterChallengeRef; const handle = this.handles.get(ref); if (handle) { this.handles.delete(ref); await handle.close(); } }
 }
 
-module.exports = { BigPlayerH5PlaywrightAutomation, TOKEN_KEY };
+module.exports = { BigPlayerH5PlaywrightAutomation, TOKEN_KEY, isBigPlayerLoginUrl };
