@@ -4,21 +4,23 @@
   if (root) root.PublicOpinionContentHandling = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const methods = { notified: '已通知玩家', handled: '已处理', false_positive: '误判不予处理' };
+  const isHandlingEligible = item => ['attention', 'negative', 'urgent'].includes(item.severity) && item.handling_eligible !== false;
   const selected = new Set();
   let options, pageIds = [], revision = 0, saving = false;
   const $ = selector => document.querySelector(selector);
   function shortenedNote(note) { const chars = [...String(note || '')]; return chars.length > 10 ? chars.slice(0, 10).join('') + '...' : chars.join(''); }
   function statusHtml(item, esc) {
     const processed = item.handling_status === 'processed';
+    const eligible = isHandlingEligible(item);
     const note = String(item.handling_note || '');
-    return `<span class="handling-status ${processed ? 'processed' : 'pending'}"${processed && methods[item.handling_method] ? ` title="${esc(methods[item.handling_method])}"` : ''}>${processed ? '已处理' : '待处理'}</span>${note ? `<div class="handling-note" title="${esc(note)}">${esc(shortenedNote(note))}</div>` : ''}`;
+    return `<span class="handling-status ${!eligible ? 'not-required' : processed ? 'processed' : 'pending'}"${processed && methods[item.handling_method] ? ` title="${esc(methods[item.handling_method])}"` : ''}>${!eligible ? '无需处理' : processed ? '已处理' : '待处理'}</span>${note ? `<div class="handling-note" title="${esc(note)}">${esc(shortenedNote(note))}</div>` : ''}`;
   }
-  function checkboxHtml(id, esc) { return `<input type="checkbox" data-handling-id="${esc(id)}" aria-label="选择此条内容"${selected.has(id) ? ' checked' : ''}>`; }
+  function checkboxHtml(item, esc) { const id = String(item.id), eligible = isHandlingEligible(item); return `<input type="checkbox" data-handling-id="${esc(id)}" aria-label="选择此条内容"${eligible ? (selected.has(id) ? ' checked' : '') : ' disabled title="无需处理"'}>`; }
   function updateSelection() {
     $('#batchHandleBtn').disabled = saving || selected.size === 0;
     $('#handlingSelectionCount').textContent = `已选择 ${selected.size} 条`;
     const all = $('#handlingSelectAll');
-    if (all) { all.checked = pageIds.length > 0 && selected.size === pageIds.length; all.indeterminate = selected.size > 0 && selected.size < pageIds.length; }
+    if (all) { all.disabled = pageIds.length === 0; all.checked = pageIds.length > 0 && selected.size === pageIds.length; all.indeterminate = selected.size > 0 && selected.size < pageIds.length; }
   }
   function reset() {
     revision += 1; selected.clear(); pageIds = [];
@@ -26,9 +28,10 @@
     if (options) updateSelection();
   }
   function bindTable(items) {
-    pageIds = items.map(item => String(item.id));
+    pageIds = items.filter(isHandlingEligible).map(item => String(item.id));
+    for (const id of selected) if (!pageIds.includes(id)) selected.delete(id);
     $('#tableContent').querySelectorAll('[data-handling-id]').forEach(input => {
-      input.onchange = () => { input.checked ? selected.add(input.dataset.handlingId) : selected.delete(input.dataset.handlingId); updateSelection(); };
+      input.onchange = () => { !input.disabled && pageIds.includes(input.dataset.handlingId) && input.checked ? selected.add(input.dataset.handlingId) : selected.delete(input.dataset.handlingId); if (input.disabled) input.checked = false; updateSelection(); };
     });
     const all = $('#handlingSelectAll');
     if (all) all.onchange = () => {
@@ -78,5 +81,5 @@
       } finally { setBusy(false); }
     };
   }
-  return { init, reset, bindTable, statusHtml, checkboxHtml, shortenedNote };
+  return { init, reset, bindTable, statusHtml, checkboxHtml, shortenedNote, isHandlingEligible };
 });

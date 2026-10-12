@@ -1,5 +1,7 @@
 const crypto = require('node:crypto');
 const METHODS = new Set(['notified', 'handled', 'false_positive']);
+const ACTIONABLE_SEVERITIES = new Set(['attention', 'negative', 'urgent']);
+const isHandlingEligible = item => ACTIONABLE_SEVERITIES.has(item.severity);
 function invalid(message) { const error = new Error(message); error.code = 'INVALID_INPUT'; return error; }
 function parseBatchHandling(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw invalid('批量处理参数无效');
@@ -20,7 +22,8 @@ async function withContentHandling(repo, items) {
   const byId = new Map(records.map(record => [record.content_id, record]));
   return items.map(item => {
     const record = byId.get(item.id);
-    return { ...item, handling_status: record ? 'processed' : 'pending', handling_method: record?.handling_method || null, handling_note: record?.handling_note || '', handled_at: record?.handled_at || null };
+    const eligible = isHandlingEligible(item);
+    return { ...item, handling_eligible: eligible, handling_status: eligible ? (record ? 'processed' : 'pending') : 'not_required', handling_method: record?.handling_method || null, handling_note: record?.handling_note || '', handled_at: record?.handled_at || null };
   });
 }
 async function handleContents(repo, input, scope = {}) {
@@ -33,10 +36,14 @@ async function handleContents(repo, input, scope = {}) {
     for (const [value, column] of [[scope.regionCode, 'g.region_code'], [scope.gameId, 'c.game_id'], [scope.communityId, 'c.community_id'], [scope.sourceId, 'c.source_id'], [scope.platform, 's.platform']]) {
       if (value) { clauses.push(`${column}=?`); values.push(value); }
     }
-    const [rows] = await conn.query(`SELECT c.id, c.game_id, c.source_id, c.account_id FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE ${clauses.join(' AND ')} ORDER BY c.id FOR UPDATE`, values);
+    const [rows] = await conn.query(`SELECT c.id, c.game_id, c.source_id, c.account_id, a.severity FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id WHERE ${clauses.join(' AND ')} ORDER BY c.id FOR UPDATE`, values);
     if (rows.length !== contentIds.length) {
       const error = new Error('选中内容已删除、不存在或不属于当前筛选范围，请刷新后重试');
       error.code = 'CONTENT_SCOPE_MISMATCH'; error.status = 409; throw error;
+    }
+    if (rows.some(row => !isHandlingEligible(row))) {
+      const error = new Error('仅关注级、负面待处理、紧急级内容可处理，选中内容风险等级已变化或无需处理，请刷新后重试');
+      error.code = 'CONTENT_NOT_ACTIONABLE'; error.status = 409; throw error;
     }
     await conn.query(`INSERT INTO po_content_handlings (content_id,handling_method,handling_note,handled_at) VALUES ${rows.map(() => '(?,?,?,UTC_TIMESTAMP(3))').join(',')} ON DUPLICATE KEY UPDATE handling_method=VALUES(handling_method),handling_note=VALUES(handling_note),handled_at=VALUES(handled_at)`, rows.flatMap(row => [row.id, handlingMethod, handlingNote]));
     const batchId = crypto.randomUUID();
@@ -46,4 +53,4 @@ async function handleContents(repo, input, scope = {}) {
   } catch (error) { await conn.rollback(); throw error; }
   finally { conn.release(); }
 }
-module.exports = { parseBatchHandling, withContentHandling, handleContents };
+module.exports = { parseBatchHandling, withContentHandling, handleContents, isHandlingEligible };

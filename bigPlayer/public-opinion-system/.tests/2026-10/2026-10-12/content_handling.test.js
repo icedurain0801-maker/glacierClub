@@ -15,12 +15,20 @@ test('批量参数校验覆盖三种方式、必填、200字符、Unicode、去�
   for (const body of [null, {}, { ...input, contentIds: [] }, { ...input, contentIds: ['bad'] }, { ...input, contentIds: Array(101).fill(ids[0]) }, { ...input, handlingMethod: '' }, { ...input, handlingMethod: 'pending' }, { ...input, handlingNote: 1 }, { ...input, handlingNote: '中'.repeat(201) }, { ...input, extra: 'unsupported' }]) assert.throws(() => parseBatchHandling(body), { code: 'INVALID_INPUT' });
 });
 
-test('状态默认待处理，备注10字符边界、悬停全文和HTML转义', () => {
-  assert.match(ui.statusHtml({}, esc), /待处理/);
+test('风险三档可处理，其余无需处理和禁选；备注边界、悬停全文和转义', () => {
+  assert.match(ui.statusHtml({}, esc), /无需处理/);
+  for (const severity of ['attention', 'negative', 'urgent']) {
+    assert.match(ui.statusHtml({ severity }, esc), /待处理/);
+    assert.doesNotMatch(ui.checkboxHtml({ id: ids[0], severity }, esc), /disabled/);
+  }
+  for (const severity of ['normal', null, undefined, 'unknown']) {
+    assert.match(ui.statusHtml({ severity, handling_status: 'processed' }, esc), /无需处理/);
+    assert.match(ui.checkboxHtml({ id: ids[0], severity }, esc), /disabled/);
+  }
   assert.equal(ui.shortenedNote('一二三四五六七八九十'), '一二三四五六七八九十');
   assert.equal(ui.shortenedNote('一二三四五六七八九十一'), '一二三四五六七八九十...');
   assert.equal(ui.shortenedNote('😀'.repeat(11)), '😀'.repeat(10) + '...');
-  const html = ui.statusHtml({ handling_status: 'processed', handling_method: 'notified', handling_note: '处理说明<script>alert(1)</script>' }, esc);
+  const html = ui.statusHtml({ severity: 'urgent', handling_status: 'processed', handling_method: 'notified', handling_note: '处理说明<script>alert(1)</script>' }, esc);
   assert.match(html, /已处理/); assert.match(html, /已通知玩家/); assert.match(html, /title="处理说明&lt;script>/); assert.doesNotMatch(html, /<script>/);
 });
 
@@ -33,15 +41,18 @@ test('任一内容越界时整批回滚，不写处理或审计记录', async ()
 
 test('审计失败也回滚处理记录', async () => {
   const calls = [];
-  const conn = { beginTransaction: async () => {}, query: async sql => { calls.push(sql); if (sql.startsWith('SELECT')) return [ids.map(id => ({ id }))]; if (sql.includes('po_audit_events')) throw new Error('audit unavailable'); return [{ affectedRows: 2 }]; }, commit: async () => calls.push('commit'), rollback: async () => calls.push('rollback'), release: () => calls.push('release') };
+  const conn = { beginTransaction: async () => {}, query: async sql => { calls.push(sql); if (sql.startsWith('SELECT')) return [ids.map(id => ({ id, severity: 'urgent' }))]; if (sql.includes('po_audit_events')) throw new Error('audit unavailable'); return [{ affectedRows: 2 }]; }, commit: async () => calls.push('commit'), rollback: async () => calls.push('rollback'), release: () => calls.push('release') };
   await assert.rejects(handleContents({ pool: { getConnection: async () => conn } }, input), /audit unavailable/);
   assert(!calls.includes('commit')); assert.deepEqual(calls.slice(-2), ['rollback', 'release']);
 });
 
-test('列表批量加载处理状态，无处理记录时默认待处理', async () => {
-  const items = ids.map(id => ({ id }));
+test('列表按风险等级显示状态，降级保留历史备注', async () => {
+  const items = ids.map(id => ({ id, severity: 'negative' }));
   const rows = await withContentHandling({ query: async () => [{ content_id: ids[0], handling_method: 'handled', handling_note: '备注' }] }, items);
   assert.equal(rows[0].handling_status, 'processed'); assert.equal(rows[1].handling_status, 'pending'); assert.equal(rows[0].handling_note, '备注');
+  const downgraded = await withContentHandling({ query: async () => [{ content_id: ids[0], handling_method: 'handled', handling_note: '历史备注' }] }, [{ id: ids[0], severity: 'normal' }, { id: ids[1] }]);
+  assert(downgraded.every(item => item.handling_status === 'not_required' && item.handling_eligible === false));
+  assert.equal(downgraded[0].handling_note, '历史备注');
 });
 
 test('真实HTTP接口与隔离MySQL：持久化、重读、三种方式、越界和删除保护', async t => {
@@ -60,13 +71,15 @@ test('真实HTTP接口与隔离MySQL：持久化、重读、三种方式、越�
     await repo.query('CREATE TABLE IF NOT EXISTS po_games (id CHAR(36) PRIMARY KEY, region_code VARCHAR(20))');
     await repo.query('CREATE TABLE IF NOT EXISTS po_sources (id CHAR(36) PRIMARY KEY, game_id CHAR(36), platform VARCHAR(40))');
     await repo.query('CREATE TABLE IF NOT EXISTS po_contents (id CHAR(36) PRIMARY KEY, game_id CHAR(36), community_id CHAR(36), source_id CHAR(36), account_id CHAR(36), content_type VARCHAR(20), body TEXT, is_deleted TINYINT DEFAULT 0)');
+    await repo.query('CREATE TABLE IF NOT EXISTS po_analyses (content_id CHAR(36) PRIMARY KEY, severity VARCHAR(24))');
     await repo.query('CREATE TABLE IF NOT EXISTS po_audit_events (id CHAR(36) PRIMARY KEY,game_id CHAR(36),source_id CHAR(36),account_id CHAR(36),actor_type VARCHAR(30),actor_id VARCHAR(160),event_type VARCHAR(80),outcome VARCHAR(30),detail JSON)');
     await repo.query(fs.readFileSync(path.join(__dirname, '../../../migrations/033_content_handlings.sql'), 'utf8'));
     await repo.query('INSERT IGNORE INTO po_games VALUES (?,?)', [ids[0], 'domestic']);
     await repo.query('INSERT IGNORE INTO po_sources VALUES (?,?,?)', [ids[0], ids[0], 'bigplayer_h5']);
     for (const [index, id] of ids.entries()) await repo.query('INSERT IGNORE INTO po_contents (id,game_id,community_id,source_id,content_type,body) VALUES (?,?,?,?,?,?)', [id, ids[0], ids[0], ids[0], index ? 'comment' : 'post', '隔离测试内容']);
     await repo.query('DELETE FROM po_content_handlings WHERE content_id IN (?,?)', ids);
-    const simpleRead = filters => repo.query('SELECT * FROM po_contents WHERE is_deleted=0 AND (? IS NULL OR id=?)', [filters.contentId || null, filters.contentId || null]);
+    for (const id of ids) await repo.query("INSERT INTO po_analyses VALUES (?,'negative') ON DUPLICATE KEY UPDATE severity='negative'", [id]);
+    const simpleRead = filters => repo.query('SELECT c.*, a.severity FROM po_contents c LEFT JOIN po_analyses a ON a.content_id=c.id WHERE c.is_deleted=0 AND (? IS NULL OR c.id=?) ORDER BY c.id', [filters.contentId || null, filters.contentId || null]);
     repo.listContentTree = simpleRead; repo.listContents = simpleRead; repo.getContentTree = id => simpleRead({ contentId: id }); repo.countContents = async () => 2;
     await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${app.server.address().port}/api/public-opinion`;
@@ -80,11 +93,27 @@ test('真实HTTP接口与隔离MySQL：持久化、重读、三种方式、越�
     }
     const maxNote = await post({ ...input, handlingNote: '😀'.repeat(200) });
     assert.equal(maxNote.status, 200);
-    const maxRows = await repo.withContentHandling(ids.map(id => ({ id })));
+    const maxRows = await repo.withContentHandling(await simpleRead({}));
     assert.equal([...maxRows[0].handling_note].length, 200);
     assert.equal((await post({ ...input, handlingMethod: '' })).status, 400);
     assert.equal((await post({ ...input, handlingNote: '中'.repeat(201) })).status, 400);
     assert.equal((await post(input, 'regionCode=overseas')).status, 409);
+    const beforeGate = await repo.query('SELECT * FROM po_content_handlings ORDER BY content_id');
+    const beforeAudits = await repo.query('SELECT COUNT(*) AS count FROM po_audit_events');
+    await repo.query("UPDATE po_analyses SET severity='normal' WHERE content_id=?", [ids[1]]);
+    const denied = await post(input);
+    assert.equal(denied.status, 409); assert.equal(denied.body.error.code, 'CONTENT_NOT_ACTIONABLE');
+    assert.deepEqual(await repo.query('SELECT * FROM po_content_handlings ORDER BY content_id'), beforeGate);
+    assert.deepEqual(await repo.query('SELECT COUNT(*) AS count FROM po_audit_events'), beforeAudits);
+    const downgradedList = await (await fetch(`${base}/contents`)).json();
+    assert.equal(downgradedList.data[1].handling_status, 'not_required'); assert.equal(downgradedList.data[1].handling_eligible, false);
+    assert.equal([...downgradedList.data[1].handling_note].length, 200);
+    await repo.query('DELETE FROM po_analyses WHERE content_id=?', [ids[1]]);
+    assert.equal((await post({ ...input, contentIds: [ids[1]] })).status, 409);
+    for (const severity of ['attention', 'urgent', 'negative']) {
+      await repo.query('INSERT INTO po_analyses VALUES (?,?) ON DUPLICATE KEY UPDATE severity=VALUES(severity)', [ids[1], severity]);
+      assert.equal((await post({ ...input, contentIds: [ids[1]] })).status, 200);
+    }
     if (process.env.PO_HANDLING_BROWSER_TEST === '1') {
       await repo.query('DELETE FROM po_content_handlings WHERE content_id IN (?,?)', ids);
       repo.resolveCommunityCanonical = async () => ({ regionCode: 'domestic', gameId: ids[0], communityId: ids[0] });
@@ -107,7 +136,7 @@ test('真实HTTP接口与隔离MySQL：持久化、重读、三种方式、越�
           }
           if (url.pathname.endsWith('/stats')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: { post: 1, comment: 1, negative: 2, attention: 0 } }) });
           const rows = await repo.withContentHandling(await simpleRead({}));
-          const data = rows.map(item => ({ ...item, published_at: '2026-10-11 08:00:00', title: item.content_type === 'post' ? '隔离测试帖子' : null, sentiment: 'negative', severity: 'negative', analysis_status: 'completed', analysis_level: 'deep' }));
+          const data = rows.map(item => ({ ...item, published_at: '2026-10-11 08:00:00', title: item.content_type === 'post' ? '隔离测试帖子' : null, sentiment: 'negative', analysis_status: 'completed', analysis_level: 'deep' }));
           return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data, meta: { total: 2 } }) });
         });
         await page.goto('https://lfy3001.dev.q1op.com/admin/PublicOpinion/content.html?regionCode=domestic&communityId=00000000-0000-0000-0000-000000000101&platform=bigplayer_h5', { waitUntil: 'domcontentloaded' });
@@ -150,6 +179,26 @@ test('真实HTTP接口与隔离MySQL：持久化、重读、三种方式、越�
         assert(rect.width <= 375 && rect.scroll <= rect.client + 1);
         await page.screenshot({ path: path.resolve(__dirname, '../../../../../.temp/content-handling-browser-375.png') });
         await page.locator('#handlingCancel').click(); assert.deepEqual(errors, []);
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await repo.query("UPDATE po_analyses SET severity='normal' WHERE content_id=?", [ids[1]]);
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.locator('.handling-status.not-required').waitFor();
+        assert(await page.locator('[data-handling-id]').nth(1).isDisabled());
+        await page.locator('#handlingSelectAll').check();
+        assert.equal(await page.locator('[data-handling-id]:checked').count(), 1);
+        assert.equal(await page.locator('#handlingSelectionCount').innerText(), '已选择 1 条');
+        await page.locator('#batchHandleBtn').click();
+        await repo.query("UPDATE po_analyses SET severity='normal' WHERE content_id=?", [ids[0]]);
+        await page.locator('#handlingSubmit').click();
+        await page.locator('#handlingFormError').filter({ hasText: '无需处理' }).waitFor();
+        await page.locator('#handlingCancel').click();
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => document.querySelectorAll('.handling-status.not-required').length === 2);
+        assert(await page.locator('#handlingSelectAll').isDisabled());
+        assert(await page.locator('#batchHandleBtn').isDisabled());
+        assert.equal(await page.locator('[data-handling-id]:disabled').count(), 2);
+        assert.deepEqual(errors, []);
+        t.diagnostic('风险门禁：普通内容禁选、全选仅可处理内容、最新风险降级保存409、全页无需处理时全选和批量按钮禁用通过');
         t.diagnostic('Edge 有界面：完整勾选/保存/刷新重读、必填、备注截断悬停、失败保留选择、取消、筛选清空与375px弹窗通过；所有保存写隔离库');
       } finally { await browser.close(); }
     }
@@ -161,6 +210,7 @@ test('真实HTTP接口与隔离MySQL：持久化、重读、三种方式、越�
     await new Promise(resolve => app.server.listening ? app.server.close(resolve) : resolve());
     await repo.query('DELETE FROM po_content_handlings WHERE content_id IN (?,?)', ids);
     await repo.query('DELETE FROM po_audit_events WHERE game_id=?', [ids[0]]);
+    await repo.query('DELETE FROM po_analyses WHERE content_id IN (?,?)', ids);
     await repo.query('DELETE FROM po_contents WHERE id IN (?,?)', ids);
     await repo.query('DELETE FROM po_sources WHERE id=?', [ids[0]]);
     await repo.query('DELETE FROM po_games WHERE id=?', [ids[0]]);
