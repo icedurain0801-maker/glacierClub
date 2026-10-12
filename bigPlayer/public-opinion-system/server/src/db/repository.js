@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const { qualityBodyLength, qualityBodyLengthSql } = require('../services/qualityBodyText');
 const ContentHandling = require('../services/contentHandling');
 const crypto = require('node:crypto');
 const { normalizeAnalysisResult, retainVerifiedUrgent } = require('../services/riskSeverityNormalizer');
@@ -820,6 +821,9 @@ class Repository {
       await this.query('DELETE FROM po_quality_candidates WHERE content_id=?', [contentId]);
       return null;
     }
+    // Short text is excluded without destroying existing human review history.
+    const body = analysis.body ?? (await this.query('SELECT body FROM po_contents WHERE id=? LIMIT 1', [contentId]))[0]?.body;
+    if (qualityBodyLength(body) < 50) return null;
     await this.query(`INSERT INTO po_quality_candidates (id, content_id, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, analysis_version, model_name, content_fingerprint)
       VALUES (?,?,?,?,?,?,?,?,?,?)
       ON DUPLICATE KEY UPDATE quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), analysis_version=VALUES(analysis_version), model_name=VALUES(model_name), content_fingerprint=VALUES(content_fingerprint), updated_at=NOW()`,
@@ -827,24 +831,23 @@ class Repository {
     return (await this.query('SELECT * FROM po_quality_candidates WHERE content_id=? LIMIT 1', [contentId]))[0] || null;
   }
   async cleanupInvalidQualityCandidates() {
-    // 只删除确实不满足现行筛选条件（sentiment≠negative + 任一推荐 + body≥50字 + quality_score≥0.7）的候选。
+    // 短正文保留审核历史但不展示；其余候选沿用情感、推荐和评分清理条件。
     // 旧写法 LEFT JOIN po_analyses 后用 a.sentiment='negative' 判断，会把"分析记录不存在"（a.* 为 NULL）的行
     // 一并误删 —— NULL<>'negative' 为 NULL，且推荐列只看候选表自身，导致满足条件但缺少分析行的记录被清理掉。
     const result = await this.query(`
       DELETE q FROM po_quality_candidates q
       JOIN po_contents c ON c.id=q.content_id
       LEFT JOIN po_analyses a ON a.content_id=c.id
-      WHERE NOT (
+      WHERE ${qualityBodyLengthSql('c.body')} >= 50 AND NOT (
         c.is_deleted=0
         AND COALESCE(a.sentiment,'') <> 'negative'
         AND (q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)
-        AND CHAR_LENGTH(TRIM(COALESCE(c.body,''))) >= 50
         AND q.quality_score >= 0.7
       )`);
     return Number(result.affectedRows || 0);
   }
   qualityContentFilter({ regionCode, gameId, communityId, sourceId, platform, recommendationType, reviewStatus, publishedFrom, publishedTo } = {}) {
-    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', 'CHAR_LENGTH(TRIM(COALESCE(c.body,\'\'))) >= 50', 'q.quality_score >= 0.7'];
+    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', `${qualityBodyLengthSql('c.body')} >= 50`, 'q.quality_score >= 0.7'];
     for (const [value, sql] of [[gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); }
     if (platform) { clauses.push('s.platform=?'); values.push(platform); }

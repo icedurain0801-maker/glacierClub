@@ -2417,7 +2417,7 @@ test('quality candidate upsert is deep-only, idempotent, and preserves review fi
 
 test('quality candidate upsert removes negative candidates and stale recommendations', async () => {
   const repo = stubRepo(sql => sql.startsWith('DELETE FROM po_quality_candidates') ? { affectedRows: 1 } : []);
-  assert.equal(await repo.upsertQualityCandidate('negative-1', { sentiment: 'negative', recommendHome: true }), null);
+  assert.equal(await repo.upsertQualityCandidate('negative-1', { body: '正文'.repeat(25), sentiment: 'negative', recommendHome: true }), null);
   assert.equal(repo.calls.length, 1);
   assert.match(repo.calls[0].sql, /DELETE FROM po_quality_candidates/);
 });
@@ -2437,7 +2437,7 @@ test('quality content queries enforce scope, recommendation review, date, and pa
   const detail = await repo.getQualityContent('q1', { regionCode: 'domestic', gameId: 'g1', communityId: 'cm1', sourceId: 's1' });
   assert.equal(items[0].id, 'q1'); assert.equal(total, 3); assert.equal(detail.id, 'q1');
   assert.match(repo.calls[0].sql, /q\.recommend_home=1/); assert.match(repo.calls[0].sql, /q\.home_review_status=\?/);
-  assert.match(repo.calls[0].sql, /CHAR_LENGTH\(TRIM\(COALESCE\(c\.body/);
+  assert.match(repo.calls[0].sql, /CHAR_LENGTH\(REGEXP_REPLACE/);
   assert.match(repo.calls[0].sql, /q\.quality_score >= 0\.7/);
   assert.match(repo.calls[0].sql, /ORDER BY c\.published_at DESC, q\.quality_score DESC, q\.id DESC/);
   assert.deepEqual(repo.calls[0].params, ['g1', 'cm1', 's1', 'domestic', '2026-08-01', '2026-08-21', 'pending', 10, 10]);
@@ -2445,8 +2445,11 @@ test('quality content queries enforce scope, recommendation review, date, and pa
 });
 
 test('upsertQualityCandidate rejects low-score recommendations', async () => {
-  const repo = stubRepo(() => ({ affectedRows: 1 }));
-  assert.equal(await repo.upsertQualityCandidate('low', { body: '这是一个长度足够的正文，包含完整信息和上下文，应该可以通过正文长度校验。', qualityScore: 0.79, recommendHome: true, sentiment: 'positive' }), null);
+  const repo = stubRepo(() => []);
+  const body = '正文'.repeat(25);
+  await repo.upsertQualityCandidate('boundary', { body, qualityScore: 0.7, recommendHome: true, sentiment: 'positive' });
+  assert.equal(repo.calls.some(call => call.sql.startsWith('INSERT INTO po_quality_candidates')), true);
+  assert.equal(await repo.upsertQualityCandidate('low', { body, qualityScore: 0.69, recommendHome: true, sentiment: 'positive' }), null);
   assert.equal(repo.calls.filter(call => call.sql.startsWith('DELETE FROM po_quality_candidates')).length, 1);
 });
 test('quality review update maps only requested fields and records reviewer', async () => {
