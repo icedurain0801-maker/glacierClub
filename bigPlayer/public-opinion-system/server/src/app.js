@@ -2,6 +2,7 @@ const { loadRuntimeEnv } = require('./runtimeEnv');
 loadRuntimeEnv();
 
 const http = require('node:http');
+const { parseBatchHandling } = require('./services/contentHandling');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -973,6 +974,13 @@ async function handler(req, res) {
         throw error;
       }
     }
+    if (req.method === 'POST' && resource === 'contents' && id === 'batch-handle' && path.length === 2) {
+      const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform']);
+      for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
+      const input = parseBatchHandling(await readBody(req));
+      const scope = await resolveRequestScope(url);
+      return json(res, 200, success(await repo.handleContents(input, scope)));
+    }
     if (req.method === 'POST' && resource === 'contents' && id && path[2] === 'reanalyze') {
       const scope = await resolveRequestScope(url);
       const rows = await repo.getContentTree(id, { ...scope, includeDeleted: true });
@@ -1031,7 +1039,7 @@ async function handler(req, res) {
           }
         };
       };
-      const detailContent = analysisView ? { ...content, ...analysisView } : content;
+      const [detailContent] = await repo.withContentHandling([analysisView ? { ...content, ...analysisView } : content]);
       const translationFields = {
         region_code: content.region_code,
         translation_target_language: content.translation_target_language,
@@ -1061,7 +1069,7 @@ async function handler(req, res) {
         usesTreeFilters ? repo.listContentTree({ ...filters, includeDeleted: filters.includeDeleted === 'true' }) : repo.listContents(filters),
         repo.countContents({ ...filters, includeDeleted: filters.includeDeleted === 'true' })
       ]);
-      return json(res, 200, success(items, { page: Number(filters.page || 1), pageSize: Number(filters.pageSize || 20), total, hasMore: Number(filters.page || 1) * Number(filters.pageSize || 20) < total }));
+      return json(res, 200, success(await repo.withContentHandling(items), { page: Number(filters.page || 1), pageSize: Number(filters.pageSize || 20), total, hasMore: Number(filters.page || 1) * Number(filters.pageSize || 20) < total }));
     }
     if (req.method === 'GET' && resource === 'quality-contents' && id) {
       const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform']);

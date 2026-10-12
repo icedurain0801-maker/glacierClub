@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const ContentHandling = require('../services/contentHandling');
 const crypto = require('node:crypto');
 const { contentDisplayType } = require('../services/contentDisplayType');
 const { normalizeFacebookPageUrl } = require('../services/sourceValidators');
@@ -496,6 +497,8 @@ class Repository {
     const rows = await this.query(`SELECT COUNT(*) AS total FROM po_contents c${needsScopeJoin ? ` JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id` : ''}${analysisJoin} ${where}`, values);
     return Number(rows[0]?.total || 0);
   }
+  async withContentHandling(items) { return ContentHandling.withContentHandling(this, items); }
+  async handleContents(input, scope) { return ContentHandling.handleContents(this, input, scope); }
   async getContentStats(filters = {}, { includeBreakdown = false } = {}) {
     const baseFilters = { ...filters };
     delete baseFilters.riskMode;

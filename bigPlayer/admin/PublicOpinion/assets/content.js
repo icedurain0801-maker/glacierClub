@@ -1,5 +1,6 @@
 ﻿const API = window.PUBLIC_OPINION_API || '/api/public-opinion';
 const Detail = window.PublicOpinionAlertDetail;
+const Handling = window.PublicOpinionContentHandling;
 const RiskModes = window.PublicOpinionRiskModes;
 const state = { sources: [], contents: [], scope: null, contentMode: 'post', page: 1, pageSize: 50, total: 0, requestSerial: 0, statsSerial: 0, deepLinkOpened: '', publishedFrom: '', publishedTo: '' };
 const CONTENT_DATE_STORAGE_KEY = 'public-opinion:content:published-range';
@@ -131,7 +132,7 @@ async function rawApi(path, options = {}) {
   return body.data ?? body;
 }
 function renderSkeleton() {
-  $('#tableContent').innerHTML = `<table class="table"><thead><tr><th>内容</th><th>类型</th><th>来源 / 账号</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${Array.from({ length: 5 }).map(() => '<tr><td><div class="skeleton" style="width:240px"></div><div class="skeleton" style="width:180px"></div></td><td><div class="skeleton" style="width:45px"></div></td><td><div class="skeleton" style="width:80px"></div></td><td><div class="skeleton" style="width:50px"></div></td><td><div class="skeleton" style="width:90px"></div></td><td><div class="skeleton" style="width:50px"></div></td><td><div class="skeleton" style="width:45px"></div></td><td><div class="skeleton" style="width:90px"></div></td><td><div class="skeleton" style="width:55px"></div></td></tr>').join('')}</tbody></table>`;
+  $('#tableContent').innerHTML = `<table class="table"><thead><tr><th>内容</th><th>类型</th><th>处理状态</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${Array.from({ length: 5 }).map(() => '<tr><td><div class="skeleton" style="width:240px"></div><div class="skeleton" style="width:180px"></div></td><td><div class="skeleton" style="width:45px"></div></td><td><div class="skeleton" style="width:80px"></div></td><td><div class="skeleton" style="width:50px"></div></td><td><div class="skeleton" style="width:90px"></div></td><td><div class="skeleton" style="width:50px"></div></td><td><div class="skeleton" style="width:45px"></div></td><td><div class="skeleton" style="width:90px"></div></td><td><div class="skeleton" style="width:55px"></div></td></tr>').join('')}</tbody></table>`;
 }
 function scopePath(item) {
   const selected = state.scope?.selected?.() || {};
@@ -156,7 +157,7 @@ function renderTable(items) {
   const kindFiltered = isBigPlayerScope() && Boolean(selectedBigPlayerContentKind());
   if (!items.length) { $('#resultHint').textContent = kindFiltered ? '当前页 0 条（已按类型筛选）' : '共 0 条'; $('#tableContent').innerHTML = `<div class="empty">${esc(emptyMessage())}</div>`; return; }
   $('#resultHint').textContent = kindFiltered ? `当前页 ${items.length} 条（已按类型筛选）` : `共 ${Number(state.total || items.length).toLocaleString()} 条（当前页 ${items.length} 条）`;
-  $('#tableContent').innerHTML = `<table class="table"><thead><tr><th>内容</th><th>帖子 ID</th><th>类型</th><th>来源 / 账号</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${items.map(item => {
+  $('#tableContent').innerHTML = `<table class="table"><thead><tr><th class="handling-select"><input type="checkbox" id="handlingSelectAll" aria-label="全选当前页"></th><th>内容</th><th>帖子 ID</th><th>类型</th><th>处理状态</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${items.map(item => {
     const type = contentType(item);
     const displayType = bigPlayerDisplayType(item);
     const title = String(pick(item, 'title') ?? '').trim();
@@ -169,8 +170,9 @@ function renderTable(items) {
     const source = sourceById(item.source_id || item.sourceId);
     const account = source?.account || source?.accounts?.find(value => String(value.id) === String(accountId(item))) || item.account || {};
     const accountName = pick(account, 'account_name', 'accountName', 'nickname', 'name');
-    return `<tr><td><div class="content-title ${isDeleted(item) ? 'deleted' : ''}">${esc(primaryText)}</div>${secondaryText ? `<div class="content-body">${esc(secondaryText)}</div>` : ''}</td><td class="mono" title="${esc(item.external_id || '')}">${esc(item.external_id || '-')}</td><td><span class="type-pill">${esc(typeLabel(displayType))}</span></td><td><span class="source-pill">${esc(sourceName(item.source_id || item.sourceId || item.platform))}</span>${accountName ? `<div class="content-body">${esc(accountName)}</div>` : ''}<div class="content-body">${esc(scopePath(item))}</div></td><td class="sentiment ${esc(sentiment)}">${sentimentLabel(sentiment)}${Number.isFinite(score) ? ` · ${Math.round(score * 100)}%` : ''}</td><td><span class="analysis-status ${esc(analysisStatus(item))}">${esc(analysisStatusLabel(analysisStatus(item)))}</span><div><span class="analysis-level ${esc(analysisLevel(item) || '')}">${esc(analysisLevelLabel(analysisLevel(item)))}</span></div></td><td><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></td><td>${commentCount(item).toLocaleString()}</td><td>${esc(publishedAt(item))}</td><td><button class="row-action" data-content="${esc(contentId(item))}">查看详情</button></td></tr>`;
+    return `<tr><td class="handling-select">${Handling.checkboxHtml(contentId(item), esc)}</td><td><div class="content-title ${isDeleted(item) ? 'deleted' : ''}">${esc(primaryText)}</div>${secondaryText ? `<div class="content-body">${esc(secondaryText)}</div>` : ''}</td><td class="mono" title="${esc(item.external_id || '')}">${esc(item.external_id || '-')}</td><td><span class="type-pill">${esc(typeLabel(displayType))}</span></td><td class="handling-cell">${Handling.statusHtml(item, esc)}</td><td class="sentiment ${esc(sentiment)}">${sentimentLabel(sentiment)}${Number.isFinite(score) ? ` · ${Math.round(score * 100)}%` : ''}</td><td><span class="analysis-status ${esc(analysisStatus(item))}">${esc(analysisStatusLabel(analysisStatus(item)))}</span><div><span class="analysis-level ${esc(analysisLevel(item) || '')}">${esc(analysisLevelLabel(analysisLevel(item)))}</span></div></td><td><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></td><td>${commentCount(item).toLocaleString()}</td><td>${esc(publishedAt(item))}</td><td><button class="row-action" data-content="${esc(contentId(item))}">查看详情</button></td></tr>`;
   }).join('')}</tbody></table>`;
+  Handling.bindTable(items);
   $('#tableContent').querySelectorAll('[data-content]').forEach(button => { button.onclick = () => openContent(button.dataset.content); });
 }
 function normalizeDetail(raw, fallback) {
@@ -248,6 +250,7 @@ async function loadFilters() {
   } catch (_) { /* list load still reports the service state */ }
 }
 async function load(resetPage = false) {
+  Handling.reset();
   if (resetPage) state.page = 1; const serial = ++state.requestSerial; renderSkeleton(); updateUrl();
   const lifecycle = state.scope?.beginRequest?.();
   if (lifecycle && !lifecycle.allowed) { state.contents = []; state.total = 0; $('#resultHint').textContent = '当前地区暂无可用社区'; $('#tableContent').innerHTML = '<div class="empty">当前地区暂无可用社区</div>'; $('#pageHint').textContent = '无可用社区'; return; }
@@ -336,6 +339,7 @@ function restoreUrl(params = new URLSearchParams(window.location.search)) {
   return params.get('contentId');
 }
 function bind() {
+  Handling.init({ state, api, esc, toast, reload: () => load() });
   ensureBigPlayerContentKindFilter();
   const query = () => { state.page = 1; normalizedPublishedRange(); updateUrl('', 'push'); load(); loadStats(); };
   const queryButton = $('#queryBtn'); if (queryButton) queryButton.onclick = query;
