@@ -1,6 +1,6 @@
 # 境外 X-Clash 开始同步失败修复
 
-Status: tested, pending deployment
+Status: API/frontend deployed, worker fix tested
 
 采集源 `8c690d6e-12ea-4ad3-b434-d941276c4906` 的配置包含 3 个站点，而持久化登记只有第一个站点的 legacy ID。配置中该站点使用新派生 ID，准入检查报 `MULTISITE_SITE_REGISTRY_MISMATCH`，API 未映射该异常，用户看到 500 / internal server error。
 
@@ -21,3 +21,7 @@ Status: tested, pending deployment
 全仓储测试有既有失败：原测试文件在当前工作区代码基线为 151 通过 / 7 失败；本次修正模拟版块字段后为 152 通过 / 6 失败，剩余为已有 checkpoint 身份/窗口用例，未改动对应业务代码。不可将专项通过描述为全量测试通过。
 
 发布仅以当前现役 API/前端 release 叠加上述两个最小补丁；其他工作区改动不提交、不发布。只重启 API 和前端，Worker 不重启，保留回滚 XML。
+
+API/前端正式浏览器验收 4 项通过，包括真实点击返回 200 并创建手动父任务 `4aa135a2-bd15-4355-bbb0-b6e93ba64bd5`。API release `release-20261012-sync-fix-1791808947943`，前端 release `release-20261012-sync-fix-1791809298142` 保留最新用户菜单。
+
+持续观察发现第二个执行缺陷：三个子任务共用一个账号，拿不到账号 advisory lock 的任务已领取租约却直接返回 skipped，等待超时回收，最终可能 SYNC_RUN_POISONED。`worker/src/worker.js` 在该路径通过原 finishOnce/deferSyncRun 使用 owner+epoch fencing 返回 queued，10 秒后重试；零采集、零断点写入。新增隔离测试和租约回归 11/11 通过，候选实际 Worker 模块同样通过。Worker 发布以现役运行包补丁此路径，需重启采集 Worker；不修改历史失败任务，不重置断点，不重启分析/翻译 Worker。

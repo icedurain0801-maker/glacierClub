@@ -1137,7 +1137,14 @@ async function validatedClaimedRunDeps(deps, source, claimed, requireWindow = fa
 async function runPagedSource(deps, source, connector, run, syncRun, knownAccount = null, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
   const account = knownAccount || await deps.repo.getDefaultAccount({ sourceId: source.id, gameId: source.game_id, platform: source.platform });
   if (!account) return deps.repo.finishRun(run.id, { status: 'failed', errorCode: 'ACCOUNT_NOT_FOUND', errorMessage: 'default platform account is not configured' });
-  return withAccountLock(deps, account.id, () => runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce));
+  const result = await withAccountLock(deps, account.id, () => runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce));
+  if (result?.skipped && result.reason === 'account_locked' && syncRun?.id && typeof deps.repo.deferSyncRun === 'function') {
+    const nextRetryAt = new Date(Date.now() + 10000).toISOString().slice(0, 23).replace('T', ' ');
+    await finishOnce('queued', { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, {
+      defer: true, nextRetryAt, errorCode: 'SYNC_ACCOUNT_BUSY', errorMessage: 'another site is using this account; retry queued',
+    });
+  }
+  return result;
 }
 
 function createLeaseGuard(deps, syncRun) {
