@@ -1140,8 +1140,8 @@ async function runPagedSource(deps, source, connector, run, syncRun, knownAccoun
   const result = await withAccountLock(deps, account.id, () => runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce));
   if (result?.skipped && result.reason === 'account_locked' && syncRun?.id && typeof deps.repo.deferSyncRun === 'function') {
     const nextRetryAt = new Date(Date.now() + 10000).toISOString().slice(0, 23).replace('T', ' ');
-    await finishOnce('queued', { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, {
-      defer: true, nextRetryAt, errorCode: 'SYNC_ACCOUNT_BUSY', errorMessage: 'another site is using this account; retry queued',
+    await finishOnce('partial', { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, {
+      defer: true, sourceStatus: 'queued', nextRetryAt, errorCode: 'SYNC_ACCOUNT_BUSY', errorMessage: 'another site is using this account; retry queued',
     });
   }
   return result;
