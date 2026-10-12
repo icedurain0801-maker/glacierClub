@@ -1,12 +1,13 @@
 const crypto = require('node:crypto');
+const { normalizeAnalysisResult } = require('../services/riskSeverityNormalizer');
 
 // AI 批量分析适配器（第三方 OpenAI 兼容 /chat/completions）。
 // light / deep 配置相互隔离；未提供 profile 配置时兼容旧 AI_ANALYSIS_* 环境变量。
 
 const SENTIMENTS = new Set(['positive', 'neutral', 'negative']);
-const SEVERITIES = new Set(['normal', 'attention', 'urgent']);
+const SEVERITIES = new Set(['normal', 'attention', 'negative', 'urgent']);
 const PROFILES = new Set(['light', 'deep']);
-const PROMPT_SCHEMA_VERSION = 'sentiment-quality-context-severity-exclusive-v4';
+const PROMPT_SCHEMA_VERSION = 'sentiment-quality-game-impact-evidence-v7';
 
 function truncate(text, max) { const s = String(text || '').replace(/\s+/g, ' ').trim(); return s.length > max ? s.slice(0, max) : s; }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -114,7 +115,7 @@ class AiAnalyzer {
     const depth = profile.name === 'deep'
       ? '进行深入判断，结合上下文解释升级原因。'
       : '进行快速初筛，仅在风险或不确定性较高时标记需要深度分析。';
-    const system = `你是游戏舆情分析助手。${depth}仅输出严格 JSON 数组，每元素对应输入同序号项，字段：i(序号从0起,整数),s(sentiment:positive/neutral/negative),v(severity:normal/attention/urgent),n(negative_score 0~1),c(confidence 0~1),d(needs_deep 布尔值),r(reason，建议20-60个中文字符，使用通俗中文直接说明可观察到的表达、语气或信息为何支持当前情感结论，不输出内部推理步骤，不使用“根据系统提示”“模型认为”等措辞),t(topics 最多3个短词数组),m(summary 20字内),q(quality_score 0~1),h(recommend_home 布尔值，仅内容具备突出的公共价值、时效性和首页曝光价值时为true),p(recommend_pin 布尔值，仅内容与当前栏目高度相关且值得阶段性优先曝光时为true),f(recommend_feature 布尔值，仅内容完整、可靠且有长期沉淀价值时为true),qr(quality_reason，建议20-60个中文字符，说明质量和推荐依据)。三项推荐独立判断；广告、灌水、重复、纯情绪或缺少信息价值的短内容不得仅因情绪正面而推荐。所有字段必填，不要 Markdown 或多余文字。`;
+    const system = `你是游戏舆情分析助手。${depth}仅输出严格 JSON 数组，每元素对应输入同序号项，字段：i(序号从0起,整数),s(sentiment:positive/neutral/negative),v(severity:normal/attention/negative/urgent),n(negative_score 0~1),c(confidence 0~1),d(needs_deep 布尔值),r(reason，建议20-60个中文字符，使用通俗中文直接说明可观察到的表达、语气或信息为何支持当前情感结论，不输出内部推理步骤，不使用“根据系统提示”“模型认为”等措辞),t(topics 最多3个短词数组),m(summary 20字内),q(quality_score 0~1),h(recommend_home 布尔值，仅内容具备突出的公共价值、时效性和首页曝光价值时为true),p(recommend_pin 布尔值，仅内容与当前栏目高度相关且值得阶段性优先曝光时为true),f(recommend_feature 布尔值，仅内容完整、可靠且有长期沉淀价值时为true),qr(quality_reason，建议20-60个中文字符，说明质量和推荐依据)。三项推荐独立判断；广告、灌水、重复、纯情绪或缺少信息价值的短内容不得仅因情绪正面而推荐。gx(game_experience_related 布尔值，本条中性或负面内容涉及游戏体验、玩法、机制、内容或系统时为true，普通相关咨询也可为true),gc(game_complaint 布尔值，仅本条内容明确报告具体问题、不满或质疑游戏玩法、机制、匹配公平性、平衡数值、奖励掉落价值、概率、活动、bug、登录、付费或服务体验时true),ge(game_complaint_evidence，gc为true时逐字摘录本条原文中支持投诉的短句，否则空字符串)。必须结合原文语义判断，普通咨询、攻略、正面分享不因出现机制、概率、匹配等词判为投诉。ui(urgent_impact: none/service_blocked/widespread_outage/asset_loss/account_security，仅原文明确出现持续无法游玩、大范围服务中断、重大资产损失、账号被盗或安全事件时选对应类别，否则none),ue(urgent_evidence，ui不为none时逐字摘录本条原文中说明严重影响的完整短句，否则空字符串)。英语等海外语言同口径；不得继承父帖情感。所有字段必填，不要 Markdown 或多余文字。`;
     const payload = items.map((it, i) => ({
       i,
       region: it.regionCode || it.region_code || 'legacy-unassigned',
@@ -124,11 +125,11 @@ class AiAnalyzer {
       plat: it.platform || 'legacy-unassigned'
     }));
     const user = `分析以下${items.length}条游戏相关内容：\n${JSON.stringify(payload)}`;
-    const severityRules = 'severity 必须互斥单选，按 urgent→attention→normal 顺序判断：positive 必须为 normal；negative 至少为 attention；明确游戏问题（如崩溃、闪退、卡死、无法登录、奖励异常、充值/支付异常、外挂或安全风险）必须为 urgent；negative_score≥0.60 且 confidence≥0.60 的负面内容可判为 urgent；其余 negative 为 attention；neutral 保持基于内容的模型判断。不得依据互动量、点赞量或评论量升级等级，不得叠加等级。';
+    const severityRules = "判定顺序与唯一等级：正面分享、攻略、无关中性回复为normal。一般不满、相关中性咨询或疑问且未描述具体故障/实际损失时为attention；单条negative_score>0.50（严格大于，恰好0.50不因分数升级）或本条明确描述具体问题/投诉时进入negative。实际故障反馈即使以问句结尾、语气平静或置信度较低，也不能当成普通咨询；明确崩溃、闪退、重连耗时、战斗不同步等属于negative。只有先满足negative，且原文的ue证据明确支持ui严重影响，并由你判为严重，才为urgent：持续无法登录/游玩、大范围服务中断、重大财产或进度损失、账号被盗/安全泄露。负面分数高、辱骂、点赞评论多、单个故障词、一般投诉或少量可恢复崩溃不自动进入urgent。基准案例：玩家在联盟boss集结时游戏约每十次崩溃一次，重连耗时并与队友不同步，问是否手机问题——gc=true，negative，ui=none；没有持续阻断、大范围影响或严重损失证据，不判urgent。对照：单问崩溃反馈入口/解决方法为attention（负面或游戏相关中性咨询），正面分享已修复的方法为normal；全服持续宕机无法登录且原文明确报告该影响时可urgent。ge和ue必须来自本条原文，不能取父帖、模型摘要、话题或捏造句子。最高等级互斥单选，统计按attention、negative、urgent分别计数。";
     return [{ role: 'system', content: `${system}${severityRules}` }, { role: 'user', content: user }];
   }
 
-  parseResponse(body, count, profile = this.profiles.light, messages = []) {
+  parseResponse(body, count, profile = this.profiles.light, messages = [], items = []) {
     const text = this.api === 'anthropic-messages'
       ? body?.content?.find(item => item?.type === 'text')?.text
       : body?.choices?.[0]?.message?.content;
@@ -170,11 +171,19 @@ class AiAnalyzer {
       }
       const qualityScore = Number(o.q);
       const hasQualityScore = Number.isFinite(qualityScore) && qualityScore >= 0 && qualityScore <= 1;
-      results.push({
+      const evidence = typeof o.ge === 'string' ? o.ge.trim() : '';
+      const sourceText = `${items[i]?.title || ''} ${items[i]?.body || ''}`;
+      const gameComplaint = ['neutral', 'negative'].includes(sentiment) && o.gc === true && evidence.length >= 2 && sourceText.includes(evidence);
+      results.push(normalizeAnalysisResult({
         sentiment,
         severity,
         negativeScore,
         confidence,
+        gameComplaint: typeof o.gc === 'boolean' ? gameComplaint : undefined,
+        gameComplaintEvidence: gameComplaint ? evidence : '',
+        gameExperienceRelated: ['neutral', 'negative'].includes(sentiment) && (o.gx === true || gameComplaint),
+        urgentImpact: typeof o.ui === 'string' ? o.ui : undefined,
+        urgentEvidence: typeof o.ue === 'string' ? o.ue.trim() : '',
         needsDeep: o.d === true,
         reason: typeof o.r === 'string' ? truncate(o.r, 120) : '',
         topics: Array.isArray(o.t) ? o.t.slice(0, 3).map(String) : [],
@@ -191,7 +200,7 @@ class AiAnalyzer {
         outputTokens: tokenShare(outputTokens, count, i),
         totalTokens: tokenShare(totalTokens, count, i),
         usageEstimated: !hasUsage
-      });
+      }, items[i]));
     }
     return results;
   }
@@ -239,7 +248,7 @@ class AiAnalyzer {
     items.forEach((item, idx) => {
       const fingerprint = fingerprintOf(item);
       const key = this.cacheKey(fingerprint, profile, item);
-      if (this.cache.has(key)) results[idx] = this.cache.get(key);
+      if (this.cache.has(key)) results[idx] = normalizeAnalysisResult(this.cache.get(key), item);
       else if (pendingByKey.has(key)) pendingByKey.get(key).indices.push(idx);
       else pendingByKey.set(key, { item, key, indices: [idx] });
     });
@@ -248,7 +257,7 @@ class AiAnalyzer {
       const chunk = pending.slice(start, start + profile.batchSize);
       const messages = this.buildMessages(chunk.map(c => c.item), profile);
       const body = await this.callOnce(messages, profile);
-      const parsed = this.parseResponse(body, chunk.length, profile, messages);
+      const parsed = this.parseResponse(body, chunk.length, profile, messages, chunk.map(entry => entry.item));
       chunk.forEach((entry, i) => {
         this.cache.set(entry.key, parsed[i]);
         entry.indices.forEach(idx => { results[idx] = parsed[i]; });

@@ -1,6 +1,7 @@
 const mysql = require('mysql2/promise');
 const ContentHandling = require('../services/contentHandling');
 const crypto = require('node:crypto');
+const { normalizeAnalysisResult } = require('../services/riskSeverityNormalizer');
 const { contentDisplayType } = require('../services/contentDisplayType');
 const { normalizeFacebookPageUrl } = require('../services/sourceValidators');
 const { normalizeSiteUrls } = require('../services/bigplayerSiteConfig');
@@ -668,8 +669,49 @@ class Repository {
       [contentId]
     ))[0] || null;
   }
-  async insertAnalysis(contentId, analysis) {
-    await this.query('INSERT INTO po_analyses (id, content_id, analysis_level, analysis_version, content_fingerprint, trigger_reason, analysis_reason, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, matched_keywords, summary, model_name, input_tokens, output_tokens, total_tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE analysis_level=VALUES(analysis_level), analysis_version=VALUES(analysis_version), content_fingerprint=VALUES(content_fingerprint), trigger_reason=VALUES(trigger_reason), analysis_reason=VALUES(analysis_reason), sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), matched_keywords=VALUES(matched_keywords), summary=VALUES(summary), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), analyzed_at=NOW()', [uuid(), contentId, analysis.analysisLevel || analysis.profile || 'light', analysis.analysisVersion || 'sentiment-v2', analysis.contentFingerprint || null, analysis.triggerReason || null, analysis.analysisReason || analysis.reason || null, analysis.sentiment || 'neutral', Number.isFinite(Number(analysis.negativeScore)) ? Number(analysis.negativeScore) : 0, analysis.confidence == null ? 0 : Number(analysis.confidence), analysis.qualityScore == null ? 0 : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.severity, JSON.stringify(analysis.topics || []), JSON.stringify(analysis.matchedKeywords || []), analysis.summary || '', analysis.modelName || null, Number(analysis.usage?.inputTokens || analysis.inputTokens || 0), Number(analysis.usage?.outputTokens || analysis.outputTokens || 0), Number(analysis.usage?.totalTokens || analysis.totalTokens || 0)]);
+  async writeAnalysisWithAudit(contentId, input, write) {
+    if (!input || !['positive', 'neutral', 'negative'].includes(input.sentiment)) {
+      throw repositoryError('ANALYSIS_RESULT_INVALID', 'a classified sentiment is required before persisting an analysis');
+    }
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      let content = {}; let previousAnalysis = null;
+      if (contentId) {
+        const [contents] = await conn.query('SELECT game_id,source_id,account_id,fingerprint,title,body FROM po_contents WHERE id=? FOR UPDATE', [contentId]);
+        content = contents[0] || {};
+        if (content.fingerprint && input.contentFingerprint && content.fingerprint !== input.contentFingerprint) {
+          throw repositoryError('ANALYSIS_CONTENT_CHANGED', 'analysis fingerprint no longer matches current content');
+        }
+        const [previous] = await conn.query('SELECT * FROM po_analyses WHERE content_id=? FOR UPDATE', [contentId]);
+        previousAnalysis = previous[0] || null;
+      }
+      const analysis = normalizeAnalysisResult(input, content);
+      await write(conn, analysis);
+      const riskContext = JSON.stringify({ gameComplaint: analysis.gameComplaint, gameComplaintEvidence: analysis.gameComplaintEvidence, gameExperienceRelated: analysis.gameExperienceRelated, originalSeverity: analysis.originalSeverity, rawAnalysis: analysis.rawAnalysis, riskPolicyVersion: analysis.riskPolicyVersion });
+      if (contentId) await conn.query('UPDATE po_analyses SET risk_context=? WHERE content_id=?', [riskContext, contentId]);
+      else await conn.query('UPDATE po_analysis_cache SET risk_context=? WHERE cache_key=?', [riskContext, input.cacheKey]);
+      const detail = {
+        contentId: contentId || null, cacheKey: input.cacheKey || null,
+        batchId: input.normalizationBatchId || input.runId || uuid(),
+        policyVersion: analysis.riskPolicyVersion,
+        profile: analysis.analysisLevel || analysis.profile || null,
+        analysisVersion: analysis.analysisVersion || analysis.version || null,
+        contentFingerprint: analysis.contentFingerprint || null, modelName: analysis.modelName || null,
+        originalSeverity: analysis.originalSeverity, finalSeverity: analysis.severity,
+        reasons: analysis.severityNormalizationReasons, rawAnalysis: analysis.rawAnalysis, previousAnalysis
+      };
+      await conn.query('INSERT INTO po_audit_events (id,game_id,source_id,account_id,actor_type,actor_id,event_type,outcome,detail) VALUES (?,?,?,?,?,?,?,?,?)',
+        [uuid(), content.game_id || null, content.source_id || null, content.account_id || null, 'system', null, contentId ? 'analysis_result_persisted' : 'analysis_cache_persisted', 'success', JSON.stringify(detail)]);
+      await conn.commit();
+      return analysis;
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
+  }
+  async insertAnalysis(contentId, input) {
+    return this.writeAnalysisWithAudit(contentId, input, async (conn, analysis) => {
+    await conn.query('INSERT INTO po_analyses (id, content_id, analysis_level, analysis_version, content_fingerprint, trigger_reason, analysis_reason, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, matched_keywords, summary, model_name, input_tokens, output_tokens, total_tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE analysis_level=VALUES(analysis_level), analysis_version=VALUES(analysis_version), content_fingerprint=VALUES(content_fingerprint), trigger_reason=VALUES(trigger_reason), analysis_reason=VALUES(analysis_reason), sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), matched_keywords=VALUES(matched_keywords), summary=VALUES(summary), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), analyzed_at=NOW()', [uuid(), contentId, analysis.analysisLevel || analysis.profile || 'light', analysis.analysisVersion || 'sentiment-v2', analysis.contentFingerprint || null, analysis.triggerReason || null, analysis.analysisReason || analysis.reason || null, analysis.sentiment || 'neutral', Number.isFinite(Number(analysis.negativeScore)) ? Number(analysis.negativeScore) : 0, analysis.confidence == null ? 0 : Number(analysis.confidence), analysis.qualityScore == null ? 0 : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.severity, JSON.stringify(analysis.topics || []), JSON.stringify(analysis.matchedKeywords || []), analysis.summary || '', analysis.modelName || null, Number(analysis.usage?.inputTokens || analysis.inputTokens || 0), Number(analysis.usage?.outputTokens || analysis.outputTokens || 0), Number(analysis.usage?.totalTokens || analysis.totalTokens || 0)]);
+    });
   }
   async reconcilePositiveRiskAlerts(contentId, analysis, { runId } = {}) {
     if (analysis?.sentiment !== 'positive' || analysis?.severity !== 'normal') return { reconciled: false, alertIds: [] };
@@ -764,7 +806,7 @@ class Repository {
   }
   async finishAnalysisJob(id, { leaseOwner, status = 'completed', errorCode, errorMessage, retryAt } = {}) { await this.query('UPDATE po_analysis_jobs SET status=?, error_code=?, error_message=?, next_retry_at=?, completed_at=CASE WHEN ?=\'completed\' THEN NOW() ELSE completed_at END, lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE id=? AND lease_owner=?', [status, errorCode || null, errorMessage ? String(errorMessage).slice(0, 500) : null, retryAt || null, status, id, leaseOwner]); }
   async getAnalysisCache(cacheKeys = []) { if (!cacheKeys.length) return []; return this.query(`SELECT * FROM po_analysis_cache WHERE cache_key IN (${cacheKeys.map(() => '?').join(',')})`, cacheKeys); }
-  async upsertAnalysisCache(entry) { await this.query('INSERT INTO po_analysis_cache (cache_key, content_fingerprint, analysis_profile, analysis_version, model_name, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, summary, needs_deep, reason, input_tokens, output_tokens, total_tokens, usage_estimated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), summary=VALUES(summary), needs_deep=VALUES(needs_deep), reason=VALUES(reason), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), usage_estimated=VALUES(usage_estimated), updated_at=NOW()', [entry.cacheKey, entry.contentFingerprint, entry.profile, entry.version, entry.modelName, entry.sentiment || 'neutral', Number.isFinite(Number(entry.negativeScore)) ? Number(entry.negativeScore) : 0, entry.confidence == null ? 0 : Number(entry.confidence), entry.qualityScore == null ? 0 : Number(entry.qualityScore), entry.recommendHome ? 1 : 0, entry.recommendPin ? 1 : 0, entry.recommendFeature ? 1 : 0, entry.qualityReason || null, entry.severity, JSON.stringify(entry.topics || []), entry.summary || '', entry.needsDeep ? 1 : 0, entry.reason || null, Number(entry.usage?.inputTokens || 0), Number(entry.usage?.outputTokens || 0), Number(entry.usage?.totalTokens || 0), entry.usage?.estimated ? 1 : 0]); }
+  async upsertAnalysisCache(input) { return this.writeAnalysisWithAudit(null, input, async (conn, entry) => { await conn.query('INSERT INTO po_analysis_cache (cache_key, content_fingerprint, analysis_profile, analysis_version, model_name, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, summary, needs_deep, reason, input_tokens, output_tokens, total_tokens, usage_estimated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), summary=VALUES(summary), needs_deep=VALUES(needs_deep), reason=VALUES(reason), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), usage_estimated=VALUES(usage_estimated), updated_at=NOW()', [entry.cacheKey, entry.contentFingerprint, entry.profile, entry.version, entry.modelName, entry.sentiment || 'neutral', Number.isFinite(Number(entry.negativeScore)) ? Number(entry.negativeScore) : 0, entry.confidence == null ? 0 : Number(entry.confidence), entry.qualityScore == null ? 0 : Number(entry.qualityScore), entry.recommendHome ? 1 : 0, entry.recommendPin ? 1 : 0, entry.recommendFeature ? 1 : 0, entry.qualityReason || null, entry.severity, JSON.stringify(entry.topics || []), entry.summary || '', entry.needsDeep ? 1 : 0, entry.reason || null, Number(entry.usage?.inputTokens || 0), Number(entry.usage?.outputTokens || 0), Number(entry.usage?.totalTokens || 0), entry.usage?.estimated ? 1 : 0]); }); }
   async upsertQualityCandidate(contentId, analysis = {}) {
     const recommended = Boolean(analysis.recommendHome || analysis.recommendPin || analysis.recommendFeature);
     const sentiment = String(analysis.sentiment || '').toLowerCase();

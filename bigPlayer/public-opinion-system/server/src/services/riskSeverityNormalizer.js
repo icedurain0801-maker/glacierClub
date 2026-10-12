@@ -1,16 +1,20 @@
-const SEVERITY_RANK = Object.freeze({ normal: 0, attention: 1, urgent: 2 });
-const NEGATIVE_SCORE_URGENT_THRESHOLD = 0.6;
-const NEGATIVE_CONFIDENCE_URGENT_THRESHOLD = 0.6;
+const SEVERITY_RANK = Object.freeze({ normal: 0, attention: 1, negative: 2, urgent: 3 });
+const { factualClauses, hasConcreteCrashReport, verifiedSeriousImpact } = require('./gameRiskEvidence');
+const NEGATIVE_SCORE_PENDING_THRESHOLD = 0.5;
+const RISK_POLICY_VERSION = 'game-impact-evidence-v7';
 
 // 仅在负面内容上识别游戏问题，避免正面攻略里的“闪退解决方法”等词触发风险升级。
 const GAME_ISSUE_PATTERNS = Object.freeze([
-  /(?:\b(?:bug|issue|glitch|crash)\b|崩溃|闪退|卡死|卡顿|报错|故障|异常|漏洞)/i,
+  /(?:出|出现|遇到|发生|发现|存在).{0,8}(?:\bbug\b|崩溃|闪退|卡死|卡顿|报错|故障|异常|漏洞).{0,12}(?:了|导致|影响|损失|无法|不能|严重|频繁)/i,
+  /(?:崩溃|闪退|卡死|卡顿|报错|故障).{0,12}(?:了|严重|频繁|一直|导致|影响|无法|不能)/i,
+  /(?:频繁|一直|总是|反复)(?:崩溃|闪退|卡死|卡顿|报错)/i,
+  /\b(?:game|app|server|login|payment)\s+(?:(?:is|keeps|has|was)\s+)?(?:crashing|crashes|broken|failing|failed|unavailable|not working)\b/i,
   /(?:无法|不能|没法|进不去|进不了|无法正常|不能正常).{0,12}(?:启动|登录|登陆|进入|使用|参与|完成|进行|连接|匹配|充值|退款|领取|领取奖励)/i,
   /(?:奖励|道具|货币|数值|规则|活动).{0,16}(?:异常|错误|不对|不符|未到账|不到账|丢失|消失|失败|无法|不能)/i,
   /(?:充值|扣费|退款|付费|支付).{0,16}(?:失败|异常|重复|错误|不到账|未到账|扣错|损失)/i,
   /(?:登录|登陆|账号|帐号|角色|存档).{0,16}(?:异常|失败|丢失|找回|封禁|被盗|安全|无法|不能)/i,
   /(?:服务器|网络|连接|掉线|断线|匹配).{0,16}(?:不可用|异常|失败|不稳定|中断|超时|无法|不能|掉线)/i,
-  /(?:外挂|开挂|作弊|恶意利用|安全风险|漏洞).{0,16}(?:举报|影响|破坏|账号|游戏|无法|不能)?/i,
+  /(?:外挂|开挂|作弊|恶意利用|安全风险|漏洞).{0,16}(?:影响|破坏|损失|无法|不能)/i,
   /(?:影响|导致|造成|无法).{0,16}(?:游戏体验|正常参与|正常进行|使用|游玩|损失)/i,
   /(?:红点|提示|状态).{0,12}(?:消不掉|无法消除|一直存在|卡住)/i
 ]);
@@ -33,8 +37,9 @@ function evidenceText({ title, body, topics, reason }) {
 }
 
 function hasGameIssueSignal(input = {}) {
-  const text = evidenceText(input);
-  return Boolean(text) && GAME_ISSUE_PATTERNS.some(pattern => pattern.test(text));
+  // Legacy results have no semantic flag: require an observable problem
+  // expression from the content, rather than a topic/model reason or bare word.
+  return factualClauses(input).some(text => GAME_ISSUE_PATTERNS.some(pattern => pattern.test(text)));
 }
 
 function normalizeSeverity(input = {}) {
@@ -42,32 +47,83 @@ function normalizeSeverity(input = {}) {
   const rawSeverity = String(input.severity || '').toLowerCase();
   const validOriginalSeverity = Object.prototype.hasOwnProperty.call(SEVERITY_RANK, rawSeverity);
   const originalSeverity = normalizeEnum(rawSeverity, 'normal');
-  let severity = originalSeverity;
+  let severity = 'normal';
   const reasons = [];
   const negativeScore = bounded(input.negativeScore ?? input.negative_score);
-  const confidence = bounded(input.confidence);
-  const gameIssueMatched = sentiment === 'negative' && hasGameIssueSignal(input);
+  const eligible = sentiment === 'negative' || sentiment === 'neutral';
+  const observedImpact = eligible ? verifiedSeriousImpact({ title: input.title, body: input.body }) : null;
+  const gameIssueMatched = eligible && (Boolean(observedImpact) || hasConcreteCrashReport(input) || (typeof input.gameComplaint === 'boolean'
+    ? input.gameComplaint : hasGameIssueSignal(input)));
+  const experienceRelated = eligible && (input.gameExperienceRelated === true || gameIssueMatched);
+  const inAttention = sentiment === 'negative' || (sentiment === 'neutral' && experienceRelated);
+  const inNegative = inAttention && (negativeScore > NEGATIVE_SCORE_PENDING_THRESHOLD || gameIssueMatched);
+  // Only a model decision can promote a qualifying issue to urgent. Repeated
+  // normalization uses the original decision, never a previous policy upgrade.
+  const modelSeverity = input.rawAnalysis?.severity ?? input.originalSeverity ?? originalSeverity;
+  const seriousImpact = eligible ? verifiedSeriousImpact(input) : null;
 
   if (!validOriginalSeverity) reasons.push('invalid_severity_defaulted');
 
   if (sentiment === 'positive') {
-    if (!validOriginalSeverity || severity !== 'normal') reasons.push('positive_forced_normal');
-    severity = 'normal';
-  } else if (sentiment === 'negative') {
-    if (SEVERITY_RANK[severity] < SEVERITY_RANK.attention) {
-      severity = 'attention';
-      reasons.push('negative_floor_attention');
-    }
+    if (!validOriginalSeverity || originalSeverity !== 'normal') reasons.push('positive_forced_normal');
+  } else if (inAttention) {
+    severity = 'attention';
+    if (sentiment === 'negative' && originalSeverity === 'normal') reasons.push('negative_floor_attention');
+    if (sentiment === 'neutral') reasons.push('game_experience_attention');
     if (gameIssueMatched) {
-      severity = 'urgent';
+      severity = 'negative';
       reasons.push('game_issue_upgrade');
-    } else if (negativeScore >= NEGATIVE_SCORE_URGENT_THRESHOLD && confidence >= NEGATIVE_CONFIDENCE_URGENT_THRESHOLD && severity !== 'urgent') {
-      severity = 'urgent';
+    } else if (inNegative) {
+      severity = 'negative';
       reasons.push('negative_score_upgrade');
+    }
+    if (inNegative && modelSeverity === 'urgent' && seriousImpact) {
+      severity = 'urgent';
+      reasons.push('ai_serious_upgrade', 'serious_impact_verified');
+    } else if (modelSeverity === 'urgent' && !seriousImpact) {
+      reasons.push('urgent_without_serious_evidence');
     }
   }
 
-  return { severity, originalSeverity, reasons, gameIssueMatched };
+  return { severity, originalSeverity, reasons, gameIssueMatched, seriousImpact };
+}
+
+// Repeated normalization must retain the model result, rather than treating a
+// previously normalized severity as the original model decision.
+function normalizeAnalysisResult(analysis, context = {}) {
+  if (!analysis) return analysis;
+  let persistedContext = analysis.risk_context || {};
+  if (typeof persistedContext === 'string') {
+    try { persistedContext = JSON.parse(persistedContext); } catch (_) { persistedContext = {}; }
+  }
+  analysis = { ...persistedContext, ...analysis };
+  const normalized = normalizeSeverity({ ...analysis, title: context.title ?? analysis.title, body: context.body ?? analysis.body ?? analysis.rawAnalysis?.verifiedEvidenceText });
+  const rawAnalysis = { ...(analysis.rawAnalysis || {
+    sentiment: analysis.sentiment, severity: analysis.originalSeverity ?? analysis.severity,
+    negativeScore: analysis.negativeScore ?? analysis.negative_score, confidence: analysis.confidence,
+    reason: analysis.reason ?? analysis.analysisReason ?? analysis.analysis_reason,
+    topics: analysis.topics, summary: analysis.summary, qualityScore: analysis.qualityScore ?? analysis.quality_score,
+    recommendHome: analysis.recommendHome ?? analysis.recommend_home,
+    recommendPin: analysis.recommendPin ?? analysis.recommend_pin,
+    recommendFeature: analysis.recommendFeature ?? analysis.recommend_feature,
+    qualityReason: analysis.qualityReason ?? analysis.quality_reason,
+    gameComplaint: analysis.gameComplaint, gameComplaintEvidence: analysis.gameComplaintEvidence,
+    urgentImpact: analysis.urgentImpact, urgentEvidence: analysis.urgentEvidence,
+    gameExperienceRelated: analysis.gameExperienceRelated
+  }) };
+  // A verified source excerpt travels with cache/persistence, which may lack body.
+  // An explicitly supplied current body always takes precedence on revalidation.
+  if (normalized.seriousImpact) rawAnalysis.verifiedEvidenceText = normalized.seriousImpact.evidence;
+  return {
+    ...analysis, severity: normalized.severity, rawAnalysis,
+    urgentImpact: normalized.seriousImpact?.category || 'none', urgentEvidence: normalized.seriousImpact?.evidence || '',
+    gameComplaint: normalized.gameIssueMatched,
+    gameExperienceRelated: analysis.gameExperienceRelated ?? normalized.gameIssueMatched,
+    originalSeverity: analysis.originalSeverity ?? normalized.originalSeverity,
+    severityNormalizationReasons: [...new Set([...(analysis.severityNormalizationReasons || []), ...normalized.reasons])],
+    riskPolicyVersion: RISK_POLICY_VERSION,
+    analysisReason: analysis.analysisReason ?? analysis.analysis_reason ?? analysis.reason ?? null
+  };
 }
 
 function buildAnalysisReason(reason, normalized, maxLength = 255) {
@@ -83,10 +139,11 @@ function buildAnalysisReason(reason, normalized, maxLength = 255) {
 
 module.exports = {
   SEVERITY_RANK,
-  NEGATIVE_SCORE_URGENT_THRESHOLD,
-  NEGATIVE_CONFIDENCE_URGENT_THRESHOLD,
+  NEGATIVE_SCORE_PENDING_THRESHOLD,
+  RISK_POLICY_VERSION,
   GAME_ISSUE_PATTERNS,
   hasGameIssueSignal,
   normalizeSeverity,
+  normalizeAnalysisResult,
   buildAnalysisReason
 };

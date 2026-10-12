@@ -5,7 +5,7 @@ const { Repository } = require('../../server/src/db/repository');
 const { AiAnalyzer } = require('../../server/src/integrations/aiAnalyzer');
 const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
 const { matchRules } = require('../../server/src/pipeline/ruleEngine');
-const { normalizeSeverity, buildAnalysisReason } = require('../../server/src/services/riskSeverityNormalizer');
+const { normalizeAnalysisResult } = require('../../server/src/services/riskSeverityNormalizer');
 const crypto = require('node:crypto');
 
 const ACTIVE = new Set(['pending', 'running', 'retryable']);
@@ -51,14 +51,16 @@ function normalizeAnalysis(value, profile, fingerprint, context = {}) {
     const number = Number(input);
     return Number.isFinite(number) ? Math.min(1, Math.max(0, number)) : fallback;
   };
-  const normalizedSeverity = normalizeSeverity({ ...value, sentiment, severity, negativeScore: bounded(value?.negativeScore ?? value?.negative_score), confidence: bounded(value?.confidence), title: context.title, body: context.body, topics: value?.topics, reason: value?.reason });
+  const normalizedSeverity = normalizeAnalysisResult({ ...value, sentiment, severity, negativeScore: bounded(value?.negativeScore ?? value?.negative_score), confidence: bounded(value?.confidence), title: context.title, body: context.body, topics: value?.topics, reason: value?.reason });
   return {
     ...value,
     sentiment,
     severity: normalizedSeverity.severity,
     originalSeverity: normalizedSeverity.originalSeverity,
-    severityNormalizationReasons: normalizedSeverity.reasons,
-    analysisReason: buildAnalysisReason(value?.analysisReason ?? value?.analysis_reason ?? value?.reason, normalizedSeverity),
+    rawAnalysis: normalizedSeverity.rawAnalysis,
+    riskPolicyVersion: normalizedSeverity.riskPolicyVersion,
+    severityNormalizationReasons: normalizedSeverity.severityNormalizationReasons,
+    analysisReason: normalizedSeverity.analysisReason,
     negativeScore: bounded(value?.negativeScore ?? value?.negative_score),
     confidence: bounded(value?.confidence),
     qualityScore: bounded(value?.qualityScore ?? value?.quality_score),

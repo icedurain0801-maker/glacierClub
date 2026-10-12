@@ -18,7 +18,7 @@ const { AiAnalyzer } = require('../../server/src/integrations/aiAnalyzer');
 const { DingTalkNotifier } = require('../../server/src/integrations/dingTalkNotifier');
 const { matchRules } = require('../../server/src/pipeline/ruleEngine');
 const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
-const { normalizeSeverity, buildAnalysisReason } = require('../../server/src/services/riskSeverityNormalizer');
+const { normalizeAnalysisResult } = require('../../server/src/services/riskSeverityNormalizer');
 const { sanitizeMessage } = require('./q1DailyJob');
 const { schedulerMode, requireExplicitSchedulerMode } = require('./schedulerMode');
 
@@ -116,7 +116,7 @@ function normalizePlatformItem(raw, { scope, platform = '', rootPlatformContentI
   };
 }
 
-const SEVERITY_RANK = { normal: 0, attention: 1, urgent: 2 };
+const SEVERITY_RANK = { normal: 0, attention: 1, negative: 2, urgent: 3 };
 
 // deep 覆盖 light 后，告警判定取最高严重度，避免 deep 模型降级导致 light urgent 漏报。
 // 仅对由 light 升级而来的 deep job（trigger_reason 含 light_escalation / keyword_match）适用。
@@ -208,21 +208,7 @@ function qualityCandidateOf(analysis) {
 }
 
 function normalizePersistedAnalysis(analysis, context = {}) {
-  if (!analysis) return analysis;
-  const normalized = normalizeSeverity({
-    ...analysis,
-    title: context.title ?? analysis.title,
-    body: context.body ?? analysis.body,
-    topics: context.topics ?? analysis.topics,
-    reason: context.reason ?? analysis.reason
-  });
-  return {
-    ...analysis,
-    severity: normalized.severity,
-    originalSeverity: normalized.originalSeverity,
-    severityNormalizationReasons: normalized.reasons,
-    analysisReason: buildAnalysisReason(analysis.analysisReason ?? analysis.reason, normalized)
-  };
+  return normalizeAnalysisResult(analysis, context);
 }
 
 async function processPersistentAnalysisJobs(deps, source, entries = [], scope = {}) {

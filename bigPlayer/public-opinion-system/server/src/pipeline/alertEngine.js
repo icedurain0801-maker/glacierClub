@@ -7,7 +7,8 @@
 // 钉钉推送幂等：仅在新建告警时推一次，回写 ding_talk_status（sent/failed）。
 // fail-closed 不适用于此层——钉钉推送失败不应阻断落库，告警仍需入库待人工处理。
 
-const SEVERITY_RANK = { normal: 0, attention: 1, urgent: 2 };
+const SEVERITY_RANK = { normal: 0, attention: 1, negative: 2, urgent: 3 };
+const { normalizeAnalysisResult } = require('../services/riskSeverityNormalizer');
 
 function buildExcerpt(content, max = 80) {
   const s = String(content.title || content.body || '').replace(/\s+/g, ' ').trim();
@@ -37,6 +38,8 @@ class AlertEngine {
   //  hit: ruleEngine.matchRules 的产出（含 hitGroups/triggerModes/ruleSeverity）
   //  analysis: aiAnalyzer 的产出（含 sentiment/severity/negativeScore）
   async process({ game, content, hit, analysis }) {
+    analysis = normalizeAnalysisResult(analysis, content);
+    if (analysis?.severity !== 'urgent' || analysis?.sentiment === 'positive') return [];
     if (analysis?.sentiment === 'positive' && analysis?.severity === 'normal') return [];
     if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（关键词口径）
     if (!hit || !hit.hitGroups?.length) return [];
@@ -49,6 +52,8 @@ class AlertEngine {
   }
 
   async processAiUrgent({ game, content, analysis }) {
+    analysis = normalizeAnalysisResult(analysis, content);
+    if (analysis?.severity !== 'urgent' || analysis?.sentiment === 'positive') return [];
     if (analysis?.sentiment === 'positive' && analysis?.severity === 'normal') return [];
     if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（AI urgent 口径）
     if (analysis?.severity !== 'urgent') return [];

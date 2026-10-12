@@ -5,6 +5,51 @@ const { AiAnalyzer, truncate, fingerprintOf } = require('../src/integrations/aiA
 
 const ENV = { AI_ANALYSIS_ENABLED: 'true', AI_ANALYSIS_URL: 'https://ai.example.com/v1/chat/completions', AI_ANALYSIS_TOKEN: 'k', AI_ANALYSIS_MODEL: 'test-model' };
 
+test('model output and memory cache enforce risk policy and preserve raw quality result', async () => {
+  const ai = new AiAnalyzer(ENV);
+  await withFetch(() => aiReply([{ i: 0, s: 'positive', v: 'urgent', n: 0.99, q: 0.93, h: true, p: true, f: true }]), async calls => {
+    const item = { title: '攻略', body: '完成目标' };
+    const first = await ai.analyze(item);
+    const cached = await ai.analyze(item);
+    assert.equal(calls.length, 1);
+    assert.equal(first.severity, 'normal');
+    assert.equal(cached.severity, 'normal');
+    assert.equal(cached.rawAnalysis.severity, 'urgent');
+    assert.equal(cached.qualityScore, 0.93);
+    assert.equal(cached.recommendHome && cached.recommendPin && cached.recommendFeature, true);
+    assert.doesNotMatch(cached.reason, /positive_forced_normal/);
+  });
+});
+
+test('neutral consultation and neutral concrete problem have separate progressive levels', async () => {
+  const ai = new AiAnalyzer(ENV);
+  await withFetch(() => aiReply([
+    { i: 0, s: 'neutral', v: 'normal', n: 0.1, gx: true, gc: false, ge: '' },
+    { i: 1, s: 'neutral', v: 'attention', n: 0.1, gx: true, gc: true, ge: '奖励未到账' },
+    { i: 2, s: 'negative', v: 'urgent', n: 0.9, gx: true, gc: true, ge: '账号被盗' }
+  ]), async () => {
+    const result = await ai.analyzeBatch([{ body: '匹配机制怎么用' }, { body: '奖励未到账' }, { body: '账号被盗，全部道具丢失' }]);
+    assert.deepEqual(result.map(item => item.severity), ['attention', 'negative', 'urgent']);
+  });
+});
+
+test('low score semantic complaint requires an evidence excerpt from this content', async () => {
+  const ai = new AiAnalyzer(ENV);
+  const body = 'Matchmaking is unfair, our team has no chance.';
+  await withFetch(() => aiReply([
+    { i: 0, s: 'negative', v: 'attention', n: 0.2, c: 0.1, gc: true, ge: 'Matchmaking is unfair' },
+    { i: 1, s: 'negative', v: 'attention', n: 0.2, c: 0.1, gc: true, ge: 'invented complaint' },
+    { i: 2, s: 'negative', v: 'attention', n: 0.50, c: 0.1, gc: false, ge: '' }
+  ]), async () => {
+    const out = await ai.analyzeBatch([{ body }, { body: 'Where is the bug FAQ?' }, { body: 'Not enjoyable.' }]);
+    assert.equal(out[0].severity, 'negative');
+    assert.equal(out[0].gameComplaint, true);
+    assert.equal(out[1].severity, 'attention');
+    assert.equal(out[1].gameComplaint, false);
+    assert.equal(out[2].severity, 'attention');
+  });
+});
+
 // 用一个可编排的假 fetch 替换全局，记录调用并按序返回。
 function withFetch(handler, fn) {
   const original = global.fetch; const calls = [];
@@ -44,7 +89,7 @@ test('批量分析返回等长同序结果', async () => {
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'urgent', n: 0.9, t: ['闪退'], m: '崩溃严重' }, { i: 1, s: 'positive', v: 'normal', n: 0.1, t: [], m: '好评' }]),
     async () => {
-      const out = await ai.analyzeBatch([{ title: 'a', body: '崩溃' }, { title: 'b', body: '好玩' }]);
+      const out = await ai.analyzeBatch([{ title: 'a', body: '全服宕机无法登录' }, { title: 'b', body: '好玩' }]);
       assert.equal(out.length, 2);
       assert.equal(out[0].sentiment, 'negative');
       assert.equal(out[0].severity, 'urgent');
@@ -85,7 +130,7 @@ test('旧响应缺少质量字段时默认不推荐且不影响风险解析', as
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'urgent', n: 0.95, t: ['崩溃'], m: '严重崩溃' }]),
     async () => {
-      const [out] = await ai.analyzeBatch([{ title: '崩溃', body: '无法启动' }], 'deep');
+      const [out] = await ai.analyzeBatch([{ title: '崩溃', body: '连续3小时无法启动游戏' }], 'deep');
       assert.equal(out.severity, 'urgent');
       assert.equal(out.qualityScore, 0);
       assert.equal(out.recommendHome, false);
@@ -356,17 +401,14 @@ test('truncate/fingerprint 工具', () => {
   assert.equal(fingerprintOf({ fingerprint: 'FIXED' }), 'FIXED');
 });
 
-test('light/deep severity 提示词按 urgent→attention→normal 互斥单选且不按情感兜底', () => {
+test('light/deep use the same progressive policy with strict threshold', () => {
   const ai = new AiAnalyzer(ENV);
   for (const profile of [ai.profiles.light, ai.profiles.deep]) {
     const system = ai.buildMessages([{ title: '标题', body: '正文' }], profile)[0].content;
-    assert.match(system, /severity 必须互斥单选/);
-    assert.match(system, /urgent→attention→normal/);
-    assert.match(system, /positive 必须为 normal/);
-    assert.match(system, /negative 至少为 attention/);
-    assert.match(system, /明确游戏问题/);
-    assert.match(system, /negative_score≥0\.60 且 confidence≥0\.60/);
-    assert.match(system, /不得依据互动量、点赞量或评论量升级等级/);
+    assert.match(system, /negative_score>0\.50/);
+    assert.match(system, /相关中性咨询或疑问.*为attention/);
+    assert.match(system, /只有先满足negative/);
+    assert.match(system, /最高等级互斥单选/);
   }
 });
 
@@ -374,7 +416,7 @@ test('severity 新提示词 schema 使旧缓存失效但不改变历史 analysis
   const ai = new AiAnalyzer({ ...ENV, AI_ANALYSIS_VERSION: 'existing-version' });
   for (const profile of [ai.profiles.light, ai.profiles.deep]) {
     const payload = {
-      promptSchemaVersion: 'sentiment-quality-context-severity-exclusive-v4',
+      promptSchemaVersion: 'sentiment-quality-game-impact-evidence-v7',
       regionCode: 'legacy-unassigned', gameId: 'legacy-unassigned',
       communityId: 'legacy-unassigned', platform: 'legacy-unassigned',
       fingerprint: 'same-content', profile: profile.name, model: profile.model, version: 'existing-version'
@@ -396,8 +438,9 @@ test('severity 非法或多选枚举 fail-closed，不按 negative 情感兜底'
     assert.throws(() => ai.parseResponse(bodyFor(value), 1), /AI_ANALYSIS_INVALID_RESPONSE/);
   }
   for (const severity of ['urgent', 'attention', 'normal']) {
-    const [result] = ai.parseResponse(bodyFor(severity), 1);
-    assert.equal(result.severity, severity);
+    const [result] = ai.parseResponse(bodyFor(severity), 1, ai.profiles.light, [], [{ body: '全服宕机无法登录' }]);
+    assert.equal(result.severity, severity === 'urgent' ? 'urgent' : 'negative');
+    assert.equal(result.rawAnalysis.severity, severity);
     assert.equal(result.sentiment, 'negative');
   }
   assert.equal(ai.cache.size, 0);
