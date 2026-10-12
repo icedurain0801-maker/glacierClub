@@ -1,6 +1,6 @@
 # v0.1.1 舆情系统 BaaS SSO 与角色权限
 
-Status: tested-pending-release
+Status: released-local-verified
 
 用户确认仅本机使用，接入范围为 SSO + 角色权限，保留舆情独立数据库、API 和 Worker。本人账号的 admin 角色及应用入口已由用户弹窗授权后通过 BaaS 控制台保存。
 
@@ -28,3 +28,15 @@ Status: tested-pending-release
 只发布本次 BaaS 接线、版本、测试和文档。发布时基于现役 API、前端运行包复制后应用最小补丁并校验 manifest，避免覆盖其他已发布功能。仅切换 API 与前端，Worker 不切换。身份验证开启后旧域名未登录访问会提示使用 q1.com 新入口。
 
 运行配置默认关闭，真实联调完成后在正式 API 环境开启。发布及最终验收结果另追加，不以候选服务通过代替正式运行态验收。
+
+## 正式本机发布与验收
+
+- 代码提交 `d5ddfd4` 已推送至 `origin/codex/v102-bigplayer-recovery`。
+- API：`C:/ProgramData/PublicOpinion/releases/release-20261012-baas-sso-1791805628411`；运行包校验 405 文件通过。
+- 前端：`C:/ProgramData/PublicOpinion/frontend3001/releases/release-20261012-baas-sso-1791805628411`；运行包校验 37 文件通过。
+- 正式 API 配置 `PUBLIC_OPINION_BAAS_ENABLED=true` 已生效；仅重启 API、前端服务。Worker / AnalysisWorker / TranslationWorker 发布前后进程编号不变（3268 / 37736 / 14372），均为 Running。
+- 正式 `https://club-opinion.q1.com` 的六页真实 Edge 验收 6/6；admin 身份验证通过，无页面脚本错误或失败业务请求；成员与权限面板正常打开。
+- 未登录 API、伪造操作人/角色头、无 token 的代理机器导入均返回 401。原域名健康检查仍 200，原域名未登录业务 API 同样 401。
+- 9 项 BaaS 测试及 2 项处理状态回归，共 11/11 通过。真实验收未写入舆情内容、采集配置或审核状态。
+- 结果：`.tests/2026-10/2026-10-12/baas-live-acceptance.json`；截图仅在本机测试目录保留，不提交实际业务内容截图。
+- 本机信任证书及 hosts 不属于代码仓库；该入口只在本次配置的电脑解析生效。未修改公司 DNS、未发送站内信。

@@ -1,6 +1,6 @@
 # BaaS SSO 域名接入
 
-Status: local-domain-verified-sso-pending
+Status: local-domain-sso-released-verified
 
 目标入口为 `https://club-opinion.q1.com/admin/PublicOpinion/index.html`。用户于 2026-10-12 确认仅在本机使用；已采用本机 hosts 和 Apache 专属 HTTPS 虚拟主机，无需公司 DNS 或网关变更。SSO 与角色权限接入保留原有 API、数据库及 Worker；域名配置不迁移数据。
 
@@ -11,7 +11,7 @@ Status: local-domain-verified-sso-pending
 - 独立证书及备份目录：`C:/ProgramData/PublicOpinion/local-https`。目录 ACL 仅管理员与 SYSTEM 可访问；私钥不提交仓库。
 - 当前用户 Root 信任专用本机 CA；CA 设置域名约束 club-opinion.q1.com，不覆盖其他站点。CA 有效期 730 天，站点证书 365 天。
 - Apache 语法检查通过；配置已重载。Edge 默认启用证书校验，无证书跳过参数，页面及接口返回 200，无脚本错误；原站点及 BaaS SDK 仍返回 200。
-- 浏览器从新域名读取主站 SSO 断言接口成功，未登录时返回可读的 401；真实登录窗口已进入钉钉认证，等待用户完成。
+- 浏览器从新域名读取主站 SSO 断言接口成功，未登录时返回可读的 401。用户已完成钉钉认证，真实 SSO 及服务端身份校验成功；用户弹窗授权后，其本人账号的 admin 角色和应用入口已在 BaaS 保存。
 - Windows curl 对本机 CA 无吊销服务报吊销查询错误；`--ssl-no-revoke` 的仅吊销检查关闭探测返回 200。浏览器的正常证书校验已经单独通过，不以 curl 跳过检查替代浏览器验收。
 
 ### 本机配置回退
@@ -45,7 +45,7 @@ Kong 配置应建立专属 Service（上游 http://172.16.2.48:3001）和按 hos
 - 角色：admin 配置与全部操作；reviewer 内容审核处理；analyst/viewer 只读。owner 映射 admin。未分配角色拒绝访问，不自动授权。
 - 服务端固定应用身份向 BaaS `/v1/auth/me` 验证 Bearer，不信任客户端角色头。机器导入保留原机器 token 校验。
 - `PUBLIC_OPINION_BAAS_ENABLED=false` 保持当前运行行为。真实 SSO 和权限验收成功后，才能在 API 运行环境开启并受控重载。
-- 当前已完成模拟身份的接口及可见 Edge 浏览器隔离测试；真实 SSO 尚未通过，未提交推送或部署本次接入。
+- 真实 SSO、隔离接口及浏览器测试、六页候选和正式本机浏览器验收均已通过。正式 API 已启用鉴权，代码提交 d5ddfd4 已推送，详见当日 baas_sso_changelog.md。
 
 ## 验收与回退
 
