@@ -126,7 +126,8 @@ test('L0 reasons are rebuilt from real text even when the model omits its quote'
   const input = fixture('收到，谢谢', { level: 'L0', claim_type: 'emotion', noise_reason: 'no_subject', claim_evidence: '', reason: '正常回复', issue_summary: null, issue_object: '' });
   input.severity = 'normal';
   const r = normalizeAnalysisResult(input);
-  assert.equal(r.severity, 'normal'); assert.match(r.reason, /收到，谢谢/);
+  assert.equal(r.severity, 'normal'); assert.match(r.riskDecision.reason, /收到，谢谢/);
+  assert.equal(r.analysisReason, '正常回复');
   assert.equal(normalizeAnalysisResult(r).severity, 'normal');
 });
 test('positive sharing without a problem does not enter the attention queue', () => {

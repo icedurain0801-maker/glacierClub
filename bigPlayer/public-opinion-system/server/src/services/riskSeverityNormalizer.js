@@ -123,16 +123,22 @@ function normalizeAnalysisResult(analysis, context = {}) {
     rawAnalysis.originalRiskDecision ??= analysis.riskDecision ?? null;
     rawAnalysis.riskDecision = normalized.decision;
   }
+  // Keep the model's content-specific explanation. Policy validation has its
+  // own reason in riskDecision and must not replace the model response.
+  const modelReason = [rawAnalysis.reason, rawAnalysis.originalRiskDecision?.reason,
+    analysis.analysisReason, analysis.analysis_reason, analysis.reason]
+    .find(value => typeof value === 'string' && value.trim());
+  const analysisReason = modelReason?.trim().slice(0, 255) || normalized.decision?.reason || null;
   return {
     ...analysis, severity: normalized.severity, rawAnalysis,
-    ...(normalized.decision ? { riskDecision: normalized.decision, reason: normalized.decision.reason, analysisReason: normalized.decision.reason, needsDeep: analysis.needsDeep || normalized.decision.confidence < 0.6 || normalized.decision.need_clarification || Boolean(normalized.decision.downgrade_suggest) } : {}),
+    ...(normalized.decision ? { riskDecision: normalized.decision, reason: analysisReason, needsDeep: analysis.needsDeep || normalized.decision.confidence < 0.6 || normalized.decision.need_clarification || Boolean(normalized.decision.downgrade_suggest) } : {}),
     urgentImpact: normalized.seriousImpact?.category || 'none', urgentEvidence: normalized.seriousImpact?.evidence || '',
     gameComplaint: normalized.gameIssueMatched,
     gameExperienceRelated: analysis.gameExperienceRelated ?? normalized.gameIssueMatched,
     originalSeverity: analysis.originalSeverity ?? normalized.originalSeverity,
     severityNormalizationReasons: [...new Set([...(analysis.severityNormalizationReasons || []), ...normalized.reasons])],
     riskPolicyVersion: RISK_POLICY_VERSION,
-    analysisReason: normalized.decision?.reason ?? analysis.analysisReason ?? analysis.analysis_reason ?? analysis.reason ?? null
+    analysisReason
   };
 }
 

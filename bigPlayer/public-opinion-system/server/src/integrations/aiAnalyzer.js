@@ -200,7 +200,7 @@ class AiAnalyzer {
         urgentImpact: typeof o.ui === 'string' ? o.ui : undefined,
         urgentEvidence: typeof o.ue === 'string' ? o.ue.trim() : '',
         needsDeep: o.d === true,
-        reason: typeof o.r === 'string' ? truncate(o.r, 120) : '',
+        reason: typeof o.r === 'string' ? truncate(o.r, 255) : '',
         topics: Array.isArray(o.t) ? o.t.slice(0, 3).map(String) : [],
         summary: typeof o.m === 'string' ? truncate(o.m, 60) : '',
         qualityScore: hasQualityScore ? qualityScore : 0,
