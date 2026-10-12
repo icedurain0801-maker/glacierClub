@@ -45,7 +45,7 @@ const { chromium } = require('playwright');
             scope: document.querySelector('#rows td[data-label="归属范围"]').textContent,
             tableWidth: table.getBoundingClientRect().width,
             statusWidth: cells[5].getBoundingClientRect().width,
-            statusHeight: cells[5].getBoundingClientRect().height,
+            statusHeight: Math.max(...[...document.querySelectorAll('#rows td[data-label="状态"]')].map(e => e.getBoundingClientRect().height)),
             cells: cells.length,
             timesVisible: cells.slice(6, 8).every(e => getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0),
             startTime: /\d{4}-\d{2}-\d{2}/.test(cells[6].textContent),
