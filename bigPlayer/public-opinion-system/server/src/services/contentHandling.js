@@ -54,7 +54,7 @@ async function handleContents(repo, input, scope = {}) {
     }
     await conn.query(`INSERT INTO po_content_handlings (content_id,handling_method,handling_note,handled_at) VALUES ${rows.map(() => '(?,?,?,UTC_TIMESTAMP(3))').join(',')} ON DUPLICATE KEY UPDATE handling_method=VALUES(handling_method),handling_note=VALUES(handling_note),handled_at=VALUES(handled_at)`, rows.flatMap(row => [row.id, handlingMethod, handlingNote]));
     const batchId = crypto.randomUUID();
-    await conn.query(`INSERT INTO po_audit_events (id,game_id,source_id,account_id,actor_type,actor_id,event_type,outcome,detail) VALUES ${rows.map(() => '(?,?,?,?,?,?,?,?,?)').join(',')}`, rows.flatMap(row => [crypto.randomUUID(), row.game_id, row.source_id, row.account_id || null, 'operator', null, 'content_handled', 'success', JSON.stringify({ batchId, contentId: row.id, handlingMethod, handlingNote })]));
+    await conn.query(`INSERT INTO po_audit_events (id,game_id,source_id,account_id,actor_type,actor_id,event_type,outcome,detail) VALUES ${rows.map(() => '(?,?,?,?,?,?,?,?,?)').join(',')}`, rows.flatMap(row => [crypto.randomUUID(), row.game_id, row.source_id, row.account_id || null, 'operator', scope.actorId || null, 'content_handled', 'success', JSON.stringify({ batchId, contentId: row.id, handlingMethod, handlingNote })]));
     await conn.commit();
     return { processedCount: rows.length, contentIds: rows.map(row => row.id), handlingStatus: 'processed', handlingMethod, handlingNote };
   } catch (error) { await conn.rollback(); throw error; }

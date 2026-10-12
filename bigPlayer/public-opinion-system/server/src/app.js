@@ -2,6 +2,8 @@ const { loadRuntimeEnv } = require('./runtimeEnv');
 loadRuntimeEnv();
 
 const http = require('node:http');
+const { BaasAccess, publicSourceSummary } = require('./services/baasAccess');
+const baasAccess = new BaasAccess();
 const { parseBatchHandling } = require('./services/contentHandling');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -122,6 +124,10 @@ function requireImportToken(req) {
   const expected = String(process.env.PUBLIC_OPINION_IMPORT_TOKEN || '').trim();
   if (!expected) {
     const remote = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+    // A reverse proxy also connects from loopback: it is not a trusted local crawler.
+    if (baasAccess.enabled && (req.headers['x-forwarded-host'] || req.headers['x-forwarded-for'])) {
+      const error = new Error('proxied imports require a configured machine token'); error.code = 'UNAUTHORIZED'; throw error;
+    }
     if (remote === '127.0.0.1' || remote === '::1' || remote === 'localhost') return;
     const error = new Error('content import requires a configured token for non-local requests'); error.code = 'UNAUTHORIZED'; throw error;
   }
@@ -794,6 +800,17 @@ async function handler(req, res) {
   if (!url.pathname.startsWith('/api/public-opinion')) return json(res, 404, errorPayload('NOT_FOUND', 'route not found'));
   const path = url.pathname.replace('/api/public-opinion', '').split('/').filter(Boolean); const resource = path[0]; const id = path[1];
   try {
+    if (req.method === 'GET' && url.pathname === '/api/public-opinion/auth/config') {
+      res.noStore = true;
+      return json(res, 200, success(baasAccess.publicConfig()));
+    }
+    // Machine imports retain their existing token checks; no loopback or client-role bypass.
+    const machineImport = req.method === 'POST' && (url.pathname === '/api/public-opinion/analysis/content-batch' || /^\/api\/public-opinion\/sources\/[^/]+\/import$/.test(url.pathname));
+    if (baasAccess.enabled && !machineImport) req.baasIdentity = await baasAccess.authorize(req, url.pathname);
+    if (req.method === 'GET' && url.pathname === '/api/public-opinion/auth/session') {
+      res.noStore = true;
+      return json(res, 200, success({ enabled: baasAccess.enabled, identity: req.baasIdentity || null }));
+    }
     if (req.method === 'GET' && !resource) return json(res, 200, success({
       service: 'public-opinion-system',
       message: '舆情分析 API 已启动，请访问具体资源接口',
@@ -922,6 +939,7 @@ async function handler(req, res) {
         const source = sources.find(item => String(item.id) === id);
         return source ? json(res, 200, success(await sourceWithAccount(source))) : json(res, 404, errorPayload('SOURCE_NOT_FOUND', 'source not found in requested scope'));
       }
+      if (req.baasIdentity && !req.baasIdentity.permissions.manage) return json(res, 200, success(sources.map(publicSourceSummary)));
       return json(res, 200, success(await Promise.all(sources.map(source => sourceWithAccount(source, { summary: true })))));
     }
     if (req.method === 'GET' && resource === 'accounts' && id && path[2] === 'credentials') { const account = await repo.getAccount(id); return account ? json(res, 200, success(await repo.getAccountCredentialSummary(id))) : json(res, 404, errorPayload('NOT_FOUND', 'account not found')); }
@@ -1012,7 +1030,7 @@ async function handler(req, res) {
       for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
       const input = parseBatchHandling(await readBody(req));
       const scope = await resolveRequestScope(url);
-      return json(res, 200, success(await repo.handleContents(input, scope)));
+      return json(res, 200, success(await repo.handleContents(input, { ...scope, actorId: req.baasIdentity?.externalId || req.baasIdentity?.id })));
     }
     if (req.method === 'POST' && resource === 'contents' && id && path[2] === 'reanalyze') {
       const scope = await resolveRequestScope(url);
@@ -1149,7 +1167,7 @@ async function handler(req, res) {
         const status = normalizedPatch[statusKey]; const adopted = normalizedPatch[adoptedKey];
         if (status != null && adopted != null && ((status === 'accepted') !== adopted)) return json(res, 400, errorPayload('INVALID_INPUT', `${prefix} review status and adopted value conflict`));
       }
-      const updated = await repo.updateQualityCandidate(id, normalizedPatch, req.headers['x-admin-user'] || 'admin', await resolveRequestScope(url));
+      const updated = await repo.updateQualityCandidate(id, normalizedPatch, req.baasIdentity?.externalId || req.baasIdentity?.id || req.headers['x-admin-user'] || 'admin', await resolveRequestScope(url));
       return updated ? json(res, 200, success(normalizeQualityCandidate(updated))) : json(res, 404, errorPayload('NOT_FOUND', 'quality content not found'));
     }
 
@@ -2018,4 +2036,4 @@ if (require.main === module) {
   process.once('SIGINT', () => supervisor.stop().finally(() => process.exit(0)));
   process.once('SIGTERM', () => supervisor.stop().finally(() => process.exit(0)));
 }
-module.exports = { server, startServer, handler, connectors, ai, dingTalk, repo, communityProvider, communityDirectory, credentialContext, douyinOAuth, loginSessionClient, authRefreshCoordinator };
+module.exports = { baasAccess, server, startServer, handler, connectors, ai, dingTalk, repo, communityProvider, communityDirectory, credentialContext, douyinOAuth, loginSessionClient, authRefreshCoordinator };
