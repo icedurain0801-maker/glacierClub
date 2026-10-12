@@ -1,5 +1,6 @@
 const SEVERITY_RANK = Object.freeze({ normal: 0, attention: 1, negative: 2, urgent: 3 });
 const { factualClauses, hasConcreteCrashReport, verifiedSeriousImpact } = require('./gameRiskEvidence');
+const { productIssueEvidence, isPlannedMaintenance } = require('./productIssueEvidence');
 const { POLICY_VERSION, LEVELS, evaluateRiskDecision } = require('./riskDecisionTree');
 const NEGATIVE_SCORE_PENDING_THRESHOLD = 0.5;
 const RISK_POLICY_VERSION = POLICY_VERSION;
@@ -55,7 +56,7 @@ function normalizeSeverity(input = {}) {
   const negativeScore = bounded(input.negativeScore ?? input.negative_score);
   const eligible = sentiment === 'negative' || sentiment === 'neutral';
   const observedImpact = eligible ? verifiedSeriousImpact({ title: input.title, body: input.body }) : null;
-  const gameIssueMatched = eligible && (Boolean(observedImpact) || hasConcreteCrashReport(input) || (typeof input.gameComplaint === 'boolean'
+  const gameIssueMatched = eligible && !isPlannedMaintenance(input) && (Boolean(observedImpact) || Boolean(productIssueEvidence(input)) || hasConcreteCrashReport(input) || (typeof input.gameComplaint === 'boolean'
     ? input.gameComplaint : hasGameIssueSignal(input)));
   const experienceRelated = eligible && (input.gameExperienceRelated === true || gameIssueMatched);
   const inAttention = sentiment === 'negative' || (sentiment === 'neutral' && experienceRelated);
