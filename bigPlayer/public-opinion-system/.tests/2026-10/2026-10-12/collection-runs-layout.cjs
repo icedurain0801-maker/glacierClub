@@ -45,6 +45,7 @@ const { chromium } = require('playwright');
             scope: document.querySelector('#rows td[data-label="归属范围"]').textContent,
             tableWidth: table.getBoundingClientRect().width,
             statusWidth: cells[5].getBoundingClientRect().width,
+            statusHeight: cells[5].getBoundingClientRect().height,
             cells: cells.length,
             timesVisible: cells.slice(6, 8).every(e => getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0),
             startTime: /\d{4}-\d{2}-\d{2}/.test(cells[6].textContent),
@@ -55,11 +56,13 @@ const { chromium } = require('playwright');
         assert.equal(layout.cells, 11);
         assert(layout.timesVisible && layout.startTime && layout.actionsVisible);
         assert(layout.statusWidth < 600);
+        assert(layout.statusHeight < 180);
         assert(layout.tableWidth <= 1800);
         if (width === 1920) assert(layout.lastCellRight < 1920);
         results.push({ region, width, api, layout });
       }
       await page.setViewportSize({ width: 1920, height: 1080 });
+      if (process.env.PO_SCREENSHOT_DIR) await page.screenshot({ path: path.join(process.env.PO_SCREENSHOT_DIR, `runs-${region}.png`), fullPage: true });
       assert(await page.locator('[data-expand]').first().isEnabled());
       await page.locator('[data-expand]').first().click();
       await page.waitForSelector('.run-detail');
