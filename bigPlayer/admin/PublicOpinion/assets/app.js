@@ -40,6 +40,20 @@ const hotSummaryText = item => {
 };
 const sourceName = id => state.sources.find(item => item.id === id)?.display_name || state.sources.find(item => item.id === id)?.source_name || state.sources.find(item => item.id === id)?.platform || id;
 
+function refreshFrequencyText(sources) {
+  if (!sources.length) return '暂无抓取账号配置';
+  const enabled = sources.filter(source => source.enabled === true || Number(source.enabled) === 1);
+  if (!enabled.length) return '抓取账号已停用';
+  const frequencies = [...new Set(enabled.map(source => Number(source.frequency_seconds ?? source.frequencySeconds)))].sort((a, b) => a - b);
+  if (frequencies.some(value => !Number.isFinite(value) || value <= 0)) return '采集频率待确认';
+  const labels = frequencies.map(seconds => seconds % 3600 === 0 ? `${seconds / 3600}小时` : seconds % 60 === 0 ? `${seconds / 60}分钟` : `${seconds}秒`);
+  return labels.length === 1 ? `数据每${labels[0]}刷新` : `数据按账号配置刷新（每${labels.join('、每')}）`;
+}
+function renderRefreshFrequency(text) {
+  const el = $('#refreshFrequency');
+  if (el) el.textContent = text;
+}
+
 async function api(path, options = {}) {
   return state.scope && window.PublicOpinionScope.withScope ? window.PublicOpinionScope.withScope(path, options, rawApi) : rawApi(path, options);
 }
@@ -303,10 +317,12 @@ function renderOverview(overview) {
   renderHot(state.overview.hotNegative || []);
 }
 async function load() {
+  renderRefreshFrequency('采集频率加载中…');
   renderAlerts([]);
   const serial = ++loadSerial;
   const lifecycle = state.scope?.beginRequest?.();
   if (lifecycle && !lifecycle.allowed) {
+    renderRefreshFrequency('暂无可用社区');
     state.sources = []; state.overview = null; finishOverviewLoading();
     ['#metrics', '#sourceDistribution', '#trend', '#topics', '#attentionList', '#alerts', '#hotList'].forEach(selector => { const el = $(selector); if (el) el.innerHTML = '<div class="module-state">当前地区暂无可用社区</div>'; });
     return;
@@ -335,11 +351,12 @@ async function load() {
     .then(sources => {
       if (serial !== loadSerial || !lifecycle?.isCurrent?.() || overviewLoadState.timedOut) return;
       state.sources = Array.isArray(sources) ? sources : sources?.items || [];
+      renderRefreshFrequency(refreshFrequencyText(state.sources));
       renderMetrics(state.overview?.metrics || {});
       markOverviewModule('sources');
     })
     .catch(error => {
-      if (error.name !== 'AbortError' && serial === loadSerial && lifecycle?.isCurrent?.()) { moduleError('#metrics', error); markOverviewModule('sources', true); }
+      if (error.name !== 'AbortError' && serial === loadSerial && lifecycle?.isCurrent?.()) { renderRefreshFrequency('采集频率加载失败'); moduleError('#metrics', error); markOverviewModule('sources', true); }
     });
 
   await Promise.allSettled([overviewTask, sourcesTask]);
@@ -354,6 +371,7 @@ PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }).the
   state.scope = scope;
   load();
 }).catch(error => {
+  renderRefreshFrequency('采集频率加载失败');
   state.scope = null;
   ['#metrics', '#trend', '#topics', '#attentionList', '#alerts', '#hotList', '#sourceDistribution'].forEach(selector => moduleError(selector, error));
   // 内容分析进度已隐藏：失败兜底也不再拉取（函数保留）
