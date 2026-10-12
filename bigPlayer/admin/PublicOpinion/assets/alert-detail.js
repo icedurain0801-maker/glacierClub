@@ -42,17 +42,24 @@
     return html;
   }
 
+  function renderTranslation(item, esc) {
+    if ((item?.region_code || item?.regionCode) !== 'overseas') return '';
+    const translation = item.translation || { status: item.translation_status, title: item.translated_title, body: item.translated_body, errorCode: item.translation_error_code };
+    const ready = translation.status === 'completed' && (translation.title || translation.body);
+    const message = translation.errorCode === 'AI_TRANSLATION_DAILY_LIMIT_REACHED' ? '今日翻译额度已用完，请稍后重试' : translation.status === 'failed' ? '中文翻译生成失败，请重试' : item.is_deleted ? '已删除内容暂无中文翻译' : '正在生成中文翻译…';
+    return `<div class="translation-block detail-block" data-translation-id="${esc(item.id || '')}" data-translation-ready="${ready ? 'true' : 'false'}"><div class="detail-label">中文翻译</div>${ready ? `${translation.title ? `<div class="translation-title">${esc(translation.title)}</div>` : ''}${translation.body ? `<div class="detail-text translation-text">${esc(translation.body)}</div>` : ''}` : `<div class="translation-state">${esc(message)}</div>${!item.is_deleted ? `<button class="row-action" data-translation-retry="${esc(item.id || '')}" hidden>重试翻译</button>` : ''}`}</div>`;
+  }
   function renderContentNode(item, matchedIds, label, esc) {
     const title = String(item.title || '').trim();
     const author = String(item.author_name || '').trim();
     const metadata = [`作者：${author || '-'}`, `作者 ID：${item.author_id || item.platform_author_id || '-'}`, `发布时间：${beijingOr(item.published_at)}`];
     const matched = matchedIds.has(item.id);
     const media = Array.isArray(item.media) ? item.media.filter(url => !String(url).match(IMAGE_URL) || !String(item.body || '').includes(String(url))) : [];
-    const mediaHtml = media.map(url => `<img class="content-image" src="${esc(url)}" alt="帖子图片" loading="lazy">`).join(''); return `<article class="related-content${matched ? ' is-matched' : ''}"><div class="related-head"><span class="content-type ${esc(item.content_type || '')}">${esc(label || contentTypeLabel(item.content_type))}</span>${matched ? '<span class="matched-badge">告警命中</span>' : ''}${title ? `<strong>${esc(title)}</strong>` : ''}</div><div class="related-meta">${metadata.map(esc).join(' · ')}</div><div class="related-content-body">${renderBodyWithImages(item.body, esc)}</div>${mediaHtml}${item.source_url ? `<a class="source-link" href="${esc(item.source_url)}" target="_blank" rel="noopener noreferrer">查看平台原文</a>` : ''}</article>`;
+    const mediaHtml = media.map(url => `<img class="content-image" src="${esc(url)}" alt="帖子图片" loading="lazy">`).join(''); return `<article class="related-content${matched ? ' is-matched' : ''}"><div class="related-head"><span class="content-type ${esc(item.content_type || '')}">${esc(label || contentTypeLabel(item.content_type))}</span>${matched ? '<span class="matched-badge">告警命中</span>' : ''}${title ? `<strong>${esc(title)}</strong>` : ''}</div><div class="related-meta">${metadata.map(esc).join(' · ')}</div><div class="related-content-body">${renderBodyWithImages(item.body, esc)}</div>${renderTranslation(item, esc)}${mediaHtml}${item.source_url ? `<a class="source-link" href="${esc(item.source_url)}" target="_blank" rel="noopener noreferrer">查看平台原文</a>` : ''}</article>`;
   }
 
   function renderRelatedContents(alert, esc) {
-    const contents = Array.isArray(alert.related_contents) ? alert.related_contents : [];
+    const contents = Array.isArray(alert.related_contents) ? alert.related_contents.map(item => ({ ...item, region_code: item.region_code || alert.region_code || alert.regionCode })) : [];
     const uniqueContents = [...new Map(contents.filter(item => item && item.id).map(item => [item.id, item])).values()];
     if (uniqueContents.length) {
       const matchedIds = new Set(uniqueContents.map(item => item.id));
@@ -71,5 +78,5 @@
       <section class="detail-block" data-detail-module="resolution"><div class="detail-label">处置状态 <span class="state-badge ${esc(status)}">钉钉：${esc(dingLabel(status))}</span></div><div class="detail-text"><select class="input" id="alertStatus" style="width:100%"><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已处理</option><option value="false_positive">误报</option></select><textarea class="input" id="resolutionNote" style="height:80px;width:100%;margin-top:10px;padding-top:8px" placeholder="填写处置备注">${esc(alert.resolution_note || '')}</textarea><button class="btn primary" id="saveAlert" style="margin-top:10px">保存处置结果</button></div></section>`;
   }
 
-  return { contentTypeLabel, extractAiSummary, formatTitle, render, renderBodyWithImages, renderContentNode, renderRelatedContents, renderTriggerDetail, severityLabel };
+  return { contentTypeLabel, extractAiSummary, formatTitle, render, renderBodyWithImages, renderTranslation, renderContentNode, renderRelatedContents, renderTriggerDetail, severityLabel };
 });

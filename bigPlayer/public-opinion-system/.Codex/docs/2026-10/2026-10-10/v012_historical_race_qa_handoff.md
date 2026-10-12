@@ -1,0 +1,17 @@
+# 历史祖先 UPDATE 实际父事务竞争独立 QA
+
+Status: ISOLATED_HISTORICAL_PARENT_ANCESTOR_RACE_PASS_FULL_RUNTIME_HOLD
+
+一句话需求：验证原firstclaim父任务实际finalize中的历史depth1祖先distinct writer UPDATE竞争，不以primitive结果替代。
+
+已拍板：当前模型，生产HOLD/国内不动，只有13316自有fixture/每连接身份核验/串行实例；不HTTP/AI/恢复proof/第二consumer/生产DDL。原父proof和四历史祖先两新depth2，未改业务。开发实例Dygkz4已停止释放；如端口被后续开发预算diagnostic占用，QA等待owner释放，不能停止别人的实例。
+
+冻结仓库根 `.temp/overseas-qa-scheduled-stage-kT62iM`，698 files，manifest SHA `1a064d1049d0f1cabca59de35c43b3c6e920275f14e82314e399d14955ea3820`。前后verify，专属命令 `node scripts/overseas-isolated-mariadb.js --isolated-parent-historical-race`，不要通用--isolated、旧PASS矩阵或真实下一槽。
+
+开发原件（仓库根.temp）：kT62iM-dev-historical-race.raw.txt SHA `72da6808b2bf772f5b7ca0e449ebeff782546500f13f8c0b520fe94f3d102107`；overseas-real-db-Dygkz4/result.json `1b42923acf55d8b0024770e38ef01f0d2f2863fe9aa07d1943d9cc104bce74a6`；kT62iM-dev-preverify.raw.txt及postverify均 `e05fbf38383c98acd0c45bf1b048405acd87435dfad4bf74658c65e989181caf`。
+
+开发exit0：discovery六ID完成后first sorted lock前writer实际commit删除历史depth1，父业务OVERSEAS_ANCESTOR_EVIDENCE_CONFLICT；六排序锁后distinct writer真实ER_LOCK_WAIT_TIMEOUT、writer事务内/rollback后is_deleted0，再fixture_sentinel触发父rollback；释放后writer实际commit成功，再未拦截父业务拒绝漂移。每阶段父五表before/after哈希一致（writer的内容变更不属于父五表），恢复后正常父2/2两cursor，四历史祖先与关联不变。sentinel回滚不得写成业务因timeout自己拒绝。实例停止/释放/productionTouched=false。
+
+请QA自建raw/result/hash及报告，核真实distinct连接、完整discovery/current排序、目标是历史depth1而非新reply、实际ACK/timeout/零写/恢复和正常finalize。本批只集成竞争，第二槽执行/持久排空/预算语义修复及完整runtime仍未完成，FULL_RUNTIME_NO_GO/CUTOVER_HOLD。
+
+独立QA已核收：`.tests/2026-10/2026-10-10/v011_historical_ancestor_race_independent_qa.md`完整已读，四原件SHA重算均与表匹配（pre/post e05fbf38383c98acd0c45bf1b048405acd87435dfad4bf74658c65e989181caf；raw fa3385647289d5c211c4e9b6ec157a13e802c027cd4ae3a83c5517451ba95828；result gBtwXZ 0861904a2ad544dee4976be021371df3a77a3282cd105c36f8ef3ee6184344be）。父/独立writer9/12、完整六ID/锁序、三barrier父五表hash、恢复正常2/2及两cursor、自有停止释放均独立PASS。启动后续开发预算前13316无监听已核；局部收口不放行整体runtime。

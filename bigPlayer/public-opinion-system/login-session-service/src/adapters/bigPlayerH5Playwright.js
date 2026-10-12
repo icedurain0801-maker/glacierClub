@@ -7,7 +7,6 @@ const { ServiceError } = require('../errors');
 const TOKEN_KEY_PATTERN = /^clubApp@web-[^@]+@token$/;
 // 兼容旧导出（外部可能引用）
 const TOKEN_KEY = 'clubApp@web-default@token';
-
 function isBigPlayerLoginUrl(value) {
   try {
     const url = new URL(value);
@@ -48,6 +47,15 @@ class BigPlayerH5PlaywrightAutomation {
       await page.goto(resolvedCredentials.baseUrl, { waitUntil: 'load', timeout: this.timeoutMs });
       let loginFrame = page.frames().find(frame => isBigPlayerLoginUrl(frame.url()));
       if (!loginFrame && typeof page.getByText === 'function') {
+        const readyDeadline = Date.now() + Math.min(this.timeoutMs, 10000);
+        do {
+          loginFrame = page.frames().find(frame => isBigPlayerLoginUrl(frame.url()));
+          const entry = page.getByText('去登录', { exact: true }).first();
+          const profile = page.getByText('我的', { exact: true }).first();
+          if (loginFrame || (await entry.count() && await entry.isVisible()) || (await profile.count() && await profile.isVisible())) break;
+          await page.waitForTimeout(100);
+        } while (Date.now() < readyDeadline);
+        if (!loginFrame) {
         let loginEntry = page.getByText('去登录', { exact: true }).first();
         if (!(await loginEntry.count())) {
           const profileEntry = page.getByText('我的', { exact: true }).first();
@@ -69,6 +77,7 @@ class BigPlayerH5PlaywrightAutomation {
             if (loginFrame) break;
             await page.waitForTimeout(100);
           } while (Date.now() < frameDeadline);
+        }
         }
       }
       if (!loginFrame) throw new ServiceError('LOGIN_FRAME_NOT_FOUND', 'BigPlayer login frame was not found', 502);

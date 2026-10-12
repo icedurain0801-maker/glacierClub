@@ -9,7 +9,7 @@ const { RISK_RESPONSE_FORMAT } = require('../services/riskResponseSchema');
 const SENTIMENTS = new Set(['positive', 'neutral', 'negative']);
 const SEVERITIES = new Set(['normal', 'attention', 'negative', 'urgent']);
 const PROFILES = new Set(['light', 'deep']);
-const PROMPT_SCHEMA_VERSION = 'sentiment-quality-verifiable-issue-gates-v8';
+const PROMPT_SCHEMA_VERSION = 'sentiment-quality-verifiable-issue-gates-v10-neutral-no-risk';
 
 function truncate(text, max) { const s = String(text || '').replace(/\s+/g, ' ').trim(); return s.length > max ? s.slice(0, max) : s; }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -88,6 +88,7 @@ class AiAnalyzer {
   cacheKey(fingerprint, profile, context = {}) {
     const payload = {
       promptSchemaVersion: PROMPT_SCHEMA_VERSION,
+      retentionPolicyVersion: 'v9-retention',
       regionCode: context.regionCode || context.region_code || 'legacy-unassigned',
       gameId: context.gameId || context.game_id || 'legacy-unassigned',
       communityId: context.communityId || context.community_id || 'legacy-unassigned',

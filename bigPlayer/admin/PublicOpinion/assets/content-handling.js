@@ -81,5 +81,30 @@
       } finally { setBusy(false); }
     };
   }
-  return { init, reset, bindTable, statusHtml, checkboxHtml, shortenedNote, isHandlingEligible };
+  let singleRevision = 0;
+  function clearDetail() { singleRevision += 1; $('#singleHandlingForm')?.remove(); $('.drawer')?.classList.remove('has-single-handling'); }
+  function bindDetail(item) {
+    clearDetail();
+    if (!isHandlingEligible(item) || item.is_deleted) return;
+    const token = singleRevision, scope = options.state.scope?.query?.() || new URLSearchParams();
+    const drawer = $('.drawer'); drawer.classList.add('has-single-handling');
+    drawer.insertAdjacentHTML('beforeend', `<form id="singleHandlingForm" class="single-handling-footer"><div class="detail-label">单条处理</div><label class="handling-field" for="singleHandlingMethod"><span>处理方式 <b>*</b></span><select class="input" id="singleHandlingMethod" required>${Object.entries(methods).map(([key, label]) => `<option value="${key}"${key === 'handled' ? ' selected' : ''}>${label}</option>`).join('')}</select></label><label class="handling-field" for="singleHandlingNote"><span>处理备注</span><textarea class="input" id="singleHandlingNote" rows="2" placeholder="请输入处理备注（选填，最多 200 字符）"></textarea><small id="singleHandlingNoteCount">0 / 200</small></label><div class="handling-form-error" id="singleHandlingError" role="alert"></div><div class="handling-dialog-actions"><button type="submit" class="btn primary" id="singleHandlingSubmit">确认处理</button></div></form>`);
+    const form = $('#singleHandlingForm'), method = $('#singleHandlingMethod'), note = $('#singleHandlingNote'), count = $('#singleHandlingNoteCount'), errorEl = $('#singleHandlingError'), submit = $('#singleHandlingSubmit');
+    note.value = String(item.handling_note || '');
+    const updateCount = () => { const chars = [...note.value]; if (chars.length > 200) note.value = chars.slice(0, 200).join(''); count.textContent = `${[...note.value].length} / 200`; };
+    updateCount(); note.oninput = updateCount;
+    let busy = false;
+    form.onsubmit = async event => {
+      event.preventDefault(); if (busy || token !== singleRevision) return;
+      if (!methods[method.value] || [...note.value].length > 200) { errorEl.textContent = '请选择处理方式，备注最多 200 字符'; return; }
+      busy = true; method.disabled = note.disabled = submit.disabled = true; submit.textContent = '保存中…'; errorEl.textContent = '';
+      try {
+        await options.api(`/contents/batch-handle?${scope}`, { method: 'POST', body: JSON.stringify({ contentIds: [String(item.id)], handlingMethod: method.value, handlingNote: note.value }) });
+        if (token !== singleRevision || !form.isConnected) return;
+        options.toast('该内容已处理'); options.closeDetail(); await options.reload();
+      } catch (error) { if (token === singleRevision && form.isConnected) errorEl.textContent = `处理失败：${error.message}`; }
+      finally { busy = false; if (form.isConnected) { method.disabled = note.disabled = submit.disabled = false; submit.textContent = '确认处理'; } }
+    };
+  }
+  return { init, reset, bindTable, statusHtml, checkboxHtml, shortenedNote, isHandlingEligible, bindDetail, clearDetail };
 });

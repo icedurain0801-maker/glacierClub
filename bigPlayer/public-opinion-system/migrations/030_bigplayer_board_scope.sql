@@ -12,7 +12,10 @@ ALTER TABLE po_contents
   ADD COLUMN IF NOT EXISTS board_name VARCHAR(255) NULL,
   ADD COLUMN IF NOT EXISTS board_key VARCHAR(32) AS (COALESCE(board_id, 'legacy')) PERSISTENT;
 
+-- Build the replacement before dropping either old identity constraint.
+-- Run through migrate.js: it rejects same-name index/column definition drift.
+-- If ADD fails (duplicates, lock timeout, disk), both old indexes remain intact.
+ALTER TABLE po_contents ADD UNIQUE KEY IF NOT EXISTS po_contents_source_board_external_uk (source_id, board_key, external_id);
 ALTER TABLE po_contents DROP INDEX IF EXISTS po_contents_source_external_uk;
 ALTER TABLE po_contents DROP INDEX IF EXISTS po_contents_source_fingerprint_uk;
-ALTER TABLE po_contents ADD UNIQUE KEY IF NOT EXISTS po_contents_source_board_external_uk (source_id, board_key, external_id);
 -- Distinct external IDs may contain identical text; fingerprints are not identities.

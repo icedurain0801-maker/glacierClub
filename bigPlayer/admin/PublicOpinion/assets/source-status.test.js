@@ -277,7 +277,7 @@ test('sources response parser accepts arrays and wrapped item collections', () =
 
 test('Last Night detection refresh stays locked while TapTap coexists', async () => {
   const requests = [];
-  const { api } = loadSourcesHarness(async (url, options = {}) => {
+  const { api, elements } = loadSourcesHarness(async (url, options = {}) => {
     const parsed = new URL(url, 'http://127.0.0.1');
     requests.push({ pathname: parsed.pathname, params: Object.fromEntries(parsed.searchParams), method: options.method || 'GET' });
     if (parsed.pathname.endsWith('/last-night-source/check-auth')) return { ok: true, status: 200, text: async () => JSON.stringify({ data: { authStatus: 'authorized' } }) };
@@ -293,6 +293,8 @@ test('Last Night detection refresh stays locked while TapTap coexists', async ()
   api.state.gamesLoading = false;
   api.state.activeSourceId = lastNight.id;
   api.state.scope = { query: () => new URLSearchParams({ regionCode: 'overseas', gameId: 'last-night-game', communityId: 'last-night-community', platform: 'bigplayer_h5' }) };
+  elements.set('#cfgName', { value: lastNight.display_name });
+  elements.set('#cfgFreq', { value: '21600' });
 
   await api.runSourceAction(lastNight, 'check-auth', '授权检测完成', {}, { keepOpen: true });
 

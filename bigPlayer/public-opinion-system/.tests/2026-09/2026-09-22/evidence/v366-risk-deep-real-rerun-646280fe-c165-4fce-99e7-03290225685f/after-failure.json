@@ -1,0 +1,28 @@
+{
+  "runId": "646280fe-c165-4fce-99e7-03290225685f",
+  "phase": "after_failure",
+  "status": "FAIL_STOPPED_NO_RETRY",
+  "errorCode": "AI_PROVIDER_TIMEOUT",
+  "promptHash": "6d9e1f74de0bcbc699cd04fbb38a62497f6eb8d226a9585ba4e5ed3b96dfc083",
+  "providerCalls": 1,
+  "rawProviderEvidence": [],
+  "rawProviderEvidenceReason": "provider timed out before a response body was returned",
+  "routes": {
+    "frontend3000Health": 200,
+    "api4320Health": 200,
+    "frontend3000Database": "ok",
+    "api4320Database": "ok"
+  },
+  "database": [
+    { "externalId": "919098", "sentiment": "negative", "analysisLevel": "deep", "analysisVersion": "sentiment-v1", "modelName": "gpt-5.6-luna", "jobStatus": "completed", "attempts": 4 },
+    { "externalId": "919167", "sentiment": "negative", "analysisLevel": "light", "analysisVersion": "sentiment-v1", "modelName": "gpt-4.1-mini", "jobStatus": "failed", "attempts": 1, "errorCode": "23", "errorMessage": "The operation was aborted due to timeout" },
+    { "externalId": "6826813", "sentiment": "negative", "analysisLevel": "light", "analysisVersion": "sentiment-v1", "modelName": "gpt-4.1-mini", "jobStatus": "failed", "attempts": 1, "errorCode": "23", "errorMessage": "The operation was aborted due to timeout" },
+    { "externalId": "920120", "sentiment": "positive", "analysisLevel": "light", "analysisVersion": "sentiment-v1", "modelName": "gpt-4.1-mini", "jobStatus": "failed", "attempts": 1, "errorCode": "23", "errorMessage": "The operation was aborted due to timeout" }
+  ],
+  "sideEffects": {
+    "analysisResultWrites": 0,
+    "jobLifecycleWrites": "three fixed deep jobs claimed once and marked failed by the formal runner",
+    "notificationAttempts": 0,
+    "port3001Accesses": 0
+  }
+}

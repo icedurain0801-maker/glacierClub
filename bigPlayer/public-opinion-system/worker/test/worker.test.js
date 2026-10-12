@@ -220,7 +220,14 @@ test('persisted analysis keeps original severity and normalization reasons', () 
   assert.equal(normalized.severity, 'normal');
   assert.equal(normalized.originalSeverity, 'urgent');
   assert.deepEqual(normalized.severityNormalizationReasons, ['positive_forced_normal']);
-  assert.match(normalized.analysisReason, /severity=urgent->normal;reasons=positive_forced_normal/);
+  assert.equal(normalized.analysisReason, '已解决闪退问题');
+  assert.equal(normalized.rawAnalysis.severity, 'urgent');
+});
+
+test('positive deep result cannot inherit urgent severity from an earlier negative light result', () => {
+  const result = effectiveAnalysisForAlert({ sentiment: 'positive', severity: 'normal', qualityScore: 0.92, recommendHome: true }, { sentiment: 'negative', severity: 'urgent' });
+  assert.equal(result.severity, 'normal');
+  assert.equal(result.recommendHome, true);
 });
 
 test('persistent downstream enqueues every changed item, caches light, escalates selective deep, and alerts matched/unmatched urgent separately', async () => {
@@ -228,7 +235,7 @@ test('persistent downstream enqueues every changed item, caches light, escalates
   const jobs = {
     light: [
       { id: 'j1', content_id: 'c1', title: '普通', body: '普通', fingerprint: 'fp1', trigger_reason: 'all_content', matched_keywords: '[]', attempts: 1 },
-      { id: 'j2', content_id: 'c2', title: '命中', body: '崩溃', fingerprint: 'fp2', trigger_reason: 'keyword_match', matched_keywords: '["闪退组"]', attempts: 1 }
+      { id: 'j2', content_id: 'c2', title: '命中', body: '游戏一直崩溃，导致无法参加活动', fingerprint: 'fp2', trigger_reason: 'keyword_match', matched_keywords: '["闪退组"]', attempts: 1 }
     ],
     deep: []
   };
@@ -246,30 +253,30 @@ test('persistent downstream enqueues every changed item, caches light, escalates
   const entries = [{ content: { id: 'c1' }, raw: { title: '普通', body: '普通', fingerprint: 'fp1' }, change: 'inserted' }, { content: { id: 'c2' }, raw: { title: '命中', body: '崩溃', fingerprint: 'fp2' }, change: 'changed' }, { content: { id: 'c3', is_deleted: true }, raw: { title: '删除', body: '崩溃', fingerprint: 'fp3' }, change: 'inserted' }];
   const result = await processDownstream({ repo, ai, alertEngine, leaseOwner: 'w1', leaseSeconds: 10 }, source, entries);
   assert.equal(result.analyzed, 2);
-  assert.equal(calls.enqueue.length, 4);
-  assert.equal(calls.enqueue.filter(call => call.input.profile === 'deep').length, 2);
+  assert.equal(calls.enqueue.length, 3);
+  assert.equal(calls.enqueue.filter(call => call.input.profile === 'deep').length, 1);
   assert.equal(calls.urgentAlerts, 0, '升级 deep 的 light 结果不应提前告警');
   assert.equal(calls.ruleAlerts, 0, '升级 deep 的关键词结果应等待最终 deep 结果');
   assert.equal(calls.cache.length, 2);
   assert.equal(calls.finish.length, 2);
   assert.deepEqual(calls.analyses.map(call => call.analysis.triggerReason), ['all_content', 'keyword_match']);
   assert.deepEqual(calls.analyses.map(call => call.analysis.reason), ['内容使用中性陈述，但风险等级需要继续确认。', '内容明确提到崩溃，表达了对游戏稳定性的不满。']);
-  assert.deepEqual(calls.analyses.map(call => call.analysis.severity), ['urgent', 'urgent']);
+  assert.deepEqual(calls.analyses.map(call => call.analysis.severity), ['normal', 'negative']);
   assert.deepEqual(calls.analyses[1].analysis.severityNormalizationReasons, ['game_issue_upgrade']);
   assert.equal(calls.analyses[1].analysis.originalSeverity, 'attention');
-  assert.deepEqual(calls.enqueue.filter(call => call.input.profile === 'deep').map(call => call.input.triggerReason), ['light_escalation', 'keyword_match']);
+  assert.deepEqual(calls.enqueue.filter(call => call.input.profile === 'deep').map(call => call.input.triggerReason), ['keyword_match']);
   assert.deepEqual(calls.claim.map(call => ({ sourceId: call.sourceId, gameId: call.gameId, communityId: call.communityId })), [
     { sourceId: 's1', gameId: 'g1', communityId: 'c1' },
     { sourceId: 's1', gameId: 'g1', communityId: 'c1' }
   ]);
 });
 
-test('effectiveAnalysisForAlert takes highest severity between light and deep', () => {
+test('effectiveAnalysisForAlert uses the final deep classification', () => {
   const deepNormal = { severity: 'normal', summary: 'deep', analysisLevel: 'deep' };
   const lightUrgent = { severity: 'urgent' };
   const effective = effectiveAnalysisForAlert(deepNormal, lightUrgent);
-  assert.equal(effective.severity, 'urgent', 'light urgent should override deep normal');
-  assert.equal(effective._lightSeverity, 'urgent');
+  assert.equal(effective.severity, 'normal', 'final deep classification is authoritative');
+  assert.equal(effective._lightSeverity, undefined);
   assert.equal(effective.summary, 'deep', 'deep detail preserved');
   assert.equal(effective.analysisLevel, 'deep', 'deep level preserved');
 });
@@ -281,7 +288,7 @@ test('effectiveAnalysisForAlert keeps deep severity when deep is higher or equal
   assert.equal(effectiveAnalysisForAlert({ severity: 'normal' }, { severity: 'normal' }).severity, 'normal');
 });
 
-test('deep downgrade from light urgent still triggers ai_urgent alert', async () => {
+test('deep downgrade from light urgent suppresses ai_urgent alert', async () => {
   const calls = { urgentAlerts: 0, getLight: 0 };
   const lightJob = { id: 'jL', content_id: 'cD', game_id: 'g1', community_id: 'c1', title: '抽卡黑幕', body: '千抽无SSR', fingerprint: 'fpD', trigger_reason: 'all_content', matched_keywords: '[]', attempts: 1 };
   const deepJob = { id: 'jD', content_id: 'cD', game_id: 'g1', community_id: 'c1', title: '抽卡黑幕', body: '千抽无SSR', fingerprint: 'fpD', trigger_reason: 'light_escalation', matched_keywords: '[]', attempts: 1 };
@@ -319,7 +326,7 @@ test('deep downgrade from light urgent still triggers ai_urgent alert', async ()
   };
   const entries = [{ content: { id: 'cD' }, raw: { title: '抽卡黑幕', body: '千抽无SSR', fingerprint: 'fpD' }, change: 'inserted' }];
   const result = await processDownstream({ repo, ai, alertEngine, leaseOwner: 'w1', leaseSeconds: 10 }, source, entries);
-  assert.equal(calls.urgentAlerts, 1, 'deep downgrade from light urgent must still trigger ai_urgent alert');
+  assert.equal(calls.urgentAlerts, 0, 'final deep downgrade suppresses stale light alert');
   assert.equal(calls.getLight, 1, 'getLightAnalysis should be called for light_escalation deep job');
 });
 
@@ -339,7 +346,7 @@ test('deep without light_escalation trigger does not query light analysis', asyn
   const ai = {
     profiles: { light: { version: 'l1', model: 'lm' }, deep: { version: 'd1', model: 'dm' } },
     selectProfile(profile) { return { name: profile, ...this.profiles[profile] }; },
-    async analyzeBatch() { return [{ sentiment: 'negative', severity: 'urgent', confidence: 0.9, needsDeep: false }]; }
+    async analyzeBatch() { return [{ sentiment: 'negative', severity: 'urgent', negativeScore: 0.8, confidence: 0.9, needsDeep: false }]; }
   };
   const alertEngine = { async process() { return []; }, async processAiUrgent() { calls.urgentAlerts += 1; return [{ reused: false }]; } };
   await processDownstream({ repo, ai, alertEngine, leaseOwner: 'w1', leaseSeconds: 10 }, source, []);

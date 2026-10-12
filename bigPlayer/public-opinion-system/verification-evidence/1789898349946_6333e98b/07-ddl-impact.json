@@ -1,0 +1,29 @@
+{
+  "name": "ddl-impact",
+  "status": "PASS",
+  "detail": {
+    "status": "PASS",
+    "version": "captured by production-schema probe when a production connection is supplied",
+    "rowCount": {
+      "policy": "record_only",
+      "source": "information_schema.tables.table_rows"
+    },
+    "lockWaits": {
+      "policy": "record_only; unavailable is explicit capability state",
+      "source": "information_schema.innodb_lock_waits"
+    },
+    "algorithm": "unspecified_by_migration_sql",
+    "lock": "unspecified_by_migration_sql",
+    "timeout": {
+      "variable": "lock_wait_timeout",
+      "policy": "record_only"
+    },
+    "failureStopPoint": "migration file and statement are preserved in child output; failed file is not added to po_schema_migrations",
+    "rollback": {
+      "transactional": false,
+      "implicitCommit": true,
+      "automatic": false,
+      "recovery": "stop; preserve failed DB/evidence; inspect and rerun idempotent migration"
+    }
+  }
+}

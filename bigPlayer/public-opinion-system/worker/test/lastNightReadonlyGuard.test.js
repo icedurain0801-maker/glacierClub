@@ -1,0 +1,23 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');
+const {protectReadonlyRepository}=require('../src/lastNightReadonlyGuard');
+const {Repository}=require('../../server/src/db/repository');
+const {SOURCE_ID}=require('../src/lastNightScope');
+test('startup probes and write/pool/scope escape attempts never reach DB dispatch',async()=>{
+  let dispatched=0;
+  const raw={pool:{query:async()=>{dispatched++;return[[{account_id:'fixture'}]];}},query:Repository.prototype.query,getCredentialByAccount:Repository.prototype.getCredentialByAccount};
+  const protectedStage=protectReadonlyRepository(raw,'fixture'),repo=protectedStage.repo;
+  assert.equal(dispatched,0);assert.equal(protectedStage.evidence.startupDeniedProbes,4);assert.ok(Object.isFrozen(repo));
+  for(const sql of ['UPDATE po_contents SET title=?','SELECT GET_LOCK(?,0)','SELECT 1 INTO OUTFILE ?','SELECT 1; DELETE FROM po_contents',{sql:'SELECT 1'}]) assert.throws(()=>repo.query(sql,[]),/LAST_NIGHT_DB_READONLY_GUARD/);
+  for(const method of ['upsertContentPage','enqueueAnalysisJob','getConnection']) assert.equal(repo[method],undefined);
+  assert.equal(repo.pool,undefined);assert.throws(()=>raw.pool.getConnection(),/READONLY_GUARD/);
+  assert.throws(()=>raw.pool.execute('SELECT 1'),/READONLY_GUARD/);
+  assert.throws(()=>repo.query('SELECT * FROM po_accounts WHERE id=? AND source_id=?',['other',SOURCE_ID]),/READONLY_GUARD/);
+  assert.throws(()=>repo.getCredentialByAccount('fixture','password',{includeSecret:true}),/READONLY_GUARD/);
+  assert.equal(dispatched,0);
+  await repo.query('SELECT CURRENT_USER() AS identity,DATABASE() AS db,@@port AS port');
+  await repo.query('SELECT s.*,g.region_code,c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.id=?',[SOURCE_ID]);
+  await repo.query('SELECT * FROM po_accounts WHERE id=? AND source_id=?',['fixture',SOURCE_ID]);
+  await repo.query('SELECT site_id,url,enabled FROM po_source_sites WHERE source_id=? ORDER BY site_id',[SOURCE_ID]);
+  await repo.getCredentialByAccount('fixture','api_token',{includeSecret:true});assert.equal(dispatched,5);
+});

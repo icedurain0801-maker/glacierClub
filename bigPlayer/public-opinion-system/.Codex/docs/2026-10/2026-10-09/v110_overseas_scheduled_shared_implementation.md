@@ -1,0 +1,146 @@
+# scheduled与共享入口下一批隔离实施
+
+Status: implementation-in-progress / RUNTIME_NO_GO
+Date: 2026-10-09
+Owner: 开发负责人
+
+经理已派下一批，按v104既定隔离范围继续，无生产DDL/3306写/SCM切换/真实HTTP/AI消费许可。32AVIO及独立manual974/974、13316SQL19项保留不重复验证，不缩最终海外范围。员工按scheduled admission、共享入口/回退、18项分类/真实交付方案三模块产出建议；负责人唯一apply_patch落地，不写经理v033待办。
+
+## 首项变更
+
+新增 `worker/src/overseasScheduledBatch.js` 及4项纯测试：封闭scheduled批次、确定性父slot/站点child ID、源/账号/game/community/board/版本/config/manifest全批一致，父窗口固定、子cursor只能缩窗、完整集合摘要与顺序无关。身份不授claim或HTTP；现manual合同和scheduler生产入口未变。本模块仅候选契约，新测试待防护下执行，不预报PASS。
+
+## 全量实施项
+
+| 事项 | 状态 |
+|---|---|
+| scheduled完整批次身份契约 | 已落地，待验证 |
+| 同事务slot/父子admission、配置/lease CAS与ACK未知对账 | 员工建议已收，负责人审核中，未落地 |
+| scheduled首次claim/恢复/父子fence、账本/audit终态与readiness | 待实施 |
+| queue/manual/due/poll可信分类，非目标保原调度，唯一消费者 | 员工建议已收，待落地 |
+| admission暂停/drain/旧版本兼容回退判定 | 待落地；禁止自动重启旧消费者 |
+| 18未测逐文件分类及实际入口隔离集成 | 员工核查中 |
+| 服务身份/持久目录ACL/备份恢复、第二源diff、真实HTTP/AI预算/切换方案 | 核现有证据中；生产动作未授权 |
+| 新批独立冻结/hash/原始结果并消息交QA经理 | 待执行 |
+
+当前scheduled只有pure admission/readiness恒false，完整链尚未实现；全局scheduler off不能证明非目标调度不变，不沿用该口径。源board未知不猜，历史DB没有日志/基线无法归因，不重跑/清理补证。
+
+首项防护验证4/4 PASS，guard拒绝0，skip/cancel/todo0；仅scheduled闭集身份，未SQL/claim/recovery。命令 `node --require ./scripts/offline-test-guard.cjs --experimental-test-isolation=none --test worker/test/overseasScheduledBatch.test.js`，不连接数据库、不重复manual矩阵。
+
+第二项经负责人审核员工建议落地 `overseasSharedRuntimeLifecycle.js` 及6项测试：同步暂停admission、等待所有票据/scan清理、明确poll/renewal/commitlane/lease quiescence，排空后才关candidate/pool；回退仅只读建议，未知/待运行/旧版schema和恢复兼容未证明均KEEP_STOPPED，不自动重启。保留非目标scheduler引用，不触生产main。callbacks仅隔离注入，不是可信生产证据，真实入口与排空品牌还待接线；新测试待跑。
+
+第二项防护验证6/6 PASS、拒绝0、skip/cancel/todo0，未实际服务排空/切换。scheduled原子store建议已收，审查发现lease精确元组及run/state锁序需收紧，暂未落地；不能以纯模块通过称完整入口已接线。六社区正式交付追加只读单与海外写码路径无冲突，v111已真实消息经理：实际静态release未包含候选，技术可无重启但清单失配/多文件混用需经理决定，未修改正式文件。
+
+第三项审核员工建议后落地 `server/src/db/overseasScheduledAdmissionStore.js`：只用旧run列及两张候选表admission字段，同事务完整父子/immutable admitted epoch0与调度CAS、精确scope/config/registry/account及credential摘要校验、显式leaseUntil全元组、slot频率与父起点/DB时钟、重放不续租、ACKunknown销毁/只读对账。负责人收紧员工初稿无界全run锁为活跃范围102行上限、run→source→state锁序；未证明生产跨路径死锁和旧scheduler并发兼容，仍隔离-only且未接任何入口。仅已清空state lease可首次admit，不自动接管expired元组。未新增迁移DDL/运行SQL；stub测试与实际新13316矩阵待做，readiness仍false。
+
+复审修正窗口口径：前两项记录“父end=slot/parentStart=last或effective、子cursor缩窗”是初稿假设，与scheduleSlots上海02:00锚及sourceScheduler boundedWindow不兼容，撤销。scheduled父子必须同固定窗口（未获得独立cursor证据前不缩窗），slot用现有computeSchedule/DB now核对；每日anchor窗口起昨天上海00:00、终点沿旧BigPlayer规则扩展到anchor now，非anchor沿既有7天窗口。数据库时钟动态严格相等可能让延迟请求拒绝，需后续固定可信admission时间锚，不放宽来抢跑。credential最多两条active拒重复；reconcile只证admission提交，显式禁止自动写/claim/生产。
+
+员工复审明确P0：现manual ledger不接受admitted/epoch0，scheduled专属claim→open/epoch1尚未实现；readiness持续false。P1：写前schema/约束核验未补、与旧scheduler锁序冲突未验证；store绝不接入口或放行。上面语法检查不证明SQL，下一项先补固定锚/schema前置及stub/真实自有矩阵。无生产动作。
+
+经理转达夜间目标2026-10-10 08:00（Asia/Shanghai）：优先闭合准入/恢复/shared实际接线与独立QA，尽早交真实运行影响方案；经理半小时巡检及02:00国内只读观察由经理组织，开发不重复创建或临时用国内Worker试验。不能按deadline扩大生产授权，不能不实宣告完成。当前固定锚、schema写前门禁、scheduled首次转换/恢复/shared入口尚未完成，已消息报经理。
+
+第四项固定时间锚模块 `overseasScheduledTimeAnchor.js`：同只读RR连接从DB时钟与源/state版本/频率/真实槽读取，按现有上海调度/BigPlayer窗口固定；私有WeakMap同repo品牌，复制/另一repo拒绝。store.admit必须该品牌且逐字段匹配，之后DB now只能不早于锚，不随延迟重算窗口。纯内存品牌不是重启持久证据，后续须独立数据库admission恢复，不冒充完成；新3测待跑。写前schema与完整claim/recovery仍缺，不接入口。
+
+固定锚3/3防护测试PASS、拒绝0；与批次4/4和生命周期6/6合计13项仅模块验证。第五项先补强制隔离目标能力 `server/src/db/overseasScheduledIsolatedTarget.js`：root.temp内自有overseas-real-db目录、非link data/pid、精确owner PID及每次同连接13316/serverId20261036/datadir/pid_file/DATABASE=po_overseas_fixture校验，store构造强制私有repo品牌，任何事务前再次核身份。错目标在任何事务/DDL/DML之前拒；不依赖DB env/default3306。未执行新DB矩阵，能力负测待补，不能把目标guard当schema/功能已验证。
+
+新增target3项负测，使用root.temp纯目录/PID合成文件和query stub，不启动mysqld、不连接端口；错3306/server/schema/data/PID路径、复制/跨repo能力及PID变化均测试拒绝。合成文件保留根.temp，不进入业务目录；待执行，不预写PASS。
+
+target负测3/3防护PASS，guard拒绝0、skip/cancel/todo0，实际DB/HTTP均0。当前累计16项新模块用例开发PASS；不包括store admission SQL/claim/recovery/shared实际入口或独立QA，不称整批已完成。六社区正式核查v111已交经理，未实施任何热修/服务切换。
+
+经理要求下一回报只报跨模块闭合/失败证据。已读定稿PRD第78-83行：国内现行02:00/其他槽窗口与已完成站点cursor可缩起点是用户已拍板，不改为产品“全部同窗”。batch恢复允许缩起点的纯形状，store尚未核可信站点cursor，明确该缺口NOT_IMPLEMENTED，不以未缩窗fixture冒充完整规则。父窗口已沿现有sourceScheduler，固定准入锚与实际执行时刻差异仍需跨模块验收，列差异不悄悄改产品。
+
+第六项写前隔离schema guard落地：每连接身份核后，SELECT列/引擎/索引/CHECK元数据，必须旧列+候选admission字段齐、InnoDB、source/slot及parent/site唯一、active索引、固定候选trigger检查才允许事务；未知run CHECK拒绝。本隔离schema不代表生产readiness或迁移方案。专用新13316 store故障runner待执行，不跑旧manual矩阵。
+
+接续执行：新增 `--scheduled-isolated` 专用入口与 `scripts/overseas-isolated-scheduled-checks.js`，只在新建根 `.temp/overseas-real-db-*` 的自有13316/serverId20261036实例安装合成schema；每个store连接再次核精确身份。验证写前schema拒绝、第二child真实INSERT故障全事务回滚、完整父子准入/只读对账/重放。未运行claim/recovery/HTTP/AI，不重跑旧manual。端口只读检查未见监听，首次执行待记录，失败结果原样保留。
+
+首次实际SQL：根 `.temp/overseas-real-db-6vPKu2/result.json` 返回 NO_GO / OVERSEAS_SCHEDULED_SCHEMA_NOT_READY，serverStopped/portReleased均true。夹具兼容阶段缺po_sync_runs.schedule_version，修正仅自有DDL；同时由information_schema读取并校验唯一旧CHECK名后精确删除，不再假设CONSTRAINT_1。业务门禁不放宽，失败原始文件保留，下一次新实例待测。
+
+后续失败tCo1Nd/kxTDpN/WHmwXO均保留，自有实例均停止/端口释放。增加稳定schemaReason诊断定位到CHECK元数据；WHmwXO证据显示MariaDB10.4 CHECK_CLAUSE在64字节处截断，不能凭子串放行。门禁改为元数据唯一CHECK名 + 同连接SHOW CREATE TABLE完整表达式精确匹配，额外OR/未知trigger均不接受。下一次真实矩阵待测，未预写PASS。
+
+首次跨模块准入部分通过：根 `.temp/overseas-real-db-BezK3E/result.json` SHA256 `02a7cb8a423a096f79390e6f75c545f781e7fdfd797e2441873968d1f34a2b3b`，三组实际SQL准入检查PASS，serverStopped/portReleased=true；仅PASS_ISOLATED_SCHEDULED_ADMISSION_PARTIAL，claim/recovery/HTTP/AI均false。已真实消息经理。员工指出CHECK尚缺scheduled_at分支、类型/精度与完整唯一键、state/tasks完整基线与故障锚重建、可信站点cursor等缺口；下一项补强，不把本次partial当整批QA放行。
+
+第七项已落地可信cursor绑定：固定锚同RR读取配置/账号及每站board作用域已完成checkpoint MAX(last_item_at)，仅处于父窗内部时缩起点；store拒任意子窗并首次准入复核cursor未变，last_scan_at加入精确预期/提交state，admission不推进成功cursor。4项锚纯测PASS，未证明并发checkpoint写锁或成功cursor终态推进。schema增加完整唯一索引SUB_PART拒绝、DATETIME(3)核验、trigger_type非空、manual/site空槽与scheduled非空槽精确CHECK。lMhX6G真实隔离被表达式门禁拒绝，结果保留且实例停止/端口释放；正在核SHOW CREATE规范化格式，不降低语义。
+
+代码锚与命令：scheduled runner为 `scripts/overseas-isolated-mariadb.js --scheduled-isolated` 的专用分支，矩阵 `scripts/overseas-isolated-scheduled-checks.js:checkScheduledAdmission`；门禁 `server/src/db/overseasScheduledSchemaGuard.js:verifyScheduledIsolationSchema`，事务 `server/src/db/overseasScheduledAdmissionStore.js:admit`。四次旧失败6vPKu2/tCo1Nd/kxTDpN/WHmwXO与BezK3E成功原始init/server/result均保留，均执行 `node scripts/overseas-isolated-mariadb.js --scheduled-isolated`。所有productionTouched字段只描述本runner连接范围，不推断历史3306业务库未变；历史无日志/基线限制仍按v108。
+
+第七项加强后cYXmcq实际准入3组PASS，仍partial，实例停止/端口释放；Inmc9n失败原件保留，MariaDB实际去掉AND高于OR的冗余括号，门禁只接受两个完整等价表达式，不删除任意括号或子串放行。第八项审核员工方案新增专属firstClaim：按完整父子run→source→state→identity→manifest锁，精确immutable批次及source租约fence，父首次running1/child独立owner running1/admitted0→open1同事务；不续source lease、不复用manual、不授epoch2；成功ACK后才发布同repo私有proof。尚未接scheduled ledger/fresh fence/Journal，不能称执行闭环；新实际矩阵待跑。
+
+第八项实际SQL：sLrqcm正常两站firstClaim/重复拒绝及source-state不变PASS；MPbO5Z扩展6组PASS，含manifest open故障父/child/manifest全基线回滚、同child双连接恰一个赢家、真实COMMIT后ACK丢失destroy/不rollback/不发布proof。两实例停止/端口释放。新freeze脚本只机械冻结已安装依赖/源码和6个选定纯测试及SQL专用runner，明确未实现ledger/recovery/parent聚合/cursor并发/shared实际接线；冻结前后核inventory，独立QA不得跑活动树。待生成冻结与提测，不标整批完成。
+
+员工本地复审P1：firstClaim私有上下文返回可变对象可能被调用方替换repo扩大品牌。立即Object.freeze上下文，补严格模式修改抛TypeError矩阵。旧AnUw8s冻结未交QA，保留但不提测；重新冻结修正候选。admit/claim跨索引锁序与terminal slot反锁仍待单独验证，不能由同child竞争PASS推断全路径排他。旧manual冻结原件未改，scheduled新实例复用安装函数只自有schema，不声明旧manual全回归。
+
+独立阶段已流转：a1hWmo冻结manifest SHA256 `6dbe6e85afc3ff3b5637e7a05a98573d47a5845789284fa1016a852b2337458d`，开发在冻结副本23/23纯测/guard拒绝0，6组真实SQL PASS（D1ReMp结果SHA `a759651cead8aa2a97c561255103ea935930b8b2498475cbcfe4b04a1b3fbf13`），前后668条完整hash核验通过。v112及真实消息交QA/经理，独立结论待返回。旧四失败原件SHA：6vPKu2 `d2f6b07783955af4798e417e28673f6272ac33dc95130ab37b58457ddf21fdde`；tCo1Nd `f299d59030f86cff32f3a5ab2a1663c98243a3b707e4221e5f29ffa0992c0b80`；kxTDpN `ae8fa0e93f040d2a0fe35938cfe23f2a73a7328d89dd68affde629c2b815baed`；WHmwXO `322383878138e6ba5f716b9651f63a1727c6d7faa2e1b72d8dedf11691a87efc`。不把阶段PASS当整体完成。
+
+第九项接续（不改a1hWmo冻结）：store同repo proof闭包新增每次fresh fence，核同连接身份/schema/已开事务及parent/child/source-state活租约/版本/config/registry/admission，并支持只读不加锁；epoch1 proof不授epoch2。ledger新增私有core的scheduled专属构造器，原manual品牌/fence保留；scheduled核proof，允许一次空schema bootstrap与完整schema任务同事务登记，读progress/linked tasks也核fresh fence。独立publisher在Journal写前后核fresh fence，不以Journal本身授后续HTTP；实际SQL与manual最小回归待执行，仍未HTTP/PageStore/terminal/shared完整接线。
+
+第九项开发验证：h0VFEh新自有实例7组实际SQL PASS，新增Journal/fresh fence/schema bootstrap、第二schema任务INSERT异常全事务回滚、幂等/只读progress、错误parent owner拒绝；实例停止/端口释放。现manual ledger最小6项防护纯测PASS/拒绝0，不重跑旧manual全矩阵。新模块尚未独立QA。重新明确派员工分模块只读审查ledger/shared接线，另员工并行整理真实运行影响精确方案，root唯一写入。
+
+独立QA接收：v084阶段23/23与6组SQL独立PASS，668条前后核验；原始TAP SHA `fe755a28649adfe344354b2db93e807c50122ce2261630c3e556beb05eff2c13`，CD9CFy SQL SHA `f5b86491e31d3f373889c99c1b58a7d78cad30aa5a6cde49c7401e3e3fe76f76`已负责人复核。仅STAGE_PARTIAL_PASS，经理亦核原件；全链仍NO_GO。
+
+第十项员工复审修正：scheduled audit create任何写前必须完整父/source-state fence，结束前再核；终态对账不能用running活租约，新增只读immutable terminalFence核run/epoch/admission/manifest，不授写权限；ledger terminal读取及audit对账使用该路径，manual不变。新矩阵覆盖父漂移audit零写、partial原子终态与只读accepted、terminal不能恢复live fence。未执行，计划待QA端口释放后测试；parent聚合/source成功推进/epoch2/shared/PageStore锁序仍缺。
+
+第十项CpnHV7实际8组SQL开发PASS，实例停止/端口释放。第十一项可选scheduledProof接PageStore与DispatchGuard：事务先锁完整parent/child/source-state fence再走旧child/site/content，page提交前再核完整活租约；adapter透传该proof。scheduled child audit不写source success/failure，留给尚未实现parent聚合，避免单站成功冒充父全集合成功。现factory仍未装scheduled，新增参数不是共享入口已闭合；实际page/HTTP隔离矩阵与锁序竞争待测，真实HTTP不执行。
+
+经理审v113决定：共享Worker切换将暂缓国内，与国内不改/不停/不重启冲突，标BOUNDARY_CONFLICT/HOLD；本单不执行切换、不停当前健康服务、不以旧版未知兼容触发现役KEEP_STOPPED、不另起第二生产消费者。root已撤销该方向可执行建议并更新v113。仅继续隔离链及不影响国内的交付可行性证据；AI精确contentIds/deep/翻译allowlist与持久预算/通知门禁仍须独立验证，真实消费无许可。
+
+第十二项仅代码隔离修正AI allowlist：processPersistentAnalysisJobs验证非空去重严格contentIds，过滤补队列并传给light/deep同一精确集合，repo返回越界job在AI/cache/分析/告警写之前拒绝。未提供contentIds的旧调用保持原路径；不改现役文件、不真实消费。3个新增反例待防护测试。该修正不证明fingerprint/version/jobId完整允许清单、持久预算或通知阻断，仍不得运行生产AI。PageStore/DispatchGuard/manual ledger最小34项防护PASS，真实scheduled page/HTTP矩阵仍待。
+
+AI首次测试被offline guard拒ENV加载，未执行真实AI，拒绝不算PASS；纯测试显式stub runtimeEnv loader，不读取.env，修正显式null allowlist拒绝后8/8防护PASS，拒绝0。第十三项审核员工建议落地持久轻量分类器：不查默认账号/凭据，只核source/game/community及run真实source_id，缺region补全、伪region/queue错绑/trigger拒绝。worker仅显式同repo品牌classifyWorkerEntry注入时前置五处queue/manual/due/poll入口，缺省旧路径不变；未装现役/未改factory scheduler，不授scheduled执行。5项反例含actual runOnce清marker前拒绝待测；唯一permit/scan fence/目标due专属admission与parent协调器仍未完成。
+
+分类器5/5防护PASS、拒绝0；actual runOnce伪region在清marker前拒绝。第十四项补真实schema负测：自有空run schema依次弱IN、OR1=1、反向NULL分支、前缀unique、DATETIME(0)均必须门禁拒绝，然后恢复精确schema再跑跨模块。新阶段freeze增加11个选定文件，实际脚本含ledger/bootstrap/partial audit对账但明确main factory/recovery/parent/shared完整接线仍NOT_IMPLEMENTED，待实际验证和新冻结提测。
+
+下一冻结grKQ7Y manifest SHA `7607fa19f727f7be59bfb9c4fbca00e1ed1e1efc64a897c72a74ea3c0ada2dce`，开发冻结副本11文件70/70纯测/拒绝0，9组自有SQL NvbzGv PASS，实例停止/端口释放，前后675条verify一致；v114准备独立增量QA。现役worker尾部只读证明模块级sharedDeps首次build后复用、setInterval调用闭包，无热加载/IPC接线；写源文件不会更新当前require缓存。当前约束“不停不改现役、无第二消费者”下尚无经证实交付新主链路径，不能靠DB配置注入新代码。生产切换HOLD，不停现役；先向经理报客观限制，继续隔离交付，不伪报08:00真实上线。
+
+v114已真实消息交QA/经理，NvbzGv SHA `7160bf9dbf4246696ffe01af306f2d8b5521662642b745116b7a56131bd60aff`；新独立结论待返回。现役worker只读文件SHA `a932a32f55174d1715cfd5eaa36cc57e2668ec03f89d23cae81078bd3030bf75`，此证据仅文件入口逻辑，不证明所有动态模块永不加载，未执行注入/调试attach等绕过。git diff --check所列相关旧tracked文件通过，仅LF/CRLF提示，无commit/push。
+
+第十五项（不改grKQ7Y）：显式classifier启用时候选manual无drain/receipt不得走旧clear；新共享permit供初始work与poll共用，排队后再次核scan/drain，finally释放避免两个runBounded池超总并发。未注入classifier旧默认路径不变，不装现役。新增合法candidate marker零清理和permit边界纯测待跑；实际poll并发/scan失效在途提交仍未证明。
+
+第十五项8/8纯防护PASS（classifier6+permit2），拒绝0；未加入grKQ7Y当前QA包，后续新批再提测。workerScanLease现有token只是owner/epoch普通对象、活动HTTP/commit没核scan，不能仅permit解决跨消费者独占；后续要同连接可信scan能力及新自有SQL交叉矩阵，不动生产lease。新QA进行中，root不抢13316端口。
+
+第十六项复审修正（不改QA快照）：classifier核sourceId/source_id别名并逐项隔离稳定身份错误，坏记录保留marker且不fallback，DB失败仍抛；防止坏目标阻断国内可信源。scheduledLedger增加私有上下文品牌核验，BoundAudit/PageStore漏scheduledProof构造即拒，避免回落manual父fence缺口；audit create尾及真实dispatch前再核完整fence。31项最小防护回归PASS/拒绝0；新增SQL构造漏proof反例待QA端口释放后测试，缺陷已消息QA并保留grKQ7Y原件，不能以旧脚本PASS放行缺陷包。
+
+第十六项补证：gMV5x4自有13316实例九组SQL开发PASS，含audit/PageStore漏proof构造拒绝，实例停止且端口释放。QA与经理已将旧grKQ7Y补记KNOWN_DEFECT_P1/STAGE_NO_GO，旧70/70及九组SQL仅已测路径PASS，不重写旧原件、不重跑旧包。
+
+第十七项：scheduled ledger私有品牌现在直接精确绑定repo/journal/proof，不再间接比较context替代journal；六个写操作返回前再次完整fresh fence，使长历史/页面事务在父租约漂移或到期时由调用方回滚。manual写操作保持原实现。新freeze名单加入sharedWorkerPermit纯测。复制/跨模式/跨repo与事务内漂移矩阵待执行，scheduled实际页面与合成HTTP链仍未完成，不能宣称整批可运行。
+
+第十八项：补缺失/null/复制/非scheduled ledger/跨repo/journal构造反例与零写基线；audit create尾、dispatch verifier后和page beforeCommit同连接注入parent owner漂移，核全部十二张表回滚。实际scheduled PageStore写post→comments→reply，同页扩展账本任务、真实checkpoint完成、history预先封口、expansion sealed、child audit成功终态三条唯一内容计数/只读reconcile，不写sourceEffect。实际adapter requestQ1走合成token/post/comments/reply四请求；无真实HTTP、无AI，未执行connector页面归一化或runSource。员工只读方案已复核，后者仍待完整主链装配。
+
+第十八项开发验证：36/36最小防护PASS/拒绝0。rJiRkJ与oLYlG3两失败原件保留，后者为测试repo未设syncUpsertLockWaitSeconds导致ER_WRONG_TYPE_FOR_VAR，仅补合成夹具配置3，不放宽业务校验。6XMoig实际page链PASS；加入requestQ1后WE5z78十三组SQL开发PASS，ownedStopped/portReleased均true。生产与国内现役未操作。新冻结独立QA待执行，整体仍NO_GO。
+
+第十八项正式交接：Vd73p7 manifest SHA `9bd309bc83df644e13e4ea082046f019d0ce77162beb020e8d324f8adb3c28bc`；冻结副本前后677条hash一致，12文件76/76防护PASS/拒绝0，十三组实际SQL C3Yeqa result SHA `ea7f00b27e68f9e6a012ef52f98a2844ba458f458982fbad3fa953c0e334abaf`，实例停止/端口释放。v115已以真实会话消息交QA与经理，状态QA_PENDING，不等待用户重复批准隔离验证；未提交或推送。
+
+第十八项独立QA接收：v086结论ISOLATED_INCREMENTAL_STAGE_PASS / FULL_RUNTIME_NO_GO；677前后hash、12文件76/76与fresh13316十三组SQL独立通过。负责人已核原始TAP SHA `62217a6dfc9f9eeec87a84a6e2ab5e5c68fc63dc39e475a32dbea6613b8db7dc`及64i2Bp result SHA `84a4455b4bdfaa1885ed5cbaea78298af311f0a7291a5fe0ac3ecf53dd99b0ce`一致。QA自有实例停止/端口释放；后续恢复自有SQL前仍核空闲，不接管QA实例。旧grKQ7Y保持KNOWN_DEFECT_P1/STAGE_NO_GO；下一阶段优先connector归一化及factory/runSource跨模块装配，epoch2/父聚合/cursor/shared/AI边界未完成，不能据局部PASS放行生产。
+
+第十九项：新增显式隔离scheduled factory，只消费已持久firstClaim私有proof，不删除manual factory/router的scheduled拒绝。内部同proof创建ledger/coverage/audit/dispatch/PageStore；精确source/child route一次、claim仅观察已claim run一次、heartbeat只验证固定租约不延长parent/state，checkpoint/request写经同连接首尾完整fence，普通终态/source写禁止。尚未执行完整runSource矩阵，员工已只读复审辅助写/控制路径，继续补齐后验证；不装现役、不启scheduler。
+
+第十九项接线补齐：releaseSyncCheckpoint纳入首尾fence，核CP账号/站点/窗口/owner；markSyncRunRequest核精确run/epoch。隐藏旧control settlement/board辅助写；checkAuthorization必调updateSourceAuth以观察式验证替代写，不修改source授权状态。合成凭据不提供account_password。新增--scheduled-mainchain专用runner，只自有13316 firstClaim后调用独立factory及实际runSource，不运行旧manual全量。VwzdwH/bhQ1ow授权失败原件保留，夹具密码类型修正后nBisNF通过：11次合成请求、connector归一化、4条内容/各4pending分析翻译job、5任务/CP完成、子审计终态、parent/state/source全行不变。随后补stub runtimeEnv loader禁止worker加载开发.env，须新原件验证；当前不据nBisNF授生产许可。
+
+第十九项复审修正：员工指出CP释放用new Date(SQL DATETIME)会上海偏移，改现有iso；factory不再require worker取profile，改调用方提供main profileSpec快照，避免factory触发.env加载。snake/camel伪字段均拒，新增claim重放、普通audit/source终态写拒绝、错账号CP拒绝。nx9Yfp/Eqyg4r先后主链PASS；修正后ICX7rk十组SQL PASS，额外实际CP在TZ=Asia/Shanghai释放保留精确安全cursor。此释放是repository路径验证，不冒充完整runSource页预算/transport异常矩阵；后者未覆盖须QA注明。所有自有实例停止/端口释放，尚未epoch2或父聚合。
+
+第十九项新闭包交QA：00gmkU manifest SHA `31f1af6e9d180f59578c39ad5c5374a98b82134535a8e2e2fb46c58e88cf0dea`，冻结前后679完整hash一致，76/76防护PASS/拒绝0，十组新SQL zJDddv SHA `b3697029e66291f315f7c85225c9af449214fa6def53a09a0404715c173e6598`。v116及原始证据已真实消息交QA/经理，QA_PENDING；实例已停/释放端口，不抢QA。下一阶段恢复/父聚合仍未实现，完整运行与生产NO_GO。
+
+第十九项独立QA接收：v087为ISOLATED_CHILD_MAINCHAIN_PARTIAL_PASS / FULL_RUNTIME_NO_GO / CUTOVER_HOLD，679前后hash/76用例/十组SQL独立通过。负责人核TAP SHA `3a6d6b0dee17a45be979061f863ae3460a386007a327fe5041ba48c3a3362a96`及Je4LGV result SHA `0606f23548f93a1ef48f50ea873345644ba76d46a6ed802b62908053d9a8574f`一致。QA owner停止/13316释放已接收；后续仍先核空闲再自有实例。页预算/transport异常未测试，epoch2/restart/parent/cursor/shared/AI仍未闭合，不缩最终范围。
+
+第二十项：专用scheduled-budget/transport-error矩阵运行实际factory/runSource，Asia/Shanghai全路径执行。合成transport在feed抛错，子partial/零内容、三CP failed且空cursor；页预算1会由现有daily scheduler重新续段，不把一次预算耗尽当终态，持续hasMore最终总deadline导致partial、保留提交内容和安全cursor、CP owner释放。YWFdYy预算路径通过。znyz3f业务路径通过但runner等待5秒未确认进程退出，顶层NO_GO仍exit0，原件保留；只读确认自有PID39412已退出/端口空闲，未强停。runner改20秒有限等待且收尾NO_GO必须exit1；9FdAyv新transport路径顶层PASS/实例停止释放。后续须新冻结补独立异常QA；页预算deadline仍不等epoch2恢复证明。
+
+第二十项员工复审后精确预算场景：旧YWFdYy/zFqIdC仅总时限耗尽，不误称connector页预算边界。新预算合成pageSize10000，provider hasMore且nextOffset1，触发真实connector的provider_pagination_budget_exhausted；b8iAxU通过，child/audit partial/PARTIAL_SYNC、一唯一内容持久计数、三个failed CP均保留offset1且owner/lease释放。全runSource置上海时区，不是单独repo释放替代。factory/connector未改业务预算，只有隔离夹具参数；真实pageSize20场景及提交后第二页transport失败尚未覆盖。新freeze增加两条failureSql，后续QA仅执行新异常矩阵，不重跑旧成功子链替代剩余项。
+
+第二十项冻结交接：y9ZiDA manifest SHA `53aca08f0f42ca7af5aa32c6fdaad5f7c6e3f5fe5fc3e5a5e8074588d84f6f43`，679前后hash一致；新两failureSql冻结开发PASS，NVG3c2预算result SHA `66a383aea4bae687e944ce82ca218a4d63985a6ee0633ed04f79f96fc37c25b1`、QkNEym transport SHA `655b13ca77221ff77bd58ceac7279e135da7d5cf1a324227695f64881dd1bd3c`，自有停止/端口释放。v117真实消息交QA/经理，QA_PENDING，完整运行NO_GO，不再占QA端口。
+
+第二十项独立v088接收：679前后hash、两fresh SQL独立局部PASS，负责人核N4IZfL SHA `0219ba22f6116d8bd6df561ad0bcd73d6e5e831a6b04ac1d24751e502d543554`和93YhwQ SHA `0bdd47c9b61d27f48c7adb86c2f1a595887a2854631cfcf73f5365b6ea7a9e51`一致，QA停止/释放端口。正常pageSize20和提交后第二页故障仍未覆盖。
+
+第二十一项在QA占端口期间开工：新增scheduled原始请求journal，严格canonical/hash、根.temp私有directory/非链接/wx-sync-link-read；记录原batch+expectedState+owner+lease+nextSlot，不从进展后state重构。新增store.inspectFirstClaim仅READ ONLY核原请求闭包、parent/source-state/child/manifest及可信claim journal，缺journal返回claimed_without_journal；核验结果写/claim/生产标志恒false，不登记claims品牌，factory不能消费。员工复审指出首次未知ACK无预写owner intent，不可从DB owner补造契约；实现已改为先读可信journal再核DB。此项尚未测试，epoch2/restart执行恢复/首次claim持久intent未实现，不把只读inspection称恢复完成。
+
+第二十一项验证接续：收到v088释放后先核13316空闲，再自有1xWPGr SQL核原request重新打开、READ ONLY inspect、缺未知ACK journal停、复制/跨journal record拒绝和inspection不能作claim proof，完整DB基线不变。新增只读新Node子进程脚本仅文件完整性，不导入worker/env或DB；V2JTTe新进程读取原request、再次inspect通过，owner停止/端口释放。仍recoveryExecuted/epoch2Executed=false，首次未知ACK尚无预写owner intent，不恢复执行；员工复审进行中。
+
+第二十二项：原request journal新增预写firstClaim intent，确定性id绑定requestSha/run/leaseSeconds，owner首次生成持久、EEXIST读回原owner，私有record/journal/intent品牌核；firstClaim显式带intent时用持久owner。保留无intent的旧隔离firstClaim路径，不宣称所有入口强制intent。reconcileFirstClaimIntent只READ ONLY，queued0/admitted0/tasks空为not_committed，精确intent owner/epoch1活父子与state/manifest为committed_verified，不登记claims。v3mOxF实际写前intent、双连接claim、真实COMMIT后ACK丢失、重新读intent同owner、只读accepted及复制intent拒绝通过。新Node目前仅读原request，DB/intent核在父进程，不能称新进程DB恢复；epoch2与自动继续仍false，下一独立QA只该闭包。
+
+第二十二项冻结与独立 QA 接收：YQr5UJ manifest SHA `0fcfdc232718520775b3911c40b63f2b3cfbe890ce980b5c6501ab3dc5a65d27`，681前后hash一致。冻结开发PEfVM8 inspection通过；独立v089/Pgi3op结果SHA `e2d35d9071dd4d4789267e78e8a8f03dd415a2cfd3e76b0ee9ace04e1c3da0ba`负责人已核，QA自有实例停止/端口释放。只接收ISOLATED_INSPECTION_ONLY_PASS，执行恢复、epoch2与生产仍NO_GO。v118已流转经理/QA，旧包不改。
+
+第二十三项：queued inspection不再只看单child，须整批parent/children、admitted0 manifest及空任务pristine；漂移返回unknown。员工提供增量后负责人审查，发现复用pristine默认FOR UPDATE不适合只读事务，root改只读调用为lock:false，写事务仍保留锁。两文件语法及6项最小纯测通过；核13316空闲后自有I7Md6H SQL通过queued正常、expected_count漂移、逐次12表只读零写和夹具恢复断言，自有停止/端口释放，result SHA `87968bb3dda506b430db3432f5e05093aaec546d4018d7c5ca26a02773193638`。这是活动树增量，未纳入YQr5UJ独立结论，须下一闭包QA；不以重复inspection累计PASS替代执行恢复。
+
+第二十四项：未知ACK执行恢复方案v119先要求初次/恢复共用整个执行期独占gate，否则相同owner/epoch journal不能阻止双执行。root落地独立隔离gate工具（NOT_INTEGRATED），两连接竞争/复制/close后拒/重新领取/业务零写通过；员工复审补固定3000ms超时与销毁不归池。mSHDP0 result SHA `9dfb7f01203168bd38d27af1373a3af464f6647d259a4f4cc07fa28e8b9bee3e`含人工GET_LOCK静默等待超时反例PASS，自有实例停止/释放，6项最小纯测拒绝0。尚未factory全执行期接线与独立execution proof，未新Node执行恢复、未epoch2、未独立冻结QA；生产仍NO_GO。
+
+第二十五项：按经理v120正式派单独立实现三范围，不重试受限proof。新pageSize20显式合成预算2及按feed/offset20第二页异常走原firstClaim实际factory/runSource；两个纯模块实现tuple/fake预算收据禁通知、parent独立固定任务全集/CP/audit/终态hash与锁序。员工只读复审发现fake依赖/receipt描述符和回调替换、CP子集自签问题，root修正后13纯测通过。新qvW4xk冻结前后686hash一致，冻结两SQL uMRclU/N1pfKv通过且实例停止/释放，raw SHA与范围详v121。四辅助未放行且不接factory，纯预算协议不称真实持久，parent投影不称SQL；v121流转QA/经理，整体NO_GO，未commit/push/发版。
+
+第二十五项独立v122接收：13纯测/两fresh SQL独立隔离增量PASS，负责人已核O8Wf7n SHA `70cf401e302cf6d93004ca81b7129bac60951e678584940186c4beeddef1845a`、DJZaEl SHA `5fd1a55e88b4aa2766cbc0313cd091a9900509fbe8b9ab47afdf413df7e7a074`及manifest一致，QA自有实例停止/端口释放。四辅助不放行；gate竞争仅原语缺陷/待动态证明，不称生产事故。未宣称恢复接线、epoch2、真实预算或parent SQL完成，整体FULL_RUNTIME_NO_GO/CUTOVER_HOLD。

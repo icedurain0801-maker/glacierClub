@@ -7,7 +7,7 @@
 // 钉钉推送幂等：仅在新建告警时推一次，回写 ding_talk_status（sent/failed）。
 // fail-closed 不适用于此层——钉钉推送失败不应阻断落库，告警仍需入库待人工处理。
 
-const SEVERITY_RANK = { normal: 0, attention: 1, negative: 2, urgent: 3 };
+const SEVERITY_RANK = { normal: 0, attention: 1, urgent: 2 };
 const { normalizeAnalysisResult } = require('../services/riskSeverityNormalizer');
 
 function buildExcerpt(content, max = 80) {
@@ -38,23 +38,14 @@ class AlertEngine {
   //  hit: ruleEngine.matchRules 的产出（含 hitGroups/triggerModes/ruleSeverity）
   //  analysis: aiAnalyzer 的产出（含 sentiment/severity/negativeScore）
   async process({ game, content, hit, analysis }) {
-    analysis = normalizeAnalysisResult(analysis, content);
-    if (analysis?.severity !== 'urgent' || analysis?.sentiment === 'positive') return [];
-    if (analysis?.sentiment === 'positive' && analysis?.severity === 'normal') return [];
-    if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（关键词口径）
-    if (!hit || !hit.hitGroups?.length) return [];
-    const created = [];
-    for (const group of hit.hitGroups) {
-      const decision = await this.evaluateGroup({ game, content, group, analysis });
-      if (decision) created.push(decision);
-    }
-    return created;
+    // Keywords can request AI analysis, but cannot bypass the progressive risk
+    // policy or create a second immediate/aggregate alert for the same result.
+    return this.processAiUrgent({ game, content, analysis });
   }
 
   async processAiUrgent({ game, content, analysis }) {
     analysis = normalizeAnalysisResult(analysis, content);
-    if (analysis?.severity !== 'urgent' || analysis?.sentiment === 'positive') return [];
-    if (analysis?.sentiment === 'positive' && analysis?.severity === 'normal') return [];
+    if (String(analysis?.sentiment || '').toLowerCase() === 'positive') return [];
     if (!this.isContentFresh(content)) return []; // 时间窗外内容不告警（AI urgent 口径）
     if (analysis?.severity !== 'urgent') return [];
     const alertType = 'ai_urgent';
@@ -70,44 +61,6 @@ class AlertEngine {
     const dingStatus = await this.pushDingTalk(game, { title, triggerDetail }).catch(() => 'failed');
     await this.repo.updateDingStatus(alert.id, dingStatus);
     return [{ alertId: alert.id, reused: false, severity: 'urgent', alertType, dingStatus }];
-  }
-
-  async evaluateGroup({ game, content, group, analysis }) {
-    // 最终严重度取"规则组严重度"与"AI 严重度"的较高者——规则是保底，AI 可升级。
-    const severity = SEVERITY_RANK[analysis?.severity] > SEVERITY_RANK[group.severity] ? analysis.severity : group.severity;
-    const alertType = group.triggerMode === 'immediate' ? 'immediate' : 'aggregate';
-    const communityId = this.assertScope(game, content);
-
-    if (alertType === 'immediate') {
-      // 即时口径：仅当最终严重度达 urgent 才单条直报（attention 级留给聚合口径累积）。
-      if (severity !== 'urgent') return null;
-    } else {
-      // 聚合口径：统计窗口内同组命中数，未达阈值不报。
-      const hits = await this.repo.countWindowHits({ gameId: game.id, communityId, groupName: group.groupName, windowSeconds: group.windowSeconds });
-      if (hits < group.thresholdCount) return null;
-    }
-
-    // 防轰炸：冷却期内已有同游戏+同类型未闭环告警 → 只追加关联内容，不新建、不再推钉钉。
-    const open = await this.repo.findOpenAlert({ gameId: game.id, communityId, alertType, cooldownSeconds: this.cooldownSeconds });
-    if (open) { await this.repo.linkAlertContent(open.id, content.id); return { alertId: open.id, reused: true, dingStatus: open.ding_talk_status }; }
-
-    const title = alertType === 'immediate'
-      ? `【${game.name}】紧急舆情：${group.groupName}`
-      : `【${game.name}】${group.groupName} 聚合告警（窗口内达 ${group.thresholdCount} 条）`;
-    const triggerDetail = [
-      `游戏：${game.name}`,
-      `口径：${alertType === 'immediate' ? '即时单命中' : '聚合滑窗'}`,
-      `严重度：${severity}`,
-      `命中关键词组：${group.groupName}（${(group.keywords || []).join('、')}）`,
-      analysis?.summary ? `AI 摘要：${analysis.summary}` : '',
-      `摘录：${buildExcerpt(content)}`,
-      content.source_url ? `链接：${content.source_url}` : ''
-    ].filter(Boolean).join('\n');
-
-    const alert = await this.repo.insertAlert({ gameId: game.id, communityId: content.community_id || content.communityId, severity, alertType, title, triggerDetail, contentIds: [content.id] });
-    const dingStatus = await this.pushDingTalk(game, { title, triggerDetail }).catch(() => 'failed');
-    await this.repo.updateDingStatus(alert.id, dingStatus);
-    return { alertId: alert.id, reused: false, severity, alertType, dingStatus };
   }
 
   assertScope(game, content) {

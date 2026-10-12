@@ -1,4 +1,6 @@
 const { BaseConnector, ConnectorError, ConnectorPageError, ConnectorPageResult, normalizeRawContent, validatePagination, flattenCommentTree } = require('./baseConnector');
+// A token belongs to one capability probe, never to the connector or a later request.
+const capabilityProbeTokens = new WeakMap();
 
 function parseList(value, fallback) { return value ? value.split(',').map(item => item.trim()).filter(Boolean) : fallback; }
 function capabilityStatusFromError(error) {
@@ -8,7 +10,7 @@ function capabilityStatusFromError(error) {
   return code;
 }
 
-const Q1_ALLOWED_HOSTS = new Set(['club.q1.com', 'club.iyogames.cn']);
+const Q1_ALLOWED_HOSTS = new Set(['club.q1.com', 'club-en.q1.com', 'club.iyogames.cn']);
 const Q1_MAX_BOUNDED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function hostOf(url) { try { return new URL(url).host; } catch { return ''; } }
 function q1SafeUrl(url) {
@@ -402,7 +404,7 @@ function q1CommentCursor(value) {
   } catch {}
   throw new ConnectorError('INVALID_PAGINATION', 'Q1 comment pagination cursor is invalid');
 }
-function q1CommentPage(payload, { rootContentId, commentId, cursor, limit, context, boundedWindow = null }) {
+function q1CommentPage(payload, { rootContentId, commentId, cursor, limit, context, boundedWindow = null, preserveContext = false }) {
   if (!payload || !Array.isArray(payload.data) || !Number.isFinite(Number(payload.total))) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 comment response is malformed');
   const seen = new Set();
   const replyTargets = [];
@@ -421,6 +423,7 @@ function q1CommentPage(payload, { rootContentId, commentId, cursor, limit, conte
     const topInWindow = timestamps[0] >= boundedWindow.fromMs && timestamps[0] < boundedWindow.toMs;
     const repliesInWindow = replies.filter((_reply, index) => timestamps[index + 1] >= boundedWindow.fromMs && timestamps[index + 1] < boundedWindow.toMs);
     if (topInWindow) return [{ ...top, ...(repliesInWindow.length ? { replies: repliesInWindow } : {}) }];
+    if (preserveContext && repliesInWindow.length) return [{ ...top, recoveryContextAncestor: true, replies: repliesInWindow }];
     return repliesInWindow;
   });
   const pageSize = Number(limit);
@@ -551,18 +554,23 @@ async function q1ConcurrentMap(items, concurrency, mapper, signal) {
 }
 
 class BigPlayerH5Connector extends BaseConnector {
-  constructor(env = process.env, { credentialContext = null, fetchImpl = globalThis.fetch, authRefreshCoordinator = null, loginSessionClient = null } = {}) {
+  constructor(env = process.env, { credentialContext = null, fetchImpl = globalThis.fetch, authRefreshCoordinator = null, loginSessionClient = null, isolatedSiteSession = null, overseasSiteSession = null } = {}) {
     super({ platform: 'bigplayer_h5', capabilities: ['posts', 'comments', 'owned_content'] });
     this.enabled = env.BIGPLAYER_H5_ENABLED === 'true' || env.BIGPLAYER_H5_ENABLED === '1';
     this.envBaseUrl = env.BIGPLAYER_H5_API_BASE_URL || env.BIGPLAYER_H5_BASE_URL || '';
     this.allowedHosts = parseList(env.BIGPLAYER_H5_ALLOWED_HOSTS, hostOf(this.envBaseUrl) ? [hostOf(this.envBaseUrl)] : []);
-    // Add the verified mainland alternate only to mainland-enabled instances.
+    // The verified mainland alternate origin uses the same Q1 API contract.
+    // Preserve deliberately restricted overseas/isolated instances.
     if (this.allowedHosts.includes('club.q1.com') && !this.allowedHosts.includes('club.iyogames.cn')) this.allowedHosts.push('club.iyogames.cn');
     this.paths = { posts: env.BIGPLAYER_H5_POSTS_PATH || '/internal/opinion/posts', comments: env.BIGPLAYER_H5_COMMENTS_PATH || '/internal/opinion/posts/:postId/comments' };
     this.credentialContext = credentialContext;
     this.authRefreshCoordinator = authRefreshCoordinator;
     this.loginSessionClient = loginSessionClient;
     this.fetchImpl = fetchImpl;
+    if (isolatedSiteSession && (fetchImpl === globalThis.fetch || typeof isolatedSiteSession.tokenFor !== 'function')) throw new ConnectorError('PRODUCTION_EXECUTION_DISABLED', 'site session requires isolated transport');
+    this.isolatedSiteSession = isolatedSiteSession;
+    if (overseasSiteSession && typeof overseasSiteSession.tokenFor !== 'function') throw new TypeError('overseas site session is invalid');
+    this.overseasSiteSession = overseasSiteSession;
     this.cookie = env.BIGPLAYER_H5_AUTH_COOKIE || '';
     this.bearer = env.BIGPLAYER_H5_BEARER_TOKEN || '';
     this.maxDepth = Number(env.BIGPLAYER_H5_MAX_DEPTH || 5);
@@ -615,6 +623,11 @@ class BigPlayerH5Connector extends BaseConnector {
   async loadApiToken(source, credentialContext = this.credentialContext, account = null) {
     if (!credentialContext) throw new ConnectorError('CREDENTIAL_CONTEXT_REQUIRED', 'account credential context is required');
     const credentialSubject = account || source?.account || source;
+    const probe = capabilityProbeTokens.get(credentialContext);
+    if (probe && probe.connector === this && probe.sourceId === String(source?.id || '') && probe.accountId === String(credentialSubject?.id || '')) {
+      if (!probe.promise) probe.promise = this.loadApiToken(source, probe.original, account);
+      return probe.promise;
+    }
     let passwordLoaded = null;
     if (typeof credentialContext.load === 'function') {
       try { passwordLoaded = await credentialContext.load(credentialSubject, 'account_password'); }
@@ -626,7 +639,7 @@ class BigPlayerH5Connector extends BaseConnector {
       try {
         const binding = { accountId: credentialSubject?.id, sourceId: source?.id, platform: source?.platform || this.platform };
         if (typeof this.loginSessionClient?.startLogin !== 'function' || typeof this.loginSessionClient?.claimAuthResult !== 'function') {
-          throw new Error('LoginSessionClient login flow is unavailable');
+          throw new ConnectorError('LOGIN_SESSION_CLIENT_UNAVAILABLE', 'LoginSessionClient login flow is unavailable');
         }
         if (typeof this.loginSessionClient.bindAccount === 'function') {
           await this.loginSessionClient.bindAccount({ ...binding, credentialRef: `credential:${binding.accountId}:account_password` });
@@ -636,6 +649,7 @@ class BigPlayerH5Connector extends BaseConnector {
         const result = await this.loginSessionClient.claimAuthResult(binding);
         const apiToken = result?.apiToken || result?.accessToken;
         if (!apiToken) throw new Error('login session returned no API token');
+        if (typeof credentialContext.saveApiAuthorization === 'function') await credentialContext.saveApiAuthorization(source, credentialSubject, result);
         return apiToken;
       } catch (error) {
         throw new ConnectorError('AUTHORIZATION_FAILED', 'BigPlayer API account login failed', { cause: error?.code || 'LOGIN_FAILED' });
@@ -649,22 +663,50 @@ class BigPlayerH5Connector extends BaseConnector {
     return apiToken;
   }
   async requestQ1(path, source, apiToken, params = {}, page = 1, capability = 'posts', authRefreshRetried = false, signal = null, requestContext = {}) {
+    const activeProbe = capabilityProbeTokens.get(requestContext.credentialContext);
+    const subject = requestContext.account || source.account;
+    if (activeProbe?.connector === this && activeProbe.sourceId === String(source?.id || '') && activeProbe.accountId === String(subject?.id || '') && activeProbe.promise) apiToken = await activeProbe.promise;
     const context = q1Context(source);
     const url = new URL(path, context.baseUrl);
     for (const [key, value] of Object.entries(params)) if (value != null && value !== '') url.searchParams.set(key, String(value));
-    if (!q1SafeUrl(url.toString())) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'Q1 API URL must use an approved HTTPS origin');
+    if (!q1SafeUrl(context.baseUrl.toString()) || !q1SafeUrl(url.toString()) || url.origin !== context.baseUrl.origin) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'Q1 API URL must use the source approved HTTPS origin');
     if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
+    const overseasSession = source.region_code === 'overseas' && source.platform === 'bigplayer_h5' ? this.overseasSiteSession : null;
+    let siteToken;
+    try { siteToken = this.isolatedSiteSession ? await this.isolatedSiteSession.tokenFor(source, apiToken, signal)
+      : overseasSession ? await overseasSession.tokenFor(source, apiToken, signal) : null; }
+    catch (error) {
+      if (!['UNAUTHORIZED', 'PERMISSION_DENIED'].includes(error.code) || !overseasSession || !this.authRefreshCoordinator || authRefreshRetried) throw error;
+      overseasSession.invalidate(source, apiToken);
+      const account = requestContext.account || source.account;
+      if (!account?.id) throw new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing');
+      if (signal?.aborted) throw new ConnectorError('COLLECTION_CANCELLED', 'collection cancelled');
+      try { await this.authRefreshCoordinator.refresh({ source, account, signal }); }
+      catch { throw new ConnectorError('AUTH_REFRESH_FAILED', 'overseas account refresh failed'); }
+      if (signal?.aborted) throw new ConnectorError('COLLECTION_CANCELLED', 'collection cancelled');
+      const token = await this.loadApiToken(source, requestContext.credentialContext || this.credentialContext, account);
+      return this.requestQ1(path, source, token, params, page, capability, true, signal, requestContext);
+    }
     let response;
     try {
       if (typeof source?.__recordHttpRequest === 'function') await source.__recordHttpRequest({ url: url.toString(), capability, page });
       response = await this.fetchImpl(url, {
         redirect: 'manual',
-        headers: { accept: 'application/json', authorization: authorizationValue(apiToken), 'content-language': context.language, 'user-agent': 'PublicOpinionSystem/1.0' },
+        headers: { accept: 'application/json', authorization: siteToken ?? authorizationValue(apiToken), 'content-language': context.language, 'user-agent': 'PublicOpinionSystem/1.0' },
         signal: combinedSignal(signal, this.timeoutMs)
       });
-    } catch (error) { throw new ConnectorPageError(this.platform, capability, page, signal?.aborted ? abortedError(signal) : error); }
-    if (response.url && (!q1SafeUrl(response.url) || new URL(response.url).origin !== context.baseUrl.origin)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'Q1 API redirected outside approved HTTPS origins'));
+    } catch (error) {
+      if (overseasSession && /^OVERSEAS_(DISPATCH|NETWORK_CONTRACT)_/.test(error?.code || '')) throw error;
+      throw new ConnectorPageError(this.platform, capability, page, this.isolatedSiteSession || overseasSession
+      ? new ConnectorError(signal?.aborted ? 'COLLECTION_CANCELLED' : 'Q1_SITE_REQUEST_FAILED', 'isolated site request failed')
+      : signal?.aborted ? abortedError(signal) : error); }
+    if (response.url && (!q1SafeUrl(response.url) || new URL(response.url).origin !== context.baseUrl.origin)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'Q1 API redirected outside the source approved HTTPS origin'));
+    if (!response.ok && (response.status === 401 || response.status === 403) && this.isolatedSiteSession) {
+      this.isolatedSiteSession.invalidate(source, apiToken);
+      throw new ConnectorPageError(this.platform, capability, page, new ConnectorError(response.status === 401 ? 'UNAUTHORIZED' : 'PERMISSION_DENIED', 'site authorization was rejected'));
+    }
     if (!response.ok && (response.status === 401 || response.status === 403) && this.authRefreshCoordinator && !authRefreshRetried) {
+      overseasSession?.invalidate(source, apiToken);
       const refreshAccount = requestContext.account || source.account || (source.account_id ? { id: source.account_id, platform: source.platform } : null);
       const refreshCredentialContext = requestContext.credentialContext || this.credentialContext;
       if (!refreshAccount?.id) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing'));
@@ -672,10 +714,13 @@ class BigPlayerH5Connector extends BaseConnector {
       try { await this.authRefreshCoordinator.refresh({ source, account: refreshAccount, signal }); }
       catch (error) { throw new ConnectorPageError(this.platform, capability, page, tokenReauthorizationError(error)); }
       if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
+      const probe = capabilityProbeTokens.get(refreshCredentialContext);
+      if (probe?.connector === this) probe.promise = null;
       const refreshedToken = await this.loadApiToken(source, refreshCredentialContext, refreshAccount);
       return this.requestQ1(path, source, refreshedToken, params, page, capability, true, signal, { credentialContext: refreshCredentialContext, account: refreshAccount });
     }
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) overseasSession?.invalidate(source, apiToken);
       const code = response.status === 401 ? 'UNAUTHORIZED' : response.status === 403 ? 'PERMISSION_DENIED' : response.status === 429 ? 'RATE_LIMITED' : `H5_HTTP_${response.status}`;
       throw new ConnectorPageError(this.platform, capability, page, new ConnectorError(code, 'H5 API request failed'));
     }
@@ -709,6 +754,7 @@ class BigPlayerH5Connector extends BaseConnector {
         schema = await this.requestQ1('/api/club/v2/auth/board', requestSource, apiToken, { id: selectedBoard.id }, 1, 'posts', false, signal, requestContext);
       } catch (error) {
         if (signal?.aborted) throw error;
+        if (source.region_code === 'overseas' && /^OVERSEAS_(DISPATCH|NETWORK_CONTRACT)_/.test(error?.code || '')) throw error;
         if (['PERMISSION_DENIED', 'H5_HTTP_404'].includes(error?.cause?.code || error?.code)) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not accessible`);
         try { schema = await this.requestQ1('/api/club/v1/auth/board', requestSource, apiToken, { id: selectedBoard.id }, 1, 'posts', false, signal, requestContext); }
         catch (fallbackError) {
@@ -764,6 +810,7 @@ class BigPlayerH5Connector extends BaseConnector {
       try {
         payload = await this.requestQ1('/api/club/v1/auth/post/', requestSource, apiToken, { postId: String(listItem?.id), source: 0 }, page, 'posts', false, detailSignal, requestContext);
       } catch (error) {
+        if (source.region_code === 'overseas' && /^OVERSEAS_(DISPATCH|NETWORK_CONTRACT)_/.test(error?.code || '')) throw error;
         const cancellation = q1CancellationCause(error, detailSignal);
         if (cancellation) throw cancellation;
         return q1FallbackPost(listItem, q1DetailFallbackCode(error));
@@ -926,7 +973,10 @@ class BigPlayerH5Connector extends BaseConnector {
       else await this.requestJson('posts', source, { limit: 1 }, this.credentialContext, {}, { probe: true });
       return { ...installation, authorized: true, configured: true, reason: null };
     } catch (error) {
-      return { ...installation, authorized: false, configured: false, reason: error.cause?.code || error.code || 'account credential invalid' };
+      const failure = error.cause || error;
+      const loginCause = failure.code === 'AUTHORIZATION_FAILED' ? failure.details?.cause : null;
+      const reason = typeof loginCause === 'string' && /^[A-Z][A-Z0-9_]{0,79}$/.test(loginCause) ? loginCause : failure.code || 'account credential invalid';
+      return { ...installation, authorized: false, configured: false, reason };
     }
   }
   async healthCheck(source) {
@@ -969,34 +1019,38 @@ class BigPlayerH5Connector extends BaseConnector {
   }
   async detectCapabilities({ source, account, credentialContext = this.credentialContext, postId, postIds = [] } = {}) {
     const results = {};
-    let samplePostId = postId == null || String(postId).trim() === '' ? null : String(postId).trim();
-    const suppliedPostIds = Array.isArray(postIds) ? postIds.map(value => String(value || '').trim()).filter(Boolean) : [];
-    if (suppliedPostIds.length) samplePostId = suppliedPostIds[0];
-    for (const capability of ['posts', 'comments']) {
-      if (!this.hasSourceCapability(capability, source)) { results[capability] = { status: 'unsupported' }; continue; }
-      if (capability === 'comments' && !samplePostId) {
+    const probeContext = credentialContext && typeof credentialContext === 'object' ? Object.create(credentialContext) : credentialContext;
+    const subject = account || source?.account || source;
+    if (probeContext && typeof probeContext === 'object') capabilityProbeTokens.set(probeContext, { connector: this, sourceId: String(source?.id || ''), accountId: String(subject?.id || ''), original: credentialContext, promise: null });
+    const input = { source: { ...source, account: account || source?.account }, account, credentialContext: probeContext, limit: 1 };
+    const failure = error => {
+      const cause = error?.cause || error;
+      const code = cause?.code === 'AUTHORIZATION_FAILED' ? cause.details?.cause || cause.code : cause?.code;
+      return { status: capabilityStatusFromError(error), ...(/^[A-Z][A-Z0-9_]{0,79}$/.test(code || '') ? { errorCode: code } : {}) };
+    };
+    let samplePostId = Array.isArray(postIds) && postIds.length ? String(postIds[0] || '').trim() : String(postId || '').trim();
+    try {
+      if (!this.hasSourceCapability('posts', source)) results.posts = { status: 'unsupported' };
+      else {
         try {
-          const page = isQ1Source(source)
-            ? await this.listQ1Posts({ source, account, credentialContext, limit: 1 })
-            : await this.requestJson('posts', { ...source, account }, { accountId: account?.platform_account_id, limit: 1 }, credentialContext);
+          const page = isQ1Source(source) ? await this.listQ1Posts(input) : await this.requestJson('posts', input.source, { accountId: account?.platform_account_id, limit: 1 }, probeContext);
           const item = page.items?.[0];
-          samplePostId = item?.externalId ?? item?.id ?? item?.postId ?? null;
-        } catch (error) {
-          results.posts = results.posts || { status: capabilityStatusFromError(error) };
-        }
+          if (!samplePostId) samplePostId = String(item?.externalId ?? item?.id ?? item?.postId ?? '');
+          results.posts = { status: 'available' };
+        } catch (error) { results.posts = failure(error); }
       }
-      if (capability === 'comments' && !samplePostId) { results.comments = { status: 'configured', requiresParentId: true, untested: true }; continue; }
-      try {
-        if (capability === 'posts') {
-          if (isQ1Source(source)) await this.listQ1Posts({ source, account, credentialContext, limit: 1 });
-          else await this.requestJson('posts', { ...source, account }, { accountId: account?.platform_account_id, limit: 1 }, credentialContext);
-        } else {
-          await this.listComments({ source, account, credentialContext, postId: samplePostId, limit: 1 });
-        }
-        results[capability] = { status: 'available', ...(capability === 'comments' ? { requiresParentId: true, samplePostId } : {}) };
-      } catch (error) { results[capability] = { status: capabilityStatusFromError(error), ...(capability === 'comments' ? { requiresParentId: true, samplePostId } : {}) }; }
+      if (!this.hasSourceCapability('comments', source)) results.comments = { status: 'unsupported' };
+      else if (!samplePostId) results.comments = { status: 'configured', requiresParentId: true, untested: true };
+      else {
+        try {
+          await this.listComments({ ...input, postId: samplePostId });
+          results.comments = { status: 'available', requiresParentId: true, samplePostId };
+        } catch (error) { results.comments = { ...failure(error), requiresParentId: true, samplePostId }; }
+      }
+      return results;
+    } finally {
+      if (probeContext && typeof probeContext === 'object') capabilityProbeTokens.delete(probeContext);
     }
-    return results;
   }
   async listOwnedContents(input = {}) { return this.listPosts(input); }
   async listPosts({ source, account, credentialContext, signal = null, cursor, limit, updatedSince, historyStart, dailyBounded = false, publishedFrom = null, publishedTo = null } = {}) {
@@ -1016,7 +1070,8 @@ class BigPlayerH5Connector extends BaseConnector {
     const pageSize = limit == null ? 20 : Number(limit);
     if (!Number.isInteger(pageSize) || pageSize <= 0) throw new ConnectorError('INVALID_PAGINATION', 'pagination limit must be a positive integer');
     const payload = await this.requestQ1(`/api/club/v1/auth/comment/${encodeURIComponent(String(postId))}`, { ...source, account: account || source?.account }, apiToken, { offsetId: current.offsetId, pageSize, postId: String(postId), commentId: effectiveCommentId, sortType: effectiveSortType }, current.offsetId, 'comments', false, signal, { credentialContext, account: account || source?.account || null });
-    return validatePagination({ cursor, limit, page: q1CommentPage(payload, { rootContentId: postId, commentId: effectiveCommentId, cursor: { ...current, sortType: effectiveSortType }, limit: pageSize, context, boundedWindow }) });
+    return validatePagination({ cursor, limit, page: q1CommentPage(payload, { rootContentId: postId, commentId: effectiveCommentId, cursor: { ...current, sortType: effectiveSortType }, limit: pageSize, context, boundedWindow,
+      preserveContext: source.region_code === 'overseas' && source.platform === 'bigplayer_h5' }) });
   }
   async listComments({ source, account, credentialContext, signal = null, postId, rootContentId, cursor, limit, updatedSince, commentId = null, sortType = 0, dailyBounded = false, publishedFrom = null, publishedTo = null, historyStart = null } = {}) {
     const id = postId || rootContentId;
@@ -1052,4 +1107,4 @@ class BigPlayerH5Connector extends BaseConnector {
     return items;
   }
 }
-module.exports = { BigPlayerH5Connector, parseSourceConfig, extractPage };
+module.exports = { BigPlayerH5Connector, parseSourceConfig, extractPage, q1PageData };

@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: new trusted response safely reuses old identity without re-marking historical raw
+ok 1 - new trusted response safely reuses old identity without re-marking historical raw
+  ---
+  duration_ms: 6.2556
+  type: 'test'
+  ...
+# Subtest: different historical site is preserved as historical observation
+ok 2 - different historical site is preserved as historical observation
+  ---
+  duration_ms: 0.5012
+  type: 'test'
+  ...
+# Subtest: fake and cross-instance proofs cannot admit reuse
+ok 3 - fake and cross-instance proofs cannot admit reuse
+  ---
+  duration_ms: 1.043
+  type: 'test'
+  ...
+# Subtest: actual provider ID and board conflicts cannot mint proofs
+ok 4 - actual provider ID and board conflicts cannot mint proofs
+  ---
+  duration_ms: 0.5875
+  type: 'test'
+  ...
+# Subtest: existing board/version conflicts and substituted raw payload reject
+ok 5 - existing board/version conflicts and substituted raw payload reject
+  ---
+  duration_ms: 0.5392
+  type: 'test'
+  ...
+# Subtest: outside-window normal reuse fails closed
+ok 6 - outside-window normal reuse fails closed
+  ---
+  duration_ms: 1.1158
+  type: 'test'
+  ...
+# Subtest: same fingerprint cannot conceal changed body or deleted content
+ok 7 - same fingerprint cannot conceal changed body or deleted content
+  ---
+  duration_ms: 0.6728
+  type: 'test'
+  ...
+# Subtest: canonical JOIN supplies missing region without querying credentials
+ok 8 - canonical JOIN supplies missing region without querying credentials
+  ---
+  duration_ms: 1.7882
+  type: 'test'
+  ...
+# Subtest: non-run preserves default-account selection
+ok 9 - non-run preserves default-account selection
+  ---
+  duration_ms: 0.1957
+  type: 'test'
+  ...
+# Subtest: missing and conflicting JOIN identities fail closed
+ok 10 - missing and conflicting JOIN identities fail closed
+  ---
+  duration_ms: 1.7399
+  type: 'test'
+  ...
+# Subtest: unknown enum and supplied conflicting scope fail closed
+ok 11 - unknown enum and supplied conflicting scope fail closed
+  ---
+  duration_ms: 0.3034
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20215.2466

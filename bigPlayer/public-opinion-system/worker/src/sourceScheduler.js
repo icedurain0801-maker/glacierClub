@@ -78,15 +78,12 @@ function rejected(source, reasonCode) {
 }
 function boundedWindowFor(source, schedule, now) {
   const isScheduledBigPlayer = source.platform === 'bigplayer_h5' && ['scheduled', 'scheduled_catchup'].includes(schedule.triggerType);
-  if (schedule.window) {
-    if (!isScheduledBigPlayer) return schedule.window;
-    const scheduledEnd = parseDate(schedule.window.windowEndAt);
-    if (scheduledEnd == null || now.getTime() <= scheduledEnd) return schedule.window;
-    return { ...schedule.window, windowEndAt: now.toISOString() };
-  }
-  if (!isScheduledBigPlayer) return null;
-  const end = now.getTime();
-  return { windowStartAt: new Date(end - 7 * 24 * 60 * 60 * 1000).toISOString(), windowEndAt: new Date(end).toISOString() };
+  if (!isScheduledBigPlayer) return schedule.window || null;
+  // Every BigPlayer slot covers yesterday's Beijing midnight through the
+  // actual scan cutoff, including today's posts and overlapping for dedupe.
+  const local = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const start = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - 1) - 8 * 60 * 60 * 1000;
+  return { windowStartAt: new Date(start).toISOString(), windowEndAt: now.toISOString() };
 }
 function hasConfiguredBigPlayerMultiSite(source) {
   if (source.platform !== 'bigplayer_h5') return false;

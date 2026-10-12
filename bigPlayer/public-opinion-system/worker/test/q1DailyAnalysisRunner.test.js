@@ -103,7 +103,8 @@ test('Q1 analysis runner persists normalized severity audit fields', async () =>
   assert.equal(inserted[0].value.severity, 'urgent');
   assert.equal(inserted[0].value.originalSeverity, 'attention');
   assert.deepEqual(inserted[0].value.severityNormalizationReasons, ['game_issue_upgrade']);
-  assert.match(inserted[0].value.analysisReason, /severity=attention->urgent;reasons=game_issue_upgrade/);
+  assert.equal(inserted[0].value.analysisReason, '内容反馈游戏异常');
+  assert.equal(inserted[0].value.rawAnalysis.severity, 'attention');
 });
 
 test('Q1 cached invalid severity reaches the shared normalizer without silent pre-coercion', async () => {
@@ -125,7 +126,8 @@ test('Q1 cached invalid severity reaches the shared normalizer without silent pr
   assert.equal(await runner.processBatch('light'), 1);
   assert.equal(inserted[0].value.severity, 'attention');
   assert.deepEqual(inserted[0].value.severityNormalizationReasons, ['invalid_severity_defaulted', 'negative_floor_attention']);
-  assert.match(inserted[0].value.analysisReason, /severity=normal->attention;reasons=invalid_severity_defaulted,negative_floor_attention/);
+  assert.equal(inserted[0].value.analysisReason, '缓存原始说明');
+  assert.equal(inserted[0].value.rawAnalysis.severity, 'invalid-cache-value');
 });
 
 test('Q1 reconciles a persisted positive normal result before any alert processing', async () => {

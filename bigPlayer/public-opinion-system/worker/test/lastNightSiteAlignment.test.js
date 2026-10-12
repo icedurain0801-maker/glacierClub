@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { SOURCE_ID, GAME_ID, COMMUNITY_ID, BOARD_ID,
   inspectSiteAlignment } = require('../src/lastNightOverseasDailyJob');
-const { applyLastNightSiteAlignment } = require('../src/lastNightSiteAlignment');
+const { applyLastNightSiteAlignment, rollbackLastNightSiteAlignment } = require('../src/lastNightSiteAlignment');
 
 const sites = [1, 2, 3].map(index => ({ siteId: `site-${index}`,
   url: `https://club-en.q1.com/?gameId=2177&site=${index}`, enabled: true }));
@@ -78,4 +78,37 @@ test('missing approved plan hash cannot open a database connection', async () =>
   await assert.rejects(applyLastNightSiteAlignment({ pool: { getConnection: async () => { connections++; } } }),
     { code: 'LAST_NIGHT_ALIGNMENT_APPROVAL_REQUIRED' });
   assert.equal(connections, 0);
+});
+
+test('rollback restores exact config and disables only unused inserted registry rows', async () => {
+  const planned = inspectSiteAlignment(source, [legacy], [legacy.site_id]);
+  const afterConfig = JSON.stringify(planned.plannedConfig);
+  const hash = require('node:crypto').createHash('sha256').update(afterConfig).digest('hex');
+  for (const history of [false, true]) {
+    let commits = 0, rollbacks = 0, releases = 0;
+    const writes = [];
+    const registry = [legacy, ...sites.slice(1).map(site => ({ site_id: site.siteId, url: site.url, enabled: 1 }))];
+    const connection = { beginTransaction: async () => {}, commit: async () => { commits++; }, rollback: async () => { rollbacks++; }, release: () => { releases++; },
+      query: async (sql, params) => {
+        if (sql.startsWith('SELECT config')) return [[{ config: afterConfig }]];
+        if (sql.includes('FROM po_source_schedule_state')) return [[{ active_lease: 0 }]];
+        if (sql.includes('FROM po_source_sites')) return [registry];
+        if (sql.includes('site_id IN') && sql.includes('SELECT id FROM po_sync_runs')) return [history ? [{ id: 'historical-run' }] : []];
+        if (sql.startsWith('SELECT')) return [[]];
+        writes.push({ sql, params });
+        return [{ affectedRows: sql.startsWith('UPDATE po_sources ') ? 1 : 2 }];
+      } };
+    const operation = rollbackLastNightSiteAlignment({ pool: { getConnection: async () => connection }, beforeConfig: source.config,
+      approvedAfterConfigHash: hash, insertedSiteIds: ['site-2', 'site-3'] });
+    if (history) {
+      await assert.rejects(operation, { code: 'LAST_NIGHT_ROLLBACK_NEW_SITE_HISTORY' });
+      assert.equal(writes.length, 0); assert.equal(rollbacks, 1);
+    } else {
+      assert.equal((await operation).status, 'rolled_back'); assert.equal(commits, 1);
+      assert.equal(writes[0].params[0], source.config);
+      assert.match(writes[1].sql, /SET enabled=0/);
+      assert.ok(writes.every(item => !/DELETE/i.test(item.sql)));
+    }
+    assert.equal(releases, 1);
+  }
 });

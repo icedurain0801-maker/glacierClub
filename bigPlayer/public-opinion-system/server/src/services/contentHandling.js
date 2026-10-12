@@ -2,6 +2,13 @@ const crypto = require('node:crypto');
 const METHODS = new Set(['notified', 'handled', 'false_positive']);
 const ACTIONABLE_SEVERITIES = new Set(['attention', 'negative', 'urgent']);
 const isHandlingEligible = item => ACTIONABLE_SEVERITIES.has(item.severity);
+function addHandlingStatusFilter(clauses, status, analysisAlias) {
+  if (!status) return;
+  if (!['pending', 'processed', 'not_required'].includes(status)) throw invalid('处理状态无效');
+  const eligible = `${analysisAlias}.severity IN ('attention','negative','urgent')`;
+  const handled = 'EXISTS (SELECT 1 FROM po_content_handlings ch WHERE ch.content_id=c.id)';
+  clauses.push(status === 'not_required' ? `COALESCE(${eligible},0)=0` : `(${eligible} AND ${status === 'pending' ? 'NOT ' : ''}${handled})`);
+}
 function invalid(message) { const error = new Error(message); error.code = 'INVALID_INPUT'; return error; }
 function parseBatchHandling(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw invalid('批量处理参数无效');
@@ -53,4 +60,4 @@ async function handleContents(repo, input, scope = {}) {
   } catch (error) { await conn.rollback(); throw error; }
   finally { conn.release(); }
 }
-module.exports = { parseBatchHandling, withContentHandling, handleContents, isHandlingEligible };
+module.exports = { parseBatchHandling, withContentHandling, handleContents, isHandlingEligible, addHandlingStatusFilter };

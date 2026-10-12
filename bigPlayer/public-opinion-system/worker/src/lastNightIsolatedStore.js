@@ -239,8 +239,11 @@ class LastNightIsolatedStore {
         fail('LAST_NIGHT_STORE_CURSOR_CONFLICT');
       }
       for (const item of input.items) {
-        if (!item.externalId || !['post', 'comment', 'reply'].includes(item.contentType) ||
-          (input.scope === 'posts' && item.contentType !== 'post')) fail('LAST_NIGHT_STORE_CONTENT_INVALID');
+        if (!item.externalId || !['post', 'activity', 'comment', 'reply'].includes(item.contentType) ||
+          (input.scope === 'posts' && !['post', 'activity'].includes(item.contentType)) ||
+          (input.scope !== 'posts' && ['post', 'activity'].includes(item.contentType))) {
+          fail('LAST_NIGHT_STORE_CONTENT_INVALID');
+        }
         if ((item.sourceId ?? item.source_id ?? SOURCE_ID) !== SOURCE_ID ||
           (item.siteId ?? item.site_id ?? input.siteId) !== input.siteId ||
           String(item.boardId ?? item.board_id ?? BOARD_ID) !== BOARD_ID ||
@@ -265,7 +268,7 @@ class LastNightIsolatedStore {
         [id, SOURCE_ID, input.siteId, BOARD_ID, item.contentType, String(item.externalId),
           String(item.rootPlatformContentId || input.rootPostId || ''), String(item.platformParentId || ''),
           item.title || '', item.body || '', item.authorName || '',
-          item.publishedAt ? utcSql(item.publishedAt) : null, item.sourceUrl || '', fingerprint]);
+          utcSql(published), item.sourceUrl || '', fingerprint]);
         const [contents] = await conn.query(`SELECT id FROM ln_contents WHERE source_id=? AND site_id=?
           AND board_id=? AND content_type=? AND external_id=?`,
         [SOURCE_ID, input.siteId, BOARD_ID, item.contentType, String(item.externalId)]);
@@ -346,6 +349,18 @@ class LastNightIsolatedStore {
           communityId: '00000000-0000-0000-0000-000000000102', regionCode: 'overseas' } }));
     } catch (error) { await conn.rollback().catch(() => {}); throw error; }
     finally { conn.release(); }
+  }
+
+  async renewAnalysisJobLease(id, leaseEpoch) {
+    if (!id || !Number.isSafeInteger(leaseEpoch) || leaseEpoch < 1) fail('LAST_NIGHT_STORE_AI_LEASE_INVALID');
+    const conn = await this.connection();
+    try {
+      const [result] = await conn.query(`UPDATE ln_analysis_jobs SET
+        lease_until=UTC_TIMESTAMP(3)+INTERVAL 300 SECOND WHERE id=? AND status='running'
+        AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)`,
+      [id, this.leaseOwner, leaseEpoch]);
+      if (result.affectedRows !== 1) fail('LAST_NIGHT_STORE_AI_LEASE_LOST');
+    } finally { conn.release(); }
   }
 
   async completeAnalysisJob(id, leaseEpoch, analysis, { queueDeep = false } = {}) {

@@ -218,8 +218,8 @@ test('BigPlayer automation opens the H5 login entry and accepts login1.q1.com', 
     async screenshot() { return Buffer.from('unused'); }
   });
   const loginFrame = { url: () => 'https://login1.q1.com/h5/account.html', locator: frameLocator };
-  const loginEntry = { first() { return this; }, async count() { return calls.clicks.includes('我的') ? 1 : 0; }, async click() { calls.clicks.push('去登录'); } };
-  const profileEntry = { first() { return this; }, async count() { return 1; }, async click() { calls.clicks.push('我的'); } };
+  const loginEntry = { first() { return this; }, async count() { return calls.clicks.includes('我的') ? 1 : 0; }, async isVisible() { return true; }, async click() { calls.clicks.push('去登录'); } };
+  const profileEntry = { first() { return this; }, async count() { return 1; }, async isVisible() { return true; }, async click() { calls.clicks.push('我的'); } };
   const page = {
     frames: () => calls.clicks.includes('去登录') ? [loginFrame] : [],
     getByText: text => text === '去登录' ? loginEntry : profileEntry,

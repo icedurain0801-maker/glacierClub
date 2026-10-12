@@ -1,8 +1,8 @@
-﻿const API = window.PUBLIC_OPINION_API || '/api/public-opinion';
+const API = window.PUBLIC_OPINION_API || '/api/public-opinion';
 const Detail = window.PublicOpinionAlertDetail;
 const Handling = window.PublicOpinionContentHandling;
 const RiskModes = window.PublicOpinionRiskModes;
-const state = { sources: [], contents: [], scope: null, contentMode: 'post', page: 1, pageSize: 50, total: 0, requestSerial: 0, statsSerial: 0, deepLinkOpened: '', publishedFrom: '', publishedTo: '' };
+const state = { sources: [], contents: [], scope: null, contentMode: 'attention', riskContentType: '', page: 1, pageSize: 50, total: 0, requestSerial: 0, statsSerial: 0, deepLinkOpened: '', publishedFrom: '', publishedTo: '' };
 const CONTENT_DATE_STORAGE_KEY = 'public-opinion:content:published-range';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -23,7 +23,7 @@ const analysisReasonText = item => {
   if (['retryable', 'failed'].includes(status)) return '分析原因生成失败，可重新分析。';
   return '暂无分析原因，可点击重新分析生成。';
 };
-const severityLabel = value => ({ urgent: '紧急', attention: '关注', normal: '正常' }[value] || '正常');
+const severityLabel = value => ({ urgent: '紧急告警', negative: '紧急告警', attention: '关注', normal: '正常' }[value] || '正常');
 const contentType = item => pick(item, 'content_type', 'contentType') || 'post';
 const hasRealTitle = item => String(pick(item, 'title') ?? '').trim().length > 0;
 const selectedPlatform = () => String(state.scope?.selected?.()?.platform || state.scope?.query?.().get('platform') || '').toLowerCase();
@@ -32,17 +32,16 @@ const bigPlayerDisplayType = item => pick(item, 'display_type', 'displayType') |
 const selectedBigPlayerContentKind = () => $('#bigPlayerContentKindFilter')?.value || '';
 function ensureBigPlayerContentKindFilter() {
   if ($('#bigPlayerContentKindFilter')) return;
-  $('#analysisLevelFilter')?.insertAdjacentHTML('afterend', '<select class="input" id="bigPlayerContentKindFilter" hidden><option value="">全部类型</option><option value="post">帖子</option><option value="dynamic">动态</option></select>');
+  $('#analysisLevelFilter')?.insertAdjacentHTML('afterend', '<select class="input" id="bigPlayerContentKindFilter" hidden><option value="">全部类型</option><option value="post">帖子</option><option value="dynamic">动态</option><option value="comment">评论</option></select>');
 }
 function updateBigPlayerContentKindFilter() {
   const filter = $('#bigPlayerContentKindFilter');
   if (!filter) return;
-  filter.hidden = !isBigPlayerScope();
-  if (!isBigPlayerScope()) filter.value = '';
-}
-function filterBigPlayerContentKinds(items) {
-  const kind = selectedBigPlayerContentKind();
-  return isBigPlayerScope() && kind ? items.filter(item => bigPlayerDisplayType(item) === kind) : items;
+  const enabled = isBigPlayerScope();
+  filter.hidden = !enabled;
+  if (!enabled) filter.value = '';
+  else if (state.contentMode === 'comment' || state.riskContentType === 'comment') filter.value = 'comment';
+  else if (filter.value === 'comment') filter.value = '';
 }
 const contentId = item => String(item.id || '');
 const commentCount = item => contentType(item) === 'post' ? Math.max(0, Number(pick(item, 'comment_count', 'commentCount')) || 0) : 0;
@@ -142,21 +141,20 @@ function scopePath(item) {
 }
 function emptyMessage() { return '暂无匹配内容'; }
 const riskModeParams = mode => ({ riskMode: mode, severity: RiskModes.severityForRiskMode(mode) });
-const modeConfig = { post: { label: '帖子内容', params: { contentType: 'post' } }, comment: { label: '评论内容', params: { contentType: 'comment' } }, negative: { label: '负面待处理', params: riskModeParams('negative') }, attention: { label: '关注级', params: riskModeParams('attention') } };
-function updateContentMode() { document.querySelectorAll('[data-content-mode]').forEach(card => { const active = card.dataset.contentMode === state.contentMode; card.classList.toggle('active', active); card.setAttribute('aria-pressed', String(active)); }); const label = modeConfig[state.contentMode]?.label || '帖子内容'; const hint = $('#resultHint'); if (hint) hint.textContent = label; }
-function applyContentMode(query) { Object.keys(modeConfig).forEach(mode => Object.keys(modeConfig[mode].params).forEach(key => query.delete(key))); const params = modeConfig[state.contentMode]?.params || modeConfig.post.params; if (params.riskMode) query.delete('sentiment'); Object.entries(params).forEach(([key, value]) => query.set(key, value)); }
+const modeConfig = { post: { label: '帖子内容', params: { contentType: 'post' } }, comment: { label: '评论内容', params: { contentType: 'comment' } }, negative: { label: '紧急告警', params: riskModeParams('negative') }, attention: { label: '关注级', params: riskModeParams('attention') }, urgent: { label: '紧急告警', params: riskModeParams('urgent') } };
+function updateContentMode() { document.querySelectorAll('[data-content-mode]').forEach(card => { const active = card.dataset.contentMode === state.contentMode; card.classList.toggle('active', active); card.setAttribute('aria-pressed', String(active)); }); const label = modeConfig[state.contentMode]?.label || '帖子内容'; const hint = $('#resultHint'); if (hint) hint.textContent = label + (state.riskContentType && ['negative', 'attention', 'urgent'].includes(state.contentMode) ? ' · ' + (state.riskContentType === 'post' ? '帖子/动态' : '评论') : ''); }
+function applyContentMode(query) { Object.keys(modeConfig).forEach(mode => Object.keys(modeConfig[mode].params).forEach(key => query.delete(key))); const params = modeConfig[state.contentMode]?.params || modeConfig.post.params; if (params.riskMode) query.delete('sentiment'); Object.entries(params).forEach(([key, value]) => query.set(key, value)); if (params.riskMode && state.riskContentType) query.set('contentType', state.riskContentType); }
 function statsQuery(baseQuery, filters = {}) {
   const query = new URLSearchParams(baseQuery || new URLSearchParams());
   for (const [key, value] of Object.entries(filters)) { if (value) query.set(key, value); else query.delete(key); }
   query.delete('contentType'); query.delete('riskMode'); query.delete('severity');
-  query.delete('sentiment');
+  query.delete('sentiment'); query.delete('bigPlayerContentKind');
   return query;
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { localDateString, nextDateString, normalizedPublishedRange, applyPublishedRange, exactPublishedRange, statsQuery, hasRealTitle, bigPlayerDisplayType, typeLabel, validDateValue, validDateRange, resolvePublishedRange };
 function renderTable(items) {
-  const kindFiltered = isBigPlayerScope() && Boolean(selectedBigPlayerContentKind());
-  if (!items.length) { $('#resultHint').textContent = kindFiltered ? '当前页 0 条（已按类型筛选）' : '共 0 条'; $('#tableContent').innerHTML = `<div class="empty">${esc(emptyMessage())}</div>`; return; }
-  $('#resultHint').textContent = kindFiltered ? `当前页 ${items.length} 条（已按类型筛选）` : `共 ${Number(state.total || items.length).toLocaleString()} 条（当前页 ${items.length} 条）`;
+  if (!items.length) { $('#resultHint').textContent = `共 ${Number(state.total || 0).toLocaleString()} 条`; $('#tableContent').innerHTML = `<div class="empty">${esc(emptyMessage())}</div>`; return; }
+  $('#resultHint').textContent = `共 ${Number(state.total || items.length).toLocaleString()} 条（当前页 ${items.length} 条）`;
   $('#tableContent').innerHTML = `<table class="table"><thead><tr><th class="handling-select"><input type="checkbox" id="handlingSelectAll" aria-label="全选当前页"></th><th>内容</th><th>帖子 ID</th><th>类型</th><th>处理状态</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${items.map(item => {
     const type = contentType(item);
     const displayType = bigPlayerDisplayType(item);
@@ -176,7 +174,7 @@ function renderTable(items) {
   $('#tableContent').querySelectorAll('[data-content]').forEach(button => { button.onclick = () => openContent(button.dataset.content); });
 }
 function normalizeDetail(raw, fallback) {
-  if (raw?.content) return { content: { ...fallback, ...raw.content }, comments: raw.comments || raw.children || [] };
+  if (raw?.content) return { content: { ...fallback, ...raw.content }, originalPost: raw.originalPost || null, comments: raw.comments || raw.children || [] };
   if (raw?.item) return { content: { ...fallback, ...raw.item }, comments: raw.comments || raw.children || [] };
   if (raw && !Array.isArray(raw)) return { content: { ...fallback, ...raw }, comments: raw.comments || raw.children || [] };
   return { content: fallback, comments: [] };
@@ -198,6 +196,7 @@ function renderThread(item, depth) {
 }
 function renderDetail(detail) {
   const item = detail.content;
+  Handling.bindDetail(item);
   const nested = flattenNodes(detail.comments);
   const flat = nested.length ? nested : buildFlatTree(state.contents, item);
   const integrity = pick(item, 'completeness', 'integrity', 'capability') || pick(detail, 'completeness', 'integrity') || 'unknown';
@@ -210,6 +209,7 @@ function renderDetail(detail) {
   const declaredCommentCount = Number(pick(item, 'total_comment_count', 'totalCommentCount', 'comment_count', 'commentCount') || engagementOf(item).comments || engagementOf(item).comment || 0);
   const commentsEmptyText = ['pending', 'running', 'retryable'].includes(commentsSyncStatus) || declaredCommentCount > 0 ? '评论仍在同步中，请稍后刷新' : commentsSyncStatus === 'failed' ? '评论同步失败，请查看采集源进度' : commentsSyncStatus === 'unauthorized' ? '评论接口未授权' : '暂无评论';
   $('#drawerContent').innerHTML = `<h2>${esc(item.title || '(无标题)')}</h2><div class="content-body" style="max-width:none">${esc(scopePath(item))} · ${esc(sourceName(item.source_id || item.sourceId || item.platform))} · ${esc(publishedAt(item))}</div><div class="detail-block"><div class="detail-label"><span>原文内容</span><span class="integrity ${integrity === 'unknown' ? 'unknown' : ''}">${esc(integrityText)}</span></div><div class="detail-text ${isDeleted(item) ? 'deleted' : ''}">${Detail.renderBodyWithImages(item.body || '', esc)}</div>${renderTranslation(item)}</div><div class="detail-block"><div class="detail-label">来源信息</div><div class="meta-grid"><div><span>作者</span><br>${esc(authorName(item))}</div><div><span>平台作者 ID</span><br>${esc(authorPlatformId(item))}</div><div><span>内容状态</span><br>${isDeleted(item) ? '已删除 / 隐藏' : '正常'}</div><div><span>来源链接</span><br>${sourceUrl ? `<a href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">打开来源</a>` : '-'}</div></div></div><div class="detail-block"><div class="detail-label"><span>AI 分析</span><button class="btn" id="reanalyzeBtn" ${isDeleted(item) || !canReanalyze ? 'disabled' : ''}>重新分析</button></div><div class="sentiment-result"><span class="sentiment-badge ${esc(sentiment)}">${sentimentLabel(sentiment)}</span><div class="analysis-reason">${esc(analysisReasonText(item))}</div></div><div class="meta-grid"><div><span>风险等级</span><br><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></div><div><span>分析状态</span><br><span class="analysis-status ${esc(status)}">${esc(analysisStatusLabel(status))}</span></div></div></div><div class="detail-block"><div class="detail-label"><span>评论（包含评论内回复）</span><span>${flat.length} 条</span></div><div class="tree">${flat.length ? flat.map(({ node, depth }) => renderThread(node, depth)).join('') : `<div class="empty" style="padding:24px">${esc(commentsEmptyText)}</div>`}</div></div>`;
+  if (item.content_type === 'comment') $('#drawerContent').insertAdjacentHTML('beforeend', '<div class="detail-block original-post"><div class="detail-label">所属原帖</div>' + (detail.originalPost ? Detail.renderContentNode(detail.originalPost, new Set(), detail.originalPost.is_deleted ? '原帖（已删除 / 隐藏）' : '原帖', esc) : '<div class="detail-text">原帖暂未采集或不可访问</div>') + '</div>');
   if (bigPlayerDisplayType(item) === 'dynamic') $('#drawerContent h2').textContent = '动态';
   const button = $('#reanalyzeBtn');
   if (button && canReanalyze) button.onclick = async () => {
@@ -218,17 +218,20 @@ function renderDetail(detail) {
     catch (error) { button.disabled = false; button.textContent = '重新分析'; toast(`提交失败：${error.message}`); }
   };
 }
+let contentDetailSerial = 0;
 async function openContent(id) {
+  Handling.clearDetail();
+  const serial = ++contentDetailSerial;
   const fallback = state.contents.find(item => contentId(item) === String(id));
   $('#drawerContent').innerHTML = '<div class="empty">加载详情…</div>'; $('#drawerMask').classList.add('open'); updateUrl(id);
-  try { const scope = state.scope?.query?.() || new URLSearchParams(); renderDetail(normalizeDetail(await api(`/contents/${encodeURIComponent(id)}?${scope}`), fallback || { id })); }
-  catch (error) { if (error.name === 'AbortError') return; if (fallback) renderDetail({ content: fallback, comments: [] }); else { closeDrawer(); toast(error.status === 404 ? '舆情内容已删除或不存在' : `内容加载失败：${error.message}`); } }
+  try { const scope = state.scope?.query?.() || new URLSearchParams(); const detail = await api(`/contents/${encodeURIComponent(id)}?${scope}`); if (serial === contentDetailSerial && $('#drawerMask').classList.contains('open')) renderDetail(normalizeDetail(detail, fallback || { id })); }
+  catch (error) { if (error.name === 'AbortError' || serial !== contentDetailSerial || !$('#drawerMask').classList.contains('open')) return; if (fallback) { renderDetail({ content: fallback, comments: [] }); const root = $('#drawerContent .original-post .detail-text'); if (root) root.textContent = '原帖加载失败，请关闭后重试'; } else { closeDrawer(); toast(error.status === 404 ? '舆情内容已删除或不存在' : `内容加载失败：${error.message}`); } }
 }
 function toast(message) { const element = $('#toast'); element.textContent = message; element.classList.add('show'); setTimeout(() => element.classList.remove('show'), 2400); }
 function updateUrl(content = '', historyMode = 'replace') {
   const params = state.scope?.query?.() || new URLSearchParams();
   const range = normalizedPublishedRange();
-  [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { if ($(selector).value) params.set(key, $(selector).value); else params.delete(key); });
+  [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['handlingStatus', '#handlingStatusFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { if ($(selector).value) params.set(key, $(selector).value); else params.delete(key); });
   const kind = selectedBigPlayerContentKind();
   if (isBigPlayerScope() && kind) params.set('bigPlayerContentKind', kind); else params.delete('bigPlayerContentKind');
   applyPublishedRange(params);
@@ -236,11 +239,11 @@ function updateUrl(content = '', historyMode = 'replace') {
   state.publishedFrom = range.from; state.publishedTo = range.to; savePublishedRange(range); updateDatePresetState();
   params.delete('contentMode'); params.delete('contentType'); params.delete('riskMode'); params.delete('sentiment'); params.delete('severity');
   Object.entries(modeConfig[state.contentMode]?.params || modeConfig.post.params).forEach(([key, value]) => params.set(key, value));
-  params.set('contentMode', state.contentMode);
+  params.set('contentMode', state.contentMode); if (['negative', 'attention', 'urgent'].includes(state.contentMode) && state.riskContentType) params.set('contentType', state.riskContentType);
   if (state.page > 1) params.set('page', String(state.page)); if (state.pageSize !== 50) params.set('pageSize', String(state.pageSize)); if (content) params.set('contentId', content);
   history[historyMode === 'push' ? 'pushState' : 'replaceState'](null, '', `${window.location.pathname}${params.toString() ? `?${params}` : ''}`);
 }
-function closeDrawer() { $('#drawerMask').classList.remove('open'); updateUrl(); }
+function closeDrawer() { ++contentDetailSerial; Handling.clearDetail(); $('#drawerMask').classList.remove('open'); updateUrl(); }
 function accountOptions() {
   const accounts = [];
 }
@@ -256,9 +259,12 @@ async function load(resetPage = false) {
   if (lifecycle && !lifecycle.allowed) { state.contents = []; state.total = 0; $('#resultHint').textContent = '当前地区暂无可用社区'; $('#tableContent').innerHTML = '<div class="empty">当前地区暂无可用社区</div>'; $('#pageHint').textContent = '无可用社区'; return; }
   try {
     const query = state.scope?.query?.() || new URLSearchParams(); query.set('page', String(state.page)); query.set('pageSize', String(state.pageSize));
-    [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { if ($(selector).value) query.set(key, $(selector).value); else query.delete(key); });
+    [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['handlingStatus', '#handlingStatusFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { if ($(selector).value) query.set(key, $(selector).value); else query.delete(key); });
     applyPublishedRange(query);
     applyContentMode(query);
+    updateBigPlayerContentKindFilter();
+    const kind = selectedBigPlayerContentKind();
+    if (isBigPlayerScope() && ['post', 'dynamic'].includes(kind)) query.set('bigPlayerContentKind', kind); else query.delete('bigPlayerContentKind');
     const response = await fetch(`${API}/contents?${query}`, { headers: { 'content-type': 'application/json' }, signal: lifecycle?.signal });
     let body = {};
     try {
@@ -270,7 +276,7 @@ async function load(resetPage = false) {
       throw error;
     }
     if (!response.ok) throw new Error(body.error?.message || body.message || `请求失败 (${response.status})`); if (serial !== state.requestSerial || !lifecycle?.isCurrent?.()) return;
-    const result = body.data ?? body; state.contents = Array.isArray(result) ? result : result.items || result.rows || []; state.total = Number(body.meta?.total ?? result.total ?? state.contents.length); renderTable(filterBigPlayerContentKinds(state.contents)); updateContentMode();
+    const result = body.data ?? body; state.contents = Array.isArray(result) ? result : result.items || result.rows || []; state.total = Number(body.meta?.total ?? result.total ?? state.contents.length); updateContentMode(); renderTable(state.contents);
     const pages = Math.max(1, Math.ceil(state.total / state.pageSize)); $('#pageHint').textContent = `第 ${state.page} / ${pages} 页，共 ${state.total} 条`; $('#prevPage').disabled = state.page <= 1; $('#nextPage').disabled = state.page >= pages; updateUrl();
   } catch (error) { if (error.name === 'AbortError' || serial !== state.requestSerial || !lifecycle?.isCurrent?.()) return; state.contents = []; state.total = 0; $('#resultHint').textContent = error.code === 'AI_ANALYSIS_NOT_CONFIGURED' ? 'AI 分析未配置' : '服务未连接'; $('#tableContent').innerHTML = `<div class="empty">${error.code === 'AI_ANALYSIS_NOT_CONFIGURED' ? 'AI 分析未配置，当前内容不会自动生成分析结果' : `服务不可用：${esc(error.message)}`}</div>`; $('#pageHint').textContent = '加载失败'; } finally { lifecycle?.release?.(); }
 }
@@ -278,7 +284,7 @@ let progressTimer = null;
 let progressSerial = 0;
 function progressQuery() {
   const query = new URLSearchParams(state.scope?.query?.() || new URLSearchParams());
-  [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { if ($(selector).value) query.set(key, $(selector).value); else query.delete(key); });
+  [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['handlingStatus', '#handlingStatusFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { if ($(selector).value) query.set(key, $(selector).value); else query.delete(key); });
   applyPublishedRange(query); applyContentMode(query); query.delete('platform'); query.delete('page'); query.delete('pageSize'); return query;
 }
 function renderAnalysisProgress(data) {
@@ -297,12 +303,12 @@ async function pollProgress() {
 function loadStats() {
   const serial = ++state.statsSerial;
   const lifecycle = state.scope?.beginRequest?.();
-  if (lifecycle && !lifecycle.allowed) { ['#statPost', '#statComment', '#statNegative', '#statAttention'].forEach(selector => { const element = $(selector); if (element) element.textContent = '—'; }); return; }
-  const query = statsQuery(state.scope?.query?.(), Object.fromEntries([['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].map(([key, selector]) => [key, $(selector).value])));
+  if (lifecycle && !lifecycle.allowed) { ['#statPost', '#statComment', '#statNegative', '#statAttention', '#statUrgent'].forEach(selector => { const element = $(selector); if (element) element.textContent = '—'; }); return; }
+  const query = statsQuery(state.scope?.query?.(), Object.fromEntries([['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['handlingStatus', '#handlingStatusFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].map(([key, selector]) => [key, $(selector).value])));
   applyPublishedRange(query);
   const set = (selector, value) => { const element = $(selector); if (element) element.textContent = value == null ? '—' : Number(value).toLocaleString(); };
-  ['#statPost', '#statComment', '#statNegative', '#statAttention'].forEach(selector => set(selector, null));
-  fetch(`${API}/contents/stats?${query}`, { headers: { 'content-type': 'application/json' }, signal: lifecycle?.signal })
+  ['#statPost', '#statComment', '#statNegative', '#statAttention', '#statUrgent'].forEach(selector => set(selector, null));
+  return fetch(`${API}/contents/stats?${query}`, { headers: { 'content-type': 'application/json' }, signal: lifecycle?.signal })
     .then(async response => {
       let body = {};
       try {
@@ -318,34 +324,44 @@ function loadStats() {
     })
     .then(stats => {
       if (serial !== state.statsSerial || !lifecycle?.isCurrent?.()) return;
-      set('#statPost', stats.post); set('#statComment', stats.comment); set('#statNegative', stats.negative); set('#statAttention', stats.attention);
+      set('#statPost', stats.post); set('#statComment', stats.comment); set('#statNegative', stats.negative); set('#statAttention', stats.attention); set('#statUrgent', stats.urgent);
     })
     .catch(error => {
       if (error.name === 'AbortError' || serial !== state.statsSerial || !lifecycle?.isCurrent?.()) return;
-      ['#statPost', '#statComment', '#statNegative', '#statAttention'].forEach(selector => { const element = $(selector); if (element) element.textContent = '加载失败'; });
+      ['#statPost', '#statComment', '#statNegative', '#statAttention', '#statUrgent'].forEach(selector => { const element = $(selector); if (element) element.textContent = '加载失败'; });
       toast(`统计加载失败：${error.message}`);
     }).finally(() => lifecycle?.release?.());
   pollProgress();
 }
 function restoreUrl(params = new URLSearchParams(window.location.search)) {
   state.page = Math.max(1, Number(params.get('page') || 1)); state.pageSize = [20, 50, 100].includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 50; $('#pageSize').value = String(state.pageSize);
-  [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { const value = params.get(key) || ''; const element = $(selector); element.value = (selector === '#keywordFilter' || selector === '#postIdFilter' || [...(element.options || [])].some(option => option.value === value)) ? value : ''; });
+  [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['handlingStatus', '#handlingStatusFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { const value = params.get(key) || ''; const element = $(selector); element.value = (selector === '#keywordFilter' || selector === '#postIdFilter' || [...(element.options || [])].some(option => option.value === value)) ? value : ''; });
   updateBigPlayerContentKindFilter();
   const kind = params.get('bigPlayerContentKind'); const kindFilter = $('#bigPlayerContentKindFilter');
   if (isBigPlayerScope() && kind && [...(kindFilter?.options || [])].some(option => option.value === kind)) kindFilter.value = kind;
   const restoredRange = resolvePublishedRange(params); state.exactRange = restoredRange?.exact || null;
   $('#publishedFromFilter').value = restoredRange?.from || localDateString(new Date()); $('#publishedToFilter').value = restoredRange?.to || localDateString(new Date()); const range = normalizedPublishedRange(); state.publishedFrom = range.from; state.publishedTo = range.to; updateDatePresetState();
-  const legacyMode = { post: 'post', comment: 'comment' }[params.get('contentType')]; const riskMode = RiskModes.normalizeRiskMode(params.get('riskMode')); state.contentMode = modeConfig[params.get('contentMode')] ? params.get('contentMode') : (riskMode || legacyMode || 'post'); updateContentMode();
+  const legacyMode = { post: 'post', comment: 'comment' }[params.get('contentType')]; const riskMode = RiskModes.normalizeRiskMode(params.get('riskMode')); state.contentMode = modeConfig[params.get('contentMode')] ? params.get('contentMode') : (riskMode || legacyMode || 'attention'); if (state.contentMode === 'negative') state.contentMode = 'urgent'; updateContentMode();
+  state.riskContentType = ['negative', 'attention', 'urgent'].includes(state.contentMode) && ['post', 'comment'].includes(params.get('contentType')) ? params.get('contentType') : '';
+  updateContentMode();
+  updateBigPlayerContentKindFilter();
   return params.get('contentId');
 }
 function bind() {
-  Handling.init({ state, api, esc, toast, reload: () => load() });
+  Handling.init({ state, api, esc, toast, closeDetail: closeDrawer, reload: () => Promise.all([load(), loadStats()]) });
   ensureBigPlayerContentKindFilter();
   const query = () => { state.page = 1; normalizedPublishedRange(); updateUrl('', 'push'); load(); loadStats(); };
   const queryButton = $('#queryBtn'); if (queryButton) queryButton.onclick = query;
   document.querySelectorAll('[data-date-preset]').forEach(button => { button.onclick = () => { const today = localDateString(new Date()); const values = { today: [today, today], yesterday: [yesterdayString(), yesterdayString()], '7d': [dateDaysAgo(6), today], '30d': [dateDaysAgo(29), today], clear: ['', ''] }[button.dataset.datePreset]; if (!values) return; state.exactRange = null; $('#publishedFromFilter').value = values[0]; $('#publishedToFilter').value = values[1]; query(); }; });
-  document.querySelectorAll('[data-content-mode]').forEach(card => { const activate = () => { const mode = card.dataset.contentMode; if (mode === state.contentMode) return; state.contentMode = mode; updateContentMode(); query(); }; card.onclick = activate; card.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }; });
-  ['#sentimentFilter', '#analysisStatusFilter', '#analysisLevelFilter', '#bigPlayerContentKindFilter', '#publishedFromFilter', '#publishedToFilter'].forEach(selector => { $(selector).onchange = query; });
+  document.querySelectorAll('[data-content-mode]').forEach(card => { const activate = () => { const mode = card.dataset.contentMode; if (mode === state.contentMode) return; state.contentMode = mode; state.riskContentType = ''; updateContentMode(); query(); }; card.onclick = activate; card.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }; });
+  ['#sentimentFilter', '#analysisStatusFilter', '#analysisLevelFilter', '#handlingStatusFilter', '#publishedFromFilter', '#publishedToFilter'].forEach(selector => { $(selector).onchange = query; });
+  $('#bigPlayerContentKindFilter').onchange = () => {
+    const kind = selectedBigPlayerContentKind();
+    const riskMode = Boolean(modeConfig[state.contentMode]?.params.riskMode);
+    if (riskMode) state.riskContentType = kind === 'comment' ? 'comment' : (kind ? 'post' : '');
+    else { state.contentMode = kind === 'comment' ? 'comment' : 'post'; state.riskContentType = ''; }
+    updateContentMode(); query();
+  };
   $('#keywordFilter').onkeydown = event => { if (event.key === 'Enter') query(); }; $('#postIdFilter').onkeydown = event => { if (event.key === 'Enter') query(); };
   const paginate = delta => { state.page += delta; updateUrl('', 'push'); load(); };
   $('#prevPage').onclick = () => { if (state.page > 1) paginate(-1); }; $('#nextPage').onclick = () => paginate(1);
@@ -355,5 +371,5 @@ function bind() {
   window.addEventListener('popstate', () => { state.restoringHistory = true; stopProgressPolling(); });
   window.addEventListener('pagehide', () => { state.requestSerial += 1; stopProgressPolling(); });
 }
-async function scopeChanged() { const params = new URLSearchParams(location.search); $('#drawerMask').classList.remove('open'); state.deepLinkOpened = ''; state.sources = []; const restoring = Boolean(state.restoringHistory); state.restoringHistory = false; if (restoring) restoreUrl(params); updateBigPlayerContentKindFilter(); const epoch = state.scope.epoch(); await loadFilters(); if (epoch !== state.scope.epoch()) return; loadStats(); await load(!restoring); if (restoring && params.get('contentId')) openContent(params.get('contentId')); }
+async function scopeChanged() { Handling.clearDetail(); const params = new URLSearchParams(location.search); $('#drawerMask').classList.remove('open'); state.deepLinkOpened = ''; state.sources = []; const restoring = Boolean(state.restoringHistory); state.restoringHistory = false; if (restoring) restoreUrl(params); updateBigPlayerContentKindFilter(); const epoch = state.scope.epoch(); await loadFilters(); if (epoch !== state.scope.epoch()) return; loadStats(); await load(!restoring); if (restoring && params.get('contentId')) openContent(params.get('contentId')); }
 if (typeof module === 'undefined' || !module.exports) { bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }); updateBigPlayerContentKindFilter(); await loadFilters(); const deepLink = restoreUrl(); loadStats(); await load(); if (deepLink) openContent(deepLink); })(); }

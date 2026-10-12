@@ -123,7 +123,7 @@ class Q1AnalysisRunner {
         let cursor = 0; results = results.map(result => result || fresh[cursor++]);
       }
       for (let i = 0; i < jobs.length; i += 1) {
-        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint, { title: job.title, body: job.body }), analysisVersion: results[i]?.analysisVersion || spec.version, triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
+        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint, { title: job.title, body: job.body }), analysisVersion: results[i]?.analysisVersion || spec.version, normalizationBatchId: this.claimOwner, cacheKey: keys[i], triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
         await this.repo.insertAnalysis(job.content_id, analysis);
         if (typeof this.repo.reconcilePositiveRiskAlerts === 'function') await this.repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: this.claimOwner });
         if (!cached.has(keys[i])) await this.repo.upsertAnalysisCache({ ...analysis, cacheKey: keys[i], contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });

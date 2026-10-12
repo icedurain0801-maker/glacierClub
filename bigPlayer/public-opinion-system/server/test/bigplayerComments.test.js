@@ -42,3 +42,15 @@ test('COMMENT-03 filters replies by their own timestamp using the same half-open
   assert.equal(page.items.some(item => item.externalId === '202'), false);
   assert.equal(page.items.every(item => Date.parse(item.publishedAt) >= Date.parse('2026-09-10T16:00:00Z') && Date.parse(item.publishedAt) < Date.parse('2026-09-11T16:00:00Z')), true);
 });
+
+test('overseas preserves an old top comment as context for a window-new reply only', async () => {
+  const connector = new BigPlayerH5Connector({}, { credentialContext: credentials, fetchImpl: async url => ({ ok: true, status: 200, url: String(url),
+    json: async () => ({ code: 0, total: 1, hasMore: false, data: [{ id: 1, content: 'old parent', createTime: '2020-01-01T00:00:00Z',
+      replies: [{ id: 2, content: 'new reply', createTime: '2026-09-10T18:00:00Z' }] }] }) }) });
+  const overseas = { ...source, region_code: 'overseas', config: { baseUrl: 'https://club-en.q1.com/?env=web&gameId=3000&gameVersion=3000-US-ZS' } };
+  const page = await connector.listComments({ source: overseas, postId: '123', dailyBounded: true,
+    publishedFrom: '2026-09-10T16:00:00Z', publishedTo: '2026-09-11T16:00:00Z' });
+  assert.equal(page.items[0].externalId, '1'); assert.equal(page.items[0].recoveryContextAncestor, true);
+  assert.equal(page.items[0].publishedAt, '2020-01-01T00:00:00Z');
+  assert.equal(page.items[0].replies[0].platformParentId, '1'); assert.equal(page.items[0].replies[0].externalId, '2');
+});

@@ -29,7 +29,7 @@ test('neutral consultation and neutral concrete problem have separate progressiv
     { i: 2, s: 'negative', v: 'urgent', n: 0.9, gx: true, gc: true, ge: '账号被盗' }
   ]), async () => {
     const result = await ai.analyzeBatch([{ body: '匹配机制怎么用' }, { body: '奖励未到账' }, { body: '账号被盗，全部道具丢失' }]);
-    assert.deepEqual(result.map(item => item.severity), ['attention', 'negative', 'urgent']);
+    assert.deepEqual(result.map(item => item.severity), ['normal', 'negative', 'urgent']);
   });
 });
 
@@ -432,7 +432,7 @@ test('light/deep use the same serial gates and prohibit score-only escalation', 
   for (const profile of [ai.profiles.light, ai.profiles.deep]) {
     const system = ai.buildMessages([{ title: '标题', body: '正文' }], profile)[0].content;
     assert.match(system, /negative_score>0\.50仅辅助/);
-    assert.match(system, /GATE1无明确实际问题→L1/);
+    assert.match(system, /GATE1有不满\/疑似问题但无明确实际问题→L1/);
     assert.match(system, /必须已过GATE1/);
     assert.match(system, /互斥单选/);
   }
@@ -442,7 +442,8 @@ test('severity 新提示词 schema 使旧缓存失效但不改变历史 analysis
   const ai = new AiAnalyzer({ ...ENV, AI_ANALYSIS_VERSION: 'existing-version' });
   for (const profile of [ai.profiles.light, ai.profiles.deep]) {
     const payload = {
-      promptSchemaVersion: 'sentiment-quality-verifiable-issue-gates-v8',
+      promptSchemaVersion: 'sentiment-quality-verifiable-issue-gates-v10-neutral-no-risk',
+      retentionPolicyVersion: 'v9-retention',
       regionCode: 'legacy-unassigned', gameId: 'legacy-unassigned',
       communityId: 'legacy-unassigned', platform: 'legacy-unassigned',
       fingerprint: 'same-content', profile: profile.name, model: profile.model, version: 'existing-version', evidenceTypes: [], riskMetadata: {}

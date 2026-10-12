@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { buildDeps, heartbeatWorkerId, runOnce, runUnifiedSchedulerSeam } = require('../src/worker');
+const { createDrainController } = require('../src/workerDrainController');
 
 const NOW = new Date('2026-09-09T02:00:00.000Z');
 
@@ -10,7 +11,7 @@ function schedulerSchemaConnection({ ready = true, missingColumn = false, missin
     async query(sql) {
       if (error) throw error;
       if (sql.includes('/* board-schema-030 */')) return [[{
-        board_migration_ready: 1, board_run_columns_ready: 1, board_content_columns_ready: 1, board_run_index_ready: 1, board_content_index_ready: 1, ...boardSchema
+        board_migration_ready: 1, board_run_columns_ready: 1, board_content_columns_ready: 1, board_run_index_ready: 1, board_content_index_ready: 1, board_legacy_indexes_removed: 1, ...boardSchema
       }]];
       assert.match(sql, /information_schema\.tables/i);
       assert.match(sql, /information_schema\.columns/i);
@@ -136,6 +137,47 @@ test('enabled mode calls the injected job with injected dependencies after schem
   assert.equal(calls[0].idFactory(), 'run-1');
 });
 
+test('drain during schema admission prevents a new scheduler write phase', async () => {
+  const drainController = createDrainController();
+  const schema = schedulerSchemaConnection();
+  let releaseRead, readStarted;
+  const started = new Promise(resolve => { readStarted = resolve; });
+  const released = new Promise(resolve => { releaseRead = resolve; });
+  let called = 0;
+  const pending = runUnifiedSchedulerSeam({
+    mode: 'enabled', drainController,
+    connection: { async query(sql) { readStarted(); await released; return schema.query(sql); } },
+    workerId: 'worker-a', now: NOW, connectorCapabilities: {},
+    runJob: async () => { called += 1; }
+  });
+  await started;
+  drainController.request();
+  releaseRead();
+  assert.deepEqual(await pending, { status: 'skipped', reasonCode: 'WORKER_DRAINING' });
+  assert.equal(called, 0);
+  assert.equal(drainController.stats().active, 0);
+});
+
+test('admitted scheduler write phase retains its ticket until completion during drain', async () => {
+  const drainController = createDrainController();
+  let finishJob, jobStarted;
+  const started = new Promise(resolve => { jobStarted = resolve; });
+  const finished = new Promise(resolve => { finishJob = resolve; });
+  const expected = { status: 'completed' };
+  const pending = runUnifiedSchedulerSeam({
+    mode: 'enabled', drainController, connection: schedulerSchemaConnection(),
+    workerId: 'worker-a', now: NOW, connectorCapabilities: {},
+    runJob: async () => { jobStarted(); await finished; return expected; }
+  });
+  await started;
+  drainController.request();
+  assert.equal(drainController.stats().active, 1);
+  finishJob();
+  assert.strictEqual(await pending, expected);
+  await drainController.whenIdle();
+  assert.equal(drainController.stats().active, 0);
+});
+
 test('enabled recovery gate skips scheduler writes entirely', async () => {
   let called = 0;
   const result = await runUnifiedSchedulerSeam({
@@ -242,7 +284,7 @@ test('scheduler admission rejects a missing runtime migration', async () => {
 });
 
 test('scheduler admission rejects each missing board schema requirement before running work', async () => {
-  for (const flag of ['board_migration_ready', 'board_run_columns_ready', 'board_content_columns_ready', 'board_run_index_ready', 'board_content_index_ready']) {
+  for (const flag of ['board_migration_ready', 'board_run_columns_ready', 'board_content_columns_ready', 'board_run_index_ready', 'board_content_index_ready', 'board_legacy_indexes_removed']) {
     let called = 0;
     const result = await runUnifiedSchedulerSeam({ mode: 'enabled', connection: schedulerSchemaConnection({ boardSchema: { [flag]: 0 } }), workerId: 'worker-a', now: NOW, connectorCapabilities: {}, runJob: async () => { called += 1; } });
     assert.deepEqual(result, { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' }, flag);

@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: new trusted response safely reuses old identity without re-marking historical raw
+ok 1 - new trusted response safely reuses old identity without re-marking historical raw
+  ---
+  duration_ms: 6.7934
+  type: 'test'
+  ...
+# Subtest: different historical site is preserved as historical observation
+ok 2 - different historical site is preserved as historical observation
+  ---
+  duration_ms: 0.4941
+  type: 'test'
+  ...
+# Subtest: fake and cross-instance proofs cannot admit reuse
+ok 3 - fake and cross-instance proofs cannot admit reuse
+  ---
+  duration_ms: 1.0224
+  type: 'test'
+  ...
+# Subtest: actual provider ID and board conflicts cannot mint proofs
+ok 4 - actual provider ID and board conflicts cannot mint proofs
+  ---
+  duration_ms: 0.6446
+  type: 'test'
+  ...
+# Subtest: existing board/version conflicts and substituted raw payload reject
+ok 5 - existing board/version conflicts and substituted raw payload reject
+  ---
+  duration_ms: 1.1599
+  type: 'test'
+  ...
+# Subtest: outside-window normal reuse fails closed
+ok 6 - outside-window normal reuse fails closed
+  ---
+  duration_ms: 0.3475
+  type: 'test'
+  ...
+# Subtest: same fingerprint cannot conceal changed body or deleted content
+ok 7 - same fingerprint cannot conceal changed body or deleted content
+  ---
+  duration_ms: 0.6053
+  type: 'test'
+  ...
+# Subtest: offline actual session connector page repository and atomic job SQL
+ok 8 - offline actual session connector page repository and atomic job SQL
+  ---
+  duration_ms: 21.3202
+  type: 'test'
+  ...
+# Subtest: invalid network contract prevents every connector/transport call
+ok 9 - invalid network contract prevents every connector/transport call
+  ---
+  duration_ms: 5.6133
+  type: 'test'
+  ...
+# Subtest: explicit non-target route preserves source, deps, and zero identity SQL
+ok 10 - explicit non-target route preserves source, deps, and zero identity SQL
+  ---
+  duration_ms: 0.4878
+  type: 'test'
+  ...
+# Subtest: non-target uses exact original dependency object
+ok 11 - non-target uses exact original dependency object
+  ---
+  duration_ms: 1.3476
+  type: 'test'
+  ...
+# Subtest: overseas route isolates page store and connector without mutating originals
+ok 12 - overseas route isolates page store and connector without mutating originals
+  ---
+  duration_ms: 0.5917
+  type: 'test'
+  ...
+# Subtest: invalid identity and missing adapter never fall back to legacy
+ok 13 - invalid identity and missing adapter never fall back to legacy
+  ---
+  duration_ms: 0.6798
+  type: 'test'
+  ...
+# Subtest: drain rejects new admissions, retains active work and releases once
+ok 14 - drain rejects new admissions, retains active work and releases once
+  ---
+  duration_ms: 0.8812
+  type: 'test'
+  ...
+# Subtest: canonical JOIN supplies missing region without querying credentials
+ok 15 - canonical JOIN supplies missing region without querying credentials
+  ---
+  duration_ms: 2.3288
+  type: 'test'
+  ...
+# Subtest: non-run preserves default-account selection
+ok 16 - non-run preserves default-account selection
+  ---
+  duration_ms: 0.2191
+  type: 'test'
+  ...
+# Subtest: missing and conflicting JOIN identities fail closed
+ok 17 - missing and conflicting JOIN identities fail closed
+  ---
+  duration_ms: 1.9506
+  type: 'test'
+  ...
+# Subtest: unknown enum and supplied conflicting scope fail closed
+ok 18 - unknown enum and supplied conflicting scope fail closed
+  ---
+  duration_ms: 0.5256
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20647.7179

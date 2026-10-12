@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: analysis and cache writes enforce final severity with transactional append-only provenance
+ok 1 - analysis and cache writes enforce final severity with transactional append-only provenance
+  ---
+  duration_ms: 3.7879
+  type: 'test'
+  ...
+# Subtest: insertAnalysis keeps task trigger and model explanation in separate columns
+ok 2 - insertAnalysis keeps task trigger and model explanation in separate columns
+  ---
+  duration_ms: 1.3699
+  type: 'test'
+  ...
+# Subtest: insertAnalysis never falls back from model explanation to task trigger
+ok 3 - insertAnalysis never falls back from model explanation to task trigger
+  ---
+  duration_ms: 0.8412
+  type: 'test'
+  ...
+# Subtest: getOverview 返回完整归属的 trend、hotNegative 与当前告警
+ok 4 - getOverview 返回完整归属的 trend、hotNegative 与当前告警
+  ---
+  duration_ms: 2.6567
+  type: 'test'
+  ...
+# Subtest: getOverview reuses content stats and negative list without extra type or status predicates
+ok 5 - getOverview reuses content stats and negative list without extra type or status predicates
+  ---
+  duration_ms: 0.5109
+  type: 'test'
+  ...
+# Subtest: progressive filters share nested severities across list count and tree
+ok 6 - progressive filters share nested severities across list count and tree
+  ---
+  duration_ms: 1.2628
+  type: 'test'
+  ...
+# Subtest: getOverview publication total includes posts/dynamics and comments in the same scope
+ok 7 - getOverview publication total includes posts/dynamics and comments in the same scope
+  ---
+  duration_ms: 0.7586
+  type: 'test'
+  ...
+# Subtest: getOverview both mixed columns use stable publication order and Top10 SQL
+ok 8 - getOverview both mixed columns use stable publication order and Top10 SQL
+  ---
+  duration_ms: 0.6887
+  type: 'test'
+  ...
+# Subtest: riskMode list and count share progressive content sets
+ok 9 - riskMode list and count share progressive content sets
+  ---
+  duration_ms: 2.0693
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 520.9671

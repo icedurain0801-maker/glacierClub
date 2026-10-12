@@ -35,7 +35,6 @@
   function defaultCommunity(regionCode, preferred) {
     const enabled = state.communities.filter(isEnabled); const preferences = Array.isArray(preferred) ? preferred : [preferred]; const matched = preferences.map(value => enabled.find(item => communityMatches(item, value))).find(Boolean);
     if (matched) return matched;
-    if (regionCode === DEFAULT_REGION) return enabled.find(item => String(item.externalId ?? item.external_id ?? '') === DEFAULT_DOMESTIC_EXTERNAL_ID) || enabled.find(item => item.name === '超能世界') || enabled[0];
     return enabled[0];
   }
   function readSession() { try { const value = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}'); return { regionCode: validRegion(value.regionCode), communityId: value.communityId || '' }; } catch (_) { return {}; } }
@@ -134,20 +133,20 @@
     if (!platformHost.querySelector('[data-po-platform-select]')) platformHost.insertAdjacentHTML('afterbegin', '<select class="select" data-po-platform-select aria-label="数据平台"></select>');
     state.platformControl = platformHost.querySelector('[data-po-platform-select]');
     const url = new URLSearchParams(location.search); const saved = readSession(); const urlRegion = url.get('regionCode');
-    const initial = await normalize({ preferredRegion: PLATFORM_GROUPS[urlRegion] ? urlRegion : saved.regionCode, preferredCommunity: [url.get('communityId'), saved.communityId, DEFAULT_DOMESTIC_EXTERNAL_ID], preferredPlatform: url.get('platform') || DEFAULT_PLATFORM, reason: 'init', urlMode: 'replace', notifyChange: false });
+    const initial = await normalize({ preferredRegion: PLATFORM_GROUPS[urlRegion] ? urlRegion : saved.regionCode, preferredCommunity: [url.get('communityId'), saved.communityId], preferredPlatform: url.get('platform') || DEFAULT_PLATFORM, reason: 'init', urlMode: 'replace', notifyChange: false });
     if (!initial) return null;
     const { region, community, platform } = controls();
-    region.onchange = async () => { await normalize({ preferredRegion: region.value, preferredCommunity: region.value === DEFAULT_REGION ? DEFAULT_DOMESTIC_EXTERNAL_ID : '', preferredPlatform: state.platform, reason: 'region', urlMode: 'push', notifyChange: true }); };
-    community.onchange = () => { advanceEpoch(false); state.communityId = community.value; syncUrl('push'); notify('community'); };
+    region.onchange = async () => { await normalize({ preferredRegion: region.value, preferredCommunity: '', preferredPlatform: state.platform, reason: 'region', urlMode: 'push', notifyChange: true }); };
+    community.onchange = () => { advanceEpoch(false); state.communityId = String(defaultCommunity(state.regionCode, community.value)?.id || ''); renderControls(); syncUrl('push'); notify('community'); };
     platform.onchange = () => { if (!selected().available) { renderControls(); return; } advanceEpoch(false); state.platform = validPlatform(state.regionCode, platform.value); syncUrl('push'); notify('platform'); };
-    if (!state.initialized) { window.addEventListener('popstate', async () => { const currentUrl = new URLSearchParams(location.search); const currentSession = readSession(); const requestedRegion = currentUrl.get('regionCode'); await normalize({ preferredRegion: PLATFORM_GROUPS[requestedRegion] ? requestedRegion : currentSession.regionCode, preferredCommunity: [currentUrl.get('communityId'), currentSession.communityId], preferredPlatform: currentUrl.get('platform') || DEFAULT_PLATFORM, reason: 'popstate', urlMode: 'preserve', notifyChange: true }); }); state.initialized = true; }
+    if (!state.initialized) { window.addEventListener('popstate', async () => { const currentUrl = new URLSearchParams(location.search); const currentSession = readSession(); const requestedRegion = currentUrl.get('regionCode'); await normalize({ preferredRegion: PLATFORM_GROUPS[requestedRegion] ? requestedRegion : currentSession.regionCode, preferredCommunity: [currentUrl.get('communityId'), currentSession.communityId], preferredPlatform: currentUrl.get('platform') || DEFAULT_PLATFORM, reason: 'popstate', urlMode: 'replace', notifyChange: true }); }); state.initialized = true; }
     options.onReady?.(query(), initial);
     persistShared(); window.dispatchEvent(new CustomEvent('public-opinion-scope-change', { detail: Object.freeze({ reason: 'init', epoch: state.epoch, selected: initial, query: new URLSearchParams(query()) }) }));
     return { query, selected, label, reload: async () => { await normalize({ preferredRegion: state.regionCode, preferredCommunity: state.communityId, preferredPlatform: state.platform, reason: 'reload', urlMode: 'replace', notifyChange: false }); return selected(); }, available: () => selected().available, epoch: () => state.epoch, beginRequest };
   }
   function loadSyncRunDock() {
     if (window.PublicOpinionSyncDock || document.querySelector('script[data-public-opinion-sync-dock]')) return;
-    const script = document.createElement('script'); script.src = 'assets/sync-run-dock.js?v=4'; script.async = false; if (script.dataset) script.dataset.publicOpinionSyncDock = 'true'; else script.setAttribute?.('data-public-opinion-sync-dock', 'true'); document.head.appendChild(script);
+    const script = document.createElement('script'); script.src = 'assets/sync-run-dock.js?v=20261012-close'; script.async = false; if (script.dataset) script.dataset.publicOpinionSyncDock = 'true'; else script.setAttribute?.('data-public-opinion-sync-dock', 'true'); document.head.appendChild(script);
   }
   loadSyncRunDock();
   const style = document.createElement('style');

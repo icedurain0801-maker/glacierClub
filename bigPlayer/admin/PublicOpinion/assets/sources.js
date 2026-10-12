@@ -9,7 +9,7 @@ const DEFAULT_SOURCE_FREQUENCY_SECONDS = 21600;
 const isOverseasLastNight = source => String(source?.community_id || source?.communityId) === OVERSEAS_LAST_NIGHT_COMMUNITY_ID;
 const Status = window.SourceStatus;
 const SyncProgress = window.SourceSyncProgress;
-const state = { sources: [], scope: null, sourcesLoading: true, sourcesError: '', creating: false, syncingSourceId: '', deletingSourceId: '', activeSourceId: '', loginStatus: null, challenge: null, timer: null, poller: null, toastTimer: null, requestSerial: 0, sourcesRequestSerial: 0, syncRecoverySerial: 0, authSerial: 0, syncSerial: 0, h5AuthMode: 'token' };
+const state = { sources: [], scope: null, sourcesLoading: true, sourcesError: '', creating: false, createResultUnknown: false, syncingSourceId: '', deletingSourceId: '', activeSourceId: '', loginStatus: null, challenge: null, timer: null, poller: null, toastTimer: null, requestSerial: 0, sourcesRequestSerial: 0, syncRecoverySerial: 0, authSerial: 0, syncSerial: 0, h5AuthMode: 'token' };
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const pick = (object, ...keys) => keys.map(key => object?.[key]).find(value => value !== undefined && value !== null);
@@ -39,8 +39,9 @@ async function rawApi(path, options = {}) {
     const text = await response.text();
     body = text ? JSON.parse(text) : {};
   } catch (_) {
-    const error = new Error('舆情服务返回了无法解析的响应');
-    error.code = 'INVALID_RESPONSE';
+    const gatewayFailure = [502, 504].includes(response.status);
+    const error = new Error(gatewayFailure ? '检测响应超时或舆情服务暂时不可用，请稍后刷新状态' : '舆情服务返回了无法解析的响应');
+    error.code = gatewayFailure ? (response.status === 504 ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNAVAILABLE') : 'INVALID_RESPONSE';
     error.status = response.status;
     throw error;
   }
@@ -48,6 +49,7 @@ async function rawApi(path, options = {}) {
     const error = new Error(body.error?.message || body.message || `请求失败 (${response.status})`);
     error.code = body.error?.code;
     error.details = body.error?.details;
+    error.status = response.status;
     throw error;
   }
   return body.data ?? body;
@@ -387,7 +389,7 @@ function stageSummary(source, scope) {
     return Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '-';
   }
   const processed = checkpoints.reduce((total, item) => total + Number(pick(item, 'items_fetched', 'itemsFetched', 'count') || 0), 0);
-  const pending = checkpoints.filter(item => ['idle', 'queued', 'pending', 'running'].includes(String(pick(item, 'status', 'sync_status', 'syncStatus') || '').toLowerCase())).length;
+  const pending = checkpoints.filter(item => ['idle', 'queued', 'pending', 'running'].includes(String(pick(item, 'status', 'sync_status', 'syncStatus') || '').toLowerCase())).reduce((total, item) => total + Number(item.checkpoint_count ?? 1), 0);
   if (!pending) return `${processed.toLocaleString()} 已写入`;
   return `${processed.toLocaleString()} 已写入 / ${pending.toLocaleString()} 待处理`;
 }
@@ -507,8 +509,21 @@ function bindDiscordChannelScope() {
   };
   document.querySelectorAll('[data-discord-channel-scope]').forEach(button => { button.onclick = () => apply(button.dataset.discordChannelScope); });
 }
-function bindH5CredentialMode(source, creating) {
-  const switchMode = mode => { state.h5AuthMode = mode; const baseUrl = $('#cfgBaseUrl')?.value || ''; const name = $('#cfgName')?.value || ''; const frequency = $('#cfgFreq')?.value || ''; source.base_url = baseUrl; source.display_name = name; source.frequency_seconds = Number(frequency || DEFAULT_SOURCE_FREQUENCY_SECONDS); source.config = { ...configOf(source), boardId: $('#cfgBoardId')?.value || '' }; renderDetail(source); };
+function bindH5CredentialMode(source, creating, renderCreate) {
+  const switchMode = mode => {
+    if (state.creating || state.h5AuthMode === mode) return;
+    // Keep the form in its original lifecycle. A draft has no server ID.
+    const fields = ['#cfgName', '#cfgFreq', '#cfgBoardId', '#cfgSyncMode', '#cfgHistoryStart', '#cfgH5Account'];
+    const values = fields.map(selector => [selector, $(selector)?.value]);
+    const sites = readSiteUrlRows();
+    if ($('#cfgH5Account')) state.h5AccountDraft = $('#cfgH5Account').value;
+    state.h5AuthMode = mode;
+    if (creating) renderCreate(); else renderDetail(source);
+    for (const [selector, value] of values) if (value !== undefined && $(selector)) $(selector).value = value;
+    if ($('#cfgH5Account') && state.h5AccountDraft !== undefined) $('#cfgH5Account').value = state.h5AccountDraft;
+    if ($('#cfgSiteUrlList')) { $('#cfgSiteUrlList').innerHTML = siteUrlRowsMarkup(sites); bindSiteUrlActions(); }
+    if ($('#cfgBaseUrl')) $('#cfgBaseUrl').value = sites[0] || '';
+  };
   if ($('#h5AuthToken')) $('#h5AuthToken').onclick = () => switchMode('token');
   if ($('#h5AuthPassword')) $('#h5AuthPassword').onclick = () => switchMode('account_password');
 }
@@ -598,12 +613,13 @@ function openCreateDrawer() {
   const render = () => {
     const isDiscord = platform === 'discord';
     $('#drawerContent').innerHTML = `<div class="drawer-header${isDiscord ? ' drawer-header--discord' : ''}"><div><h2>新增采集源</h2>${isDiscord ? '<div class="drawer-header-subtitle">先设定采集边界，再填写连接凭据。</div>' : ''}</div></div><div class="drawer-body${isDiscord ? ' drawer-body--discord' : ''}">${isDiscord ? `${platformPanel(source, true)}${commonFields(source, true)}` : `${commonFields(source, true)}${platformPanel(source, true)}`}</div><div class="drawer-footer"><button class="btn primary" id="btnCreate">创建</button><button class="btn" id="btnCancel">取消</button></div>`;
-    setCommonValues(source); if ($('#cfgBaseUrl')) $('#cfgBaseUrl').value = source.base_url || source.baseUrl || taptapDefaultUrl(source); if ($('#cfgAccountId')) $('#cfgAccountId').value = source.platform_account_id || ''; bindSiteUrlActions(); bindH5CredentialMode(source, true); bindDiscordChannelScope(); $('#btnCancel').onclick = closeDrawer; $('#btnCreate').onclick = createSource;
+    setCommonValues(source); if ($('#cfgBaseUrl')) $('#cfgBaseUrl').value = source.base_url || source.baseUrl || taptapDefaultUrl(source); if ($('#cfgAccountId')) $('#cfgAccountId').value = source.platform_account_id || ''; bindSiteUrlActions(); bindH5CredentialMode(source, true, render); bindDiscordChannelScope(); $('#btnCancel').onclick = closeDrawer; $('#btnCreate').onclick = createSource;
   };
-  stopValidationWork(); render(); $('#drawerMask').classList.add('open');
+  stopValidationWork({ clearSource: true }); render(); $('#drawerMask').classList.add('open');
 }
 function validateSocialCredentials(required) { const phone = $('#cfgPhone')?.value.trim() || ''; const password = $('#cfgPassword')?.value || ''; const confirmation = $('#cfgPasswordConfirm')?.value || ''; if (required && !/^1[3-9]\d{9}$/.test(phone)) return { error: '请填写有效的 +86 中国大陆手机号' }; if (required && !password) return { error: '请填写登录密码' }; if (password !== confirmation) return { error: '两次输入的密码不一致' }; return { phone: required ? phone : '', password }; }
 async function createSource() {
+  if (state.createResultUnknown) return toast('创建结果尚未确认，请刷新列表确认后再操作，避免重复创建');
   if (state.creating) return; const selected = state.scope?.selected?.() || {}; const platform = Status.normalizePlatform($('#cfgPlatform').value); const selectedScope = state.scope?.selected?.() || {}; const payload = { communityId: $('#cfgCommunity').value || selectedScope.communityId, platform, displayName: $('#cfgName').value.trim(), enabled: true, frequencySeconds: Number($('#cfgFreq').value), syncMode: $('#cfgSyncMode')?.value || 'incremental', historyStart: $('#cfgHistoryStart')?.value || '' };
   if (!payload.communityId) return toast('请选择具体且已启用的社区');
   if (selected.communityStatus && selected.communityStatus !== 'enabled') return toast(`社区「${selected.communityLabel}」已停用，不能新增采集源`); if (!payload.displayName) return toast('请填写采集源名称'); if (!SOURCE_FREQUENCIES.some(([value]) => value === payload.frequencySeconds)) return toast('请选择有效的采集频率');
@@ -626,9 +642,24 @@ async function createSource() {
   }
   else if (platform === 'taptap') { payload.baseUrl = $('#cfgBaseUrl').value.trim(); if (!payload.baseUrl) return toast('请填写网页地址'); }
   else { payload.platformAccountId = $('#cfgAccountId').value.trim(); if (!payload.platformAccountId) return toast('请填写平台账号标识'); }
-  const button = $('#btnCreate'); state.creating = true; button.disabled = true; button.textContent = '创建中...';
-  try { const created = await api('/sources', { method: 'POST', body: JSON.stringify(payload) }); if (platform === 'taptap' && (payload.keywords || []).length) await api('/keyword-rules', { method: 'PUT', body: JSON.stringify({ communityId: payload.communityId, platform, groups: [{ name: 'TapTap 采集关键词', keywords: payload.keywords }] }) }); const index = state.sources.findIndex(item => String(item.id) === String(created.id)); if (index >= 0) state.sources[index] = created; else state.sources.push(created); renderRows(); toast(Status.isSocialLoginPlatform(platform) ? '采集源已创建，等待登录验证' : index >= 0 ? '已有采集源已完成配置' : '采集源已创建'); closeDrawer(); await load(); }
-  catch (error) { toast(error.code === 'SOURCE_ALREADY_EXISTS' ? '同名采集源已存在，请在列表中点击“管理”进行配置' : `创建失败：${error.message}`); }
+  const button = $('#btnCreate'), serial = state.requestSerial; state.creating = true; button.disabled = true; button.textContent = '创建中...';
+  try {
+    const result = await api('/sources', { method: 'POST', body: JSON.stringify(payload) });
+    const created = result?.source || result;
+    if (!savedSourceId(created)) {
+      state.createResultUnknown = true;
+      return toast('服务未返回有效采集源 ID，创建结果尚未确认；请刷新列表确认，避免重复创建');
+    }
+    if (platform === 'taptap' && (payload.keywords || []).length) await api('/keyword-rules', { method: 'PUT', body: JSON.stringify({ communityId: payload.communityId, platform, groups: [{ name: 'TapTap 采集关键词', keywords: payload.keywords }] }) });
+    if (serial !== state.requestSerial) { await loadSources(); return; }
+    const index = state.sources.findIndex(item => String(item.id) === String(created.id));
+    if (index >= 0) state.sources[index] = created; else state.sources.push(created);
+    renderRows(); toast(Status.isSocialLoginPlatform(platform) ? '采集源已创建，等待登录验证' : index >= 0 ? '已有采集源已完成配置' : '采集源已创建'); closeDrawer(); await load();
+  }
+  catch (error) {
+    if (!error.status || error.status >= 500 || error.code === 'INVALID_RESPONSE' || error.name === 'AbortError') state.createResultUnknown = true;
+    if (serial === state.requestSerial) toast(state.createResultUnknown ? '创建结果尚未确认，请刷新列表确认后再操作，避免重复创建' : error.code === 'SOURCE_ALREADY_EXISTS' ? '同名采集源已存在，请在列表中点击“管理”进行配置' : `创建失败：${error.message}`);
+  }
   finally { state.creating = false; if (button?.isConnected) { button.disabled = false; button.textContent = '创建'; } }
 }
 function detailHeader(source) { const meta = sourceLoginMeta(source); const auth = sourceAuthDisplay(source); const isH5 = normalizedPlatform(source.platform) === 'bigplayer_h5'; const displayStatus = isH5 && auth === 'configured_pending_verification' ? authDisplayLabel(source) : meta.label; return `<h2>${esc(source.display_name || source.displayName || platformLabel(source.platform))}</h2><div class="subline" style="margin-bottom:8px">${esc(platformLabel(source.platform))} · ${esc(pick(source, 'community_name', 'communityName') || sourceCommunity(source).name || '-')}${Status.isSocialLoginPlatform(source.platform) || isH5 ? ` · <span class="pill ${isH5 ? esc(auth) : meta.tone}">${esc(displayStatus)}</span>` : ` · <span class="pill ${esc(auth)}">${esc(authDisplayLabel(source))}</span>`}</div>`; }
@@ -644,7 +675,7 @@ function validationPanel(source) {
   const needsLoginValidation = Status.needsLoginValidation(source, h5AuthMode(source));
   if (!needsLoginValidation) return '<div class="validation-empty">Token 授权无需登录会话验证，可直接检测接口授权和同步能力。</div>';
   const meta = Status.loginMeta(state.loginStatus || source); const status = state.loginStatus || {}; const checkedAt = pick(status, 'checkedAt', 'checked_at', 'updatedAt', 'updated_at');
-  return `<div class="detail-label">${isH5 ? 'H5 授权验证工作区' : '登录验证工作区'}</div><div class="status-summary"><div class="status-cell"><div class="subline">当前状态</div><b><span class="pill ${meta.tone}">${meta.label}</span></b></div><div class="status-cell"><div class="subline">最近检测</div><b>${esc(formatTime(checkedAt))}</b></div></div><div class="challenge-message">${esc(pick(status, 'message', 'instruction') || (meta.state === 'healthy' ? '授权状态正常，可执行能力检测和采集。' : '点击“检测授权”检查凭据和会话。'))}</div><div id="challengeArea">${renderChallenge()}</div><div class="action-row" style="margin-top:14px"><button class="btn primary" id="btnCheckLogin">检测授权</button>${meta.state === 'healthy' ? '<button class="btn danger" id="btnLogout">注销会话</button>' : ''}</div>`;
+  return `<div class="detail-label">${isH5 ? 'H5 授权验证工作区' : '登录验证工作区'}</div><div class="status-summary"><div class="status-cell"><div class="subline">当前状态</div><b><span class="pill ${meta.tone}">${meta.label}</span></b></div><div class="status-cell"><div class="subline">最近检测</div><b>${esc(formatTime(checkedAt))}</b></div></div><div class="challenge-message">${esc(pick(status, 'message', 'instruction') || (status.failureCode ? sourceActionReason(status.failureCode) : '') || (meta.state === 'healthy' ? '授权状态正常，可执行能力检测和采集。' : '点击“检测授权”检查凭据和会话。'))}</div><div id="challengeArea">${renderChallenge()}</div><div class="action-row" style="margin-top:14px"><button class="btn primary" id="btnCheckLogin">检测授权</button>${meta.state === 'healthy' ? '<button class="btn danger" id="btnLogout">注销会话</button>' : ''}</div>`;
 }
 function renderChallenge() {
   const challenge = state.challenge; if (!challenge) return '<div class="validation-empty" style="min-height:180px;margin-top:14px">暂无进行中的验证挑战</div>';
@@ -670,7 +701,7 @@ async function openDrawer(id, force = false) {
   const source = state.sources.find(item => String(item.id) === String(id)); if (!source) return;
   const sourceId = String(id);
   if (!force && state.activeSourceId === sourceId && $('#drawerMask')?.classList.contains('open')) return;
-  stopValidationWork(); state.activeSourceId = sourceId; state.loginStatus = null; state.challenge = null; const serial = ++state.requestSerial;
+  stopValidationWork({ clearSource: true }); state.activeSourceId = sourceId; state.loginStatus = null; state.challenge = null; const serial = ++state.requestSerial;
   renderDrawerLoading(source); $('#drawerMask').classList.add('open'); updateDeepLink(sourceId, $('#statusFilter')?.value || '');
   let detail = null;
   try {
@@ -682,7 +713,15 @@ async function openDrawer(id, force = false) {
   }
   if (serial !== state.requestSerial || state.activeSourceId !== sourceId) return;
   const editingSource = detail && String(detail.id) === String(id) ? Object.assign(source, detail, { platform: Status.normalizePlatform(detail.platform || source.platform) }) : source;
-  const credential = h5Credential(editingSource); state.h5AuthMode = normalizedPlatform(editingSource.platform) === 'bigplayer_h5' && credential.hasPassword ? 'account_password' : 'token';
+  const credential = h5Credential(editingSource); state.h5AuthMode = normalizedPlatform(editingSource) === 'bigplayer_h5' && credential.hasPassword ? 'account_password' : 'token';
+  if (Status.needsLoginValidation(editingSource, state.h5AuthMode)) {
+    try {
+      const loginStatus = await api(`/sources/${encodeURIComponent(sourceId)}/login-status`, { signal: AbortSignal.timeout(DETAIL_REQUEST_TIMEOUT_MS) });
+      if (serial !== state.requestSerial || state.activeSourceId !== sourceId) return;
+      if (loginStatus && !Array.isArray(loginStatus) && typeof loginStatus.status === 'string') cacheLoginStatus(editingSource, loginStatus);
+    } catch (_) { /* Source configuration remains accessible if the login service is unavailable. */ }
+  }
+  if (serial !== state.requestSerial || state.activeSourceId !== sourceId) return;
   renderDetail(editingSource);
   $('#drawerMask').classList.add('open'); updateDeepLink(editingSource.id, $('#statusFilter')?.value || '');
 }
@@ -697,8 +736,18 @@ function renderDetail(source) {
   setCommonValues(source); bindSiteUrlActions(); bindH5CredentialMode(source, false); bindDiscordChannelScope(); $('#btnSaveSource').onclick = () => saveSource(source); $('#btnCancel').onclick = closeDrawer; bindPlatformActions(source); bindSyncActions(source); bindValidationActions(source);
 }
 async function saveSource(source) {
+  if (!canUseSavedSource(source)) return;
   if (normalizedPlatform(source) === 'facebook') return submitFacebookSource(source, false);
+  const serial = state.requestSerial, sourceId = savedSourceId(source);
+  const scopeEpoch = state.scope?.epoch?.(), selectedScope = state.scope?.selected?.() || {};
+  const isCurrentSave = () => {
+    const current = state.scope?.selected?.() || {};
+    return serial === state.requestSerial && (!state.activeSourceId || String(state.activeSourceId) === sourceId)
+      && scopeEpoch === state.scope?.epoch?.()
+      && selectedScope.communityId === current.communityId && selectedScope.regionCode === current.regionCode;
+  };
   const taptap = normalizedPlatform(source) === 'taptap';
+  const keywords = taptap ? [...new Set(String($('#cfgKeywords')?.value || '').split(/[,，\n\r]+/).map(item => item.trim()).filter(Boolean))] : [];
   const patch = { displayName: $('#cfgName').value.trim(), frequencySeconds: Number($('#cfgFreq').value) };
   let credential;
   if (!patch.displayName) patch.displayName = source.display_name || source.displayName || 'TapTap采集源'; if (!SOURCE_FREQUENCIES.some(([value]) => value === patch.frequencySeconds)) return toast('请选择有效的采集频率');
@@ -739,16 +788,75 @@ async function saveSource(source) {
   try {
     if (normalizedPlatform(source) === 'bigplayer_h5' || normalizedPlatform(source) === 'taptap' || normalizedPlatform(source) === 'discord') {
       try { await api(`/sources/${source.id}/configuration`, { method: 'PATCH', body: JSON.stringify(patch) }); }
-      catch (error) { throw new Error(`基础配置保存失败：${error.message}`); }
-      if (normalizedPlatform(source) === 'taptap') { const keywords = [...new Set(String($('#cfgKeywords')?.value || '').split(/[,，\n\r]+/).map(item => item.trim()).filter(Boolean))]; await api('/keyword-rules', { method: 'PUT', body: JSON.stringify({ communityId: source.community_id || source.communityId, platform: 'taptap', groups: [{ groupName: 'TapTap 采集关键词', keywords }] }) }); }
+      catch (error) { error.message = `基础配置保存失败：${error.message}`; throw error; }
+      if (taptap) { await api('/keyword-rules', { method: 'PUT', body: JSON.stringify({ communityId: source.community_id || source.communityId, platform: 'taptap', groups: [{ groupName: 'TapTap 采集关键词', keywords }] }) }); }
     } else {
       await api(`/sources/${source.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
     }
+    if (!isCurrentSave()) return;
     toast('配置已保存'); closeDrawer(); await load();
-  } catch (error) { toast(`保存失败：${error.message}`); }
+  } catch (error) { if (isCurrentSave()) toast(`保存失败：${sourceRequestError(source, error)}`); }
+}
+function savedSourceId(source) {
+  const id = String(source?.id ?? '').trim();
+  return id && !['undefined', 'null'].includes(id) ? id : '';
+}
+function canUseSavedSource(source) {
+  if (!savedSourceId(source)) { toast('请先创建采集源，再保存配置或检测授权'); return false; }
+  if (source._sourceUnavailable) { toast('该采集源已不存在或页面已过期，请关闭后刷新列表；当前表单输入已保留'); return false; }
+  const selected = state.scope?.selected?.() || {};
+  const community = pick(source, 'community_id', 'communityId');
+  const region = pick(source, 'region_code', 'regionCode');
+  if ((state.activeSourceId && String(state.activeSourceId) !== savedSourceId(source))
+    || (selected.communityId && community && String(selected.communityId) !== String(community))
+    || (selected.regionCode && region && selected.regionCode !== region)) {
+    toast('采集源归属或页面已切换，请重新打开当前社区的采集源'); return false;
+  }
+  return true;
+}
+function sourceRequestError(source, error) {
+  if ((error.status === 404 && ['NOT_FOUND', 'SOURCE_NOT_FOUND'].includes(error.code))
+    || error.code === 'SOURCE_NOT_FOUND') {
+    source._sourceUnavailable = true;
+    return '该采集源已不存在或页面已过期，请关闭后刷新列表；当前表单输入已保留';
+  }
+  return error.message;
+}
+function h5HasUnsavedChanges(source) {
+  if (normalizedPlatform(source) !== 'bigplayer_h5') return false;
+  const config = configOf(source);
+  const expected = [['#cfgName', source.display_name || source.displayName || ''], ['#cfgFreq', normalizedFrequency(source.frequency_seconds || source.frequencySeconds)], ['#cfgBoardId', config.boardId ?? '']];
+  if (expected.some(([selector, value]) => $(selector) && String($(selector).value).trim() !== String(value))) return true;
+  const sites = readSiteUrlRows(), savedSites = sourceSiteUrls(source);
+  if ($('#cfgSiteUrlList') && (sites.length !== savedSites.length || sites.some((site, index) => site !== savedSites[index]))) return true;
+  return ['#cfgToken', '#cfgH5Account', '#cfgH5Password'].some(selector => {
+    const value = $(selector)?.value || ''; return Boolean(value && !isCredentialMask(value));
+  });
+}
+function canCheckSavedSource(source) {
+  if (!canUseSavedSource(source)) return false;
+  if (h5HasUnsavedChanges(source)) { toast('配置尚未保存，请先保存配置，再检测授权或能力'); return false; }
+  return true;
 }
 function sourceActionReason(reason) {
   return {
+    LOGIN_SESSION_CLIENT_UNAVAILABLE: '登录服务未接入授权检测，请联系管理员更新 API 服务',
+    LOGIN_SESSION_SERVICE_NOT_CONFIGURED: '登录服务尚未配置，请联系管理员',
+    LOGIN_SESSION_SERVICE_UNAVAILABLE: '登录服务暂时不可用，请稍后重试',
+    LOGIN_SESSION_SERVICE_TIMEOUT: '登录服务请求超时，请稍后重试',
+    INVALID_CREDENTIALS: '账号或密码不正确，请重新填写并保存后检测',
+    LOGIN_FRAME_NOT_FOUND: '未找到社区登录窗口，需要更新自动登录流程',
+    LOGIN_FORM_NOT_FOUND: '未找到账号密码输入框，需要更新自动登录流程',
+    LOGIN_SUBMIT_NOT_FOUND: '未找到登录按钮，需要更新自动登录流程',
+    LOGIN_CHALLENGE_REQUIRED: '登录需要验证码，请使用右侧授权验证工作区完成验证',
+    LOGIN_FAILED: '登录流程未完成，请使用右侧授权验证工作区查看状态',
+    LOGIN_STATE_UNKNOWN: '社区登录结果未能识别，请使用右侧授权验证工作区重新检测',
+    AUTHORIZATION_FAILED: '账号登录未完成，请使用右侧授权验证工作区查看具体状态',
+    AUTHORIZATION_TIMEOUT: '等待登录结果超时，请稍后重试',
+    LOGIN_TIMEOUT: '社区登录超时，请稍后重试',
+    AUTH_RESULT_UNAVAILABLE: '登录尚未取得可用授权，请重新检测登录',
+    CAPABILITY_CHECK_FAILED: '同步能力检测未通过，请查看帖子和评论的具体状态',
+    CREDENTIAL_RESOLVE_INVALID: '登录凭据与站点配置不完整，请检查配置',
     DISCORD_TOKEN_INVALID: 'Discord Bot Token 无效、已撤销或已过期，请在 Discord 开发者后台重新生成后保存',
     DISCORD_SCOPE_FORBIDDEN: 'Discord Bot 无权访问配置的服务器或频道，请检查 Bot 是否已加入服务器及权限',
     DISCORD_SCOPE_NOT_FOUND: 'Discord Guild 或频道不存在，或当前 Bot 无法访问该资源',
@@ -760,14 +868,14 @@ function sourceActionReason(reason) {
 function bindPlatformActions(source) { if ($('#btnCheckAuth')) $('#btnCheckAuth').onclick = event => runSourceAction(source, 'check-auth', '授权检测完成', {}, { keepOpen: true, button: event.currentTarget }); if ($('#btnCheckCapabilities')) $('#btnCheckCapabilities').onclick = event => runSourceAction(source, 'check-capabilities', '能力检测完成', {}, { keepOpen: true, button: event.currentTarget }); }
 function bindSyncActions(source) { const actions = { btnPauseSync: ['sync/pause', {}, '同步已暂停'], btnResumeSync: ['sync/resume', {}, '同步已继续'] }; if ($('#btnRunSync')) $('#btnRunSync').onclick = event => startSync(source, event.currentTarget, sourceMode(source)); Object.entries(actions).forEach(([id, [path, body, message]]) => { if ($(`#${id}`)) $(`#${id}`).onclick = () => runSourceAction(source, path, message, body); }); if ($('#btnResetSync')) $('#btnResetSync').onclick = () => { if (confirm('确认从历史起点重新抓取授权范围内的全部 Feed、帖子、评论和回复？当前运行会保留为审计记录。')) runSourceAction(source, 'sync/reset', '授权范围全量回溯已提交', {}); }; }
 function bindValidationActions(source) { if ($('#btnCheckLogin')) $('#btnCheckLogin').onclick = () => checkLogin(source); if ($('#btnLogout')) $('#btnLogout').onclick = () => logout(source); if ($('#btnSubmitChallenge')) $('#btnSubmitChallenge').onclick = () => submitChallenge(source); if ($('#btnCancelChallenge')) $('#btnCancelChallenge').onclick = () => cancelChallenge(source); }
-async function checkLogin(source) { const serial = ++state.authSerial; try { cacheLoginStatus(source, await api(`/sources/${source.id}/login/check`, { method: 'POST', body: '{}' })); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; state.challenge = challengeOf(state.loginStatus); if (!state.challenge && Status.loginMeta(state.loginStatus).state === 'manual_verification') state.challenge = await api(`/sources/${source.id}/login/challenge`); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; renderDetail(source); startChallengeWork(source); renderRows(); toast(Status.loginMeta(state.loginStatus).state === 'healthy' ? '授权验证通过' : '授权检测已完成'); } catch (error) { if (serial === state.authSerial) toast(`授权检测失败：${error.message}`); } }
+async function checkLogin(source) { if (!canCheckSavedSource(source)) return; const serial = ++state.authSerial; try { cacheLoginStatus(source, await api(`/sources/${source.id}/login/check`, { method: 'POST', body: '{}' })); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; state.challenge = challengeOf(state.loginStatus); if (!state.challenge && Status.loginMeta(state.loginStatus).state === 'manual_verification') state.challenge = await api(`/sources/${source.id}/login/challenge`); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; renderDetail(source); startChallengeWork(source); renderRows(); toast(Status.loginMeta(state.loginStatus).state === 'healthy' ? '授权验证通过' : '授权检测已完成'); } catch (error) { if (serial === state.authSerial) toast(`授权检测失败：${sourceRequestError(source, error)}`); } }
 async function submitChallenge(source) { const code = $('#challengeCode')?.value.trim(); if (!code) return toast('请输入验证码'); const serial = ++state.authSerial; try { const result = await api(`/sources/${source.id}/login/challenge/submit`, { method: 'POST', body: JSON.stringify({ challengeId: pick(state.challenge, 'id', 'challengeId', 'challenge_id'), code }) }); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; cacheLoginStatus(source, result.loginStatus || result.login_status || result); state.challenge = challengeOf(result); renderDetail(source); startChallengeWork(source); renderRows(); toast('验证信息已提交'); } catch (error) { if (serial === state.authSerial) toast(`提交失败：${error.message}`); } }
 async function pollChallenge(source) { if (!state.challenge || state.activeSourceId !== String(source.id)) return; const serial = ++state.authSerial; try { const result = await api(`/sources/${source.id}/login/challenge/poll`, { method: 'POST', body: JSON.stringify({ challengeId: pick(state.challenge, 'id', 'challengeId', 'challenge_id') }) }); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; cacheLoginStatus(source, result.loginStatus || result.login_status || state.loginStatus); state.challenge = challengeOf(result) || (Status.loginMeta(state.loginStatus).state === 'manual_verification' ? state.challenge : null); renderDetail(source); startChallengeWork(source); renderRows(); } catch (error) { if (serial === state.authSerial) { stopChallengeTimers(); toast(`验证状态刷新失败：${error.message}`); } } }
 async function cancelChallenge(source) { try { await api(`/sources/${source.id}/login/challenge/cancel`, { method: 'POST', body: JSON.stringify({ challengeId: pick(state.challenge, 'id', 'challengeId', 'challenge_id') }) }); state.challenge = null; stopChallengeTimers(); renderDetail(source); toast('验证已取消'); } catch (error) { toast(`取消失败：${error.message}`); } }
 async function logout(source) { if (!confirm('确认注销该采集源的当前登录会话？')) return; try { await api(`/sources/${source.id}/logout`, { method: 'POST', body: '{}' }); cacheLoginStatus(source, { status: 'pending_verification', message: '会话已注销，请重新检测登录。' }); state.challenge = null; renderDetail(source); renderRows(); toast('登录会话已注销'); } catch (error) { toast(`注销失败：${error.message}`); } }
 function startChallengeWork(source) { stopChallengeTimers(); if (!state.challenge) return; const meta = Status.challengeMeta(state.challenge); const expiresAt = pick(state.challenge, 'expiresAt', 'expires_at'); const tick = () => { const remaining = Status.secondsRemaining(expiresAt); const element = $('#challengeCountdown'); if (element) element.textContent = Status.formatCountdown(remaining); if (!remaining) { stopChallengeTimers(); state.challenge = null; if ($('#challengeArea')) $('#challengeArea').innerHTML = '<div class="validation-empty" style="min-height:180px;margin-top:14px">验证已超时，请重新检测登录。</div>'; } }; tick(); state.timer = setInterval(tick, 1000); if (meta.polls) state.poller = setInterval(() => pollChallenge(source), 3000); }
 function stopChallengeTimers() { if (state.timer) clearInterval(state.timer); if (state.poller) clearInterval(state.poller); state.timer = null; state.poller = null; }
-function stopValidationWork({ clearSource = false } = {}) { stopChallengeTimers(); state.requestSerial += 1; state.authSerial += 1; if (clearSource) { state.activeSourceId = ''; state.loginStatus = null; state.challenge = null; } }
+function stopValidationWork({ clearSource = false } = {}) { stopChallengeTimers(); state.requestSerial += 1; state.authSerial += 1; if (clearSource) { state.activeSourceId = ''; state.loginStatus = null; state.challenge = null; delete state.h5AccountDraft; } }
 const syncController = SyncProgress.createController({
   request: async (kind, args) => {
     if (kind === 'run') return api(`/sync-runs/${encodeURIComponent(args.runId)}`);
@@ -815,22 +923,50 @@ async function startSync(source, button, mode = source && sourceMode(source)) {
   const serial = ++state.syncSerial; state.syncingSourceId = String(source.id); clearToast(); const originalText = button?.textContent;
   if (button) { button.disabled = true; button.textContent = '提交中…'; }
   try { const result = await api(`/sources/${source.id}/sync`, { method: 'POST', body: JSON.stringify({ mode: mode === 'backfill' ? 'backfill' : 'incremental' }) }); if (serial !== state.syncSerial) return; const run = result.run || result.syncRun || result.sync_run || result; const runId = pick(run, 'id', 'runId', 'run_id'); const status = pick(run, 'status', 'state', 'syncStatus', 'sync_status') || 'running'; if (!runId) throw new Error('同步服务未返回 runId'); closeDrawer(); openSyncPanel(source.id, runId, status); toast('同步任务已提交，采集源已启用'); }
-  catch (error) { if (serial !== state.syncSerial) return; clearToast(); if (normalizedPlatform(source) === 'facebook') { toast(facebookErrorMessage(error)); return; } try { const latest = await api(`/sources/${encodeURIComponent(source.id)}/sync-runs/latest`); if (serial !== state.syncSerial) return; const run = latest?.run || latest; const latestId = pick(run, 'id', 'runId', 'run_id'); if (latestId) { openSyncPanel(source.id, latestId, pick(run, 'status', 'state', 'syncStatus', 'sync_status')); toast('同步任务已提交，正在读取最新进度'); return; } } catch (_) { /* Keep the original error when no run can be recovered. */ } toast(`同步失败：${error.message}`); }
+  catch (error) {
+    if (serial !== state.syncSerial) return;
+    clearToast();
+    if (normalizedPlatform(source) === 'facebook') { toast(facebookErrorMessage(error)); return; }
+    const unknownOutcome = !error.status || error.status >= 500 || ['UPSTREAM_TIMEOUT', 'UPSTREAM_UNAVAILABLE', 'INVALID_RESPONSE'].includes(error.code);
+    if (unknownOutcome) {
+      try {
+        const latest = await api(`/sources/${encodeURIComponent(source.id)}/sync-runs/latest`);
+        if (serial !== state.syncSerial) return;
+        const run = latest?.run || latest; const latestId = pick(run, 'id', 'runId', 'run_id');
+        if (latestId && String(pick(run, 'sourceId', 'source_id') || source.id) === String(source.id) && ['queued', 'running', 'pausing', 'cancelling'].includes(pick(run, 'status', 'state', 'syncStatus', 'sync_status'))) {
+          openSyncPanel(source.id, latestId, pick(run, 'status', 'state', 'syncStatus', 'sync_status'));
+          toast('本次提交结果尚未确认，已打开该来源现有任务进度'); return;
+        }
+      } catch (_) { /* Keep the original error; never retry the write automatically. */ }
+    }
+    toast(`同步失败：${error.message}`);
+  }
   finally { if (serial === state.syncSerial) { state.syncingSourceId = ''; if (button?.isConnected) { button.disabled = false; button.textContent = originalText; } renderRows(); } }
 }
 async function runSourceAction(source, path, message, body = {}, options = {}) {
+  if (['check-auth', 'check-capabilities'].includes(path) ? !canCheckSavedSource(source) : !canUseSavedSource(source)) return;
   if (normalizedPlatform(source) === 'facebook' && !facebookCanManage(source)) return toast('当前账号仅有查看权限');
   const keepOpen = Boolean(options.keepOpen);
+  const serial = state.requestSerial;
   const button = options.button;
   const originalText = button?.textContent;
   if (button) { button.disabled = true; button.textContent = '检测中…'; }
   try {
     const result = await api(`/sources/${source.id}/${path}`, { method: 'POST', body: JSON.stringify(body) });
+    if (serial !== state.requestSerial) return;
     const failed = path === 'check-auth'
       ? result?.authStatus !== 'authorized'
       : path === 'check-capabilities'
         ? result?.authorized === false || !['full', 'authorized_scope', 'supported'].includes(capabilityState(result, 'posts'))
         : false;
+    if (failed && Status.needsLoginValidation(source, state.h5AuthMode)) {
+      try {
+        const loginStatus = await api(`/sources/${encodeURIComponent(source.id)}/login-status`, { signal: AbortSignal.timeout(DETAIL_REQUEST_TIMEOUT_MS) });
+        if (serial !== state.requestSerial) return;
+        if (state.activeSourceId === String(source.id) && loginStatus && !Array.isArray(loginStatus) && typeof loginStatus.status === 'string') cacheLoginStatus(source, loginStatus);
+      } catch (_) { /* Preserve the original detection failure. */ }
+    }
+    if (serial !== state.requestSerial) return;
     if (failed) {
       const failedItems = Object.entries(result?.capabilities || {})
         .map(([key, value]) => [key, typeof value === 'object' ? pick(value, 'status', 'capability') : value])
@@ -854,7 +990,23 @@ async function runSourceAction(source, path, message, body = {}, options = {}) {
       await load();
     }
   } catch (error) {
-    toast(`操作失败：${error.message}`);
+    if (serial !== state.requestSerial) return;
+    const gatewayFailure = ['UPSTREAM_TIMEOUT', 'UPSTREAM_UNAVAILABLE'].includes(error.code);
+    let refreshedStatus = false;
+    if (gatewayFailure && keepOpen) {
+      try {
+        const next = await api(`/sources/${encodeURIComponent(source.id)}?${exactSourceParams(source)}`, { signal: AbortSignal.timeout(DETAIL_REQUEST_TIMEOUT_MS) });
+        if (serial !== state.requestSerial) return;
+        if (next && !Array.isArray(next) && String(next.id) === String(source.id)) {
+          const index = state.sources.findIndex(item => String(item.id) === String(source.id));
+          if (index >= 0) state.sources[index] = { ...state.sources[index], ...next };
+          if (state.activeSourceId === String(source.id)) renderDetail(state.sources[index] || next);
+          renderRows(); refreshedStatus = true;
+        }
+      } catch (_) { /* Do not retry an authorization operation whose result is unknown. */ }
+    }
+    if (serial !== state.requestSerial) return;
+    toast(gatewayFailure ? (refreshedStatus ? '检测响应超时或服务暂时不可用，已刷新最近保存的状态；本次检测可能仍在后台执行' : '检测响应超时或服务暂时不可用，请稍后刷新状态；不会自动重试') : `操作失败：${sourceRequestError(source, error)}`);
   } finally {
     if (button?.isConnected) { button.disabled = false; button.textContent = originalText; }
   }
@@ -891,6 +1043,7 @@ async function loadSources() {
     const response = await api(`/sources${params.toString() ? `?${params}` : ''}`);
     if (serial !== state.sourcesRequestSerial) return;
     state.sources = sourceItems(response).map(source => ({ ...source, platform: Status.normalizePlatform(source.platform) }));
+    state.createResultUnknown = false;
   } catch (error) {
     if (error.name === 'AbortError' || serial !== state.sourcesRequestSerial) return;
     state.sources = [];
@@ -925,3 +1078,4 @@ async function scopeChanged() { closeDrawer(); collapseSyncPanel(); state.source
 bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }); syncPlatformFilter(); updateAddButton(); await load(); })();
 if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { sourceAuthDisplay, authDisplayLabel, detailHeader, renderRows, h5CredentialFields, credentialConfigured, isCredentialMask, runSourceAction, toggleSource, deleteSource, sourceItems, exactSourceParams, loadSources, openDeepLink, openDrawer, fetchSourceDetail, platformPanel, commonFields, frequencySelect, normalizedFrequency, taptapDefaultUrl, sourceSiteUrls, siteUrlRowsMarkup, validateSiteUrlRows, validationPanel, syncStatusLabel, syncProgressState, state });
 if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { parseFacebookPageUrl, facebookCanManage, facebookReady, facebookUnavailableReason, facebookErrorMessage, facebookCapabilityDetail, facebookCapabilityAdvice, facebookStatusFields, facebookInitialSync, facebookForm, facebookFormPayload, facebookFormChanged, renderFacebookDetail, submitFacebookSource, checkFacebookSource, startSync, canSchedule, syncUnavailableReason });
+if (typeof globalThis !== 'undefined' && globalThis.__PUBLIC_OPINION_TEST__) Object.assign(globalThis.__PUBLIC_OPINION_TEST__, { openCreateDrawer, bindH5CredentialMode, createSource, saveSource, checkLogin, canUseSavedSource, canCheckSavedSource, sourceRequestError });

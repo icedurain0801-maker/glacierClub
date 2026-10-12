@@ -25,6 +25,8 @@ const { createSupervisor } = require('./runtimeSupervisor');
 
 const port = Number(process.env.PORT || 4320);
 const repo = new Repository();
+const { ContentTranslationService } = require('./services/contentTranslationService');
+const contentTranslation = new ContentTranslationService(repo);
 const communityProvider = new CommunityProvider();
 const communityDirectory = new CommunityDirectory({ provider: communityProvider, repo });
 const credentialContext = new CredentialContext({ repo });
@@ -76,6 +78,8 @@ function success(data, meta = {}) { return { data, meta }; }
 function errorPayload(code, message, details = {}) { return { error: { code, message, details } }; }
 const OVERVIEW_QUERY_KEYS = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform', 'period', 'from', 'to', 'fresh']); // fresh=1 旁路缓存
 const OVERVIEW_CACHE_TTL_MS = 90 * 1000; // /overview 进程内缓存 TTL
+const { TrendReadCache } = require('./services/trendReadCache');
+const trendReadCache = new TrendReadCache();
 const overviewCache = new Map(); // Map<cacheKey, { data, expiresAt }>；过期条目在被覆盖/命中检查时淘汰
 const OVERVIEW_PERIODS = new Set(['today', 'yesterday', '7d', '30d']);
 const ISO_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
@@ -396,14 +400,14 @@ async function requireEnabledCommunityForSource(source) {
     return mirror;
   }
 }
-async function sourceWithAccount(source) {
+async function sourceWithAccount(source, { summary = false } = {}) {
   if (!source) return null;
   const listAccounts = repo.listAccounts({ sourceId: source.id }).catch(error => { if (error.code === 'ER_NO_SUCH_TABLE') return []; throw error; });
   const listCapabilities = repo.listSourceCapabilities(source.id).catch(error => { if (error.code === 'ER_NO_SUCH_TABLE') return []; throw error; });
   const [accounts, persisted] = await Promise.all([listAccounts, listCapabilities]);
   const account = (source.default_account_id ? accounts.find(item => String(item.id) === String(source.default_account_id)) : null) || accounts[0] || null;
   const [checkpoints, credentials] = account
-    ? await Promise.all([repo.getSyncStatus({ accountId: account.id }), account && !isFacebookSource(source) ? repo.getAccountCredentialSummary(account.id) : Promise.resolve([])])
+    ? await Promise.all([summary && source.platform === 'bigplayer_h5' && source.region_code === 'domestic' ? repo.getSourceSyncStatusSummary({ accountId: account.id }) : repo.getSyncStatus({ accountId: account.id }), account && !isFacebookSource(source) ? repo.getAccountCredentialSummary(account.id) : Promise.resolve([])])
     : [[], []];
   const connector = connectors[source.platform]; let capabilities = {};
   let systemCredentialStatus;
@@ -836,9 +840,12 @@ async function handler(req, res) {
     }
     if (['POST', 'PATCH'].includes(req.method) && resource === 'communities') return json(res, 410, errorPayload('COMMUNITY_MANAGED_EXTERNALLY', '社区由外部后台维护，本系统不再提供新增或编辑能力'));
     if (req.method === 'GET' && resource === 'sources' && id && path[2] === 'sync-runs' && path[3] === 'latest' && path.length === 4) {
-      if ([...url.searchParams.keys()].length) return json(res, 400, errorPayload('INVALID_INPUT', 'query parameters are not supported'));
+      const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId']);
+      for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
       const source = await sourceById(id);
       if (!source) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      const scope = await resolveRequestScope(url);
+      if ((scope.regionCode && scope.regionCode !== source.region_code) || (scope.gameId && String(scope.gameId) !== String(source.game_id)) || (scope.communityId && String(scope.communityId) !== String(source.community_id)) || (scope.sourceId && String(scope.sourceId) !== String(id))) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
       const run = await repo.getLatestSyncRunForSource(id);
       return run ? json(res, 200, success(run)) : json(res, 404, errorPayload('NOT_FOUND', 'sync run not found'));
     }
@@ -915,7 +922,7 @@ async function handler(req, res) {
         const source = sources.find(item => String(item.id) === id);
         return source ? json(res, 200, success(await sourceWithAccount(source))) : json(res, 404, errorPayload('SOURCE_NOT_FOUND', 'source not found in requested scope'));
       }
-      return json(res, 200, success(await Promise.all(sources.map(sourceWithAccount))));
+      return json(res, 200, success(await Promise.all(sources.map(source => sourceWithAccount(source, { summary: true })))));
     }
     if (req.method === 'GET' && resource === 'accounts' && id && path[2] === 'credentials') { const account = await repo.getAccount(id); return account ? json(res, 200, success(await repo.getAccountCredentialSummary(id))) : json(res, 404, errorPayload('NOT_FOUND', 'account not found')); }
     if (req.method === 'GET' && resource === 'accounts' && id && path[2] === 'sync-status') { const account = await repo.getAccount(id); const syncScope = url.searchParams.get('scope') || undefined; return account ? json(res, 200, success(syncScope && !PUBLIC_SYNC_SCOPES.has(syncScope) ? [] : await repo.getSyncStatus({ accountId: id, syncScope }))) : json(res, 404, errorPayload('NOT_FOUND', 'account not found')); }
@@ -946,6 +953,21 @@ async function handler(req, res) {
       const counts = await repo.countAnalysisJobs({ ...filters, contentIds, profile, version });
       return json(res, 200, success({ scope, batchStatus, businessDate, profile, version, publishedFrom: filters.publishedFrom || null, publishedTo: filters.publishedTo || null, ...counts, terminal: analysisTerminal(counts) }));
     }
+    if (req.method === 'GET' && resource === 'overview-trend') {
+      try {
+        const period = url.searchParams.get('period');
+        if (!['7d', '30d'].includes(period)) return json(res, 400, errorPayload('INVALID_INPUT', 'period must be 7d or 30d'));
+        if (['from', 'to', 'publishedFrom', 'publishedTo'].some(key => url.searchParams.has(key))) return json(res, 400, errorPayload('INVALID_INPUT', 'overview-trend uses its own period'));
+        const query = { ...parseOverviewQuery(url), ...await resolveRequestScope(url, { readPlatform: true }) };
+        const cacheKey = JSON.stringify([query.regionCode, query.gameId, query.communityId, query.sourceId, query.platform, period, query.from]);
+        const cached = await trendReadCache.get(cacheKey, async () => ({ trend: await repo.getOverviewTrend(query), window: { publishedFrom: new Date(`${query.from.replace(' ', 'T')}Z`).toISOString(), publishedTo: new Date(`${query.to.replace(' ', 'T')}Z`).toISOString() } }));
+        return json(res, 200, success(cached.data), { 'x-trend-cache': cached.status });
+      } catch (error) {
+        if (error.code === 'INVALID_INPUT') return json(res, 400, errorPayload(error.code, error.message));
+        throw error;
+      }
+    }
+
     if (req.method === 'GET' && resource === 'overview') {
       try {
         const query = { ...await resolveRequestScope(url, { readPlatform: true }), ...parseOverviewQuery(url) };
@@ -973,6 +995,17 @@ async function handler(req, res) {
         if (error.code === 'INVALID_INPUT') return json(res, 400, errorPayload(error.code, error.message));
         throw error;
       }
+    }
+    if (req.method === 'POST' && resource === 'contents' && id && path[2] === 'translation' && path.length === 3) {
+      const scope = await resolveRequestScope(url);
+      const rows = await repo.getContentTree(id, { ...scope, includeDeleted: true });
+      const content = rows.find(item => item.id === id);
+      if (!content) return json(res, 404, errorPayload('NOT_FOUND', 'content not found'));
+      if (content.region_code !== 'overseas') return json(res, 409, errorPayload('TRANSLATION_SCOPE_INVALID', '仅境外内容支持中文翻译'));
+      if (content.is_deleted) return json(res, 409, errorPayload('CONTENT_DELETED', '已删除内容不再提交翻译'));
+      if (!String(content.title || '').trim() && !String(content.body || '').trim()) return json(res, 409, errorPayload('TRANSLATION_EMPTY_INPUT', '暂无可翻译正文'));
+      const result = await contentTranslation.translate(content);
+      return json(res, result.status === 'completed' ? 200 : 202, success(result));
     }
     if (req.method === 'POST' && resource === 'contents' && id === 'batch-handle' && path.length === 2) {
       const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform']);
@@ -1051,7 +1084,16 @@ async function handler(req, res) {
         translated_at: content.translated_at,
         translation_error_code: content.translation_error_code
       };
-      return json(res, 200, success({ content: withTranslation({ ...detailContent, ...translationFields }), comments: rows.filter(item => item.id !== id).map(withTranslation) }));
+      // Root lookup keeps tenant/source boundaries, but ignores list date/risk filters.
+      let originalPost = null;
+      if (content.content_type === 'comment' && content.root_content_id && content.root_content_id !== id) {
+        const rootRows = await repo.getContentTree(content.root_content_id, { ...scope,
+          gameId: content.game_id, communityId: content.community_id, sourceId: content.source_id,
+          accountId: content.account_id, contentType: 'post', includeDeleted: true });
+        const root = rootRows.find(item => item.id === content.root_content_id && item.content_type === 'post');
+        if (root) originalPost = withTranslation(root);
+      }
+      return json(res, 200, success({ content: withTranslation({ ...detailContent, ...translationFields }), originalPost, comments: rows.filter(item => item.id !== id).map(withTranslation) }));
     }
     if (req.method === 'GET' && resource === 'contents') {
       const scope = await resolveRequestScope(url);
@@ -1118,7 +1160,7 @@ async function handler(req, res) {
       if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) return json(res, 400, errorPayload('INVALID_INPUT', 'page must be a positive integer and pageSize must be an integer from 1 to 100'));
       const status = url.searchParams.get('status'); const severity = url.searchParams.get('severity');
       if (status && !new Set(['pending', 'processing', 'resolved', 'false_positive']).has(status)) return json(res, 400, errorPayload('INVALID_INPUT', 'status is not supported'));
-      if (severity && !new Set(['urgent', 'attention', 'normal']).has(severity)) return json(res, 400, errorPayload('INVALID_INPUT', 'severity is not supported'));
+      if (severity && !new Set(['urgent', 'negative', 'attention', 'normal']).has(severity)) return json(res, 400, errorPayload('INVALID_INPUT', 'severity is not supported'));
       const scope = await resolveRequestScope(url);
       const filters = { ...Object.fromEntries(url.searchParams), page, pageSize, ...scope };
       if (filters.platform) filters.platform = parsePlatform(filters.platform);
@@ -1195,6 +1237,8 @@ async function handler(req, res) {
       const westernRequested = String(body.editionScope || '').trim().toLowerCase() === WESTERN_EDITION_SCOPE;
       const westernCandidateInput = { ...body, platform, regionCode: scope.regionCode, baseUrl: requestedBaseUrl, editionScope: body.editionScope };
       const westernSource = westernRequested && isWesternOverseasSource(westernCandidateInput, { allowedHosts: westernAllowedHosts() });
+      const overseasBigPlayer = platform === 'bigplayer_h5' && scope.regionCode === 'overseas';
+      if (overseasBigPlayer && normalizedSites?.siteUrls.some(site => new URL(site.url).origin !== 'https://club-en.q1.com')) return json(res, 400, errorPayload('URL_OUTSIDE_ALLOWED_HOSTS', '海外 BigPlayer 必须使用 https://club-en.q1.com'));
       if (westernRequested && !westernSource) return json(res, 400, errorPayload('WESTERN_SCOPE_MISMATCH', '欧美版源必须使用 bigplayer_h5、overseas、western、HTTPS 和允许域名'));
       let communityValidated = false;
       try { await communityDirectory.requireEnabled({ communityId: scope.communityId, gameId: scope.gameId, regionCode: scope.regionCode }); communityValidated = true; }
@@ -1236,8 +1280,8 @@ async function handler(req, res) {
           const invalid = validateBaseUrl(platform, requestedBaseUrl);
           if (invalid) return json(res, 400, errorPayload('URL_OUTSIDE_ALLOWED_HOSTS', invalid));
         }
-        if (!body.apiToken && !body.password && !westernSource) return json(res, 400, errorPayload('INVALID_INPUT', 'apiToken or account password is required'));
-        if (!body.apiToken && !westernSource) {
+        if (!body.apiToken && !body.password && (!westernSource || overseasBigPlayer)) return json(res, 400, errorPayload('INVALID_INPUT', 'apiToken or account password is required'));
+        if ((overseasBigPlayer && body.password) || (!body.apiToken && !westernSource)) {
           const invalid = validateAccountPassword(body);
           if (invalid) return json(res, 400, errorPayload('INVALID_CREDENTIALS', invalid));
         }
@@ -1280,7 +1324,7 @@ async function handler(req, res) {
       }
       const credentialType = platform === 'facebook'
         ? null
-        : isSocialPlatform(platform) || (platform === 'bigplayer_h5' && !body.apiToken && !westernSource)
+        : isSocialPlatform(platform) || (overseasBigPlayer && body.password) || (platform === 'bigplayer_h5' && !body.apiToken && !westernSource)
           ? 'account_password'
           : body.apiToken ? 'api_token' : null;
       const h5Account = String(body.account || '').trim();
@@ -1307,7 +1351,7 @@ async function handler(req, res) {
         frequencySeconds, activeWindow: body.activeWindow,
         platformAccountId: body.platformAccountId ? String(body.platformAccountId).trim() : undefined,
         accountName: body.accountName || displayName, accountType: body.accountType || 'official', sourceEnabled: platform === 'bigplayer_h5' ? body.enabled !== false : false, accountEnabled: platform !== 'facebook',
-        authStatus: platform === 'facebook' ? 'unauthorized' : westernSource ? (body.apiToken ? 'configured_unverified' : 'unconfigured') : credentialType === 'account_password' ? 'pending_verification' : 'unconfigured', maskedLoginIdentifier: isSocialPlatform(platform) ? maskPhone(body.phone) : credentialType === 'account_password' ? maskLoginIdentifier(h5Account) : null,
+        authStatus: platform === 'facebook' ? 'unauthorized' : overseasBigPlayer && credentialType === 'account_password' ? 'pending_verification' : westernSource ? (body.apiToken ? 'configured_unverified' : 'unconfigured') : credentialType === 'account_password' ? 'pending_verification' : 'unconfigured', maskedLoginIdentifier: isSocialPlatform(platform) ? maskPhone(body.phone) : credentialType === 'account_password' ? maskLoginIdentifier(h5Account) : null,
         metadata: { syncMode, historyStart: body.historyStart || null }, credentialType, secretCipher
       };
       let created;
@@ -1363,12 +1407,18 @@ async function handler(req, res) {
       }
       for (const [key, message] of [['displayName', 'displayName is required']]) if (!String(body[key] ?? '').trim()) return json(res, 400, errorPayload('INVALID_INPUT', message));
       const westernSource = isWesternSourceRecord(currentSource);
+      const overseasBigPlayer = currentSource.platform === 'bigplayer_h5' && currentSource.region_code === 'overseas';
+      if (overseasBigPlayer && body.baseUrl !== undefined) {
+        let url; try { url = new URL(body.baseUrl); } catch { return json(res, 400, errorPayload('URL_OUTSIDE_ALLOWED_HOSTS', '海外 BigPlayer 地址无效')); }
+        if (url.origin !== 'https://club-en.q1.com' || url.username || url.password || url.hash) return json(res, 400, errorPayload('URL_OUTSIDE_ALLOWED_HOSTS', '海外 BigPlayer 必须使用 https://club-en.q1.com'));
+      }
       let normalizedSites;
       if (body.siteUrls !== undefined) {
         if (currentSource.platform !== 'bigplayer_h5') return json(res, 400, errorPayload('INVALID_INPUT', 'siteUrls is only supported for BigPlayer H5 sources'));
         const siteOptions = { allowedHosts: westernSource ? westernAllowedHosts() : connectors.bigplayer_h5.allowedHosts };
         try {
           normalizedSites = normalizeSiteUrls({ siteUrls: body.siteUrls }, siteOptions);
+          if (overseasBigPlayer && normalizedSites.siteUrls.some(site => new URL(site.url).origin !== 'https://club-en.q1.com')) return json(res, 400, errorPayload('URL_OUTSIDE_ALLOWED_HOSTS', '海外 BigPlayer 必须使用 https://club-en.q1.com'));
           if (body.baseUrl !== undefined && normalizeUrl(body.baseUrl, siteOptions) !== normalizedSites.baseUrl) {
             return json(res, 400, errorPayload('SITE_URL_BASE_MISMATCH', 'baseUrl must match the first siteUrls entry'));
           }
@@ -1383,8 +1433,8 @@ async function handler(req, res) {
         }
         if (body.credential != null) {
           if (!body.credential || typeof body.credential !== 'object') return json(res, 400, errorPayload('INVALID_INPUT', 'credential must be an object'));
-          const type = body.credential.credentialType || 'api_token';
-          if (type !== 'api_token') return json(res, 400, errorPayload('INVALID_CREDENTIALS', '欧美版源仅支持 api_token 凭据'));
+          const type = body.credential.credentialType || (overseasBigPlayer && (body.credential.account != null || body.credential.password != null) ? 'account_password' : 'api_token');
+          if (type !== 'api_token' && !(overseasBigPlayer && type === 'account_password')) return json(res, 400, errorPayload('INVALID_CREDENTIALS', '海外 BigPlayer 仅支持 api_token 或 account_password 凭据'));
         }
       }
       if (currentSource.platform === 'discord' && body.enabled) {
@@ -1624,7 +1674,7 @@ async function handler(req, res) {
       const source = await sourceById(id); if (!source) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
       assertWesternSourceRecord(source);
       rejectUnconfiguredCredential(await sourceWithCredentialState(source));
-      const connector = connectors[source.platform]; const account = await defaultAccountForSource(source); const installation = connector ? await connector.installationHealth(source) : { installed: false, capabilities: [] }; const health = account && connector ? await connectorAccountHealth(connector, source, account) : { authorized: false }; const capabilities = {};
+      const connector = connectors[source.platform]; const account = await defaultAccountForSource(source); const installation = connector ? await connector.installationHealth(source) : { installed: false, capabilities: [] }; const health = source.platform === 'bigplayer_h5' ? { authorized: false } : account && connector ? await connectorAccountHealth(connector, source, account) : { authorized: false }; const capabilities = {};
       // BigPlayer 能力检测必须来自真实探测，禁止复用 installation/accountHealth 返回的静态 capabilities。
       // 其他平台保留各自既有能力合同（例如 Facebook 的部署级能力详情）。
       const detected = source.platform === 'bigplayer_h5'
@@ -1634,6 +1684,7 @@ async function handler(req, res) {
         : (health?.capabilities || (account && connector && typeof connector.detectCapabilities === 'function'
           ? await connector.detectCapabilities({ source: { ...source, account_id: account.id }, account, credentialContext })
           : {}));
+      if (source.platform === 'bigplayer_h5') { health.authorized = Object.values(detected).some(item => item?.status === 'available'); health.reason = health.authorized ? null : detected.posts?.errorCode || detected.comments?.errorCode || 'CAPABILITY_CHECK_FAILED'; }
       await persistFacebookPageIdentity(source, account, { capabilities: detected });
       const facebook = isFacebookSource(source) ? facebookCapabilityResponse({ ...installation, ...health, capabilities: detected }) : null;
       if (facebook && account) { await repo.updateSourceAuth(source.id, { authStatus: health.authorized ? 'authorized' : 'unauthorized' }); await repo.updateAccount(account.id, { authStatus: health.authorized ? 'authorized' : 'unauthorized', enabled: Boolean(health.authorized) }); }
@@ -1941,7 +1992,7 @@ async function handler(req, res) {
     console.error(error.code || error.name || 'ERROR', error.message);
     const mapped = { INVALID_INPUT: 400, INVALID_JSON: 400, REQUEST_TOO_LARGE: 413, IMPORT_BATCH_TOO_LARGE: 413, UNAUTHORIZED: 401, SOURCE_AUTH_UNCONFIGURED: 401, WESTERN_SCOPE_MISMATCH: 400, FEATURE_NOT_AVAILABLE_IN_PHASE: 409, FIXED_BASE_URL_MISMATCH: 400, IMPORT_NOT_CONFIGURED: 503, ACCOUNT_SCOPE_MISMATCH: 400, SOURCE_DISABLED: 409, GAME_DISABLED: 409, COMMUNITY_DISABLED: 409, ACCOUNT_DISABLED: 409, SOURCE_UNAUTHORIZED: 409, SOURCE_AUTH_EXPIRED: 409, ACCOUNT_UNAUTHORIZED: 409, ACCOUNT_AUTH_EXPIRED: 409, PREVIOUS_RUN_ACTIVE: 409, SYNC_CHECKPOINT_ACTIVE: 409, SOURCE_SCHEDULE_LEASE_ACTIVE: 409, UNIFIED_SCHEDULER_SCHEMA_NOT_READY: 503, UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED: 503, INVALID_CONFIRMATION: 400, OWNERSHIP_MISMATCH: 400, NOT_FOUND: 404, SOURCE_NOT_FOUND: 404, ACCOUNT_NOT_FOUND: 404, COMMUNITY_NOT_FOUND: 404, GAME_NOT_FOUND: 400, RUN_ACTIVE: 409, SOURCE_ALREADY_EXISTS: 409, INVALID_CREDENTIALS: 400, LOGIN_CHALLENGE_REQUIRED: 409, LOGIN_CHALLENGE_INVALID: 400, LOGIN_SESSION_EXPIRED: 409, LOGIN_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_NOT_CONFIGURED: 503, LOGIN_SESSION_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_TIMEOUT: 504, LOGIN_STATE_UNKNOWN: 503, AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: 409, AUTH_REFRESH_FAILED: 503, AUTH_REFRESH_ALREADY_RUNNING: 409, AUTH_REFRESH_CHALLENGE_REQUIRED: 409, COMMUNITY_PROVIDER_NOT_CONFIGURED: 503, COMMUNITY_PROVIDER_TIMEOUT: 504, COMMUNITY_PROVIDER_UNAVAILABLE: 503, COMMUNITY_PROVIDER_ERROR: 503, COMMUNITY_PROVIDER_INVALID_RESPONSE: 502, COMMUNITY_PROVIDER_UNKNOWN_GAME: 502, COMMUNITY_PROVIDER_REGION_MISMATCH: 502 };
     const status = error.code === '22P02' ? 400 : error.status || mapped[error.code] || credentialErrorStatus(error.code);
-    const publicMessages = { LOGIN_SESSION_SERVICE_NOT_CONFIGURED: '登录会话服务未配置，请先配置授权服务', LOGIN_SESSION_SERVICE_UNAVAILABLE: '登录会话服务不可用，请检查 4310 服务', LOGIN_SESSION_SERVICE_TIMEOUT: '登录会话服务响应超时，请稍后重试', LOGIN_FRAME_NOT_FOUND: '未找到大玩家登录页面，请检查站点配置', CREDENTIAL_RESOLVE_INVALID: '账号密码凭据格式无效，请重新保存账号密码', CREDENTIAL_RESOLVE_FAILED: '账号密码凭据解析失败，请重新保存账号密码', AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: '账号密码凭据未配置，请重新保存账号密码', AUTH_REFRESH_CHALLENGE_REQUIRED: '需要完成人工验证，请在授权工作区继续操作', AUTH_REFRESH_FAILED: '账号授权检测失败，请检查账号密码或登录会话服务', LOGIN_STATE_UNKNOWN: '登录页面状态暂未识别，请稍后重试或完成页面验证', COMMUNITY_PROVIDER_NOT_CONFIGURED: '社区 Provider 未配置，暂时无法开始同步' };
+    const publicMessages = { CREDENTIAL_NOT_FOUND: '未找到同步授权凭据，请重新检测授权后开始同步', CREDENTIAL_INACTIVE: '同步授权凭据已停用，请重新保存参数并检测授权', CREDENTIAL_EXPIRED: '同步授权已过期，请重新检测授权', CREDENTIAL_SECRET_MISSING: '同步授权凭据不完整，请重新保存参数并检测授权', CREDENTIAL_DECRYPT_FAILED: '同步授权凭据无法读取，请联系管理员检查加密配置', CREDENTIAL_SECRET_EMPTY: '同步授权凭据为空，请重新保存参数并检测授权', LOGIN_SESSION_SERVICE_NOT_CONFIGURED: '登录会话服务未配置，请先配置授权服务', LOGIN_SESSION_SERVICE_UNAVAILABLE: '登录会话服务不可用，请检查 4310 服务', LOGIN_SESSION_SERVICE_TIMEOUT: '登录会话服务响应超时，请稍后重试', LOGIN_FRAME_NOT_FOUND: '未找到大玩家登录页面，请检查站点配置', CREDENTIAL_RESOLVE_INVALID: '账号密码凭据格式无效，请重新保存账号密码', CREDENTIAL_RESOLVE_FAILED: '账号密码凭据解析失败，请重新保存账号密码', AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: '账号密码凭据未配置，请重新保存账号密码', AUTH_REFRESH_CHALLENGE_REQUIRED: '需要完成人工验证，请在授权工作区继续操作', AUTH_REFRESH_FAILED: '账号授权检测失败，请检查账号密码或登录会话服务', LOGIN_STATE_UNKNOWN: '登录页面状态暂未识别，请稍后重试或完成页面验证', COMMUNITY_PROVIDER_NOT_CONFIGURED: '社区 Provider 未配置，暂时无法开始同步' };
     const publicMessage = publicMessages[error.code] || (status >= 500 ? 'internal server error' : error.message);
     return json(res, status, errorPayload(error.code || 'INTERNAL_ERROR', publicMessage));
   }

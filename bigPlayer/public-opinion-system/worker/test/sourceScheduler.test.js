@@ -161,13 +161,32 @@ test('second overseas BigPlayer source without config.boardId stops before atomi
   ]);
 });
 
-test('scheduled BigPlayer catchup carries a bounded seven-day UTC window', async () => {
+test('scheduled BigPlayer catchup covers previous Beijing midnight through actual execution', async () => {
   const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
   const result = await scheduleSources({ sources: [source({ platform: 'bigplayer_h5' })], now: NOW, ...inputs });
   const intent = inputs.enqueued[0];
   assert.equal(result.decisions[0].status, 'enqueued');
   assert.equal(Date.parse(intent.windowEndAt), NOW.getTime());
-  assert.equal(Date.parse(intent.windowEndAt) - Date.parse(intent.windowStartAt), 7 * 24 * 60 * 60 * 1000);
+  assert.equal(intent.windowStartAt, '2025-12-31T16:00:00.000Z');
+});
+
+test('all four domestic six-hour slots include today, with identical previous-midnight start', async () => {
+  for (const hour of [2, 8, 14, 20]) {
+    const now = new Date(`2026-10-12T${String(hour).padStart(2, '0')}:00:00+08:00`);
+    const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+    await scheduleSources({ sources: [source({ platform: 'bigplayer_h5', frequency_seconds: 21600 })], now, ...inputs });
+    assert.equal(inputs.enqueued[0].windowStartAt, '2026-10-10T16:00:00.000Z');
+    assert.equal(inputs.enqueued[0].windowEndAt, now.toISOString());
+    assert.equal(inputs.enqueued[0].scheduledAt, now.toISOString());
+  }
+});
+
+test('delayed BigPlayer execution across month boundary uses execution date rather than an older slot', async () => {
+  const now = new Date('2026-11-01T00:30:00+08:00');
+  const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+  await scheduleSources({ sources: [source({ platform: 'bigplayer_h5', frequency_seconds: 21600 })], now, ...inputs });
+  assert.equal(inputs.enqueued[0].windowStartAt, '2026-10-30T16:00:00.000Z');
+  assert.equal(inputs.enqueued[0].windowEndAt, now.toISOString());
 });
 
 test('scheduled BigPlayer catchup extends a natural-day window to the actual execution cutoff', async () => {

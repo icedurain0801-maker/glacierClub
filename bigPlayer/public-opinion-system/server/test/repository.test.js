@@ -3,6 +3,62 @@ const assert = require('node:assert/strict');
 const { Repository, isWithinActiveWindow } = require('../src/db/repository');
 
 // 构造一个不会真正连库的 Repository：覆盖 query 记录 SQL/params，返回预设行。
+
+test('analysis and cache writes enforce final severity with transactional append-only provenance', async () => {
+  const repo = stubRepo(sql => sql.startsWith('SELECT game_id,source_id,account_id')
+    ? [{ game_id: 'g', source_id: 's', fingerprint: 'fp' }]
+    : sql.startsWith('SELECT * FROM po_analyses') ? [{ id: 'old', sentiment: 'negative', severity: 'urgent' }] : []);
+  const input = { sentiment: 'positive', severity: 'attention', contentFingerprint: 'fp', reason: '好评', normalizationBatchId: 'batch-1', qualityScore: 0.92, recommendHome: true };
+  await repo.insertAnalysis('c', input);
+  await repo.upsertAnalysisCache({ ...input, cacheKey: 'key', profile: 'light', version: 'v1' });
+  const write = repo.calls.find(call => call.sql.startsWith('INSERT INTO po_analyses'));
+  assert.equal(write.params[15], 'normal');
+  assert.equal(write.params[6], '好评');
+  assert.equal(write.params[11], 1);
+  const cache = repo.calls.find(call => call.sql.startsWith('INSERT INTO po_analysis_cache'));
+  assert.equal(cache.params[13], 'normal');
+  const audits = repo.calls.filter(call => call.sql.startsWith('INSERT INTO po_audit_events'));
+  assert.equal(audits.length, 2);
+  const detail = JSON.parse(audits[0].params[8]);
+  assert.equal(detail.rawAnalysis.severity, 'attention');
+  assert.equal(detail.finalSeverity, 'normal');
+  assert.equal(detail.batchId, 'batch-1');
+  assert.equal(detail.previousAnalysis.id, 'old');
+  assert.equal(JSON.parse(audits[1].params[8]).cacheKey, 'key');
+});
+
+test('audit failure rolls back the analysis write and stale fingerprint never writes', async () => {
+  const repo = stubRepo(); let rollback = 0; let commit = 0;
+  repo.pool.getConnection = async () => ({
+    async beginTransaction() {}, async query(sql) {
+      repo.calls.push({ sql });
+      if (sql.startsWith('SELECT game_id,source_id,account_id')) return [[{ fingerprint: 'current' }]];
+      if (sql.startsWith('INSERT INTO po_audit_events')) throw new Error('audit unavailable');
+      return [[]];
+    }, async commit() { commit++; }, async rollback() { rollback++; }, release() {}
+  });
+  await assert.rejects(repo.insertAnalysis('c', { sentiment: 'positive', severity: 'urgent', contentFingerprint: 'old' }), { code: 'ANALYSIS_CONTENT_CHANGED' });
+  assert.equal(repo.calls.some(call => call.sql.startsWith('INSERT INTO po_analyses')), false);
+  await assert.rejects(repo.insertAnalysis('c', { sentiment: 'positive', severity: 'urgent', contentFingerprint: 'current' }), /audit unavailable/);
+  assert.equal(commit, 0);
+  assert.equal(rollback, 2);
+});
+
+test('missing analysis cannot be persisted as a completed neutral result', async () => {
+  const repo = stubRepo();
+  repo.pool.getConnection = async () => { throw new Error('must reject before connecting'); };
+  await assert.rejects(repo.insertAnalysis('c', {}), { code: 'ANALYSIS_RESULT_INVALID' });
+  await assert.rejects(repo.upsertAnalysisCache({ cacheKey: 'missing' }), { code: 'ANALYSIS_RESULT_INVALID' });
+});
+
+test('changed fingerprint requeues completed analysis and invalidates the old owner before updating fingerprint', async () => {
+  const repo = stubRepo(() => []);
+  await repo.enqueueAnalysisJob('c', { contentFingerprint: 'new' });
+  const sql = repo.calls[0].sql;
+  assert.match(sql, /status=IF\(\? OR NOT\(content_fingerprint<=>VALUES\(content_fingerprint\)\),'pending'/);
+  assert.match(sql, /lease_owner=IF\(NOT\(content_fingerprint<=>VALUES\(content_fingerprint\)\),NULL,lease_owner\)/);
+  assert.ok(sql.indexOf('lease_owner=IF') < sql.indexOf('content_fingerprint=VALUES(content_fingerprint)'));
+});
 function stubRepo(handler) {
   const repo = new Repository({ DB_HOST: '127.0.0.1', DB_NAME: 'test_never_connects' });
   repo.pool = {
@@ -345,7 +401,7 @@ test('insertAnalysis keeps task trigger and model explanation in separate column
     triggerReason: 'manual_reanalysis', reason: '内容使用明确的抱怨措辞，表达了对登录失败的不满。',
     sentiment: 'negative', negativeScore: 0.9, confidence: 0.8, severity: 'attention'
   });
-  const call = repo.calls[0];
+  const call = repo.calls.find(call => call.sql.startsWith('INSERT INTO po_analyses'));
   assert.match(call.sql, /trigger_reason, analysis_reason/);
   assert.match(call.sql, /analysis_reason=VALUES\(analysis_reason\)/);
   assert.equal(call.params[5], 'manual_reanalysis');
@@ -355,8 +411,9 @@ test('insertAnalysis keeps task trigger and model explanation in separate column
 test('insertAnalysis never falls back from model explanation to task trigger', async () => {
   const repo = stubRepo(() => ({ affectedRows: 1 }));
   await repo.insertAnalysis('c1', { reason: '内容只是在确认更新信息，没有明显情绪倾向。', sentiment: 'neutral', negativeScore: 0, confidence: 0.9, severity: 'normal' });
-  assert.equal(repo.calls[0].params[5], null);
-  assert.equal(repo.calls[0].params[6], '内容只是在确认更新信息，没有明显情绪倾向。');
+  const call = repo.calls.find(call => call.sql.startsWith('INSERT INTO po_analyses'));
+  assert.equal(call.params[5], null);
+  assert.equal(call.params[6], '内容只是在确认更新信息，没有明显情绪倾向。');
 });
 
 test('legacy insertContent persists source community ownership', async () => {
@@ -499,7 +556,8 @@ test('content list and tree queries expose analysis_reason', async () => {
 });
 
 test('getOverview 返回完整归属的 trend、hotNegative 与当前告警', async () => {
-  const repo = stubRepo((sql) => {
+  const repo = stubRepo((sql, params) => {
+    if (/SELECT COUNT\(\*\) AS total/.test(sql) && params.includes('comment')) return [{ total: 0 }];
     if (/DATE_ADD\(c\.published_at, INTERVAL 8 HOUR\)/.test(sql)) return [{ date: '2026-08-07', negative: 2, total: 5 }];
     if (/SELECT c\.\*/.test(sql) && /ORDER BY c\.published_at DESC, c\.id DESC/.test(sql)) return [{ id: 'c1', game_name: '超能世界', community_name: '超能世界国服版', engagement: 99 }];
     if (/GROUP BY s\.platform/.test(sql)) return [{ platform: 'taptap', count: 5 }];
@@ -559,11 +617,92 @@ test('getOverview reuses content stats and negative list without extra type or s
   assert.equal(result.hotAttention[0].display_type, 'comment');
 });
 
+test('active urgent alerts exclude downgraded contents without recovering old links', async () => {
+  const repo = stubRepo(sql => sql.startsWith('SELECT DISTINCT a.* FROM po_alerts') ? [{ id: 'a1', severity: 'urgent', status: 'pending' }] : []);
+  const alert = await repo.getAlert('a1');
+  assert.deepEqual(alert.related_contents, []);
+  const contents = repo.calls.find(({ sql }) => sql.startsWith('SELECT c.*') && sql.includes('FROM po_alert_contents'));
+  assert.match(contents.sql, /current_analysis\.severity='urgent'/);
+  assert.match(contents.sql, /COALESCE\(c\.is_deleted,0\)=0/);
+  assert.ok(!repo.calls.some(({ sql }) => sql.startsWith('INSERT') || sql.includes('a.summary=?')));
+  await repo.listAlerts({ status: 'pending' });
+  assert.match(repo.calls.find(({ sql }) => sql.startsWith('SELECT DISTINCT a.*,')).sql, /live_analysis\.severity='urgent'/);
+});
+
+test('attention remains separate and merged urgent covers both levels across list count and tree', async () => {
+  for (const [riskMode, levels] of [['attention', ['attention']], ['negative', ['negative', 'urgent']], ['urgent', ['negative', 'urgent']]]) {
+    const repo = stubRepo(() => []);
+    await repo.listContents({ riskMode, communityId: 'cm1' });
+    await repo.countContents({ riskMode, communityId: 'cm1' });
+    await repo.listContentTree({ riskMode, communityId: 'cm1' });
+    for (const { sql, params } of repo.calls) {
+      assert.match(sql, /(?:a|an)\.sentiment IN \('neutral','negative'\)/);
+      assert.match(sql, /(?:a|an)\.severity IN \(/);
+      for (const level of levels) assert.ok(params.includes(level));
+      for (const other of ['attention','negative','urgent'].filter(level => !levels.includes(level))) assert.ok(!params.includes(other));
+    }
+  }
+});
+
+test('BigPlayer kind filters list, tree, and total before pagination with the same predicate', async () => {
+  for (const kind of ['post', 'dynamic']) {
+    const repo = stubRepo(sql => /COUNT\(\*\) AS total/.test(sql) ? [{ total: 6 }] : []);
+    const filters = { bigPlayerContentKind: kind, platform: 'bigplayer_h5', communityId: 'cm1', contentType: 'post', postId: '927402', publishedFrom: '2026-10-10 16:00:00', publishedTo: '2026-10-11 16:00:00', page: 2, pageSize: 20 };
+    await repo.listContents(filters);
+    await repo.listContentTree(filters);
+    assert.equal(await repo.countContents(filters), 6);
+    const predicate = `s.platform='bigplayer_h5' AND c.content_type='post' AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.raw_payload,'$.type')),'')${kind === 'dynamic' ? "='1'" : "<>'1'"}`;
+    for (const { sql, params } of repo.calls) {
+      assert.ok(sql.includes(predicate));
+      assert.ok(sql.indexOf(predicate) > sql.indexOf('WHERE'));
+      if (sql.includes(' LIMIT ')) assert.ok(sql.indexOf(predicate) < sql.indexOf(' LIMIT '));
+      assert.ok(params.includes('cm1')); assert.ok(params.includes('927402'));
+      assert.ok(params.includes(filters.publishedFrom)); assert.ok(params.includes(filters.publishedTo));
+    }
+    for (const { params } of repo.calls.filter(({ sql }) => sql.includes(' LIMIT '))) assert.deepEqual(params.slice(-2), [20, 20]);
+  }
+});
+
+test('BigPlayer kind-only count keeps source join and invalid kinds cannot execute a query', async () => {
+  const repo = stubRepo(() => []);
+  await repo.countContents({ bigPlayerContentKind: 'post' });
+  assert.match(repo.calls[0].sql, /JOIN po_sources s ON s\.id=c\.source_id/);
+  repo.calls.length = 0;
+  for (const method of ['listContents', 'listContentTree', 'countContents']) {
+    await assert.rejects(repo[method]({ bigPlayerContentKind: "post' OR 1=1" }), e => e.code === 'INVALID_INPUT');
+  }
+  assert.equal(repo.calls.length, 0);
+});
+
+test('getOverview publication total includes posts/dynamics and comments in the same scope', async () => {
+  for (const [post, comment] of [[118, 52], [0, 7], [4, 0], [0, 0]]) {
+    const repo = stubRepo(() => []);
+    const filters = { regionCode: 'domestic', communityId: 'cm1', platform: 'bigplayer_h5', from: '2026-10-09 16:00:00', to: '2026-10-10 16:00:00' };
+    repo.listContents = async () => [];
+    repo.getContentStats = async received => {
+      assert.deepEqual(received, { regionCode: filters.regionCode, communityId: filters.communityId, platform: filters.platform, gameId: undefined, sourceId: undefined, publishedFrom: filters.from, publishedTo: filters.to });
+      return { post, comment, negative: 2, attention: 3 };
+    };
+    const { metrics } = await repo.getOverview(filters);
+    assert.equal(metrics.total, post + comment);
+    assert.equal(metrics.postCount, post);
+    assert.equal(metrics.commentCount, comment);
+    assert.equal(metrics.negative, 2);
+    assert.equal(metrics.attention, 3);
+    // These aggregates must use the same post/comment scope as the total card.
+    for (const call of repo.calls.filter(({ sql }) => /GROUP BY a\.sentiment|GROUP BY DATE_ADD|GROUP BY s\.platform|GROUP BY topic/.test(sql))) {
+      assert.doesNotMatch(call.sql, /c\.content_type='post'/);
+      assert.match(call.sql, /COALESCE\(c\.is_deleted,0\)=0/);
+      assert.deepEqual(call.params, ['domestic', 'cm1', 'bigplayer_h5', filters.from, filters.to]);
+    }
+  }
+});
+
 test('getOverview both mixed columns use stable publication order and Top10 SQL', async () => {
   const mixed = [
     { id: 'z', content_type: 'comment', published_at: '2026-09-16 08:00:00' },
     { id: 'y', content_type: 'post', platform: 'bigplayer_h5', raw_payload: { type: 1 }, published_at: '2026-09-16 08:00:00' },
-    { id: 'x', content_type: 'post', platform: 'bigplayer_h5', raw_payload: { type: 0 }, published_at: '2026-09-16 07:00:00' }
+    { id: 'x', title: '', content_type: 'post', platform: 'bigplayer_h5', raw_payload: { type: 0 }, published_at: '2026-09-16 07:00:00' }
   ];
   const repo = stubRepo(sql => /SELECT c\.\*/.test(sql) ? mixed : []);
   repo.getContentStats = async () => ({ negative: 3, attention: 3 });
@@ -581,13 +720,13 @@ test('getOverview both mixed columns use stable publication order and Top10 SQL'
   }
 });
 
-test('riskMode list and count share exact severity without sentiment guesses', async () => {
-  for (const [riskMode, severity] of [['negative', 'urgent'], ['attention', 'attention']]) {
+test('riskMode list and count share progressive content sets', async () => {
+  for (const [riskMode, severity] of [['negative', 'negative'], ['attention', 'attention']]) {
     const repo = stubRepo(sql => /COUNT\(\*\)/.test(sql) ? [{ total: 0 }] : []);
     const filters = { riskMode, sentiment: 'negative', communityId: 'cm1', platform: 'bigplayer_h5', contentType: 'comment', keyword: 'risk', publishedFrom: '2026-09-01 00:00:00', publishedTo: '2026-09-02 00:00:00' };
     await repo.listContents(filters); await repo.countContents(filters);
     for (const { sql, params } of repo.calls) {
-      assert.match(sql, /a\.severity=\?/); assert.doesNotMatch(sql, /a\.sentiment=\?/);
+      assert.match(sql, /a\.severity IN \(/); assert.match(sql, /a\.sentiment IN \('neutral','negative'\)/);
       assert.ok(params.includes(severity)); assert.ok(params.includes('cm1'));
       assert.ok(params.includes('comment')); assert.ok(params.includes('%risk%'));
       assert.match(sql, /c\.published_at>=\?.*c\.published_at<\?/);
@@ -1418,7 +1557,7 @@ function manualSyncHarness(overrides = {}) {
       if (overrides.schemaError && sql.includes('information_schema')) throw overrides.schemaError;
       if (sql.includes('/* board-schema-030 */')) return [[{
         board_migration_ready: overrides.migrationMissing || (overrides.missingMigrations || [overrides.missingMigration]).includes('030_bigplayer_board_scope.sql') ? 0 : 1,
-        board_run_columns_ready: 1, board_content_columns_ready: 1, board_run_index_ready: 1, board_content_index_ready: 1,
+        board_run_columns_ready: 1, board_content_columns_ready: 1, board_run_index_ready: 1, board_content_index_ready: 1, board_legacy_indexes_removed: 1,
         ...(overrides.boardSchema || {})
       }]];
       if (sql.includes('information_schema')) return [[schema]];
@@ -1982,6 +2121,7 @@ test('manual sync fails closed for old or unverifiable unified scheduler schema'
     [{ boardSchema: { board_content_columns_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ boardSchema: { board_run_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ boardSchema: { board_content_index_ready: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
+    [{ boardSchema: { board_legacy_indexes_removed: 0 } }, 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY'],
     [{ schemaError: Object.assign(new Error('denied'), { code: 'ER_ACCESS_DENIED_ERROR' }) }, 'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED']
   ]) {
     const { repo, executed } = manualSyncHarness(overrides);
@@ -2126,7 +2266,11 @@ test('sync run projections expose parent/site role trigger and readable site pro
   assert.match(repo.calls[1].sql, /THEN 0 WHEN r\.status IN \('queued','running'\) THEN 1/);
   const listed = await repo.listSyncRuns({ sourceId: 's1' });
   assert.equal(listed.items[0].run_role, 'parent');
-  assert.match(repo.calls[3].sql, /AS runRole/);
+  const listCalls=repo.calls.slice(3);
+  const itemsQuery=listCalls.find(call=>call.sql.includes('AS runRole'));
+  assert.ok(itemsQuery,'list items query must retain run role projection');
+  assert.match(itemsQuery.sql,/AS runRole/);
+  assert.ok(listCalls.some(call=>call.sql.includes('COUNT(*) AS total')),'list retains separate count query');
 });
 
 test('finishSyncRun preserves accumulated counters and enforces lease ownership', async () => {

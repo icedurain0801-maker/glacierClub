@@ -1,0 +1,21 @@
+'use strict';
+// Offline only: runs synthetic safety tests, never calls the production reader.
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const { execFileSync, spawnSync } = require('node:child_process');
+const project = path.resolve(__dirname, '..');
+const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: project, encoding: 'utf8', windowsHide: true }).trim();
+const temp = path.join(root, '.temp');
+if (fs.lstatSync(temp).isSymbolicLink() || path.resolve(fs.realpathSync(temp)) !== path.resolve(temp)) throw Error('ROOT_TEMP_REJECTED');
+const script = path.join(__dirname, 'overseas-d1-d2-d7-readonly.js');
+const testPath = path.join(project, 'server/test/overseasReadonlyProjection.test.js');
+const sha = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const startedAt = new Date().toISOString();
+const result = spawnSync(process.execPath, ['--test', testPath], { cwd: project, encoding: 'utf8', windowsHide: true });
+const evidence = { kind: 'OFFLINE_SYNTHETIC_SAFETY_ONLY', productionReadAttempted: false, startedAt, finishedAt: new Date().toISOString(), scriptSha256: sha(script), testSha256: sha(testPath), exitCode: result.status, tap: result.stdout, stderr: result.stderr };
+const dir = fs.mkdtempSync(path.join(temp, 'v027-projection-fixed-'));
+const output = path.join(dir, 'result.json');
+fs.writeFileSync(output, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+console.log(JSON.stringify({ output, sha256: sha(output), scriptSha256: evidence.scriptSha256, exitCode: result.status }));
+process.exitCode = result.status === 0 ? 0 : 1;

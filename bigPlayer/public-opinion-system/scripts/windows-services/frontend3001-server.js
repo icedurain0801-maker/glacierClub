@@ -50,10 +50,12 @@ function proxyRequest(req, res, requestUrl) {
     res.writeHead(response.statusCode || 502, responseHeaders);
     response.pipe(res);
   });
-  proxy.on('timeout', () => proxy.destroy(new Error('upstream timeout')));
+  let timedOut = false;
+  proxy.on('timeout', () => { timedOut = true; proxy.destroy(new Error('upstream timeout')); });
   proxy.on('error', () => {
-    if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
-    res.end('Upstream unavailable');
+    if (res.headersSent) { res.destroy(); return; }
+    res.writeHead(timedOut ? 504 : 502, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ error: { code: timedOut ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNAVAILABLE', message: timedOut ? '检测响应超时，后台操作可能仍在执行，请稍后刷新状态' : '舆情服务暂时不可用，请稍后重试' } }));
   });
   req.on('aborted', () => proxy.destroy());
   req.pipe(proxy);

@@ -21,6 +21,7 @@ const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
 const { normalizeAnalysisResult } = require('../../server/src/services/riskSeverityNormalizer');
 const { sanitizeMessage } = require('./q1DailyJob');
 const { schedulerMode, requireExplicitSchedulerMode } = require('./schedulerMode');
+const { createOverseasCommentScope, currentPageCommentTargets, walkHistoricalCommentTargets } = require('./overseasBigPlayerCommentTargets');
 
 const SOCIAL_PLATFORMS = new Set(['douyin', 'xiaohongshu']);
 const MANUAL_VERIFICATION_CODES = new Set([
@@ -120,19 +121,15 @@ const SEVERITY_RANK = { normal: 0, attention: 1, negative: 2, urgent: 3 };
 
 // deep 覆盖 light 后，告警判定取最高严重度，避免 deep 模型降级导致 light urgent 漏报。
 // 仅对由 light 升级而来的 deep job（trigger_reason 含 light_escalation / keyword_match）适用。
-function effectiveAnalysisForAlert(analysis, lightAnalysis) {
-  if (!lightAnalysis) return analysis;
-  const lightRank = SEVERITY_RANK[lightAnalysis.severity] ?? 0;
-  const deepRank = SEVERITY_RANK[analysis?.severity] ?? 0;
-  if (lightRank <= deepRank) return analysis;
-  return { ...analysis, severity: lightAnalysis.severity, _lightSeverity: lightAnalysis.severity };
+function effectiveAnalysisForAlert(analysis) {
+  return analysis;
 }
 
 function shouldDeepAnalyze(analysis, hit = null, options = {}) {
   const negativeThreshold = Number(options.negativeThreshold ?? process.env.AI_ANALYSIS_DEEP_NEGATIVE_THRESHOLD ?? 0.7);
   const confidenceThreshold = Number(options.confidenceThreshold ?? process.env.AI_ANALYSIS_DEEP_LOW_CONFIDENCE_THRESHOLD ?? 0.55);
   return Boolean(hit?.needAI || hit?.matchedKeywords?.length || analysis?.needsDeep
-    || ['attention', 'urgent'].includes(analysis?.severity)
+    || ['attention', 'negative', 'urgent'].includes(analysis?.severity)
     || Number(analysis?.negativeScore) >= negativeThreshold
     || (Number.isFinite(Number(analysis?.confidence)) && Number(analysis.confidence) < confidenceThreshold));
 }
@@ -213,11 +210,19 @@ function normalizePersistedAnalysis(analysis, context = {}) {
 
 async function processPersistentAnalysisJobs(deps, source, entries = [], scope = {}) {
   const repo = deps.repo; const ai = deps.ai;
+  const exactContentIds=scope.contentIds===undefined?null:scope.contentIds;
+  if(scope.contentIds!==undefined&&(!Array.isArray(exactContentIds)||exactContentIds.length===0||exactContentIds.length>1000
+    ||exactContentIds.some(id=>typeof id!=='string'||!id||id!==id.trim())||new Set(exactContentIds).size!==exactContentIds.length))throw stableError('ANALYSIS_ALLOWLIST_INVALID','exact contentIds required');
+  const allowedContents=exactContentIds===null?null:new Set(exactContentIds);
+  const atomicStore = require('./overseasBigPlayerPageStore');
+  const atomicPageJobs = atomicStore.assertAtomicPageJobsBinding(deps, source);
+  if (atomicPageJobs) entries.forEach(entry => atomicStore.assertAtomicContentReceipt(entry, repo.upsertContentPage, source));
   if (typeof ai?.configured === 'function' && !ai.configured('light')) return { analyzed: 0, alerted: 0 };
   const requiredMethods = scope.enqueueOnly ? ['enqueueAnalysisJob'] : ['enqueueAnalysisJob', 'claimAnalysisJobs', 'finishAnalysisJob'];
   if (!requiredMethods.every(method => typeof repo[method] === 'function')) return null;
   const sourceRules = source?.game_id && typeof repo.loadKeywordRules === 'function' ? await repo.loadKeywordRules(source.game_id, source.platform, source.community_id) : [];
   const withinScope = entry => {
+    if(allowedContents&&!allowedContents.has(entry.content?.id))return false;
     if (!scope.publishedFrom && !scope.publishedTo) return true;
     const value = entry.content?.published_at || entry.raw?.publishedAt || entry.raw?.published_at;
     if (!value) return false;
@@ -226,7 +231,9 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
     const to = scope.publishedTo ? new Date(scope.publishedTo).getTime() : Infinity;
     return Number.isFinite(timestamp) && timestamp >= from && timestamp < to;
   };
-  const changed = entries.filter(entry => entry.change !== 'unchanged' && !entry.content?.is_deleted && withinScope(entry));
+  // Overseas PageStore already enqueues these exact versions in its transaction.
+  // Keep queue consumption and deep escalation below; suppress only re-enqueue.
+  const changed = atomicPageJobs ? [] : entries.filter(entry => entry.change !== 'unchanged' && !entry.content?.is_deleted && withinScope(entry));
   const light = profileSpec(ai, 'light');
   for (const entry of changed) {
     const raw = entry.raw || entry.content; const hit = matchRules({ title: raw.title, body: raw.body, authorName: raw.authorName || raw.author_name }, sourceRules);
@@ -248,9 +255,11 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
       gameId: source?.game_id,
       communityId: source?.community_id,
       publishedFrom: scope.publishedFrom,
-      publishedTo: scope.publishedTo
+      publishedTo: scope.publishedTo,
+      ...(allowedContents?{contentIds:exactContentIds}:{} )
     });
     const jobs = Array.isArray(claimedJobs) ? claimedJobs : [];
+    if(allowedContents&&jobs.some(job=>!allowedContents.has(job.content_id)))throw stableError('ANALYSIS_ALLOWLIST_VIOLATION','claimed content outside exact allowlist');
     if (!jobs.length) continue;
     const cached = typeof repo.getAnalysisCache === 'function' ? await repo.getAnalysisCache(jobs.map(job => analysisCacheKey(ai, job, profile))) : [];
     const cacheByKey = new Map(cached.map(row => [row.cache_key || row.cacheKey, cacheAnalysis(row)]));
@@ -262,7 +271,7 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
         pending.forEach(({ index }, i) => { results[index] = analyses[i]; });
       }
       for (let index = 0; index < jobs.length; index += 1) {
-        const job = jobs[index]; const raw = job; const cachedAnalysis = cacheAnalysis(job); const analysis = normalizePersistedAnalysis({ ...results[index], analysisLevel: profile, profile, analysisVersion: results[index]?.analysisVersion || spec.version, contentFingerprint: job.content_fingerprint || job.fingerprint, triggerReason: job.trigger_reason || null, matchedKeywords: cachedAnalysis?.matchedKeywords || parseObject(job.matched_keywords) || [] }, job);
+        const job = jobs[index]; const raw = job; const cachedAnalysis = cacheAnalysis(job); const analysis = normalizePersistedAnalysis({ ...results[index], analysisLevel: profile, profile, analysisVersion: results[index]?.analysisVersion || spec.version, contentFingerprint: job.content_fingerprint || job.fingerprint, normalizationBatchId: scope.runId || job.sync_run_id || job.id, cacheKey: analysisCacheKey(ai, job, profile), triggerReason: job.trigger_reason || null, matchedKeywords: cachedAnalysis?.matchedKeywords || parseObject(job.matched_keywords) || [] }, job);
         const escalatedFromLight = profile === 'deep' && ['light_escalation', 'keyword_match'].includes(job.trigger_reason);
         const lightAnalysis = escalatedFromLight && typeof repo.getLightAnalysis === 'function' ? normalizePersistedAnalysis(await repo.getLightAnalysis(job.content_id), job) : null;
         if (typeof repo.insertAnalysis === 'function') await repo.insertAnalysis(job.content_id, analysis);
@@ -275,7 +284,7 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
         const hit = matchRules({ title: raw.title, body: raw.body, authorName: raw.author_name || raw.authorName }, jobRules);
         const promoted = profile === 'light' && shouldDeepAnalyze(analysis, hit);
         if (promoted && (typeof ai?.configured !== 'function' || ai.configured('deep'))) await repo.enqueueAnalysisJob(job.content_id, { profile: 'deep', version: profileSpec(ai, 'deep').version, contentFingerprint: analysis.contentFingerprint, triggerReason: hit.matchedKeywords?.length ? 'keyword_match' : 'light_escalation', matchedKeywords: hit.matchedKeywords || analysis.matchedKeywords });
-        if (!promoted) {
+        if (!promoted && analysis.severity === 'urgent') {
           const alertAnalysis = effectiveAnalysisForAlert(analysis, lightAnalysis);
           // 注意 ...raw 放前面：raw（=job 行）的 id 是 job id，若放在后会覆盖正确的 content id，
           // 导致 po_alert_contents 的 FK 静默失败（INSERT IGNORE 吞错），告警丢失关联内容。
@@ -320,7 +329,7 @@ async function processDownstream(deps, source, entries, scope = {}) {
   if (!queue.length) return { analyzed: 0, alerted: 0 };
   const analyses = await deps.ai.analyzeBatch(queue.map(({ raw }) => ({ title: raw.title, body: raw.body, platform: source.platform, fingerprint: raw.fingerprint, regionCode: source.region_code, gameId: source.game_id, gameName: source.game_name, communityId: source.community_id, communityName: source.community_name })));
   const game = { id: source.game_id, name: source.game_name || source.display_name, region_code: source.region_code, community_id: source.community_id, dingtalk_webhook_ref: source.dingtalk_webhook_ref }; let alerted = 0;
-  for (let index = 0; index < queue.length; index += 1) { const { content, raw, hit } = queue[index]; const analysis = normalizePersistedAnalysis(analyses[index], raw); const persisted = { ...analysis, triggerReason: 'keyword_match', matchedKeywords: hit.matchedKeywords }; await deps.repo.insertAnalysis(content.id, persisted); if (typeof deps.repo.reconcilePositiveRiskAlerts === 'function') await deps.repo.reconcilePositiveRiskAlerts(content.id, persisted, { runId: scope.runId || content.sync_run_id || content.id }); const created = await deps.alertEngine.process({ game, content, hit, analysis: persisted }); alerted += created.filter(item => !item.reused).length; }
+  for (let index = 0; index < queue.length; index += 1) { const { content, raw, hit } = queue[index]; const analysis = normalizePersistedAnalysis(analyses[index], raw); const persisted = { ...analysis, normalizationBatchId: scope.runId || content.sync_run_id || content.id, triggerReason: 'keyword_match', matchedKeywords: hit.matchedKeywords }; await deps.repo.insertAnalysis(content.id, persisted); if (typeof deps.repo.reconcilePositiveRiskAlerts === 'function') await deps.repo.reconcilePositiveRiskAlerts(content.id, persisted, { runId: scope.runId || content.sync_run_id || content.id }); const created = await deps.alertEngine.process({ game, content, hit, analysis: persisted }); alerted += created.filter(item => !item.reused).length; }
   return { analyzed: queue.length, alerted };
 }
 
@@ -471,6 +480,8 @@ async function recordBigPlayerCandidateObservation(deps, source, syncRunId, obse
 }
 
 async function syncStagePage(deps, stage) {
+  const atomicPageJobs = require('./overseasBigPlayerPageStore').assertAtomicPageJobsBinding(deps, stage.source);
+  const networkContract = await require('./overseasBigPlayerNetworkPreflight').preflightOverseasNetwork(deps, stage);
   assertDeadline(deps);
   const requestCursor = stage.cursor;
   const { source, account, connector, credential, scope, rootPlatformContentId, postPlatformId, historyStart, taskKind, taskKey, keyword, feed, commentId, sortType } = stage;
@@ -492,6 +503,9 @@ async function syncStagePage(deps, stage) {
   await recordBigPlayerCandidateObservation(deps, source, stage.syncRunId, page.raw?.candidateObservation);
   const replyTargets = [];
   if (Array.isArray(page.replyTargets)) for (const target of page.replyTargets) {
+    if (deps.overseasStageCoverage && (!target || typeof target.commentId !== 'string' || !/^[1-9]\d*$/.test(target.commentId)
+      || typeof target.postId !== 'string' || !/^[1-9]\d*$/.test(target.postId) || ![0, 1, 2].includes(target.sortType)))
+      throw stableError('OVERSEAS_COVERAGE_REPLY_TARGET_INVALID', 'raw reply target identity invalid');
     const targetCommentId = String(target?.commentId || '').trim();
     if (targetCommentId) replyTargets.push({ postId: String(target.postId || rootPlatformContentId || postPlatformId), commentId: targetCommentId, sortType: Number(target.sortType || 0) });
   }
@@ -501,15 +515,33 @@ async function syncStagePage(deps, stage) {
   }
   const sourceItems = scope === 'comments' ? flattenCommentTree(page.items, { rootPlatformContentId: rootPlatformContentId || postPlatformId }) : page.items;
   const normalized = sourceItems.map(raw => normalizePlatformItem(taskKind === 'facebook_reply' ? { ...raw, platformParentId: commentId, contentDepth: 2 } : raw, { scope, platform: source.platform, boardId: source.platform === 'bigplayer_h5' ? require('../../shared/bigPlayerBoard').boardIdOf(source) : null, boardName: feed?.boardName || source.boardName || null, rootPlatformContentId: scope === 'comments' ? (rootPlatformContentId || postPlatformId) : '', parentPlatformContentId: taskKind === 'facebook_reply' ? commentId : null }));
+  if (source.platform === 'bigplayer_h5' && source.region_code === 'overseas') normalized.forEach((item, index) => {
+    item.recoveryContextAncestor = sourceItems[index].recoveryContextAncestor === true;
+    item.rawPayload = { ...sourceItems[index].rawPayload, boardId: item.boardId, boardName: item.boardName,
+      _overseasScope: { sourceId: source.id, accountId: account.id, siteId: source.siteId || source.site_id, boardId: item.boardId },
+      recoveryContextAncestor: item.recoveryContextAncestor };
+  });
   const upsertInput = { account, source, syncScope: stage.syncScope, rootPlatformContentId: stage.checkpointRoot, items: normalized, nextCursor: page.nextCursor, hasMore: page.hasMore, syncMode: stage.syncMode, syncRunId: stage.syncRunId, taskKind, taskKey, feed, checkpointId: stage.checkpoint.id, leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds, lastItemAt: page.platformWatermark || null };
+  if (atomicPageJobs) {
+    if (source.platform !== 'bigplayer_h5' || source.region_code !== 'overseas' || typeof deps.getOverseasRunContract !== 'function') throw Object.assign(new Error('overseas page contract required'), { code: 'OVERSEAS_PAGE_CONTRACT_REQUIRED' });
+    if (deps.overseasStageCoverage) Object.assign(upsertInput, { replyTargets, commentId, sortType });
+    upsertInput.expectedCursor = requestCursor ?? null;
+    upsertInput.runContract = networkContract;
+  }
   // A fetch that finishes at or after the daily deadline must not advance its checkpoint.
   assertDeadline(deps);
   const commit = () => deps.repo.upsertContentPage(upsertInput);
   const committed = deps.commitLane ? await deps.commitLane.submit(commit) : await commit();
+  if (atomicPageJobs) {
+    const atomicStore = require('./overseasBigPlayerPageStore');
+    atomicStore.assertAtomicPageJobsBinding(deps, source);
+    (committed.contents || []).forEach((entry, index) => atomicStore.assertAtomicContentReceipt({ ...entry, raw: normalized[index] }, deps.repo.upsertContentPage, source));
+  }
   stage.cursor = page.nextCursor;
   await settleRequestedRunControl(deps, stage);
-  const entries = (committed.contents || []).map((entry, index) => entry?.content ? { ...entry, raw: normalized[index] } : { content: entry, raw: normalized[index], change: 'changed' });
-  if (source.region_code === 'overseas' && typeof deps.repo.enqueueTranslationJob === 'function') {
+  const allEntries = (committed.contents || []).map((entry, index) => entry?.content ? { ...entry, raw: normalized[index] } : { content: entry, raw: normalized[index], change: 'changed' });
+  const entries = allEntries.filter(entry => !entry.raw?.recoveryContextAncestor);
+  if (!atomicPageJobs && source.region_code === 'overseas' && typeof deps.repo.enqueueTranslationJob === 'function') {
     for (const entry of entries.filter(item => item.change !== 'unchanged' && !item.content?.is_deleted)) {
       try {
         await deps.repo.enqueueTranslationJob(entry.content.id, { targetLanguage: 'zh-CN', version: process.env.AI_TRANSLATION_VERSION || 'translation-v1', contentFingerprint: entry.content.fingerprint || entry.raw?.fingerprint });
@@ -527,7 +559,8 @@ async function syncStagePage(deps, stage) {
     error.details = { reason: boundaryReason };
     throw error;
   }
-  return { discovered: normalized.length, stored: Number(committed.storedCount || entries.filter(entry => entry.change !== 'unchanged').length), entries, capability: page.capability || stage.capability, completed: !page.hasMore, replyTargets, requestCursor, nextCursor: page.nextCursor };
+  return { discovered: normalized.filter(item => !item.recoveryContextAncestor).length, stored: allEntries.some(entry => entry.raw?.recoveryContextAncestor)
+    ? entries.filter(entry => entry.change !== 'unchanged').length : Number(committed.storedCount || entries.filter(entry => entry.change !== 'unchanged').length), entries, capability: page.capability || stage.capability, completed: !page.hasMore, replyTargets, requestCursor, nextCursor: page.nextCursor };
 }
 
 function syncRunControlError(status) {
@@ -610,9 +643,19 @@ async function syncStage(deps, { source, account, connector, credential, session
   const { syncScope, checkpointRoot } = stageIdentity({ scope, rootPlatformContentId, taskKind, taskKey });
   const siteId = first(source, ['siteId', 'site_id'], null);
   const identity = { accountId: account.id, siteId, taskKind, taskKey, syncScope, rootPlatformContentId: checkpointRoot, ...checkpointWindow(deps.collectionWindow) };
+  let coverageState = null;
+  if (deps.overseasStageCoverage) {
+    const contract = await require('./overseasBigPlayerNetworkPreflight').preflightOverseasNetwork(deps, { source, account, syncRunId });
+    coverageState = await deps.overseasStageCoverage.stageState(contract, { taskKind, taskKey, syncScope, rootPlatformContentId: checkpointRoot,
+      feed, commentId: taskKind === 'q1_reply' ? commentId : null, sortType: taskKind === 'q1_reply' ? sortType : null });
+    if (coverageState.completed) return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: true, replyTargets: [] };
+  }
   if (source.platform === 'bigplayer_h5' && deps.collectionWindow?.dailyBounded && typeof deps.repo.getSyncCheckpoint === 'function') {
     const existing = await deps.repo.getSyncCheckpoint(identity);
-    if (existing?.status === 'completed') return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: true, replyTargets: [] };
+    if (existing?.status === 'completed') {
+      if (coverageState) throw stableError('OVERSEAS_COVERAGE_CHECKPOINT_UNBOUND', 'completed checkpoint lacks this run task proof');
+      return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: true, replyTargets: [] };
+    }
     const boundaryIncomplete = terminalQ1Boundary(existing);
     if (boundaryIncomplete) return { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: false, skipped: true, replyTargets: [], taskKind, taskKey, boundaryIncomplete };
   }
@@ -683,6 +726,10 @@ function createFinishOnce(deps, source, run, syncRun) {
   return (status, counts, { errorCode: code = null, errorMessage = null, sourceStatus = status, sourceErrorMessage = errorMessage, nextRetryAt = null, defer = false } = {}) => {
     if (finished) return finished;
     finished = (async () => {
+      if (typeof deps.finishOverseasBoundRun === 'function') {
+        if (!run?.auditProof) throw stableError('OVERSEAS_AUDIT_BINDING_UNPROVEN', 'bound audit not prepared');
+        return deps.finishOverseasBoundRun({ proof: run.auditProof, status, errorCode: code, errorMessage, sourceStatus, sourceErrorMessage });
+      }
       const scheduledSiteChild = Boolean(first(syncRun, ['parent_run_id', 'parentRunId'], null));
       const finishedSyncRun = defer
         ? await deps.repo.deferSyncRun(syncRun.id, { errorCode: code, errorMessage, nextRetryAt, leaseOwner: deps.leaseOwner, leaseEpoch: syncRun.lease_epoch })
@@ -717,12 +764,17 @@ async function finishPagedFailure(deps, source, run, syncRun, counts, error, com
 
 async function runDailyQ1Collection(deps, context) {
   const { source, connector, account, syncRun, credential, sessionRef, syncMode, historyStart, commentPageBudget, commentsSupported, isInCollectionWindow, recordPage, recordStageResult, failStage } = context;
+  const coverageContract = await require('./overseasBigPlayerNetworkPreflight').preflightOverseasNetwork(deps, { source, account, syncRunId: syncRun.id });
+  const overseasScope = source.platform === 'bigplayer_h5' && source.region_code === 'overseas'
+    ? createOverseasCommentScope(source, account) : null;
+  if (overseasScope && commentsSupported && typeof deps.repo.listOverseasBigPlayerCommentParents !== 'function') throw stableError('OVERSEAS_COMMENT_HISTORY_UNAVAILABLE', 'overseas parent history adapter unavailable');
   const feeds = await discoverFeedsWithTimeout(deps, connector, { source, account, credentialContext: deps.credentialContext });
   source.boardName = feeds[0]?.boardName || null;
   if (source.boardName && typeof deps.repo.setRunBoardName === 'function') await deps.repo.setRunBoardName(syncRun.id, source.boardName);
   if (!Array.isArray(feeds) || !feeds.length) { const error = new Error('Q1 board schema did not expose any feeds'); error.code = 'MALFORMED_RESPONSE'; throw error; }
   const feedKeys = new Set();
   for (const feed of feeds) { const key = String(feed.feedKey || '').trim(); if (!key || feedKeys.has(key)) { const error = new Error('Q1 feed descriptor has an empty or duplicate feedKey'); error.code = 'MALFORMED_RESPONSE'; throw error; } feedKeys.add(key); }
+  const coverageProgress = deps.overseasStageCoverage ? await deps.overseasStageCoverage.prepare(coverageContract, feeds) : null;
   const seenComments = new Set(); const seenReplies = new Set(); let fatalError = null;
   const capture = error => { fatalError ||= error; };
   const feedScheduler = createTaskScheduler(deps.dailyFeedFetchConcurrency ?? process.env.DAILY_FEED_FETCH_CONCURRENCY ?? 4, capture);
@@ -767,7 +819,8 @@ async function runDailyQ1Collection(deps, context) {
       try {
         const result = await syncStage(stageDeps, { source, account, connector, credential, sessionRef, scope: 'posts', syncMode, syncRunId: syncRun.id, historyStart, taskKind: 'q1_feed', taskKey: feedKey, feed, onPageCommitted: async page => {
           await recordPage(page);
-          for (const entry of page.entries || []) if (entry.change !== 'unchanged' && isInCollectionWindow(entry)) scheduleComments(String(entry.raw?.externalId || '').trim());
+          if (overseasScope) currentPageCommentTargets(overseasScope, page.entries).forEach(scheduleComments);
+          else for (const entry of page.entries || []) if (entry.change !== 'unchanged' && isInCollectionWindow(entry)) scheduleComments(String(entry.raw?.externalId || '').trim());
         } });
         if (!result.completed && !result.skipped && !result.unsupported) feedScheduler.add(runTask);
         else recordStageResult(result);
@@ -782,6 +835,19 @@ async function runDailyQ1Collection(deps, context) {
     feedScheduler.add(runTask);
   };
   feeds.forEach(scheduleFeed);
+  if (coverageProgress) {
+    for (const task of coverageProgress.pending) {
+      if (task.taskKind === 'comments') scheduleComments(task.rootPlatformContentId);
+      else if (task.taskKind === 'q1_reply') scheduleReply({ postId: task.rootPlatformContentId, commentId: task.commentId, sortType: task.sortType });
+    }
+  }
+  if (overseasScope && commentsSupported && !coverageProgress) {
+    try {
+      await walkHistoricalCommentTargets({ scope: overseasScope,
+        loadPage: input => deps.repo.listOverseasBigPlayerCommentParents(input), onTarget: scheduleComments,
+        check: () => { assertDeadline(deps); deps.leaseGuard?.check?.(); } });
+    } catch (error) { failStage('comments', 'historical_parent_discovery', error); if (['SYNC_RUN_LEASE_LOST', 'DAILY_RUN_TIMEOUT'].includes(errorCode(error))) { stopSchedulers(); capture(error); } }
+  }
   const awaitSchedulerIdle = scheduler => {
     const signal = deps.leaseGuard?.signal;
     if (!signal) return scheduler.idle(remainingDeadlineMs(deps));
@@ -796,8 +862,16 @@ async function runDailyQ1Collection(deps, context) {
     });
   };
   await awaitSchedulerIdle(feedScheduler); await awaitSchedulerIdle(commentScheduler); await awaitSchedulerIdle(replyScheduler);
+  if (overseasScope && [feedScheduler, commentScheduler, replyScheduler].some(scheduler => scheduler.stats().active || scheduler.stats().queued)) {
+    stopSchedulers(); throw stableError('DAILY_RUN_TIMEOUT', 'overseas task lanes not drained');
+  }
   deps.leaseGuard?.check?.();
   if (fatalError) throw fatalError;
+  if (deps.overseasStageCoverage) {
+    await deps.commitLane?.drain();
+    const verdict = await deps.overseasStageCoverage.seal(coverageContract);
+    if (verdict.status === 'partial') failStage('coverage', verdict.reason, stableError('OVERSEAS_COVERAGE_PARTIAL', verdict.reason));
+  }
 }
 
 async function runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
@@ -865,6 +939,7 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
     await runBounded(postIds, Number(process.env.SYNC_COMMENT_CONCURRENCY || 8), syncOne);
   };
   try {
+    await require('./overseasBigPlayerNetworkPreflight').preflightOverseasNetwork(deps, { source, account, syncRunId: syncRun.id });
     gate = await checkAuthorization(deps.repo, source, connector, { account, credentialContext: deps.credentialContext, loginSessionClient: deps.loginSessionClient });
     if (!gate.authorized) { const error = new Error(gate.reason || 'credentials required'); error.code = gate.reason || 'UNAUTHORIZED'; throw error; }
     // TapTap 免登采集：无需凭据，直接通过连接器健康检查。
@@ -1095,7 +1170,17 @@ function createLeaseGuard(deps, syncRun) {
   return { check, start: renew, stopScheduling: fail, onStop(listener) { stopListeners.add(listener); return () => stopListeners.delete(listener); }, signal: controller.signal, stop: async () => { stopTimer(); await renewing; } };
 }
 
-async function runSource(deps, source, precreatedSyncRun = null) {
+async function runSource(deps, source, precreatedSyncRun = null, admittedTicket = null) {
+  const inherited = deps.drainController?.owns?.(admittedTicket) === true;
+  const ticket = inherited ? admittedTicket : deps.drainController?.admit();
+  if (deps.drainController && !ticket) return { skipped: true, reasonCode: 'WORKER_DRAINING' };
+  try {
+    const routed = typeof deps.resolveSourceDeps === 'function' ? await deps.resolveSourceDeps(source, precreatedSyncRun) : { deps, source };
+    if (!routed?.deps || !routed?.source) throw Object.assign(new Error('source route invalid'), { code: 'WORKER_SOURCE_ROUTE_INVALID' });
+    return await runSourceWithDeps(routed.deps, routed.source, precreatedSyncRun);
+  } finally { if (!inherited) ticket?.release(); }
+}
+async function runSourceWithDeps(deps, source, precreatedSyncRun = null) {
   const connector = deps.connectors[source.platform];
   if (!connector && !precreatedSyncRun) { const run = await deps.repo.createRun(source.id); return deps.repo.finishRun(run.id, { status: 'failed', errorCode: 'CONNECTOR_NOT_FOUND', errorMessage: source.platform }); }
   const paged = connector && typeof deps.repo.getDefaultAccount === 'function' && typeof deps.repo.upsertContentPage === 'function' && (typeof connector.listOwnedContents === 'function' || typeof connector.listPosts === 'function' || (typeof connector.discoverFeeds === 'function' && typeof connector.listFeedContents === 'function')) && (source.platform === 'taptap' || deps.credentialContext || (isSocialPlatform(source.platform) && deps.loginSessionClient));
@@ -1106,7 +1191,9 @@ async function runSource(deps, source, precreatedSyncRun = null) {
   let executionSource = source;
   if (claimed) {
     try {
-      executionSource = withRequestEvidence(sourceForClaimedSite(source, claimed), leasedDeps, claimed);
+      const claimedSource = typeof leasedDeps.resolveOverseasClaimedSource === 'function'
+        ? await leasedDeps.resolveOverseasClaimedSource(source, claimed) : sourceForClaimedSite(source, claimed);
+      executionSource = withRequestEvidence(claimedSource, leasedDeps, claimed);
     } catch (error) {
       const run = await leasedDeps.repo.createRun(source.id);
       await finishPagedFailure(leasedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
@@ -1126,7 +1213,9 @@ async function runSource(deps, source, precreatedSyncRun = null) {
     if (!claimed) return { skipped: true, syncRunId: queued.id };
     leasedDeps = await validatedClaimedRunDeps(deps, executionSource, claimed, false);
     try {
-      executionSource = withRequestEvidence(sourceForClaimedSite(executionSource, claimed), leasedDeps, claimed);
+      const claimedSource = typeof leasedDeps.resolveOverseasClaimedSource === 'function'
+        ? await leasedDeps.resolveOverseasClaimedSource(executionSource, claimed) : sourceForClaimedSite(executionSource, claimed);
+      executionSource = withRequestEvidence(claimedSource, leasedDeps, claimed);
     } catch (error) {
       const run = await leasedDeps.repo.createRun(source.id);
       await finishPagedFailure(leasedDeps, source, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
@@ -1138,20 +1227,34 @@ async function runSource(deps, source, precreatedSyncRun = null) {
   const boundedDeps = dailyBounded && !Number.isFinite(Number(leasedDeps.deadlineAt))
     ? { ...leasedDeps, deadlineAt: Date.now() + Math.max(1, Number.isFinite(configuredDailyTimeoutMs) ? configuredDailyTimeoutMs : 30 * 60 * 1000) }
     : leasedDeps;
-  const run = await boundedDeps.repo.createRun(executionSource.id);
+  let run = typeof boundedDeps.createOverseasBoundAudit === 'function' ? null : await boundedDeps.repo.createRun(executionSource.id);
   if (!connector) {
+    if (typeof boundedDeps.createOverseasBoundAudit === 'function') throw stableError('OVERSEAS_AUDIT_PREPARE_BLOCKED', 'candidate connector missing before bound audit');
     const error = new Error(executionSource.platform); error.code = 'CONNECTOR_NOT_FOUND';
     await finishPagedFailure(boundedDeps, executionSource, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error);
     return;
   }
   const leaseGuard = createLeaseGuard(boundedDeps, claimed);
-  const finishOnce = createFinishOnce(boundedDeps, executionSource, run, claimed);
+  let finishOnce = createFinishOnce(boundedDeps, executionSource, run, claimed);
   const guardedDeps = { ...boundedDeps, leaseGuard };
   try {
     await leaseGuard.start();
     leaseGuard.check();
+    if (typeof guardedDeps.prepareOverseasClaimedRun === 'function') {
+      await guardedDeps.prepareOverseasClaimedRun({ source: executionSource, account, syncRun: claimed,
+        leaseOwner: guardedDeps.leaseOwner, leaseEpoch: guardedDeps.syncRunLeaseEpoch,
+        collectionWindow: guardedDeps.collectionWindow });
+      leaseGuard.check();
+    }
+    if (typeof guardedDeps.createOverseasBoundAudit === 'function') {
+      run = await guardedDeps.createOverseasBoundAudit({ source: executionSource, account, syncRun: claimed, syncRunId: claimed.id,
+        leaseOwner: guardedDeps.leaseOwner, leaseEpoch: guardedDeps.syncRunLeaseEpoch, collectionWindow: guardedDeps.collectionWindow });
+      leaseGuard.check();
+      finishOnce = createFinishOnce(guardedDeps, executionSource, run, claimed);
+    }
     return await runPagedSource(guardedDeps, executionSource, connector, run, claimed, account, finishOnce);
   } catch (error) {
+    if (typeof guardedDeps.createOverseasBoundAudit === 'function' && !run?.auditProof) throw error;
     await finishPagedFailure(guardedDeps, executionSource, run, claimed, { discovered: 0, stored: 0, analyzed: 0, alerted: 0 }, error, null, finishOnce);
     if (error?.code !== 'SYNC_RUN_LEASE_LOST') throw error;
   } finally { await leaseGuard.stop(); }
@@ -1288,10 +1391,13 @@ async function runUnifiedSchedulerSeam(options = {}) {
       logger.error('[worker] unified scheduler schema admission failed', error);
       return { status: 'failed', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED' };
     }
+    if (options.drainController?.isDraining()) return { status: 'skipped', reasonCode: 'WORKER_DRAINING' };
     if (!schemaReady) return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY' };
     if (mode === 'shadow') return { status: 'skipped', reasonCode: 'UNIFIED_SCHEDULER_SHADOW_NO_WRITE' };
     const runJob = options.runJob || require('./unifiedSourceSchedulerJob').runUnifiedSourceSchedulerOnce;
-    return await runJob({
+    const ticket = options.drainController?.admit();
+    if (options.drainController && !ticket) return { status: 'skipped', reasonCode: 'WORKER_DRAINING' };
+    try { return await runJob({
       connection: options.connection,
       workerId: options.workerId,
       now: typeof options.now === 'function' ? options.now() : options.now,
@@ -1301,7 +1407,7 @@ async function runUnifiedSchedulerSeam(options = {}) {
       leaseDurationMs: options.leaseDurationMs,
       idFactory: options.idFactory,
       sourceAllowlist
-    });
+    }); } finally { ticket?.release(); }
   } catch (error) {
     logger.error('[worker] unified scheduler failed', error);
     return { status: 'failed', reasonCode: 'UNIFIED_SCHEDULER_FAILED' };
@@ -1321,18 +1427,35 @@ async function runBounded(items, limit, operation) {
   await Promise.all(Array.from({ length: Math.min(Math.max(1, Number(limit) || 1), items.length) }, worker));
 }
 async function runOnce(deps = buildDeps()) {
+  const ticket = deps.drainController?.admit();
+  if (deps.drainController && !ticket) return { skipped: true, reasonCode: 'WORKER_DRAINING' };
+  try { return await runOnceAdmitted(deps); } finally { ticket?.release(); }
+}
+async function runOnceAdmitted(deps) {
+  const classify=deps.classifyWorkerEntry?require('./sharedWorkerEntryClassifier').assertSharedWorkerEntryClassifier(deps.classifyWorkerEntry,deps.repo):null;
+  const safelyClassify=async(source,run)=>{try{return await classify(source,run);}catch(error){if(error.code!=='WORKER_ENTRY_IDENTITY_INVALID')throw error;
+    console.error('[worker] rejected intake identity errorCode=WORKER_ENTRY_IDENTITY_INVALID');return null;}};
+  const classifyQueue=async list=>{if(!classify)return list;const result=[];for(const item of list||[]){const run=item.syncRun||item.sync_run||item;
+    const source=item.source||item.sourceRecord||item.source_record||{...item,id:first(item,['sourceId','source_id'],item.id)};
+    const entry=await safelyClassify(source,run);if(entry)result.push({source:entry.source,syncRun:entry.run});}return result;};
+  const classifySources=async list=>{if(!classify)return list;const result=[];for(const source of list||[]){const entry=await safelyClassify(source);if(entry)result.push(entry.source);}return result;};
+  const draining = () => deps.drainController?.isDraining() === true;
+  const drainedResult = () => ({ skipped: true, reasonCode: 'WORKER_DRAINING' });
   const { createWorkerScanLease, recoverExpiredRuns } = require('./workerScanLease');
   const scanLease = deps.scanLease || (deps.repo.pool && typeof deps.repo.query === 'function' ? createWorkerScanLease(deps.repo.query.bind(deps.repo)) : null);
   const scanToken = scanLease ? await scanLease.acquire(deps.leaseOwner || `worker-${process.pid}`) : null;
   if (scanLease && !scanToken) return { skipped: true, reasonCode: 'WORKER_SCAN_ACTIVE' };
   let scanLeaseLost = false;
   let renewingScan = false;
-  const scanTimer = scanLease ? setInterval(async () => {
+  let scanRenewPromise = null;
+  const scanTimer = scanLease ? setInterval(() => {
     if (renewingScan || scanLeaseLost) return;
     renewingScan = true;
-    try { if (!await scanLease.renew(scanToken)) scanLeaseLost = true; }
-    catch { scanLeaseLost = true; }
-    finally { renewingScan = false; }
+    scanRenewPromise = (async () => {
+      try { if (!await scanLease.renew(scanToken)) scanLeaseLost = true; }
+      catch { scanLeaseLost = true; }
+      finally { renewingScan = false; }
+    })();
   }, 30000) : null;
   scanTimer?.unref?.();
   const heartbeat = async patch => {
@@ -1341,10 +1464,17 @@ async function runOnce(deps = buildDeps()) {
   };
   await heartbeat({ scanStartedAt: new Date(), scanFinishedAt: null, scanStatus: 'running', scanError: null, currentScan: 'runOnce' });
   try {
+  if (draining()) return drainedResult();
   if (typeof deps.repo.health === 'function') await deps.repo.health();
-  if (deps.repo.pool && typeof deps.repo.query === 'function') await recoverExpiredRuns(deps.repo.query.bind(deps.repo));
+  if (draining()) return drainedResult();
+  if (deps.repo.pool && typeof deps.repo.query === 'function') {
+    if (deps.recoverCandidateLegacyRuns != null) {
+      await require('./overseasCandidateLegacyRecovery').assertCandidateLegacyRecovery(deps.recoverCandidateLegacyRuns, deps.repo)();
+    } else await recoverExpiredRuns(deps.repo.query.bind(deps.repo));
+  }
+  if (draining()) return drainedResult();
   const recoverySourceId = String(deps.unifiedScheduler?.recoverySourceId || '').trim() || null;
-  const allQueued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await deps.repo.listRunnableSyncRuns() : [];
+  const allQueued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await classifyQueue(await deps.repo.listRunnableSyncRuns()) : [];
   let queued = recoverySourceId
     ? allQueued.filter(item => {
       const run = item.syncRun || item.sync_run || item;
@@ -1354,21 +1484,27 @@ async function runOnce(deps = buildDeps()) {
       return String(sourceId) === recoverySourceId && triggerType === 'manual';
     })
     : allQueued;
-  const manual = await deps.repo.listManualDueSources(); const manualRunnable = [];
+  if (draining()) return drainedResult();
+  const manual = await classifySources(await deps.repo.listManualDueSources()); const manualRunnable = [];
+  if (draining()) return drainedResult();
   for (const source of manual) {
     // 恢复模式只消费已入队的 manual run；marker 不得降级为 legacy 入队，也不清理其他请求。
     if (recoverySourceId) continue;
-    await deps.repo.clearManualRequest(source.id);
+    if(classify&&source.platform==='bigplayer_h5'&&source.region_code==='overseas'&&!deps.drainController)throw stableError('OVERSEAS_MANUAL_RECEIPT_REQUIRED','candidate manual admission requires drain and durable receipt');
+    if (!deps.drainController) await deps.repo.clearManualRequest(source.id);
     if (source.enabled && source.game_enabled) manualRunnable.push(source);
   }
-  const schedulerResult = await runUnifiedSchedulerSeam({ ...(deps.unifiedScheduler || {}), recoverySourceId });
+  if (draining()) return drainedResult();
+  const schedulerResult = await runUnifiedSchedulerSeam({ ...(deps.unifiedScheduler || {}), recoverySourceId, drainController: deps.drainController });
+  if (draining()) return drainedResult();
   // The admitted scheduler creates scheduled parent runs after the initial
   // queue snapshot above. Re-read once in the same scan so a short worker
   // cycle cannot leave those runs queued until a later process tick.
   if (!recoverySourceId
     && unifiedSchedulerOwnsPeriodicSources(deps.unifiedScheduler, schedulerResult)
     && typeof deps.repo.listRunnableSyncRuns === 'function') {
-    const postSchedulerQueued = await deps.repo.listRunnableSyncRuns();
+    const postSchedulerQueued = await classifyQueue(await deps.repo.listRunnableSyncRuns());
+    if (draining()) return drainedResult();
     const knownRunIds = new Set(queued.map(item => {
       const run = item.syncRun || item.sync_run || item;
       return run?.id == null ? null : String(run.id);
@@ -1383,7 +1519,8 @@ async function runOnce(deps = buildDeps()) {
   }
   const sources = recoverySourceId
     ? []
-    : (unifiedSchedulerOwnsPeriodicSources(deps.unifiedScheduler, schedulerResult) ? [] : await deps.repo.listDueSources(new Date())); const work = new Map();
+    : (unifiedSchedulerOwnsPeriodicSources(deps.unifiedScheduler, schedulerResult) ? [] : await classifySources(await deps.repo.listDueSources(new Date()))); const work = new Map();
+  if (draining()) return drainedResult();
   for (const item of queued) {
     const queuedSource = item.source || item.sourceRecord || item.source_record || { ...item, id: first(item, ['sourceId', 'source_id'], item.id) };
     const syncRun = item.syncRun || item.sync_run || item;
@@ -1394,14 +1531,34 @@ async function runOnce(deps = buildDeps()) {
     const sourceRecord = item.source || item.sourceRecord || item.source_record || item;
     return String(first(sourceRecord, ['sourceId', 'source_id'], first(item, ['sourceId', 'source_id'], sourceRecord.id)));
   }));
-  for (const candidate of [...manualRunnable, ...sources]) if (!queuedSourceIds.has(String(candidate.id))) work.set(`source:${candidate.id}`, { source: candidate, syncRun: null });
+  const manualIds = new Set(manualRunnable.map(source => String(source.id)));
+  for (const candidate of [...manualRunnable, ...sources]) if (!queuedSourceIds.has(String(candidate.id))) work.set(`source:${candidate.id}`, { source: candidate, syncRun: null, manualMarker: manualIds.has(String(candidate.id)) });
   const runSourceOperation = deps.runSource || runSource;
   let activeWorkCount = 0;
+  const permit=classify?require('./sharedWorkerPermit').createSharedWorkerPermit(deps.sourceConcurrency||1):null;
   const runTrackedSource = async item => {
+    const slot=permit?await permit.acquire():null;
+    try{
     if (scanLeaseLost) throw stableError('WORKER_SCAN_LEASE_LOST', 'worker scan lease was lost');
+    const ticket = deps.drainController?.admit();
+    if (deps.drainController && !ticket) return drainedResult();
     activeWorkCount += 1;
-    try { return await runSourceOperation(deps, item.source, item.syncRun); }
-    finally { activeWorkCount = Math.max(0, activeWorkCount - 1); }
+    try {
+      if (deps.drainController && item.manualMarker) {
+        if (item.source.platform === 'bigplayer_h5' && item.source.region_code === 'overseas') {
+          if (typeof deps.handoffOverseasManualRequest !== 'function') throw stableError('OVERSEAS_MANUAL_RECEIPT_REQUIRED', 'durable manual handoff required');
+          // Only durable admission here. Queue polling/next scan performs the
+          // normal claimed-run route; a failed route cannot erase the request.
+          return await deps.handoffOverseasManualRequest(item.source);
+        }
+        if (typeof deps.repo.query !== 'function' || item.source.collect_requested_at == null) throw stableError('WORKER_MANUAL_MARKER_PROOF_REQUIRED', 'manual marker CAS required');
+        const cleared = await deps.repo.query('UPDATE po_sources SET collect_requested_at=NULL WHERE id=? AND collect_requested_at<=>?', [item.source.id, item.source.collect_requested_at]);
+        if (Number(cleared?.affectedRows) !== 1) return { skipped: true, reasonCode: 'WORKER_MANUAL_MARKER_CHANGED' };
+      }
+      return await runSourceOperation(deps, item.source, item.syncRun, ticket);
+    }
+    finally { activeWorkCount = Math.max(0, activeWorkCount - 1); ticket?.release(); }
+    }finally{slot?.release();}
   };
   const seenManualRunIds = new Set([...queued].map(item => {
     const syncRun = item.syncRun || item.sync_run || item;
@@ -1412,13 +1569,16 @@ async function runOnce(deps = buildDeps()) {
   let pollPromise = null;
   const queuePollIntervalMs = Math.max(250, Number(deps.queuePollIntervalMs ?? 5000));
   const pollManualQueue = async () => {
-    if (polling || scanLeaseLost || typeof deps.repo.listRunnableSyncRuns !== 'function') return;
+    if (polling || scanLeaseLost || draining() || typeof deps.repo.listRunnableSyncRuns !== 'function') return;
     polling = true;
     pollPromise = (async () => {
       try {
-        const availableSlots = Math.max(0, Number(deps.sourceConcurrency || 1) - activeWorkCount);
+        let availableSlots = Math.max(0, Number(deps.sourceConcurrency || 1) - activeWorkCount);
         if (!availableSlots) return;
-        const discovered = await deps.repo.listRunnableSyncRuns();
+        const discovered = await classifyQueue(await deps.repo.listRunnableSyncRuns());
+        if (draining()) return;
+        availableSlots = Math.max(0, Number(deps.sourceConcurrency || 1) - activeWorkCount);
+        if (!availableSlots) return;
         const additions = [];
         for (const item of discovered || []) {
           const syncRun = item.syncRun || item.sync_run || item;
@@ -1453,7 +1613,7 @@ async function runOnce(deps = buildDeps()) {
     if (pollTimer) clearInterval(pollTimer);
     if (pollPromise) await pollPromise;
   }
-  if (typeof deps.repo.enqueueMissingAnalysis === 'function'
+  if (!draining() && typeof deps.repo.enqueueMissingAnalysis === 'function'
     && (typeof deps.ai?.configured !== 'function' || deps.ai.configured('light'))) {
     const spec = profileSpec(deps.ai, 'light');
     await deps.repo.enqueueMissingAnalysis({ profile: 'light', version: spec.version, limit: deps.analysisJobBatchSize || 100 });
@@ -1467,6 +1627,7 @@ async function runOnce(deps = buildDeps()) {
     throw error;
   } finally {
     if (scanTimer) clearInterval(scanTimer);
+    if (scanRenewPromise) await scanRenewPromise;
     // Never retain this token across DB failures or scans. A recovery scan
     // always performs a fresh DB-clock CAS and receives a new epoch.
     if (scanLease && !scanLeaseLost) { try { await scanLease.release(scanToken); } catch {} }

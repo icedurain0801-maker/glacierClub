@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TapTap 游标续跑隔离验收 fixture</title>
+  <style>
+    :root { color-scheme: light; font: 14px system-ui, sans-serif; color: #1f2937; background: #f5f7fb; }
+    body { margin: 0; padding: 24px; }
+    main { max-width: 920px; margin: auto; background: #fff; border: 1px solid #dbe3ef; border-radius: 10px; padding: 24px; box-shadow: 0 4px 16px #1f29370d; }
+    h1 { margin-top: 0; font-size: 22px; } .notice { padding: 12px; border-left: 4px solid #2563eb; background: #eff6ff; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; } button { border: 1px solid #2563eb; border-radius: 6px; padding: 8px 12px; color: #fff; background: #2563eb; cursor: pointer; } button.secondary { color: #1d4ed8; background: #fff; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; } th, td { padding: 9px; text-align: left; border-bottom: 1px solid #e5e7eb; vertical-align: top; } th { background: #f8fafc; }
+    code, output { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; } .ok { color: #047857; font-weight: 700; } .waiting { color: #92400e; font-weight: 700; }
+    #requests { max-height: 175px; overflow: auto; padding: 10px; background: #111827; color: #d1fae5; border-radius: 6px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>TapTap 增量游标续跑：隔离浏览器验收</h1>
+    <p class="notice">本页只在浏览器内运行固定 mock；不加载 Worker、凭据、Provider 或任何 API，且不会写数据库、触发同步或访问 3001/4320。</p>
+    <div class="actions">
+      <button id="run-one">执行第 1 轮（20 页预算）</button>
+      <button id="run-two" disabled>执行第 2 轮（从 checkpoint 续跑）</button>
+      <button id="replay" class="secondary" disabled>重放第 2 轮首页（去重验证）</button>
+      <button id="reset" class="secondary">重置 fixture</button>
+    </div>
+    <table aria-label="TapTap 游标续跑验收状态">
+      <tbody>
+        <tr><th>第 1 轮</th><td id="first-run" class="waiting">待执行</td></tr>
+        <tr><th>checkpoint</th><td><output id="checkpoint">null</output></td></tr>
+        <tr><th>第 2 轮首个请求 cursor</th><td><output id="second-first">待执行</output></td></tr>
+        <tr><th>累计唯一内容</th><td><output id="unique">0</output></td></tr>
+        <tr><th>重放结果</th><td id="dedupe" class="waiting">待执行</td></tr>
+      </tbody>
+    </table>
+    <h2>请求轨迹（固定 mock）</h2>
+    <div id="requests" aria-live="polite">尚未发起 mock 请求</div>
+  </main>
+  <script>
+    const pageBudget = 20;
+    const pageSize = 10;
+    let checkpoint = null;
+    let persisted = new Set();
+    let requests = [];
+    const cursor = from => JSON.stringify({ version: 1, accountIdx: 0, from });
+    const show = () => {
+      document.querySelector('#checkpoint').textContent = checkpoint || 'null';
+      document.querySelector('#unique').textContent = persisted.size;
+      document.querySelector('#requests').textContent = requests.length ? requests.join('\n') : '尚未发起 mock 请求';
+    };
+    function runRound(label) {
+      const start = checkpoint ? JSON.parse(checkpoint).from : 0;
+      let from = start;
+      let newlyStored = 0;
+      for (let page = 0; page < pageBudget; page += 1) {
+        requests.push(`${label} / page ${page + 1}: request cursor=${from === 0 ? 'null' : cursor(from)}`);
+        for (let item = from; item < from + pageSize; item += 1) {
+          const id = `taptap-${item}`;
+          if (!persisted.has(id)) { persisted.add(id); newlyStored += 1; }
+        }
+        from += pageSize;
+      }
+      checkpoint = cursor(from);
+      show();
+      return { start, newlyStored, cursor: checkpoint };
+    }
+    document.querySelector('#run-one').addEventListener('click', () => {
+      const result = runRound('run-1');
+      document.querySelector('#first-run').className = 'ok';
+      document.querySelector('#first-run').textContent = `PASS：处理 ${pageBudget} 页 / 新增 ${result.newlyStored} 条 / 预算耗尽后保存 idle checkpoint`;
+      document.querySelector('#run-one').disabled = true;
+      document.querySelector('#run-two').disabled = false;
+    });
+    document.querySelector('#run-two').addEventListener('click', () => {
+      const result = runRound('run-2');
+      document.querySelector('#second-first').textContent = cursor(result.start);
+      document.querySelector('#second-first').className = 'ok';
+      document.querySelector('#run-two').disabled = true;
+      document.querySelector('#replay').disabled = false;
+    });
+    document.querySelector('#replay').addEventListener('click', () => {
+      const firstSecondPageStart = 200;
+      let duplicates = 0;
+      for (let item = firstSecondPageStart; item < firstSecondPageStart + pageSize; item += 1) if (persisted.has(`taptap-${item}`)) duplicates += 1;
+      const result = document.querySelector('#dedupe'); result.className = 'ok'; result.textContent = `PASS：重放 from=200 的 10 条内容，新增 0，去重 ${duplicates}`;
+    });
+    document.querySelector('#reset').addEventListener('click', () => { checkpoint = null; persisted = new Set(); requests = []; document.querySelector('#first-run').className = 'waiting'; document.querySelector('#first-run').textContent = '待执行'; document.querySelector('#second-first').textContent = '待执行'; document.querySelector('#second-first').className = ''; document.querySelector('#dedupe').className = 'waiting'; document.querySelector('#dedupe').textContent = '待执行'; document.querySelector('#run-one').disabled = false; document.querySelector('#run-two').disabled = true; document.querySelector('#replay').disabled = true; show(); });
+  </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
--- BigPlayer per-site run evidence. This candidate migration is not executed by QA.
+-- BigPlayer per-site run evidence. Apply only after 027 and scheduled-site 028.
 ALTER TABLE po_sync_runs
   ADD COLUMN IF NOT EXISTS site_url_snapshot TEXT NULL,
   ADD COLUMN IF NOT EXISTS last_request_at DATETIME(3) NULL;

@@ -1,0 +1,202 @@
+TAP version 13
+# Subtest: adapter fails cross-platform requests before transport and never activates missing schema
+ok 1 - adapter fails cross-platform requests before transport and never activates missing schema
+  ---
+  duration_ms: 1.7176
+  type: 'test'
+  ...
+# Subtest: optional page store requires explicit contract verifier and does not replace shared repository
+ok 2 - optional page store requires explicit contract verifier and does not replace shared repository
+  ---
+  duration_ms: 0.2422
+  type: 'test'
+  ...
+# Subtest: stale completed AI and translation requeue exact version
+ok 3 - stale completed AI and translation requeue exact version
+  ---
+  duration_ms: 1.1169
+  type: 'test'
+  ...
+# Subtest: same completed and running versions stay idempotent
+ok 4 - same completed and running versions stay idempotent
+  ---
+  duration_ms: 0.1787
+  type: 'test'
+  ...
+# Subtest: different running AI or translation version rejects without mutating its lease
+ok 5 - different running AI or translation version rejects without mutating its lease
+  ---
+  duration_ms: 0.7608
+  type: 'test'
+  ...
+# Subtest: context ancestors never enter queues
+ok 6 - context ancestors never enter queues
+  ---
+  duration_ms: 0.125
+  type: 'test'
+  ...
+# Subtest: content fingerprint mismatch rejects
+ok 7 - content fingerprint mismatch rejects
+  ---
+  duration_ms: 0.2541
+  type: 'test'
+  ...
+# Subtest: legacy SQL removes only board fields and preserves values
+ok 8 - legacy SQL removes only board fields and preserves values
+  ---
+  duration_ms: 1.8284
+  type: 'test'
+  ...
+# Subtest: actual Repository commits once per page and rerun is idempotent
+ok 9 - actual Repository commits once per page and rerun is idempotent
+  ---
+  duration_ms: 8.8831
+  type: 'test'
+  ...
+# Subtest: empty page rejects unverified contract before connection
+ok 10 - empty page rejects unverified contract before connection
+  ---
+  duration_ms: 0.6616
+  type: 'test'
+  ...
+# Subtest: empty page fences run site and epoch
+ok 11 - empty page fences run site and epoch
+  ---
+  duration_ms: 0.5099
+  type: 'test'
+  ...
+# Subtest: existing context ancestor cannot bypass conflicting scope
+ok 12 - existing context ancestor cannot bypass conflicting scope
+  ---
+  duration_ms: 1.0811
+  type: 'test'
+  ...
+# Subtest: unknown historical site URL fails closed
+ok 13 - unknown historical site URL fails closed
+  ---
+  duration_ms: 1.8475
+  type: 'test'
+  ...
+# Subtest: fingerprint collision cannot overwrite another external id
+ok 14 - fingerprint collision cannot overwrite another external id
+  ---
+  duration_ms: 1.1716
+  type: 'test'
+  ...
+# Subtest: missing comment parent rolls back actual Repository
+ok 15 - missing comment parent rolls back actual Repository
+  ---
+  duration_ms: 0.837
+  type: 'test'
+  ...
+# Subtest: beforeCommit uses same transaction and queue failure rolls back content
+ok 16 - beforeCommit uses same transaction and queue failure rolls back content
+  ---
+  duration_ms: 1.1077
+  type: 'test'
+  ...
+# Subtest: incoming conflicting raw marker rejects before INSERT
+ok 17 - incoming conflicting raw marker rejects before INSERT
+  ---
+  duration_ms: 1.3231
+  type: 'test'
+  ...
+# Subtest: checkpoint wrong site is rejected even on empty page
+ok 18 - checkpoint wrong site is rejected even on empty page
+  ---
+  duration_ms: 0.6439
+  type: 'test'
+  ...
+# Subtest: stale cursor rejects before an empty page can advance checkpoint
+ok 19 - stale cursor rejects before an empty page can advance checkpoint
+  ---
+  duration_ms: 0.4304
+  type: 'test'
+  ...
+# Subtest: expired checkpoint fails closed
+ok 20 - expired checkpoint fails closed
+  ---
+  duration_ms: 0.3702
+  type: 'test'
+  ...
+# Subtest: reply cannot attach directly to root and deleted parents reject
+ok 21 - reply cannot attach directly to root and deleted parents reject
+  ---
+  duration_ms: 1.0853
+  type: 'test'
+  ...
+# Subtest: renewal SQL fences live run epoch and checkpoint cursor
+ok 22 - renewal SQL fences live run epoch and checkpoint cursor
+  ---
+  duration_ms: 0.6428
+  type: 'test'
+  ...
+# Subtest: commit acknowledgement loss destroys connection without unsafe retry
+ok 23 - commit acknowledgement loss destroys connection without unsafe retry
+  ---
+  duration_ms: 0.7829
+  type: 'test'
+  ...
+# Subtest: canonical contract rejects unsupported values
+ok 24 - canonical contract rejects unsupported values
+  ---
+  duration_ms: 1.8969
+  type: 'test'
+  ...
+# Subtest: persistent contract create/read/verify is exact and idempotent
+ok 25 - persistent contract create/read/verify is exact and idempotent
+  ---
+  duration_ms: 45.9504
+  type: 'test'
+  ...
+# Subtest: resume requires existing exact evidence, never auto-generates epoch
+ok 26 - resume requires existing exact evidence, never auto-generates epoch
+  ---
+  duration_ms: 13.5798
+  type: 'test'
+  ...
+# Subtest: credential-bearing URL, wrong hash and extra approval reject
+ok 27 - credential-bearing URL, wrong hash and extra approval reject
+  ---
+  duration_ms: 2.2917
+  type: 'test'
+  ...
+# Subtest: business directory cannot hold journal evidence
+ok 28 - business directory cannot hold journal evidence
+  ---
+  duration_ms: 0.6489
+  type: 'test'
+  ...
+# Subtest: non-target uses exact original dependency object
+ok 29 - non-target uses exact original dependency object
+  ---
+  duration_ms: 0.8881
+  type: 'test'
+  ...
+# Subtest: overseas route isolates page store and connector without mutating originals
+ok 30 - overseas route isolates page store and connector without mutating originals
+  ---
+  duration_ms: 0.2602
+  type: 'test'
+  ...
+# Subtest: invalid identity and missing adapter never fall back to legacy
+ok 31 - invalid identity and missing adapter never fall back to legacy
+  ---
+  duration_ms: 0.4875
+  type: 'test'
+  ...
+# Subtest: drain rejects new admissions, retains active work and releases once
+ok 32 - drain rejects new admissions, retains active work and releases once
+  ---
+  duration_ms: 0.7802
+  type: 'test'
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20645.8833

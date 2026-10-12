@@ -68,6 +68,21 @@ class CredentialContext {
     const loaded = await this.load(accountOrId, credentialType);
     return loaded.secretObject;
   }
+
+  async saveApiAuthorization(source, accountOrId, result) {
+    const accountId = typeof accountOrId === 'string' ? accountOrId : accountOrId?.id;
+    const account = accountId && await this.repo.getAccount(accountId);
+    if (!source?.id || !account || String(account.source_id) !== String(source.id) || String(account.platform) !== String(source.platform)) {
+      throw new CredentialContextError('ACCOUNT_SCOPE_MISMATCH', 'authorization account does not belong to source');
+    }
+    const apiToken = result?.apiToken || result?.accessToken;
+    if (typeof apiToken !== 'string' || !apiToken.trim()) throw new CredentialContextError('AUTHORIZATION_MISSING', 'login returned no usable API token');
+    const expiresAt = result.expiresAt ? new Date(result.expiresAt) : null;
+    if (expiresAt && (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= this.now().getTime())) throw new CredentialContextError('CREDENTIAL_EXPIRED', 'login returned an expired authorization');
+    const secretCipher = this.cipher.encrypt(apiToken, this.env, { aad: `${account.id}:api_token:${account.platform}`, kid: this.env.CREDENTIAL_ENC_KEY_ID || 'primary' });
+    const saved = await this.repo.upsertAccountCredential(account.id, { credentialType: 'api_token', secretCipher, status: 'active', expireAt: result.expiresAt || null, replaceExpireAt: true });
+    if (!saved) throw new CredentialContextError('ACCOUNT_SCOPE_MISMATCH', 'authorization account is no longer available');
+  }
 }
 
 function parseSecretObject(secret) {

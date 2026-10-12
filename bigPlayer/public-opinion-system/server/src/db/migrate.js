@@ -4,6 +4,7 @@ loadRuntimeEnv();
 const fs = require('node:fs');
 const path = require('node:path');
 const mysql = require('mysql2/promise');
+const { validateBoardMigration } = require('./boardMigrationContract');
 
 function connConfig(env) {
   if (env.DATABASE_URL) return env.DATABASE_URL;
@@ -174,9 +175,15 @@ async function validateMigrationChecks(connection, checks = MIGRATION_023_CHECKS
 }
 
 async function applyMigration({ connection, file, sql, logger = console }) {
+  if (/^0(?:29_bigplayer_site_run_evidence|30_bigplayer_board_scope)\.sql$/.test(file)) {
+    await connection.query('SET SESSION lock_wait_timeout=10');
+    await connection.query('SET SESSION innodb_lock_wait_timeout=10');
+  }
+  await validateBoardMigration(connection, file);
   await connection.query(sql);
   if (file === MIGRATION_023) await validateMigrationChecks(connection, MIGRATION_023_CHECKS);
   if (file === MIGRATION_028) await validateMigrationChecks(connection, MIGRATION_028_CHECKS);
+  await validateBoardMigration(connection, file, { complete: true });
   await connection.query('INSERT INTO po_schema_migrations (version) VALUES (?)', [file]);
   logger.log(`migration applied: ${file}`);
 }
@@ -199,7 +206,7 @@ async function runMigrations({
     const applied = new Set(done.map(row => row.version));
     const files = only ? [path.basename(only)] : fileSystem.readdirSync(migrationsDir).filter(name => name.endsWith('.sql')).sort();
     for (const file of files) {
-      if (applied.has(file)) { logger.log(`skip (already applied): ${file}`); continue; }
+      if (applied.has(file)) { await validateBoardMigration(conn, file, { complete: true }); logger.log(`skip (already applied): ${file}`); continue; }
       if (file === '027_bigplayer_multisite.sql') await validateMigration027Prerequisites(conn, applied);
       const sql = fileSystem.readFileSync(path.join(migrationsDir, file), 'utf8');
       await applyMigration({ connection: conn, file, sql, logger });

@@ -21,6 +21,7 @@ function isolatedRepo(existingColumns) {
     calls.push({ sql, params });
     if (sql.includes('information_schema.COLUMNS')) return [...existingColumns].map(column_name => ({ column_name }));
     if (sql.startsWith('SELECT COUNT(*) AS total')) return [{ total: 1 }];
+    if (sql.startsWith('SELECT r.id FROM')) return [{ id: 'run-fixture' }];
     if (sql.startsWith('SELECT r.id,')) return [{ id: 'run-fixture', source_id: 'source-fixture' }];
     throw new Error(`unexpected isolated query: ${sql.slice(0, 32)}`);
   };
@@ -57,7 +58,7 @@ for (const [label, present] of [
       assert.match(sql, /r\.window_end/);
     }
     assert.deepEqual(selects[0].params, ['run-fixture', 'source-fixture']);
-    assert.deepEqual(selects[1].params, ['source-fixture']);
+    assert.deepEqual(selects[1].params, ['run-fixture', 'source-fixture']);
     assert.deepEqual(selects[2].params, ['source-fixture', 20, 0]);
     assert.equal(getPoolCalls(), 0);
     assert.ok(calls.every(call => call.sql.startsWith('SELECT ')));

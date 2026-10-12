@@ -23,6 +23,7 @@ test.before(async () => {
     sqlCalls.push({ sql, params });
     if (sql.includes('information_schema.COLUMNS')) return [];
     if (sql.startsWith('SELECT COUNT(*) AS total')) return [{ total: 1 }];
+    if (sql.startsWith('SELECT r.id FROM')) return [{ id: 'run-fixture' }];
     if (sql.startsWith('SELECT r.id,')) return [{ id: 'run-fixture', account_id: 'account-fixture', source_id: source.id, status: 'completed' }];
     throw new Error(`unexpected fixture query: ${sql.slice(0, 32)}`);
   };

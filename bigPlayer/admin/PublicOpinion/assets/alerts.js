@@ -1,7 +1,7 @@
 const browserRuntime = typeof window !== 'undefined' ? window : globalThis;
 const hasDocument = typeof document !== 'undefined';
 const API = browserRuntime.PUBLIC_OPINION_API || '/api/public-opinion';
-const state = { alerts: [], quality: [], scope: null, module: 'risk', qualityPage: 1, qualityPageSize: 20, qualityTotal: 0, qualityRequest: 0, pendingReviews: new Set(), drawerKind: '', drawerItem: null, restoringHistory: false };
+const state = { alerts: [], quality: [], scope: null, module: 'risk', riskPage: 1, riskTotal: 0, qualityPage: 1, qualityPageSize: 20, qualityTotal: 0, qualityRequest: 0, pendingReviews: new Set(), drawerKind: '', drawerItem: null, restoringHistory: false };
 const $ = selector => hasDocument ? document.querySelector(selector) : null;
 const Detail = browserRuntime.PublicOpinionAlertDetail;
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -32,12 +32,48 @@ function alertTriggerText(alert) { return String(alert.trigger_detail || alert.t
 function alertTime(alert) { const value = alert.created_at || alert.createdAt; return (value && browserRuntime.formatBeijingTime) ? browserRuntime.formatBeijingTime(value) : (value || '-'); }
 function alertStatusLabel(status) { return ({ pending: '待处理', processing: '处理中', resolved: '已处理', false_positive: '误报' }[status] || '待处理'); }
 function renderRiskSkeleton() { $('#tableContent').innerHTML = '<div class="empty">加载中…</div>'; }
+function riskQuery() {
+  const query = state.scope?.query?.() || new URLSearchParams();
+  query.set('riskMode', 'urgent'); query.set('severity', 'urgent');
+  if ($('#statusFilter').value) query.set('handlingStatus', $('#statusFilter').value);
+  const from = $('#riskFrom').value, to = $('#riskTo').value;
+  if (from) query.set('publishedFrom', from + 'T00:00:00+08:00');
+  if (to) { const next = new Date(to + 'T00:00:00Z'); next.setUTCDate(next.getUTCDate() + 1); query.set('publishedTo', next.toISOString().slice(0, 10) + 'T00:00:00+08:00'); }
+  query.set('page', String(state.riskPage)); query.set('pageSize', '20'); return query;
+}
+function riskDetailUrl(item) {
+  const query = state.scope.query(); query.set('contentMode', 'urgent'); query.set('riskMode', 'urgent'); query.set('severity', 'urgent'); query.set('contentId', item.id);
+  query.set('publishedFrom', $('#riskFrom').value); query.set('publishedTo', $('#riskTo').value);
+  return 'content.html?' + query;
+}
 function renderRisk(items) {
-  if (!items?.length) { $('#resultHint').textContent = '共 0 条'; $('#tableContent').innerHTML = '<div class="empty">暂无告警记录</div>'; return; }
-  $('#resultHint').textContent = `共 ${items.length} 条`;
-  $('#tableContent').innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>等级</th><th>告警事项</th><th>类型</th><th>区域 / 社区</th><th>状态</th><th>钉钉</th><th>发现时间</th><th>独立审核</th><th>操作</th></tr></thead><tbody>${items.map(a => { const trigger = alertTriggerText(a); return `<tr><td><span class="severity ${esc(a.severity || 'normal')}">${a.severity === 'urgent' ? 'P0 紧急' : a.severity === 'attention' ? 'P1 关注' : 'P2 提示'}</span></td><td><div class="content-title">${esc(alertTitle(a))}</div>${trigger ? `<div class="content-body">${esc(trigger)}</div>` : ''}</td><td>${esc(a.alert_type || '-')}</td><td>${esc(scopePath(a))}</td><td class="status">${alertStatusLabel(a.status)}</td><td><span class="state-badge ${esc(a.ding_talk_status || 'not_sent')}">${esc(dingLabel(a.ding_talk_status))}</span></td><td>${esc(alertTime(a))}</td><td>${renderReviewItems(a, { nested: true })}</td><td><button class="row-action" data-alert="${esc(a.id)}">查看详情</button></td></tr>`; }).join('')}</tbody></table></div>`;
-  $('#tableContent').querySelectorAll('[data-alert]').forEach(button => { button.onclick = () => openAlert(button.dataset.alert); });
-  bindReviewActions($('#tableContent'));
+  $('#resultHint').textContent = '共 ' + state.riskTotal + ' 条';
+  const pages = Math.max(1, Math.ceil(state.riskTotal / 20));
+  $('#riskPageHint').textContent = '第 ' + state.riskPage + ' / ' + pages + ' 页，共 ' + state.riskTotal + ' 条';
+  $('#riskPrev').disabled = state.riskPage <= 1; $('#riskNext').disabled = state.riskPage >= pages;
+  if (!items?.length) { $('#tableContent').innerHTML = '<div class="empty">当前范围暂无紧急告警内容</div>'; return; }
+  $('#tableContent').innerHTML = '<table class="table"><thead><tr><th>等级</th><th>告警内容</th><th>内容ID</th><th>类型</th><th>区域 / 社区</th><th>处理状态</th><th>发布时间</th><th>操作</th></tr></thead><tbody>' + items.map(item => {
+    const type = pick(item, 'display_type', 'displayType', 'content_type', 'contentType');
+    const status = item.handling_eligible === false ? '无需处理' : item.handling_status === 'processed' ? '已处理' : '待处理';
+    const time = pick(item, 'published_at', 'publishedAt');
+    return '<tr><td><span class="severity urgent">紧急告警</span></td><td><div class="content-title">' + esc(item.title || '(无标题)') + '</div><div class="content-body">' + esc(item.body || '') + '</div><div class="content-meta">' + esc(pick(item, 'analysis_reason', 'analysisReason') || '') + '</div></td><td>' + esc(pick(item, 'external_id', 'externalId') || '-') + '</td><td>' + esc(({post:'帖子',dynamic:'动态',comment:'评论',review:'评论',video:'帖子'})[type] || type || '帖子') + '</td><td>' + esc(scopePath(item)) + '</td><td>' + status + '</td><td>' + esc(browserRuntime.formatBeijingTime?.(time) || time || '-') + '</td><td><a class="row-action" data-risk-content="' + esc(item.id) + '" href="' + esc(riskDetailUrl(item)) + '">查看详情 / 处理</a></td></tr>';
+  }).join('') + '</tbody></table>';
+}
+function setRiskPeriod(period) {
+  if (period === 'all') { $('#riskFrom').value = ''; $('#riskTo').value = ''; return; }
+  const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  const end = new Date(today + 'T00:00:00Z');
+  if (period === 'yesterday') end.setUTCDate(end.getUTCDate() - 1);
+  const start = new Date(end); start.setUTCDate(start.getUTCDate() - (period === '30d' ? 29 : period === '7d' ? 6 : 0));
+  $('#riskFrom').value = start.toISOString().slice(0, 10); $('#riskTo').value = end.toISOString().slice(0, 10);
+}
+function restoreRisk(params) {
+  setRiskPeriod('7d');
+  if (params.get('tab') === 'quality') return;
+  if (params.has('riskFrom')) $('#riskFrom').value = params.get('riskFrom');
+  if (params.has('riskTo')) $('#riskTo').value = params.get('riskTo');
+  $('#statusFilter').value = ['pending', 'processed', 'not_required'].includes(params.get('handlingStatus')) ? params.get('handlingStatus') : '';
+  state.riskPage = Math.max(1, parseInt(params.get('page'), 10) || 1);
 }
 function alertScopePath(id) { const scope = state.scope?.query?.() || new URLSearchParams(); return `/alerts/${encodeURIComponent(id)}?${scope}`; }
 function renderAlertDetail(alert, detailError = '') { state.drawerKind = 'risk'; state.drawerItem = alert; $('#drawerContent').innerHTML = `${Detail.render(alert, { esc, scopePath, dingLabel, detailError })}<section class="detail-block" data-detail-module="review"><div class="detail-label">独立审核</div>${renderReviewItems(alert, { detail: true, nested: true })}</section>`; $('#alertStatus').value = alert.status; $('#saveAlert').onclick = async () => { try { await api(alertScopePath(alert.id), { method: 'PATCH', body: JSON.stringify({ status: $('#alertStatus').value, resolutionNote: $('#resolutionNote').value }) }); closeDrawer(); await loadRisk(); toast('告警处置结果已保存'); } catch (error) { toast(`保存失败：${error.message}`); } }; bindReviewActions($('#drawerContent')); }
@@ -87,19 +123,30 @@ async function loadQuality(reset = false) {
   } catch (error) { if (error.name === 'AbortError' || serial !== state.qualityRequest) return; $('#qualityResultHint').textContent = '服务未连接'; $('#qualityTableContent').innerHTML = `<div class="quality-empty">服务不可用：${esc(error.message)}</div>`; }
 }
 let riskSerial = 0;
-async function loadRisk() {
+async function loadRisk(reset = false) {
+  if (reset === true) state.riskPage = 1;
   const serial = ++riskSerial;
-  if (!state.scope?.available()) { state.alerts = []; renderRisk([]); $('#tableContent').innerHTML = '<div class="empty">当前地区暂无可用社区</div>'; return; }
-  renderRiskSkeleton();
-  try { const query = state.scope.query(); if ($('#statusFilter').value) query.set('status', $('#statusFilter').value); query.set('page', '1'); query.set('pageSize', '100'); const items = await api(`/alerts?${query}`); if (serial !== riskSerial) return; state.alerts = items; renderRisk(items); }
-  catch (error) { if (error.name === 'AbortError' || serial !== riskSerial) return; $('#tableContent').innerHTML = `<div class="empty">服务未连接：${esc(error.message)}</div>`; }
+  if (!state.scope?.available()) { state.alerts = []; state.riskTotal = 0; renderRisk([]); $('#tableContent').innerHTML = '<div class="empty">当前地区暂无可用社区</div>'; return; }
+  if ($('#riskFrom').value && $('#riskTo').value && $('#riskFrom').value > $('#riskTo').value) { toast('开始日期不能晚于结束日期'); return; }
+  renderRiskSkeleton(); $('#riskPrev').disabled = true; $('#riskNext').disabled = true;
+  try {
+    const body = await browserRuntime.PublicOpinionScope.withScope('/contents?' + riskQuery(), {}, async (path, options) => {
+      const response = await fetch(API + path, options); const body = await response.json();
+      if (!response.ok) throw new Error(body.error?.message || '请求失败（' + response.status + '）'); return body;
+    });
+    if (serial !== riskSerial) return;
+    state.alerts = Array.isArray(body.data) ? body.data : body.data?.items || [];
+    state.riskTotal = Number(body.meta?.total ?? body.data?.total ?? state.alerts.length);
+    if (state.riskPage > Math.max(1, Math.ceil(state.riskTotal / 20))) { state.riskPage = Math.max(1, Math.ceil(state.riskTotal / 20)); return loadRisk(); }
+    renderRisk(state.alerts); if (state.module === 'risk') updateUrl();
+  } catch (error) { if (error.name === 'AbortError' || serial !== riskSerial) return; $('#resultHint').textContent = '加载失败'; $('#tableContent').innerHTML = '<div class="empty">服务未连接：' + esc(error.message) + '</div>'; }
 }
 async function loadSources() { if (!state.scope?.available()) { $('#qualitySourceFilter').innerHTML = '<option value="">无可用社区</option>'; return; } try { const result = await api(`/sources?${state.scope.query()}`); const sources = Array.isArray(result) ? result : result.items || []; const previous = $('#qualitySourceFilter').value; $('#qualitySourceFilter').innerHTML = '<option value="">全部采集源</option>' + sources.map(item => `<option value="${esc(item.id)}">${esc(item.display_name || item.displayName || item.platform || item.id)}</option>`).join(''); $('#qualitySourceFilter').value = sources.some(item => String(item.id) === previous) ? previous : ''; } catch (_) { /* list still reports API state */ } }
-async function scopeChanged() { const restoringHistory = state.restoringHistory; state.restoringHistory = false; closeDrawer(); state.alerts = []; state.quality = []; state.qualityTotal = 0; state.qualityPage = 1; $('#qualitySourceFilter').value = ''; const epoch = state.scope.epoch(); await loadSources(); if (epoch !== state.scope.epoch()) return; if (!restoringHistory) updateUrl(); await Promise.all([loadRisk(), loadQuality(true)]); }
-function updateUrl() { const params = state.scope?.query?.() || new URLSearchParams(); params.set('tab', state.module); if (state.module === 'quality') { ['recommendationType', 'reviewStatus', 'sourceId', 'publishedFrom', 'publishedTo'].forEach((key, index) => { const selector = ['#recommendationTypeFilter','#reviewStatusFilter','#qualitySourceFilter','#publishedFromFilter','#publishedToFilter'][index]; if ($(selector).value) params.set(key, $(selector).value); else params.delete(key); }); if (state.qualityPage > 1) params.set('page', String(state.qualityPage)); else params.delete('page'); params.set('pageSize', String(state.qualityPageSize)); } history.replaceState(null, '', `${window.location.pathname}?${params}`); }
-function switchModule(module, load = true) { state.module = module === 'quality' ? 'quality' : 'risk'; document.querySelectorAll('[data-module]').forEach(button => { const active = button.dataset.module === state.module; button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active)); }); $('#statusFilter').value = ''; $('#riskPanel').hidden = state.module !== 'risk'; $('#qualityPanel').hidden = state.module !== 'quality'; updateUrl(); if (load) state.module === 'risk' ? loadRisk() : loadQuality(); }
+async function scopeChanged() { const restoringHistory = state.restoringHistory; state.restoringHistory = false; ++riskSerial; ++state.qualityRequest; closeDrawer(); state.alerts = []; state.quality = []; state.qualityTotal = 0; state.qualityPage = 1; $('#qualitySourceFilter').value = ''; if (restoringHistory) restoreRisk(new URLSearchParams(location.search)); else state.riskPage = 1; const epoch = state.scope.epoch(); await loadSources(); if (epoch !== state.scope.epoch()) return; if (!restoringHistory) updateUrl(); await Promise.all([loadRisk(), loadQuality(true)]); }
+function updateUrl() { const params = state.scope?.query?.() || new URLSearchParams(); params.set('tab', state.module); if (state.module === 'quality') { ['recommendationType', 'reviewStatus', 'sourceId', 'publishedFrom', 'publishedTo'].forEach((key, index) => { const selector = ['#recommendationTypeFilter','#reviewStatusFilter','#qualitySourceFilter','#publishedFromFilter','#publishedToFilter'][index]; if ($(selector).value) params.set(key, $(selector).value); else params.delete(key); }); if (state.qualityPage > 1) params.set('page', String(state.qualityPage)); else params.delete('page'); params.set('pageSize', String(state.qualityPageSize)); } if (state.module === 'risk') { params.set('riskFrom', $('#riskFrom').value); params.set('riskTo', $('#riskTo').value); if ($('#statusFilter').value) params.set('handlingStatus', $('#statusFilter').value); params.set('page', String(state.riskPage)); } history.replaceState(null, '', `${window.location.pathname}?${params}`); }
+function switchModule(module, load = true) { state.module = module === 'quality' ? 'quality' : 'risk'; document.querySelectorAll('[data-module]').forEach(button => { const active = button.dataset.module === state.module; button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active)); }); $('#riskControls').hidden = state.module !== 'risk'; $('#riskPanel').hidden = state.module !== 'risk'; $('#qualityPanel').hidden = state.module !== 'quality'; updateUrl(); if (load) state.module === 'risk' ? loadRisk() : loadQuality(); }
 function closeDrawer() { $('#drawerMask').classList.remove('open'); state.drawerKind = ''; state.drawerItem = null; }
-function bind() { $('#queryBtn').onclick = () => state.module === 'risk' ? loadRisk() : loadQuality(true); document.querySelectorAll('[data-module]').forEach(button => { button.onclick = () => switchModule(button.dataset.module); }); ['#statusFilter'].forEach(selector => { $(selector).onchange = loadRisk; }); ['#recommendationTypeFilter','#reviewStatusFilter','#qualitySourceFilter','#publishedFromFilter','#publishedToFilter'].forEach(selector => { $(selector).onchange = () => loadQuality(true); }); $('#qualityPrevPage').onclick = () => { if (state.qualityPage > 1) { state.qualityPage -= 1; loadQuality(); } }; $('#qualityNextPage').onclick = () => { state.qualityPage += 1; loadQuality(); }; $('#qualityPageSize').onchange = () => { state.qualityPageSize = Number($('#qualityPageSize').value); loadQuality(true); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('popstate', () => { state.restoringHistory = true; }); }
+function bind() { $('#queryBtn').onclick = () => state.module === 'risk' ? loadRisk(true) : loadQuality(true); document.querySelectorAll('[data-module]').forEach(button => { button.onclick = () => switchModule(button.dataset.module); }); ['#statusFilter', '#riskFrom', '#riskTo'].forEach(selector => { $(selector).onchange = () => loadRisk(true); }); document.querySelectorAll('[data-risk-period]').forEach(button => { button.onclick = () => { setRiskPeriod(button.dataset.riskPeriod); loadRisk(true); }; }); $('#riskPrev').onclick = () => { if (state.riskPage > 1) { state.riskPage--; loadRisk(); } }; $('#riskNext').onclick = () => { if (state.riskPage * 20 < state.riskTotal) { state.riskPage++; loadRisk(); } }; ['#recommendationTypeFilter','#reviewStatusFilter','#qualitySourceFilter','#publishedFromFilter','#publishedToFilter'].forEach(selector => { $(selector).onchange = () => loadQuality(true); }); $('#qualityPrevPage').onclick = () => { if (state.qualityPage > 1) { state.qualityPage -= 1; loadQuality(); } }; $('#qualityNextPage').onclick = () => { state.qualityPage += 1; loadQuality(); }; $('#qualityPageSize').onchange = () => { state.qualityPageSize = Number($('#qualityPageSize').value); loadQuality(true); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('popstate', () => { state.restoringHistory = true; }); }
 const reviewTestApi = { QUALITY_TYPES, candidateCanReview, qualityPatch, qualityValue, recommendationCell, recommendedTypes, renderReviewItems, reviewCandidates, reviewStatus, state, updateQuality };
 if (typeof module === 'object' && module.exports) module.exports = reviewTestApi;
-if (hasDocument) { bind(); (async () => { state.scope = await browserRuntime.PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }); const params = new URLSearchParams(browserRuntime.location.search); state.module = params.get('tab') === 'quality' ? 'quality' : 'risk'; state.qualityPage = Math.max(1, Number(params.get('page') || 1)); state.qualityPageSize = [20, 50, 100].includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 20; $('#qualityPageSize').value = String(state.qualityPageSize); [['recommendationType','#recommendationTypeFilter'],['reviewStatus','#reviewStatusFilter'],['sourceId','#qualitySourceFilter'],['publishedFrom','#publishedFromFilter'],['publishedTo','#publishedToFilter']].forEach(([key, selector]) => { if (params.get(key)) $(selector).value = params.get(key); }); await loadSources(); switchModule(state.module); })(); }
+if (hasDocument) { bind(); (async () => { state.scope = await browserRuntime.PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }); const params = new URLSearchParams(browserRuntime.location.search); state.module = params.get('tab') === 'quality' ? 'quality' : 'risk'; restoreRisk(params); state.qualityPage = Math.max(1, Number(params.get('page') || 1)); state.qualityPageSize = [20, 50, 100].includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 20; $('#qualityPageSize').value = String(state.qualityPageSize); [['recommendationType','#recommendationTypeFilter'],['reviewStatus','#reviewStatusFilter'],['sourceId','#qualitySourceFilter'],['publishedFrom','#publishedFromFilter'],['publishedTo','#publishedToFilter']].forEach(([key, selector]) => { if (params.get(key)) $(selector).value = params.get(key); }); await loadSources(); switchModule(state.module); })(); }

@@ -5,7 +5,7 @@ const nullableString = { type: ['string', 'null'] };
 const list = items => ({ type: 'array', items });
 const enumeration = values => ({ type: 'string', enum: values });
 const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
-const rules = [...Array.from({ length: 13 }, (_, i) => `R${i + 1}`), 'U3', 'U4', 'U5'];
+const rules = [...Array.from({ length: 14 }, (_, i) => `R${i + 1}`), 'U3', 'U4', 'U5'];
 const risk = object({
   level: enumeration(['L0', 'L1', 'L2', 'L3']),
   level_name: enumeration(['噪声过滤', '关注级', '负面待处理', '紧急告警']),
@@ -27,6 +27,6 @@ const row = object({ i: { type: 'integer' }, s: enumeration(['positive', 'neutra
   v: enumeration(['normal', 'attention', 'negative', 'urgent']), n: number, c: number, d: boolean,
   r: string, t: list(string), m: string, q: number, h: boolean, p: boolean, f: boolean, qr: string, risk });
 const RISK_RESPONSE_FORMAT = { type: 'json_schema', json_schema: {
-  name: 'public_opinion_risk_v8', strict: true, schema: object({ results: list(row) })
+  name: 'public_opinion_risk_v9', strict: true, schema: object({ results: list(row) })
 } };
 module.exports = { RISK_RESPONSE_FORMAT };

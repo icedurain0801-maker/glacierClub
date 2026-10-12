@@ -16,15 +16,22 @@
   .emotion-summary .positive strong,.emotion-summary .positive b{color:#16a34a}
   .emotion-summary .neutral strong,.emotion-summary .neutral b{color:#64748b}
   .emotion-summary .danger b{font-weight:600}
-  .trend-bar-group.neutral .trend-bar{background:linear-gradient(#cbd5e1,#64748b)}
+    .trend-bar-group.neutral .trend-bar{background:linear-gradient(#cbd5e1,#64748b)}
+    .trend-bar-group.unclassified .trend-bar{background:linear-gradient(#fcd34d,#f59e0b)}
   @media(max-width:560px){.emotion-summary{gap:8px}.emotion-summary strong{font-size:19px}}
 </style>
-<style>
+<style id="overview-risk-metrics">
 .metric-total-foot{display:flex;align-items:baseline;justify-content:space-between;gap:6px;flex-wrap:wrap}
 .metric-breakdown{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px 10px;margin-left:auto;color:#64748b;white-space:nowrap}
 .metric-breakdown b{font-weight:600;color:#30445f}
+.overview-section .metric-attention{background:#fff4e5;border-color:#ffd59e;--metric-risk:#a85400}
+.overview-section .metric-negative{background:#ffe0bd;border-color:#f5b06b;--metric-risk:#984000}
+.overview-section .metric-urgent{background:#ffd6d6;border-color:#ff9c9c;--metric-risk:#b42318}
+.overview-section .metric-attention::before,.overview-section .metric-negative::before,.overview-section .metric-urgent::before{background:var(--metric-risk)}
+.overview-section .metric-attention .metric-head,.overview-section .metric-negative .metric-head,.overview-section .metric-urgent .metric-head,.overview-section .metric-attention .metric-value,.overview-section .metric-negative .metric-value,.overview-section .metric-urgent .metric-value,.overview-section .metric-attention .metric-foot,.overview-section .metric-negative .metric-foot,.overview-section .metric-urgent .metric-foot{color:var(--metric-risk)}
+.overview-section .metric-attention .metric-icon,.overview-section .metric-negative .metric-icon,.overview-section .metric-urgent .metric-icon{color:var(--metric-risk);background:#ffffff80}
 </style>
-</head>
+<style>.hot-type-tabs{display:flex;gap:8px;padding:10px 16px 0;border-bottom:1px solid #edf0f5}.hot-type-tab{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 12px;color:#667085;font-size:13px;cursor:pointer}.hot-type-tab.active{color:#2563eb;border-bottom-color:#2563eb;font-weight:600}.overview-negative-content .hot-type-tab.active{color:#b91c1c;border-bottom-color:#b91c1c}.hot-type-tab:focus-visible{outline:2px solid #2563eb;outline-offset:-2px;border-radius:4px}</style><style id="independent-line-trend">.line-trend-panel{margin-top:20px;padding-top:18px;border-top:1px solid #eaecf0}.line-trend-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.line-trend-head h3{margin:0 0 5px;font-size:14px}.line-trend-head small,.line-trend-caption{color:#98a2b3;font-size:11px}.line-trend-head .tab{cursor:pointer}.line-trend-head .tab.active{background:#eff6ff;color:#2563eb}.line-trend-scroll{overflow-x:auto}.line-trend-scroll svg{display:block;width:100%;min-width:420px}.line-trend-scroll circle:focus{outline:none;stroke:#182230;stroke-width:2}.line-trend-caption{text-align:center;margin-top:4px}</style></head>
 <body>
 <nav id="sidebar" class="sidebar"></nav>
 <main class="admin-main">
@@ -82,15 +89,15 @@
     <section class="overview-section">
       <header class="overview-section-head"><span class="overview-section-number">02</span><div class="overview-section-title"><h2>趋势与处置</h2><span>TREND &amp; ALERTS</span></div><span class="overview-section-meta" data-overview-period-label>今日</span></header>
       <div class="overview-section-content"><div class="overview-two-columns">
-        <article class="page-card trend-card"><div class="card-head"><h2>口碑趋势</h2><small id="trendLabel">今日 · 全平台</small></div><div class="chart-box"><div class="legend"><span><i style="background:#60a5fa"></i>正向</span><span><i style="background:#64748b"></i>中性</span><span><i style="background:#ef4444"></i>负面</span><span>柱高表示当日内容量</span></div><div class="trend" id="trend"></div></div></article>
+    <article class="page-card trend-card"><div class="card-head"><h2>口碑趋势</h2><small id="trendLabel">今日 · 全平台</small></div><div class="chart-box"><div class="legend"><span><i style="background:#60a5fa"></i>正向</span><span><i style="background:#64748b"></i>中性</span><span><i style="background:#ef4444"></i>负面</span><span id="trendUnclassifiedLegend" hidden><i style="background:#f59e0b"></i>暂未分析</span><span>柱高表示当日内容量</span></div><div class="trend" id="trend"></div><section class="line-trend-panel" aria-label="独立口碑趋势"><div class="line-trend-head"><div><h3>每日口碑走势</h3><small>独立时间范围</small></div><div class="section-tabs" aria-label="折线图时间范围"><button type="button" class="tab active" data-line-period="7d" aria-pressed="true">近7天</button><button type="button" class="tab" data-line-period="30d" aria-pressed="false">近30天</button></div></div><div id="lineTrend" aria-live="polite"><div class="module-state">折线图加载中…</div></div></section></div></article>
         <article class="page-card"><div class="card-head"><h2>议题分布</h2><small id="topicLabel">话题聚类</small></div><div class="topic-box" id="topics"></div></article>
       </div></div>
     </section>
     <section class="overview-section">
       <header class="overview-section-head"><span class="overview-section-number">03</span><div class="overview-section-title"><h2>内容与议题</h2><span>POSTS &amp; TOPICS</span></div><span class="overview-section-meta" data-overview-period-label>今日</span></header>
       <div class="overview-section-content"><div class="overview-two-equal">
-        <article class="page-card overview-negative-content"><div class="card-head"><h2>负面内容</h2><small>按发布时间倒序</small><a class="row-action" id="viewAllNegative" href="content.html?contentMode=negative&amp;riskMode=negative&amp;severity=urgent">全部内容</a></div><div class="hot-list" id="hotList"></div></article>
-        <article class="page-card"><div class="card-head"><h2>关注级内容</h2><small>按发布时间倒序</small><a class="row-action" id="viewAllAttention" href="content.html?contentMode=attention&amp;severity=attention">全部内容</a></div><div class="hot-list" id="attentionList"></div></article>
+        <article class="page-card overview-negative-content"><div class="card-head"><h2>紧急告警内容</h2><small>按发布时间倒序</small><a class="row-action" id="viewAllNegative" href="content.html?contentMode=negative&amp;riskMode=negative&amp;severity=urgent">全部内容</a></div><div class="hot-type-tabs" role="tablist" aria-label="紧急告警内容类型"><button type="button" role="tab" class="hot-type-tab active" aria-selected="true" data-hot-mode="negative" data-hot-type="post">帖子/动态</button><button type="button" role="tab" class="hot-type-tab" aria-selected="false" data-hot-mode="negative" data-hot-type="comment">评论</button></div><div class="hot-list" id="hotList"></div></article>
+        <article class="page-card"><div class="card-head"><h2>关注级内容</h2><small>按发布时间倒序</small><a class="row-action" id="viewAllAttention" href="content.html?contentMode=attention&amp;severity=attention">全部内容</a></div><div class="hot-type-tabs" role="tablist" aria-label="关注级内容类型"><button type="button" role="tab" class="hot-type-tab active" aria-selected="true" data-hot-mode="attention" data-hot-type="post">帖子/动态</button><button type="button" role="tab" class="hot-type-tab" aria-selected="false" data-hot-mode="attention" data-hot-type="comment">评论</button></div><div class="hot-list" id="attentionList"></div></article>
       </div></div>
     </section>
   </div>
@@ -100,6 +107,6 @@
 <script>
   initSidebar({root:'../..',currentHref:'admin/PublicOpinion/index.html'});
 </script>
-<script src="assets/source-status.js?v=1"></script><script src="../../public-opinion-system/shared/riskModes.js?v=153"></script><script src="assets/scope.js?v=147"></script><script src="assets/alert-detail.js?v=1"></script><script src="assets/app.js?v=20261012-frequency"></script>
+<script src="assets/source-status.js?v=1"></script><script src="../../public-opinion-system/shared/riskModes.js?v=20261012-merged-urgent-r1"></script><script src="assets/scope.js?v=148"></script><script src="assets/alert-detail.js?v=1"></script><script src="assets/app.js?v=20261012-merged-urgent-r1"></script>
 </body>
 </html>

@@ -58,6 +58,7 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $stage 'shared') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $source 'shared\riskModes.js') -Destination (Join-Path $stage 'shared\riskModes.js')
     Copy-Item -LiteralPath (Join-Path $source 'shared\bigPlayerBoard.js') -Destination (Join-Path $stage 'shared\bigPlayerBoard.js')
+    Copy-Item -LiteralPath (Join-Path $source 'shared\bigPlayerBoardSchema.js') -Destination (Join-Path $stage 'shared\bigPlayerBoardSchema.js')
     Remove-Item -LiteralPath (Join-Path $stage 'server\package.json') -Force
 
     & node.exe (Join-Path $PSScriptRoot 'verify-api-release.js') $stage $source --write-manifest

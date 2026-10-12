@@ -1,0 +1,24 @@
+'use strict';
+// Offline synthetic QA evidence only. It does not invoke the production reader or any network API.
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const { spawnSync } = require('node:child_process');
+const project = path.resolve(__dirname, '..');
+const root = path.resolve(project, '..', '..');
+const temp = path.join(root, '.temp');
+const freezeDir = process.argv[2] ? path.resolve(process.argv[2]) : null;
+if (!freezeDir || !freezeDir.startsWith(path.resolve(temp) + path.sep)) throw Error('FREEZE_ROOT_REQUIRED');
+const manifestPath = path.join(freezeDir, 'manifest.json');
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const sha = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const snapshot = () => Object.fromEntries(manifest.files.map(entry => [entry.path, sha(path.join(freezeDir, entry.path))]));
+const before = snapshot();
+const result = spawnSync(process.execPath, ['--require', path.join(freezeDir, 'scripts/v019-offline-network-guard.cjs'), '--test', path.join(freezeDir, 'server/test/overseasV019IsolatedRunner.test.js')], { cwd: freezeDir, encoding: 'utf8', windowsHide: true });
+const after = snapshot();
+const evidence = { kind: 'DEV_TEST_EVIDENCE', productionReadAttempted: false, startedAt: new Date().toISOString(), exitCode: result.status, stdout: result.stdout, stderr: result.stderr, freezeDir, before, after, unchanged: JSON.stringify(before) === JSON.stringify(after), guard: 'frozen offline network guard; internal data-only fixtures; no caller handler' };
+const dir = fs.mkdtempSync(path.join(temp, 'overseas-v019-isolated-qa-'));
+const output = path.join(dir, 'result.json');
+fs.writeFileSync(output, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+console.log(JSON.stringify({ output, sha256: sha(output), exitCode: result.status, unchanged: evidence.unchanged }));
+process.exitCode = result.status === 0 && evidence.unchanged ? 0 : 1;

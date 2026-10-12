@@ -6,7 +6,8 @@ const net = require('node:net');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const mysql = require('mysql2/promise');
-const { Repository } = require('../server/src/db/repository');
+const candidateRoot = process.env.PO_ISOLATED_CANDIDATE_ROOT;
+const { Repository } = require(candidateRoot ? path.join(candidateRoot, 'server/src/db/repository') : '../server/src/db/repository');
 
 const port = 43321;
 const serverId = 20261021;
@@ -47,7 +48,18 @@ async function createFixture(control) {
     'CREATE TABLE po_sync_run_contents (run_id VARCHAR(40), content_id VARCHAR(40), sync_scope VARCHAR(20))'
   ];
   for (const sql of ddl) await control.query(sql);
+  await control.query('CREATE TABLE po_sync_checkpoints (id INT PRIMARY KEY, account_id VARCHAR(40), sync_scope VARCHAR(20), status VARCHAR(40), root_platform_content_id VARCHAR(40), items_fetched INT, last_item_at DATETIME(3), error_code VARCHAR(80), error_message TEXT, INDEX po_sync_checkpoints_account_idx(account_id))');
+  for (let start = 0; start < 74714; start += 1000) {
+    const size = Math.min(1000, 74714 - start);
+    const params = [];
+    for (let offset = 0; offset < size; offset += 1) {
+      const id = start + offset;
+      params.push(id, 'account-fixture', id < 72524 ? 'comments' : 'posts', ['idle','running','failed','completed'][id % 4], String(id), 2, '2026-10-09 00:00:00.000');
+    }
+    await control.query(`INSERT INTO po_sync_checkpoints (id,account_id,sync_scope,status,root_platform_content_id,items_fetched,last_item_at) VALUES ${Array(size).fill('(?,?,?,?,?,?,?)').join(',')}`, params);
+  }
   await control.query("INSERT INTO po_games VALUES ('game-fixture','Fixture','domestic')");
+  await control.query("UPDATE po_sync_checkpoints SET error_message=CASE id WHEN 2 THEN 'fixture later error' WHEN 10 THEN 'fixture first error' ELSE NULL END WHERE id IN (2,10)");
   await control.query("INSERT INTO po_communities VALUES ('community-fixture','Fixture','enabled')");
   await control.query("INSERT INTO po_sources VALUES ('source-fixture','Fixture')");
   await control.query("INSERT INTO po_accounts VALUES ('account-fixture','source-fixture','game-fixture','community-fixture','bigplayer_h5','fixture','Fixture')");
@@ -60,7 +72,7 @@ async function createFixture(control) {
   try { await control.query('SELECT r.community_id FROM po_sync_runs r LIMIT 1'); }
   catch (error) { oldQueryFailed = error.code === 'ER_BAD_FIELD_ERROR'; }
   if (!oldQueryFailed) throw fail('FIXTURE_OLD_QUERY_DID_NOT_FAIL');
-  return { tableCount: ddl.length, runColumnCount: columns.length, oldQueryErrorCode: 'ER_BAD_FIELD_ERROR' };
+  return { tableCount: ddl.length + 1, runColumnCount: columns.length, oldQueryErrorCode: 'ER_BAD_FIELD_ERROR' };
 }
 
 async function main() {
@@ -106,6 +118,20 @@ async function main() {
     const latest = await repo.getLatestSyncRunForSource('source-fixture');
     const listed = await repo.listSyncRuns({ sourceId: 'source-fixture', page: 1, pageSize: 20 });
     result.queryDurationMs = Date.now() - queryStarted;
+    const fullStarted = Date.now();
+    const fullStatus = await repo.getSyncStatus({ accountId: 'account-fixture' });
+    const fullMs = Date.now() - fullStarted;
+    const summaryStarted = Date.now();
+    const summary = await repo.getSourceSyncStatusSummary({ accountId: 'account-fixture' });
+    const summaryMs = Date.now() - summaryStarted;
+    const pending = rows => rows.filter(row => ['idle','queued','pending','running'].includes(row.status)).reduce((total, row) => total + Number(row.checkpoint_count ?? 1), 0);
+    const count = rows => rows.reduce((total, row) => total + Number(row.items_fetched || 0), 0);
+    if (fullStatus.length !== 74714 || summary.length !== 8 || pending(summary) !== pending(fullStatus) || count(summary) !== count(fullStatus)) throw fail('SUMMARY_SCALE_MISMATCH');
+    const firstError = fullStatus.filter(row => row.sync_scope==='comments').find(row => row.error_message)?.error_message;
+    if (firstError !== 'fixture first error' || summary.filter(row=>row.sync_scope==='comments').some(row=>row.error_message!==firstError)
+      || summary.filter(row=>row.sync_scope==='posts').some(row=>row.error_message!==null)) throw fail('SUMMARY_ERROR_ORDER_MISMATCH');
+    result.errorSummary = { multipleErrorsPreserveRootOrder: true, noErrorScopeNull: true, sourceLastErrorNotRequired: true };
+    result.summaryScale = { checkpoints: fullStatus.length, summaryRows: summary.length, fullMs, summaryMs, itemsFetched: count(summary), pending: pending(summary), fullPayloadBytes: Buffer.byteLength(JSON.stringify(fullStatus)), summaryPayloadBytes: Buffer.byteLength(JSON.stringify(summary)) };
     if (!detail || !latest || listed.total !== 2 || listed.items.length !== 2) throw fail('READ_CONTRACT_MISMATCH');
     for (const row of [detail, ...listed.items]) if (row.community_id !== 'community-fixture') throw fail('ACCOUNT_COMMUNITY_MISMATCH');
     for (const row of [detail, latest, ...listed.items]) {

@@ -1,0 +1,9 @@
+# Domestic remaining 22 comment targets QA
+
+Status: PASS_22_TARGET_INTERSECTION / PASS_6_ALREADY_RUN / CONDITIONAL_GO_REMAINING_16
+
+Manifest `C:/Users/Administrator/AppData/Roaming/Code/User/project manage/.temp/domestic-today-recovery-20261009/remaining-comment-targets-v4.json` SHA256 `abb2fac1c3adfe5f3d0f7ff668262f152efefe2f541245e478d3d8cfaff81206` has 22 distinct targets. Independent cross-check against the six accepted v8 home-post reports found 22/22 IDs in the original 116; each manifest row has the fixed domestic source/account/community, `content_type=post`, a matching original report and positive observed comment count. Existing six targets `926832,926833,926834,926835,926836,926837` yielded 12 comments. SELECT-only `v047_domestic_comment_batch_readonly_qa.js` verified these among 34 successful explicit pages/47 comments: ownership, provider raw ID, original UTC, parent/root/depth, AI-job fingerprint and completed lease-free checkpoint all pass.
+
+Conditional GO for exactly the other 16 post IDs: `926822,926823,926826,926828,926845,926846,926847,926848,926849,926867,926869,926875,926876,926878,926884,926885`. The project manager must execute one post/one page serially under the current frozen graph v4 115-file/CLI SHA, same source/account/site/captured window, fresh approved plan and nonexistent output for each, with advisory-lock and target-checkpoint-lease checks immediately before launch. Recheck manifest SHA before starting. Any failure stops the batch without automatic retry; retain phase/lock evidence and return the failing target to development/QA. No post outside this list, old post, other source/feed, overseas or shared Worker is in scope.
+
+This gate is limited to known original-116 posts with observed comments. It does not establish home pagination exhaustion, nonhome feeds, older parents, all replies, full-day completeness, lock root cause or release readiness.
