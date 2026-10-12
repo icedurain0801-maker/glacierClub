@@ -8,9 +8,19 @@
   let identity;
   const style = document.createElement('style');
   style.textContent = '.po-auth-panel{position:fixed;inset:0;z-index:10000;display:grid;place-content:center;gap:12px;background:#f7f9fc;color:#344054;padding:32px;text-align:center}.po-auth-panel button{padding:8px 16px;cursor:pointer}.po-auth-user{position:fixed;right:16px;bottom:12px;z-index:50;display:flex;align-items:center;gap:10px;background:white;border:1px solid #d0d5dd;border-radius:6px;padding:8px 12px;font-size:12px}html[data-po-review="false"] :is([data-quality-action],#saveAlert,.batch-handling-bar,.single-handling-footer,[data-handling-id]){display:none!important}html[data-po-manage="false"] #reanalyzeBtn{display:none!important}html[data-po-manage="false"] a:is([href*="sources.html"],[href*="keywords.html"],[href*="collection-runs.html"]){display:none!important}';
+  style.textContent += '.command-bar .po-auth-tools{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-width:100%;min-width:0}.command-bar .po-auth-tools>.top-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:100%}.po-auth-user{position:static;right:auto;bottom:auto;z-index:auto;flex-wrap:wrap;justify-content:flex-end;max-width:100%;color:#344054}.po-auth-user button{min-height:28px;cursor:pointer}@media(max-width:800px){.command-bar .po-auth-tools{width:100%;margin-top:12px}.po-auth-user{gap:8px}}';
   document.head.append(style);
   let panel;
   const domReady = document.readyState === 'loading' ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true })) : Promise.resolve();
+  function mountUserBar(bar) {
+    const header = document.querySelector('.command-bar');
+    if (!header) { document.body.prepend(bar); return; }
+    const scope = header.querySelector('[data-po-scope]');
+    const tools = document.createElement('div'); tools.className = 'po-auth-tools';
+    tools.append(bar);
+    if (scope) tools.append(scope);
+    header.append(tools);
+  }
   async function show(message, retry = false) {
     await domReady;
     if (!panel) { panel = document.createElement('section'); panel.className = 'po-auth-panel'; panel.setAttribute('role', 'alert'); document.body.append(panel); }
@@ -61,7 +71,7 @@
       manage.onclick = async () => { try { if (!app.admin.openManager) await loadScript(`${config.baseUrl}/glacier-baas-admin-ui.js`); app.admin.openManager(); } catch (error) { await show(error.message, true); } }; bar.append(manage);
     }
     const logout = document.createElement('button'); logout.textContent = '退出'; logout.onclick = () => { app.auth.logout(); location.reload(); }; bar.append(logout);
-    document.body.append(bar);
+    mountUserBar(bar);
     return { enabled: true, identity };
   })();
   ready.catch(error => show(error.message || '冰川登录失败', true));
