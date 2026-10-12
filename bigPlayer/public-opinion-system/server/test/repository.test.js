@@ -2405,7 +2405,7 @@ test('quality candidate upsert is deep-only, idempotent, and preserves review fi
     if (sql.startsWith('DELETE FROM po_quality_candidates')) return { affectedRows: 1 };
     return { affectedRows: 1 };
   });
-  assert.equal(await repo.upsertQualityCandidate('c1', { body: '短内容', qualityScore: 0.79, recommendHome: true }), null);
+  assert.equal(await repo.upsertQualityCandidate('c1', { body: '短内容', qualityScore: 0.69, recommendHome: true }), null);
   assert.equal(repo.calls.length, 1);
   const longBody = '这是一段长度足够的正文，用于验证深度分析产生的优质内容候选可以正常写入并保留审核字段。'.repeat(2);
   const candidate = await repo.upsertQualityCandidate('c1', { body: longBody, qualityScore: 0.9, recommendHome: true, qualityReason: 'high value', analysisVersion: 'deep-v2', modelName: 'model', contentFingerprint: 'fp' });
@@ -2438,7 +2438,7 @@ test('quality content queries enforce scope, recommendation review, date, and pa
   assert.equal(items[0].id, 'q1'); assert.equal(total, 3); assert.equal(detail.id, 'q1');
   assert.match(repo.calls[0].sql, /q\.recommend_home=1/); assert.match(repo.calls[0].sql, /q\.home_review_status=\?/);
   assert.match(repo.calls[0].sql, /CHAR_LENGTH\(TRIM\(COALESCE\(c\.body/);
-  assert.match(repo.calls[0].sql, /q\.quality_score >= 0\.8/);
+  assert.match(repo.calls[0].sql, /q\.quality_score >= 0\.7/);
   assert.match(repo.calls[0].sql, /ORDER BY c\.published_at DESC, q\.quality_score DESC, q\.id DESC/);
   assert.deepEqual(repo.calls[0].params, ['g1', 'cm1', 's1', 'domestic', '2026-08-01', '2026-08-21', 'pending', 10, 10]);
   assert.deepEqual(repo.calls[2].params, ['q1', 'g1', 'cm1', 's1', 'domestic']);

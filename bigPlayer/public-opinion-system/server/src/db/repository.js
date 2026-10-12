@@ -193,6 +193,7 @@ function totalCommentCountSql(contentAlias, childAlias) {
   return `CASE WHEN ${contentAlias}.content_type='post' THEN GREATEST((SELECT COUNT(*) FROM po_contents ${childAlias} WHERE ${childAlias}.root_content_id=${contentAlias}.id AND ${childAlias}.content_type='comment' AND ${childAlias}.is_deleted=0), COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(${contentAlias}.engagement,'$.comments')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(${contentAlias}.engagement,'$.comment')) AS UNSIGNED), 0)) ELSE 0 END`;
 }
 const QUALITY_BOOLEAN_FIELDS = ['recommend_home', 'recommend_pin', 'recommend_feature', 'home_adopted', 'pin_adopted', 'feature_adopted'];
+const QUALITY_SCORE_THRESHOLD = 0.7;
 function normalizeQualityCandidate(row) {
   if (!row) return row;
   const normalized = { ...row, canReview: true };
@@ -815,7 +816,7 @@ class Repository {
     const recommended = Boolean(analysis.recommendHome || analysis.recommendPin || analysis.recommendFeature);
     const sentiment = String(analysis.sentiment || '').toLowerCase();
     const qualityScore = analysis.qualityScore == null ? null : Number(analysis.qualityScore);
-    if (!recommended || sentiment === 'negative' || !Number.isFinite(qualityScore) || qualityScore < 0.8) {
+    if (!recommended || sentiment === 'negative' || !Number.isFinite(qualityScore) || qualityScore < QUALITY_SCORE_THRESHOLD) {
       await this.query('DELETE FROM po_quality_candidates WHERE content_id=?', [contentId]);
       return null;
     }
@@ -826,7 +827,7 @@ class Repository {
     return (await this.query('SELECT * FROM po_quality_candidates WHERE content_id=? LIMIT 1', [contentId]))[0] || null;
   }
   async cleanupInvalidQualityCandidates() {
-    // 只删除确实不满足现行筛选条件（sentiment≠negative + 任一推荐 + body≥50字 + quality_score≥0.8）的候选。
+    // 只删除确实不满足现行筛选条件（sentiment≠negative + 任一推荐 + body≥50字 + quality_score≥0.7）的候选。
     // 旧写法 LEFT JOIN po_analyses 后用 a.sentiment='negative' 判断，会把"分析记录不存在"（a.* 为 NULL）的行
     // 一并误删 —— NULL<>'negative' 为 NULL，且推荐列只看候选表自身，导致满足条件但缺少分析行的记录被清理掉。
     const result = await this.query(`
@@ -838,12 +839,12 @@ class Repository {
         AND COALESCE(a.sentiment,'') <> 'negative'
         AND (q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)
         AND CHAR_LENGTH(TRIM(COALESCE(c.body,''))) >= 50
-        AND q.quality_score >= 0.8
+        AND q.quality_score >= 0.7
       )`);
     return Number(result.affectedRows || 0);
   }
   qualityContentFilter({ regionCode, gameId, communityId, sourceId, platform, recommendationType, reviewStatus, publishedFrom, publishedTo } = {}) {
-    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', 'CHAR_LENGTH(TRIM(COALESCE(c.body,\'\'))) >= 50', 'q.quality_score >= 0.8'];
+    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', 'CHAR_LENGTH(TRIM(COALESCE(c.body,\'\'))) >= 50', 'q.quality_score >= 0.7'];
     for (const [value, sql] of [[gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); }
     if (platform) { clauses.push('s.platform=?'); values.push(platform); }
