@@ -1,0 +1,77 @@
+.content-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 18px 28px 4px;
+}
+
+.risk-mode-cards {
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+
+.risk-mode-cards .stat-card {
+  width: 230px;
+  min-height: 88px;
+  text-align: left;
+  font: inherit;
+  box-shadow: none;
+}
+
+.risk-mode-cards .stat-card.active {
+  box-shadow: none;
+}
+
+.content-type-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 28px;
+  margin-left: auto;
+}
+
+.content-type-tab {
+  appearance: none;
+  padding: 16px 2px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #8995a7;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.content-type-tab .sc-num {
+  margin-left: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.content-type-tab:hover {
+  color: #435775;
+}
+
+.content-type-tab.active {
+  color: #304761;
+  border-bottom-color: #607b9e;
+}
+
+.content-type-tab:focus-visible {
+  outline: 2px solid #91caff;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1000px) {
+  .content-mode-bar { flex-wrap: wrap; gap: 10px; }
+  .risk-mode-cards { flex: 1 1 100%; }
+  .risk-mode-cards .stat-card { flex: 1; width: auto; }
+}
+
+@media (max-width: 800px) {
+  .content-mode-bar { padding: 14px 16px 2px; }
+}
