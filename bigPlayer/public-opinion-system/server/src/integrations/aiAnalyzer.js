@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { normalizeAnalysisResult } = require('../services/riskSeverityNormalizer');
-const { RISK_PROMPT, LEVELS, NAMES, GATES } = require('../services/riskDecisionTree');
+const { RISK_PROMPT, POLICY_VERSION, LEVELS, NAMES, GATES } = require('../services/riskDecisionTree');
 const { RISK_RESPONSE_FORMAT } = require('../services/riskResponseSchema');
 
 // AI 批量分析适配器（第三方 OpenAI 兼容 /chat/completions）。
@@ -88,6 +88,7 @@ class AiAnalyzer {
   cacheKey(fingerprint, profile, context = {}) {
     const payload = {
       promptSchemaVersion: PROMPT_SCHEMA_VERSION,
+      riskPolicyVersion: POLICY_VERSION,
       retentionPolicyVersion: 'v9-retention',
       regionCode: context.regionCode || context.region_code || 'legacy-unassigned',
       gameId: context.gameId || context.game_id || 'legacy-unassigned',

@@ -58,8 +58,8 @@ function normalizeSeverity(input = {}) {
   const observedImpact = eligible ? verifiedSeriousImpact({ title: input.title, body: input.body }) : null;
   const gameIssueMatched = eligible && !isPlannedMaintenance(input) && (Boolean(observedImpact) || Boolean(productIssueEvidence(input)) || hasConcreteCrashReport(input) || (typeof input.gameComplaint === 'boolean'
     ? input.gameComplaint : hasGameIssueSignal(input)));
-  const experienceRelated = eligible && (input.gameExperienceRelated === true || gameIssueMatched);
-  const inAttention = sentiment === 'negative' || (sentiment === 'neutral' && experienceRelated);
+  // Game-relatedness alone does not make a neutral question a risk.
+  const inAttention = sentiment === 'negative' || (sentiment === 'neutral' && gameIssueMatched);
   const inNegative = inAttention && gameIssueMatched;
   // Only a model decision can promote a qualifying issue to urgent. Repeated
   // normalization uses the original decision, never a previous policy upgrade.
@@ -158,7 +158,7 @@ function retainVerifiedUrgent(current, previous, context = {}) {
   if (!previous || current.severity === 'urgent') return current;
   let saved = previous.risk_context || {};
   if (typeof saved === 'string') { try { saved = JSON.parse(saved); } catch { return current; } }
-  if ((previous.riskPolicyVersion ?? saved.riskPolicyVersion) !== RISK_POLICY_VERSION
+  if (![RISK_POLICY_VERSION, 'verifiable-issue-gates-v10-neutral-no-risk'].includes(previous.riskPolicyVersion ?? saved.riskPolicyVersion)
     || !previous.content_fingerprint || previous.content_fingerprint !== current.contentFingerprint) return current;
   const prior = normalizeAnalysisResult(previous, context);
   if (prior.severity !== 'urgent' || !prior.riskDecision) return current;

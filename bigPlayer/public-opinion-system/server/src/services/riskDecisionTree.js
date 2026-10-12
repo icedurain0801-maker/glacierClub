@@ -2,7 +2,7 @@ const { factualClauses } = require('./gameRiskEvidence');
 const { productIssueEvidence } = require('./productIssueEvidence');
 const { retentionSignals } = require('./playerRetentionRisk');
 
-const POLICY_VERSION = 'verifiable-issue-gates-v10-neutral-no-risk';
+const POLICY_VERSION = 'verifiable-issue-gates-v11-attention-narrowed';
 const LEVELS = Object.freeze({ L0: 'normal', L1: 'attention', L2: 'negative', L3: 'urgent' });
 const NAMES = Object.freeze({ L0: '噪声过滤', L1: '关注级', L2: '负面待处理', L3: '紧急告警' });
 const GATES = Object.freeze({ L0: 'GATE0_noise', L1: 'GATE1_fail_L1', L2: 'GATE3_default_L2', L3: 'GATE2_pass_L3' });
@@ -14,7 +14,7 @@ const LUCK = /非酋|欧洲人|保底歪|歪到|吃保底|沉船|出货|单抽�
 
 // This text is the resolved, user-approved policy, shared by both AI profiles.
 const RISK_PROMPT = `你是游戏社区舆情风险分级器。判断可查证的产品/运营问题，不衡量骂得多凶。只看本条原文，不能补全图片或猜测后果。帖子/评论独立，不继承父帖等级。社区、游戏字段可用于确认所属产品，但不能当作问题证据。正面攻略、正常讨论、无关回复不进入风险队列，按L0保存normal（noise_reason可用pure_meme表示无风险内容，reason如实解释）。
-串行决策树：GATE0噪声→L0；GATE1有不满/疑似问题但无明确实际问题→L1；GATE2有经验证的紧急条件→L3；剩余→L2。互斥单选，先命中即结束。
+串行决策树：GATE0噪声→L0；GATE1有不满/疑似问题但无明确实际问题→L1；GATE2有经验证的紧急条件→L3；剩余→L2。互斥单选，先命中即结束。L1必须有本条原文中的明确不满或异常担忧；仅与游戏体验相关、提出问句、需要解答均不是关注依据。无不满的攻略、玩法、副本选择、装备属性、道具用途咨询必须s=neutral、v=normal、risk.level=L0，无需处理。反例：“符文副本三选一，优先刷哪个”“周瑜装备啥属性”“用银票有啥好处”均为L0。问句中若同时实际报告崩溃、未到账、不公平等异常/投诉，仍按问题证据判级，不因问句降档。
 GATE0：no_subject泛吐槽且无法确认具体游戏对象；not_our_product明确讨论非目标服/竞品/私服等；pure_meme纯玩梗或无风险内容；closed_loop明确官方已解决/补偿完的历史复述；repost_dup有重复来源证据；spam_ad广告卖号代充外挂引流。不能因没写游戏名过滤可定位的游戏机制问题。竞品对比若实际指控本产品问题不能过滤。已回复但问题未解决不能closed_loop。没有去重信息不猜重复。
 GATE1：必须同时有可核查具体对象+可证实/证伪的说法；claim_type为fact/allegation/evidence_backed_allegation；issue_summary<=20字、issue_object与claim_evidence必须非空且逐字来自本条原文，issue_summary必须能让处理人员明确查什么。不编造负责人或结论期限。正常签到、晒奖励、运气感叹、无不满的玩法规则咨询按L0；只有不满/疑似问题但证据不足停L1，negative_score>0.50仅辅助，不能单独升级。
 先检查例外词（概率、爆率、公示、后台、造假、暗改、改了爆率、多少抽不出、统计、样本、数据分析、掉落日志、期望值、体感对比），再执行抽卡个人运气白名单降噪；例外仅免除运气降档，仍要有可核查指控，仅询问概率公示在哪且无不满或异常为L0。无实证且无例外的非酋、保底歪、吃保底、脸黑、十连全蓝、玄学、破防、口头弃坑等停L1。审美偏好、无数据的强弱争议、肝度抱怨、纯辱骂等明确不满为L1；普通规则/活动/补偿/退款流程咨询没有不满或实际异常为L0。个人一次卡顿掉线闪退，无复现路径/版本/其他人反馈为L1。描述什么情况下出现什么异常、指控暗改/错发奖励/口径矛盾、针对具体问题要求修复/补偿/答复为GATE1通过。基准：联盟boss集结每十次一次崩溃，重连耗时并与队友不同步为L2，结尾问手机问题不降档。
@@ -103,7 +103,9 @@ function evaluateRiskDecision(input) {
   const override = whitelistHit && text.split(/[。！？!?\n]/).some(clause => LUCK.test(clause) && EXCEPTION.test(clause));
   let level = 'L1';
   let rules = [];
-  const consultation = /(?:在哪|在哪里|什么时候|何时|流程|入口|怎么算|如何申请|怎么申请).{0,8}[？?]?$/.test(text) && !/(?:但是|但|已经|反复|每次|发生|导致|未到账|不一致|暗改|造假)/.test(text);
+  const consultation = (/(?:在哪|在哪里|什么时候|何时|流程|入口|怎么算|如何申请|怎么申请).{0,8}[？?]?$/.test(text)
+    || /哪个副本|哪些副本|(?:啥|什么)属性|有(?:啥|什么)好处|怎么玩|怎么用|如何搭配|怎么搭配|选什么|怎么选/.test(text))
+    && !/(?:但是|但|已经|反复|每次|发生|导致|未到账|不到账|不一致|暗改|造假|异常|故障|闪退|崩溃|卡顿|失败|不公平|不合理|不满|太坑|失望|无法|不能|被盗|泄露)/.test(text);
   const incidental = /(?:一次|刚才|偶尔).{0,12}(?:卡顿|掉线|闪退|崩溃)/.test(text) && !/(?:每次|进入|点击|版本|更新后|也是|反复|频繁|导致)/.test(text);
   const validClaim = !consultation && !incidental && CLAIMS.has(risk.claim_type) && excerpt(text, risk.issue_object)
     && excerpt(text, risk.claim_evidence) && factualClauses({ body: risk.claim_evidence }).length > 0 && typeof risk.issue_summary === 'string' && risk.issue_summary.trim().length > 0;

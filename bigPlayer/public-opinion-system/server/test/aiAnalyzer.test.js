@@ -443,6 +443,7 @@ test('severity 新提示词 schema 使旧缓存失效但不改变历史 analysis
   for (const profile of [ai.profiles.light, ai.profiles.deep]) {
     const payload = {
       promptSchemaVersion: 'sentiment-quality-verifiable-issue-gates-v10-neutral-no-risk',
+      riskPolicyVersion: 'verifiable-issue-gates-v11-attention-narrowed',
       retentionPolicyVersion: 'v9-retention',
       regionCode: 'legacy-unassigned', gameId: 'legacy-unassigned',
       communityId: 'legacy-unassigned', platform: 'legacy-unassigned',
@@ -451,6 +452,8 @@ test('severity 新提示词 schema 使旧缓存失效但不改变历史 analysis
     const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
     const key = ai.cacheKey('same-content', profile);
     assert.equal(key, hash(payload));
+    const { riskPolicyVersion, ...previousPolicyPayload } = payload;
+    assert.notEqual(key, hash(previousPolicyPayload));
     assert.notEqual(key, hash({ ...payload, promptSchemaVersion: 'sentiment-quality-context-v2' }));
     assert.equal(profile.version, 'existing-version');
   }

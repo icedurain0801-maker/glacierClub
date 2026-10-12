@@ -5,7 +5,7 @@ const { normalizeSeverity, normalizeAnalysisResult, buildAnalysisReason } = requ
 test('semantic complaints bypass both thresholds while an explicit consultation does not', () => {
   assert.equal(normalizeSeverity({ sentiment: 'negative', severity: 'attention', negativeScore: 0.2, confidence: 0.1, gameComplaint: true }).severity, 'negative');
   assert.equal(normalizeSeverity({ sentiment: 'negative', severity: 'attention', negativeScore: 0.2, gameComplaint: false, body: '请问bug修复公告在哪看' }).severity, 'attention');
-  assert.equal(normalizeSeverity({ sentiment: 'neutral', severity: 'normal', gameComplaint: false, gameExperienceRelated: true, body: '匹配机制怎么用' }).severity, 'attention');
+  assert.equal(normalizeSeverity({ sentiment: 'neutral', severity: 'normal', gameComplaint: false, gameExperienceRelated: true, body: '匹配机制怎么用' }).severity, 'normal');
   assert.equal(normalizeSeverity({ sentiment: 'negative', severity: 'urgent', negativeScore: 0.1, gameComplaint: false }).severity, 'attention');
 });
 
