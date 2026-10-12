@@ -361,13 +361,18 @@ class Repository {
       this.listContents({ ...contentFilters, riskMode: 'negative', sort: 'published_desc', pageSize: 10 }),
       // 关注级列表与卡片共享内容集合，不附加负面情感限制，按发布时间倒序。
       this.listContents({ ...contentFilters, riskMode: 'attention', sort: 'published_desc', pageSize: 10 }),
-      this.getContentStats(contentFilters),
+      this.getContentStats(contentFilters, { includeBreakdown: true }),
       this.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(a.topics, CONCAT('$[', seq.seq, ']'))) AS topic, CAST(COUNT(*) AS SIGNED) AS count, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id STRAIGHT_JOIN po_analyses a ON a.content_id=c.id STRAIGHT_JOIN (SELECT 0 AS seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) seq ON seq.seq < JSON_LENGTH(a.topics) ${where} GROUP BY topic HAVING topic IS NOT NULL AND topic <> '' ORDER BY count DESC, topic ASC LIMIT 10`, values)
     ]);
     const hotFields = ['id', 'game_id', 'community_id', 'content_type', 'title', 'body', 'source_url', 'author_name', 'source_id', 'published_at', 'platform', 'game_name', 'region_code', 'community_name', 'community_status', 'sentiment', 'negative_score', 'severity', 'topics', 'matched_keywords', 'summary'];
     const hotItems = rows => rows.map(row => ({ ...Object.fromEntries(hotFields.map(field => [field, row[field]])), display_type: contentDisplayType(row), engagement: Number(row.engagement_score ?? row.engagement) || 0 }));
-    const urgentAlertCount = alerts.filter(alert => alert.severity === 'urgent').length;
-    return { metrics: { ...metrics[0], negative: contentStats.negative, attention: contentStats.attention, urgentAlertCount, activeAlertCount: alerts.length }, sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, trend, hotNegative: hotItems(hotNegative), hotAttention: hotItems(hotAttention), topicDistribution: topics };
+    const urgentIds = [...new Set(alerts.filter(alert => alert.severity === 'urgent').map(alert => alert.id))];
+    const urgentAlertCount = urgentIds.length;
+    const urgentBreakdown = urgentIds.length ? (await this.query(`SELECT COUNT(DISTINCT CASE WHEN c.content_type='post' THEN c.id END) AS postCount, COUNT(DISTINCT CASE WHEN c.content_type='comment' THEN c.id END) AS commentCount FROM po_alert_contents ac JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE ac.alert_id IN (${urgentIds.map(() => '?').join(',')}) AND ${alertClauses.filter(clause => !clause.startsWith('a.') && clause !== "c.content_type='post'").join(' AND ')}`, [...urgentIds, ...alertValues]))[0] : {};
+    const breakdownMetrics = Object.fromEntries(['attentionPostCount', 'attentionCommentCount', 'negativePostCount', 'negativeCommentCount'].map(key => [key, Number(contentStats[key]) || 0]));
+    breakdownMetrics.urgentAlertPostCount = Number(urgentBreakdown?.postCount) || 0;
+    breakdownMetrics.urgentAlertCommentCount = Number(urgentBreakdown?.commentCount) || 0;
+    return { metrics: { ...metrics[0], ...breakdownMetrics, negative: contentStats.negative, attention: contentStats.attention, urgentAlertCount, activeAlertCount: alerts.length }, sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, trend, hotNegative: hotItems(hotNegative), hotAttention: hotItems(hotAttention), topicDistribution: topics };
   }
   async listContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, riskMode, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20, sort } = {}) {
     ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));
@@ -491,7 +496,7 @@ class Repository {
     const rows = await this.query(`SELECT COUNT(*) AS total FROM po_contents c${needsScopeJoin ? ` JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id` : ''}${analysisJoin} ${where}`, values);
     return Number(rows[0]?.total || 0);
   }
-  async getContentStats(filters = {}) {
+  async getContentStats(filters = {}, { includeBreakdown = false } = {}) {
     const baseFilters = { ...filters };
     delete baseFilters.riskMode;
     delete baseFilters.severity;
@@ -502,6 +507,13 @@ class Repository {
       ['negative', { riskMode: 'negative' }],
       ['attention', { riskMode: 'attention' }]
     ];
+    if (includeBreakdown) {
+      for (const riskMode of ['attention', 'negative']) {
+        for (const contentType of ['post', 'comment']) {
+          dimensions.push([`${riskMode}${contentType === 'post' ? 'Post' : 'Comment'}Count`, { riskMode, contentType }]);
+        }
+      }
+    }
     const entries = await Promise.all(dimensions.map(async ([key, extra]) => [key, await this.countContents({ ...baseFilters, ...extra })]));
     return Object.fromEntries(entries.map(([key, value]) => [key, Number(value) || 0]));
   }

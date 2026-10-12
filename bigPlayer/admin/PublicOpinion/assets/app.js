@@ -81,10 +81,15 @@ function syncPeriodUrl() {
 }
 function renderMetrics(metrics) {
   metrics = metrics || {};
+  const breakdown = index => {
+    const keys = [['postCount', 'commentCount'], ['negativePostCount', 'negativeCommentCount'], ['attentionPostCount', 'attentionCommentCount'], ['urgentAlertPostCount', 'urgentAlertCommentCount']][index];
+    if (keys.some(key => metrics[key] == null)) return '';
+    return `<span class="metric-breakdown">${index === 3 ? '<span>关联内容</span>' : ''}<span>帖子/动态 <b>${Number(metrics[keys[0]]).toLocaleString()}</b></span><span>评论 <b>${Number(metrics[keys[1]]).toLocaleString()}</b></span></span>`;
+  };
   const cards = [[`${periodLabel()}发布内容`, Number(metrics.newCount ?? metrics.total ?? 0).toLocaleString(), '当前筛选范围内新增', '总'], ['负面内容', Number(metrics.negativeCount ?? metrics.negative ?? 0).toLocaleString(), '已识别的负面内容', '负'], ['关注级内容', Number(metrics.attention ?? 0).toLocaleString(), '已识别的关注级内容', '注'], ['紧急告警', Number(metrics.urgentAlertCount ?? 0).toLocaleString(), '当前待处理的 AI 紧急告警', '警']];
   const accent = index => index === 1 ? ' accent-red' : index >= 2 ? ' accent-orange' : '';
   const metricsEl = $('#metrics'); if (!metricsEl) return;
-  metricsEl.innerHTML = cards.map(([label, value, foot, icon], index) => `<div class="metric${accent(index)}"><div class="metric-head"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot ${index > 0 ? 'up' : ''}">${foot}</div></div>`).join('');
+  metricsEl.innerHTML = cards.map(([label, value, foot, icon], index) => `<div class="metric${accent(index)}"><div class="metric-head"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot metric-total-foot ${index > 0 ? 'up' : ''}"><span>${foot}</span>${breakdown(index)}</div></div>`).join('');
 }
 function normalizeSentiment(sentiment, trend) {
   const totals = { positive: 0, neutral: 0, negative: 0, unclassified: 0 };
