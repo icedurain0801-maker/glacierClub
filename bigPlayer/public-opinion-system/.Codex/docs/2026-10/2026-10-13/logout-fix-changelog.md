@@ -1,6 +1,6 @@
 # 退出登录失效修复
 
-Status: candidate verified
+Status: deployed and live verified
 
 原退出按钮调用 BaaS SDK 的本地 logout 后立即刷新。SDK 不注销平台 SSO Cookie，刷新页面自动 sso 又恢复应用会话，用户表现为退出无效。
 
@@ -18,3 +18,5 @@ Status: candidate verified
 正式域名 Edge + 实际 SDK/SSO 候选验证通过：退出后遮罩可见、用户身份清空、SDK 本地凭证清空、刷新仍退出、其他标签页退出；浏览器原生 fetch 不带 bearer 请求真实受保护接口返回 401；点击重新登录成功恢复。无页面脚本异常。测试仅涉及本人的认证会话与只读接口，无业务写入。
 
 前端 release 从现役 `release-20261013-account-pill-1791853900223` 复制并最小补丁，保留现役用户菜单及其他页面；manifest 38 文件通过。发布只切换并重启 PublicOpinionFrontend3001，API、Worker、数据库和平台权限均不改动。XML 变更前校验哈希，保留原配置以便失败回滚。
+
+已发布 `release-20261013-logout-1791854105160`，不拦截替换页面脚本的正式 Edge 复测通过，结果见 `logout-live.json`。真实 SSO 测试结束后明确重新登录成功；在途响应拦截在隔离用例验证，真实用例未人为延迟生产请求。代码提交 `a7caff6` 已推送，其他工作区样式及业务改动保留原样。
