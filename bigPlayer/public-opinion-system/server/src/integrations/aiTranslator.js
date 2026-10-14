@@ -1,5 +1,11 @@
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const clean = (value, max) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+// Media URLs are stored in body by collectors; they are not translation input.
+const translationText = value => String(value || '')
+  .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/https?:\/\/[^\s"'<>()]+/gi, ' ')
+  .replace(/\s+/g, ' ').trim();
 
 function textFromParts(value) {
   if (typeof value === 'string') return value;
@@ -61,8 +67,8 @@ class AiTranslator {
   }
 
   buildMessages(content) {
-    const title = clean(content.title, this.maxChars);
-    const body = clean(content.body, this.maxChars);
+    const title = clean(translationText(content.title), this.maxChars);
+    const body = clean(translationText(content.body), this.maxChars);
     return [
       { role: 'system', content: '你是专业翻译。将输入内容忠实翻译为简体中文。仅输出 JSON 对象，不要 Markdown：{"title":"...","body":"...","sourceLanguage":"..."}。没有标题或正文时对应输出空字符串。' },
       { role: 'user', content: JSON.stringify({ title, body }) }
@@ -126,9 +132,12 @@ class AiTranslator {
       error.noRetry = true;
       throw error;
     }
+    if (!/[\p{L}\p{N}]/u.test(translationText(content?.title) + translationText(content?.body))) {
+      return { translatedTitle: null, translatedBody: null, sourceLanguage: 'und', modelName: 'no-translatable-text', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+    }
     const messages = this.buildMessages(content);
     return this.parseResponse(await this.callOnce(messages), messages);
   }
 }
 
-module.exports = { AiTranslator, clean };
+module.exports = { AiTranslator, clean, translationText };

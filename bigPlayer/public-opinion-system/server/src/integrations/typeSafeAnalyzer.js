@@ -21,6 +21,10 @@ const REASONS = {
 function failure(code) { return Object.assign(new Error(code), { code }); }
 function probability(value) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) throw failure('TYPESAFE_INVALID_RESPONSE'); return value; }
 function choice(answers, key, options) { const value = answers?.[key]?.choice; if (!options.includes(value)) throw failure('TYPESAFE_INVALID_RESPONSE'); return value; }
+function sentimentProbability(answer, sentiment) {
+  const value = answer?.probabilities?.[sentiment] ?? (answer?.choice === sentiment ? answer.confidence : null);
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1 ? value : null;
+}
 function storeDir(env) { return env.PUBLIC_OPINION_TYPESAFE_TEST_DIR || path.join(env.ProgramData || 'C:\\ProgramData', 'PublicOpinion', 'typesafe-tests'); }
 
 class TypeSafeAnalyzer {
@@ -35,7 +39,7 @@ class TypeSafeAnalyzer {
   configured() { try { const value = JSON.parse(fs.readFileSync(path.join(storeDir(this.env), 'config.json'), 'utf8')); return Boolean(value.secretCipher && cipher.loadKey(this.env)); } catch { return false; } }
   requireConfigured() { if (!this.configured()) throw failure('TYPESAFE_NOT_CONFIGURED'); }
   key() { try { const value = JSON.parse(fs.readFileSync(path.join(storeDir(this.env), 'config.json'), 'utf8')); return cipher.decrypt(value.secretCipher, this.env, { aad: 'public-opinion:typesafe-test:api-key:v1' }); } catch { throw failure('TYPESAFE_NOT_CONFIGURED'); } }
-  cacheKey(fingerprint, profile, context = {}) { return crypto.createHash('sha256').update(JSON.stringify({ version: VERSION, explanationVersion: EXPLANATION_VERSION, fingerprint, profile: profile.name, game: context.gameId || context.game_id, community: context.communityId || context.community_id, platform: context.platform })).digest('hex'); }
+  cacheKey(fingerprint, profile, context = {}) { return crypto.createHash('sha256').update(JSON.stringify({ version: VERSION, sentimentVersion: 1, explanationVersion: EXPLANATION_VERSION, fingerprint, profile: profile.name, game: context.gameId || context.game_id, community: context.communityId || context.community_id, platform: context.platform })).digest('hex'); }
   async acquire() { if (this.active >= 10) await new Promise(resolve => this.waiters.push(resolve)); else this.active += 1; }
   release() { const next = this.waiters.shift(); if (next) next(); else this.active -= 1; }
   questions(text) {
@@ -82,8 +86,10 @@ class TypeSafeAnalyzer {
     const quality = answers?.quality?.score;
     if (typeof quality !== 'number' || !Number.isFinite(quality) || quality < 0 || quality > 3) throw failure('TYPESAFE_INVALID_RESPONSE');
     const usage = data.usage || {}; const token = n => Number.isFinite(n) && n >= 0 ? n : 0;
-    const decision = { provider: VERSION, raw_level: raw, final_level: final, confidence, status, has_verifiable_issue: issue, emergency_trigger: emergency, reason_key: reasonKey, evidence: excerpt, source_hash: crypto.createHash('sha256').update(text).digest('hex') };
-    return { severity: LEVELS[final], sentiment: choice(answers, 'sentiment', ['positive', 'neutral', 'negative']), confidence, negativeScore: final === 'L0' ? 0 : confidence, reason, analysisReason: reason, typeSafeDecision: decision, needsDeep: false, modelName: MODEL, topics: [], summary: excerpt.slice(0, 60), qualityScore: quality / 3, recommendHome: probability(answers?.recommend_home?.noul) >= 0.8, recommendPin: probability(answers?.recommend_pin?.noul) >= 0.9, recommendFeature: probability(answers?.recommend_feature?.noul) >= 0.9, qualityReason: 'TypeSafe结构化质量及推荐判断', inputTokens: token(usage.input_tokens ?? usage.prompt_tokens), outputTokens: token(usage.output_tokens ?? usage.completion_tokens), totalTokens: token(usage.total_tokens), usageEstimated: !data.usage, rawAnalysis: { typeSafeDecision: decision, reason, severity: LEVELS[raw] } };
+    const sentiment = choice(answers, 'sentiment', ['positive', 'neutral', 'negative']);
+    const sentimentScore = sentimentProbability(answers.sentiment, sentiment);
+    const decision = { provider: VERSION, raw_level: raw, final_level: final, confidence, status, has_verifiable_issue: issue, emergency_trigger: emergency, reason_key: reasonKey, evidence: excerpt, source_hash: crypto.createHash('sha256').update(text).digest('hex'), sentimentScore };
+    return { severity: LEVELS[final], sentiment: choice(answers, 'sentiment', ['positive', 'neutral', 'negative']), confidence, negativeScore: final === 'L0' ? 0 : confidence, reason, analysisReason: reason, typeSafeDecision: decision, needsDeep: false, modelName: MODEL, topics: [], summary: excerpt.slice(0, 60), qualityScore: quality / 3, recommendHome: probability(answers?.recommend_home?.noul) >= 0.8, recommendPin: probability(answers?.recommend_pin?.noul) >= 0.9, recommendFeature: probability(answers?.recommend_feature?.noul) >= 0.9, qualityReason: 'TypeSafe结构化质量及推荐判断', inputTokens: token(usage.input_tokens ?? usage.prompt_tokens), outputTokens: token(usage.output_tokens ?? usage.completion_tokens), totalTokens: token(usage.total_tokens), usageEstimated: !data.usage, rawAnalysis: { typeSafeDecision: decision, reason, sentimentScore, severity: LEVELS[raw] } };
   }
   async analyzeBatch(items = [], profileName = 'light') {
     const profile = this.selectProfile(profileName); const key = this.key();
@@ -121,4 +127,4 @@ class TypeSafeAnalyzer {
   }
   async analyze(content, profile = 'light') { return (await this.analyzeBatch([content], profile))[0]; }
 }
-module.exports = { TypeSafeAnalyzer, VERSION, LEVELS };
+module.exports = { TypeSafeAnalyzer, VERSION, LEVELS, sentimentProbability };

@@ -11,6 +11,14 @@ const sourceById = id => state.sources.find(item => String(item.id) === String(i
 const sourceName = id => sourceById(id)?.display_name || sourceById(id)?.displayName || sourceById(id)?.platform || id || '-';
 const typeLabel = type => ({ post: '帖子', dynamic: '动态', comment: '评论', review: '评论', video: '帖子' }[type] || type || '帖子');
 const sentimentLabel = value => ({ negative: '负面', positive: '正面', neutral: '中性', unclassified: '未分类' }[value] || '未分类');
+// Positive/neutral use their own model probability; negative keeps its existing score.
+function sentimentPercentage(item) {
+  const value = item.sentiment === 'negative' ? (item.negative_score ?? item.negativeScore)
+    : ['positive', 'neutral'].includes(item.sentiment) ? (item.sentiment_score ?? item.sentimentScore) : null;
+  if (value == null || value === '') return '';
+  const score = Number(value);
+  return Number.isFinite(score) && score >= 0 && score <= 1 ? ` · ${Math.round(score * 100)}%` : '';
+}
 const analysisStatusLabel = value => ({ pending: '待分析', running: '分析中', retryable: '待重试', completed: '已完成', failed: '分析失败', unclassified: '未分类' }[value] || '未分类');
 const analysisLevelLabel = value => ({ light: '轻量分析', deep: '深度分析' }[value] || '未设置');
 const analysisStatus = item => pick(item, 'analysis_status', 'analysisStatus') || (item.sentiment ? 'completed' : 'unclassified');
@@ -57,15 +65,16 @@ const translationOf = item => item?.translation || {
   targetLanguage: pick(item, 'translation_target_language', 'translationTargetLanguage') || 'zh-CN',
   status: pick(item, 'translation_status', 'translationStatus') || 'not_requested',
   title: pick(item, 'translated_title', 'translatedTitle'),
-  body: pick(item, 'translated_body', 'translatedBody')
+  body: pick(item, 'translated_body', 'translatedBody'),
+  errorCode: pick(item, 'translation_error_code', 'translationErrorCode')
 };
 function renderTranslation(item, { compact = false } = {}) {
   if (!isOverseas(item)) return '';
   const translation = translationOf(item); const status = translation.status || 'not_requested';
   const title = String(translation.title || '').trim(); const body = String(translation.body || '').trim();
-  const text = status === 'completed' && (title || body)
+  const text = status === 'completed' && (title || body) && Detail.hasTranslationText(item)
     ? `${title ? `<div class="translation-title">${esc(title)}</div>` : ''}${body ? `<div class="translation-text">${esc(body)}</div>` : ''}`
-    : `<div class="translation-state">${['pending', 'running', 'retryable'].includes(status) ? '中文翻译生成中' : status === 'failed' ? '中文翻译生成失败' : '暂无中文翻译'}</div>`;
+    : `<div class="translation-state">${esc(Detail.translationMessage(item, translation))}</div>`;
   return `<div class="translation-block ${compact ? 'compact' : ''} ${esc(status)}"><div class="translation-label">中文翻译</div>${text}</div>`;
 }
 const engagementOf = item => { const raw = pick(item, 'engagement'); if (!raw) return {}; if (typeof raw === 'object') return raw; try { return JSON.parse(raw); } catch (_) { return {}; } };
@@ -151,7 +160,7 @@ function statsQuery(baseQuery, filters = {}) {
   query.delete('sentiment'); query.delete('bigPlayerContentKind');
   return query;
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { localDateString, nextDateString, normalizedPublishedRange, applyPublishedRange, exactPublishedRange, statsQuery, hasRealTitle, bigPlayerDisplayType, typeLabel, validDateValue, validDateRange, resolvePublishedRange };
+if (typeof module !== 'undefined' && module.exports) module.exports = { sentimentPercentage, localDateString, nextDateString, normalizedPublishedRange, applyPublishedRange, exactPublishedRange, statsQuery, hasRealTitle, bigPlayerDisplayType, typeLabel, validDateValue, validDateRange, resolvePublishedRange };
 function renderTable(items) {
   if (!items.length) { $('#resultHint').textContent = `共 ${Number(state.total || 0).toLocaleString()} 条`; $('#tableContent').innerHTML = `<div class="empty">${esc(emptyMessage())}</div>`; return; }
   $('#resultHint').textContent = `共 ${Number(state.total || items.length).toLocaleString()} 条（当前页 ${items.length} 条）`;
@@ -163,12 +172,10 @@ function renderTable(items) {
     const primaryText = displayType === 'dynamic' ? (body.trim() || '(无内容)') : (title || (type === 'post' ? '(无标题)' : body || '(无内容)'));
     const secondaryText = displayType === 'dynamic' ? '' : body;
     const sentiment = item.sentiment || 'unclassified';
-    const scoreValue = item.negative_score ?? item.negativeScore;
-    const score = scoreValue == null ? NaN : Number(scoreValue);
     const source = sourceById(item.source_id || item.sourceId);
     const account = source?.account || source?.accounts?.find(value => String(value.id) === String(accountId(item))) || item.account || {};
     const accountName = pick(account, 'account_name', 'accountName', 'nickname', 'name');
-    return `<tr><td class="handling-select">${Handling.checkboxHtml(item, esc)}</td><td><div class="content-title ${isDeleted(item) ? 'deleted' : ''}">${esc(primaryText)}</div>${secondaryText ? `<div class="content-body">${esc(secondaryText)}</div>` : ''}</td><td class="mono" title="${esc(item.external_id || '')}">${esc(item.external_id || '-')}</td><td><span class="type-pill">${esc(typeLabel(displayType))}</span></td><td class="handling-cell">${Handling.statusHtml(item, esc)}</td><td class="sentiment ${esc(sentiment)}">${sentimentLabel(sentiment)}${Number.isFinite(score) ? ` · ${Math.round(score * 100)}%` : ''}</td><td><span class="analysis-status ${esc(analysisStatus(item))}">${esc(analysisStatusLabel(analysisStatus(item)))}</span><div><span class="analysis-level ${esc(analysisLevel(item) || '')}">${esc(analysisLevelLabel(analysisLevel(item)))}</span></div></td><td><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></td><td>${commentCount(item).toLocaleString()}</td><td>${esc(publishedAt(item))}</td><td><button class="row-action" data-content="${esc(contentId(item))}">查看详情</button></td></tr>`;
+    return `<tr><td class="handling-select">${Handling.checkboxHtml(item, esc)}</td><td><div class="content-title ${isDeleted(item) ? 'deleted' : ''}">${esc(primaryText)}</div>${secondaryText ? `<div class="content-body">${esc(secondaryText)}</div>` : ''}</td><td class="mono" title="${esc(item.external_id || '')}">${esc(item.external_id || '-')}</td><td><span class="type-pill">${esc(typeLabel(displayType))}</span></td><td class="handling-cell">${Handling.statusHtml(item, esc)}</td><td class="sentiment ${esc(sentiment)}">${sentimentLabel(sentiment)}${sentimentPercentage(item)}</td><td><span class="analysis-status ${esc(analysisStatus(item))}">${esc(analysisStatusLabel(analysisStatus(item)))}</span><div><span class="analysis-level ${esc(analysisLevel(item) || '')}">${esc(analysisLevelLabel(analysisLevel(item)))}</span></div></td><td><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></td><td>${commentCount(item).toLocaleString()}</td><td>${esc(publishedAt(item))}</td><td><button class="row-action" data-content="${esc(contentId(item))}">查看详情</button></td></tr>`;
   }).join('')}</tbody></table>`;
   Handling.bindTable(items);
   $('#tableContent').querySelectorAll('[data-content]').forEach(button => { button.onclick = () => openContent(button.dataset.content); });
@@ -208,8 +215,8 @@ function renderDetail(detail) {
   const commentsSyncStatus = pick(item, 'comments_sync_status', 'commentsSyncStatus');
   const declaredCommentCount = Number(pick(item, 'total_comment_count', 'totalCommentCount', 'comment_count', 'commentCount') || engagementOf(item).comments || engagementOf(item).comment || 0);
   const commentsEmptyText = ['pending', 'running', 'retryable'].includes(commentsSyncStatus) || declaredCommentCount > 0 ? '评论仍在同步中，请稍后刷新' : commentsSyncStatus === 'failed' ? '评论同步失败，请查看采集源进度' : commentsSyncStatus === 'unauthorized' ? '评论接口未授权' : '暂无评论';
-  $('#drawerContent').innerHTML = `<h2>${esc(item.title || '(无标题)')}</h2><div class="content-body" style="max-width:none">${esc(scopePath(item))} · ${esc(sourceName(item.source_id || item.sourceId || item.platform))} · ${esc(publishedAt(item))}</div><div class="detail-block"><div class="detail-label"><span>原文内容</span><span class="integrity ${integrity === 'unknown' ? 'unknown' : ''}">${esc(integrityText)}</span></div><div class="detail-text ${isDeleted(item) ? 'deleted' : ''}">${Detail.renderBodyWithImages(item.body || '', esc)}</div>${renderTranslation(item)}</div><div class="detail-block"><div class="detail-label">来源信息</div><div class="meta-grid"><div><span>作者</span><br>${esc(authorName(item))}</div><div><span>平台作者 ID</span><br>${esc(authorPlatformId(item))}</div><div><span>内容状态</span><br>${isDeleted(item) ? '已删除 / 隐藏' : '正常'}</div><div><span>来源链接</span><br>${sourceUrl ? `<a href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">打开来源</a>` : '-'}</div></div></div><div class="detail-block"><div class="detail-label"><span>AI 分析</span><button class="btn" id="reanalyzeBtn" ${isDeleted(item) || !canReanalyze ? 'disabled' : ''}>重新分析</button></div><div class="sentiment-result"><span class="sentiment-badge ${esc(sentiment)}">${sentimentLabel(sentiment)}</span><div class="analysis-reason">${esc(analysisReasonText(item))}</div></div><div class="meta-grid"><div><span>风险等级</span><br><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></div><div><span>分析状态</span><br><span class="analysis-status ${esc(status)}">${esc(analysisStatusLabel(status))}</span></div></div></div><div class="detail-block"><div class="detail-label"><span>评论（包含评论内回复）</span><span>${flat.length} 条</span></div><div class="tree">${flat.length ? flat.map(({ node, depth }) => renderThread(node, depth)).join('') : `<div class="empty" style="padding:24px">${esc(commentsEmptyText)}</div>`}</div></div>`;
-  if (item.content_type === 'comment') $('#drawerContent').insertAdjacentHTML('beforeend', '<div class="detail-block original-post"><div class="detail-label">所属原帖</div>' + (detail.originalPost ? Detail.renderContentNode(detail.originalPost, new Set(), detail.originalPost.is_deleted ? '原帖（已删除 / 隐藏）' : '原帖', esc) : '<div class="detail-text">原帖暂未采集或不可访问</div>') + '</div>');
+  $('#drawerContent').innerHTML = `<h2>${esc(item.title || '(无标题)')}</h2><div class="content-body" style="max-width:none">${esc(scopePath(item))} · ${esc(sourceName(item.source_id || item.sourceId || item.platform))} · ${esc(publishedAt(item))}</div><div class="detail-block"><div class="detail-label"><span>原文内容</span><span class="integrity ${integrity === 'unknown' ? 'unknown' : ''}">${esc(integrityText)}</span></div><div class="detail-text ${isDeleted(item) ? 'deleted' : ''}">${Detail.renderBodyWithImages(item.body || '', esc)}</div>${renderTranslation(item)}</div><div class="detail-block"><div class="detail-label">来源信息</div><div class="meta-grid"><div><span>作者</span><br>${esc(authorName(item))}</div><div><span>平台作者 ID</span><br>${esc(authorPlatformId(item))}</div><div><span>内容状态</span><br>${isDeleted(item) ? '已删除 / 隐藏' : '正常'}</div><div><span>来源链接</span><br>${sourceUrl ? `<a href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">打开来源</a>` : '-'}</div></div></div><div class="detail-block"><div class="detail-label"><span>AI 分析</span><button class="btn" id="reanalyzeBtn" ${isDeleted(item) || !canReanalyze ? 'disabled' : ''}>重新分析</button></div><div class="sentiment-result"><span class="sentiment-badge ${esc(sentiment)}">${sentimentLabel(sentiment)}${sentimentPercentage(item)}</span><div class="analysis-reason">${esc(analysisReasonText(item))}</div></div><div class="meta-grid"><div><span>风险等级</span><br><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></div><div><span>分析状态</span><br><span class="analysis-status ${esc(status)}">${esc(analysisStatusLabel(status))}</span></div></div></div><div class="detail-block"><div class="detail-label"><span>评论（包含评论内回复）</span><span>${flat.length} 条</span></div><div class="tree">${flat.length ? flat.map(({ node, depth }) => renderThread(node, depth)).join('') : `<div class="empty" style="padding:24px">${esc(commentsEmptyText)}</div>`}</div></div>`;
+  if (contentType(item) === 'comment') $('#drawerContent .detail-block').insertAdjacentHTML('beforebegin', '<div class="detail-block original-post"><div class="detail-label">所属原帖</div>' + (detail.originalPost ? Detail.renderContentNode(detail.originalPost, new Set(), detail.originalPost.is_deleted ? '原帖（已删除 / 隐藏）' : '原帖', esc) : '<div class="detail-text">原帖暂未采集或不可访问</div>') + '</div>');
   if (bigPlayerDisplayType(item) === 'dynamic') $('#drawerContent h2').textContent = '动态';
   const button = $('#reanalyzeBtn');
   if (button && canReanalyze) button.onclick = async () => {
@@ -219,12 +226,30 @@ function renderDetail(detail) {
   };
 }
 let contentDetailSerial = 0;
+let translationRefreshTimer;
+function scheduleTranslationRefresh(id, serial, detail) {
+  clearTimeout(translationRefreshTimer);
+  const items = [detail.content, detail.originalPost, ...flattenNodes(detail.comments).map(entry => entry.node)].filter(Boolean);
+  if (!items.some(item => isOverseas(item) && Detail.hasTranslationText(item) && ['pending', 'running'].includes(translationOf(item).status))) return;
+  translationRefreshTimer = setTimeout(async () => {
+    if (serial !== contentDetailSerial || !$('#drawerMask').classList.contains('open')) return;
+    try {
+      const scope = state.scope?.query?.() || new URLSearchParams();
+      const updated = normalizeDetail(await api(`/contents/${encodeURIComponent(id)}?${scope}`), detail.content);
+      if (serial !== contentDetailSerial || !$('#drawerMask').classList.contains('open')) return;
+      const drawer = $('#drawerContent').parentElement; const scroll = drawer.scrollTop;
+      renderDetail(updated); drawer.scrollTop = scroll;
+      scheduleTranslationRefresh(id, serial, updated);
+    } catch (_) { if (serial === contentDetailSerial) scheduleTranslationRefresh(id, serial, detail); }
+  }, 15000);
+}
 async function openContent(id) {
+  clearTimeout(translationRefreshTimer);
   Handling.clearDetail();
   const serial = ++contentDetailSerial;
   const fallback = state.contents.find(item => contentId(item) === String(id));
   $('#drawerContent').innerHTML = '<div class="empty">加载详情…</div>'; $('#drawerMask').classList.add('open'); updateUrl(id);
-  try { const scope = state.scope?.query?.() || new URLSearchParams(); const detail = await api(`/contents/${encodeURIComponent(id)}?${scope}`); if (serial === contentDetailSerial && $('#drawerMask').classList.contains('open')) renderDetail(normalizeDetail(detail, fallback || { id })); }
+  try { const scope = state.scope?.query?.() || new URLSearchParams(); const detail = await api(`/contents/${encodeURIComponent(id)}?${scope}`); if (serial === contentDetailSerial && $('#drawerMask').classList.contains('open')) { const normalized = normalizeDetail(detail, fallback || { id }); renderDetail(normalized); scheduleTranslationRefresh(id, serial, normalized); } }
   catch (error) { if (error.name === 'AbortError' || serial !== contentDetailSerial || !$('#drawerMask').classList.contains('open')) return; if (fallback) { renderDetail({ content: fallback, comments: [] }); const root = $('#drawerContent .original-post .detail-text'); if (root) root.textContent = '原帖加载失败，请关闭后重试'; } else { closeDrawer(); toast(error.status === 404 ? '舆情内容已删除或不存在' : `内容加载失败：${error.message}`); } }
 }
 function toast(message) { const element = $('#toast'); element.textContent = message; element.classList.add('show'); setTimeout(() => element.classList.remove('show'), 2400); }
@@ -243,7 +268,7 @@ function updateUrl(content = '', historyMode = 'replace') {
   if (state.page > 1) params.set('page', String(state.page)); if (state.pageSize !== 50) params.set('pageSize', String(state.pageSize)); if (content) params.set('contentId', content);
   history[historyMode === 'push' ? 'pushState' : 'replaceState'](null, '', `${window.location.pathname}${params.toString() ? `?${params}` : ''}`);
 }
-function closeDrawer() { ++contentDetailSerial; Handling.clearDetail(); $('#drawerMask').classList.remove('open'); updateUrl(); }
+function closeDrawer() { clearTimeout(translationRefreshTimer); ++contentDetailSerial; Handling.clearDetail(); $('#drawerMask').classList.remove('open'); updateUrl(); }
 function accountOptions() {
   const accounts = [];
 }

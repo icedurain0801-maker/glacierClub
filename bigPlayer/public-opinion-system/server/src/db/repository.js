@@ -17,6 +17,7 @@ const uuid = () => crypto.randomUUID();
 // Recover it at read time without rewriting history or invoking AI again.
 const analysisReasonSql = alias => `COALESCE(${['$.rawAnalysis.reason', '$.rawAnalysis.originalRiskDecision.reason'].map(path =>
   `CASE WHEN JSON_TYPE(JSON_EXTRACT(${alias}.risk_context,'${path}'))='STRING' THEN NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(${alias}.risk_context,'${path}'))),'') END`).join(',')},${alias}.analysis_reason) AS analysis_reason`;
+const sentimentScoreSql = alias => `CASE WHEN JSON_TYPE(JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.sentimentScore')) IN ('INTEGER','DOUBLE') THEN JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.sentimentScore') + 0 ELSE NULL END AS sentiment_score`;
 const OPTIONAL_SYNC_RUN_COLUMNS = ['community_id', 'board_id', 'board_name', 'run_scope', 'site_url_snapshot', 'last_request_at'];
 const optionalSyncRunColumn = (columns, column, alias = column) => columns.has(column) ? `r.${column} AS ${alias}` : `NULL AS ${alias}`;
 const syncRunProjection = columns => `r.id,r.account_id,${optionalSyncRunColumn(columns, 'community_id', 'run_community_id')},${optionalSyncRunColumn(columns, 'board_id')},${optionalSyncRunColumn(columns, 'board_name')},${optionalSyncRunColumn(columns, 'run_scope')},r.parent_run_id,r.parent_run_id AS parentRunId,r.site_id,r.site_id AS siteId,${optionalSyncRunColumn(columns, 'site_url_snapshot')},${optionalSyncRunColumn(columns, 'site_url_snapshot', 'siteUrl')},${optionalSyncRunColumn(columns, 'last_request_at')},${optionalSyncRunColumn(columns, 'last_request_at', 'lastRequestAt')},r.trigger_type,r.trigger_type AS triggerType,r.window_start,r.window_start AS windowStart,r.window_end,r.window_end AS windowEnd,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS run_role,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS runRole,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS has_scheduled_site_children,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS hasScheduledSiteChildren,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id) AS site_total,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope','partial','failed','cancelled','canceled')) AS site_terminal,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope')) AS site_succeeded,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('partial','failed','cancelled','canceled')) AS site_failed,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.comment_count AS advertised_comment_count,(SELECT COUNT(DISTINCT run_posts.content_id) FROM po_sync_run_contents run_posts WHERE run_posts.run_id=r.id AND run_posts.sync_scope='posts') AS post_count,(SELECT COUNT(DISTINCT run_comments.content_id) FROM po_sync_run_contents run_comments WHERE run_comments.run_id=r.id AND run_comments.sync_scope IN ('comments','replies')) AS actual_comment_body_count,(SELECT COUNT(DISTINCT run_replies.content_id) FROM po_sync_run_contents run_replies WHERE run_replies.run_id=r.id AND run_replies.sync_scope='replies') AS reply_count,r.error_code,r.error_message`;
@@ -486,7 +487,7 @@ class Repository {
     const hot = sort === 'engagement' || sort === 'published_desc';
     const hotFields = hot ? ", g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status, (COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.like') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.comment') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.share') AS UNSIGNED),0)) AS engagement_score" : '';
     const order = sort === 'engagement' ? 'engagement_score DESC, a.negative_score DESC' : 'c.published_at DESC, c.id DESC';
-    const rows = await this.query(`SELECT c.*, s.platform, s.display_name AS source_name, a.sentiment, a.negative_score, a.confidence, a.quality_score, a.recommend_home, a.recommend_pin, a.recommend_feature, a.quality_reason, a.severity, a.topics, a.matched_keywords, a.summary, a.model_name, a.analysis_level, a.analysis_version, a.trigger_reason, ${analysisReasonSql('a')}, a.analyzed_at${hotFields}${needsJobs ? `, COALESCE(j.status,CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status, j.error_code AS analysis_error_code, j.error_message AS analysis_error_message` : `, CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END AS analysis_status`} ${base}${hot ? ' LEFT JOIN po_communities cm ON cm.id=c.community_id' : ''} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, [...(rareAnalysisFilter ? [severity] : []), ...(needsJobs ? [lightVersion] : []), ...values, limit, offset]);
+    const rows = await this.query(`SELECT c.*, s.platform, s.display_name AS source_name, a.sentiment, a.negative_score, a.confidence, a.quality_score, a.recommend_home, a.recommend_pin, a.recommend_feature, a.quality_reason, a.severity, a.topics, a.matched_keywords, a.summary, a.model_name, a.analysis_level, a.analysis_version, a.trigger_reason, ${analysisReasonSql('a')}, ${sentimentScoreSql('a')}, a.analyzed_at${hotFields}${needsJobs ? `, COALESCE(j.status,CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status, j.error_code AS analysis_error_code, j.error_message AS analysis_error_message` : `, CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END AS analysis_status`} ${base}${hot ? ' LEFT JOIN po_communities cm ON cm.id=c.community_id' : ''} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, [...(rareAnalysisFilter ? [severity] : []), ...(needsJobs ? [lightVersion] : []), ...values, limit, offset]);
     if (rows.length) {
       const idPlaceholders = rows.map(() => '?').join(',');
       // 补查评论数：本地评论数与 engagement JSON 里的较大值（与原 totalCommentCountSql 口径一致）
@@ -1024,14 +1025,14 @@ class Repository {
   }
   async enqueueMissingTranslations({ targetLanguage = 'zh-CN', version = 'translation-v1', limit = 100, contentIds, force = false } = {}) {
     const values = [targetLanguage, version];
-    const clauses = ["g.region_code='overseas'", 'c.is_deleted=0', "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", force ? "(j.id IS NULL OR j.status IN ('failed','retryable') OR j.content_fingerprint<>c.fingerprint)" : '(j.id IS NULL OR j.content_fingerprint<>c.fingerprint)'];
+    const clauses = ["g.region_code='overseas'", 'c.is_deleted=0', "COALESCE(j.error_code,'')<>'OVERSEAS_BOUNDED_VERIFICATION_HOLD'", "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", force ? "(j.id IS NULL OR j.status IN ('failed','retryable') OR j.content_fingerprint<>c.fingerprint)" : '(j.id IS NULL OR j.content_fingerprint<>c.fingerprint)'];
     if (Array.isArray(contentIds) && contentIds.length) { const ids = [...new Set(contentIds.map(String).filter(Boolean))]; clauses.push(`c.id IN (${ids.map(() => '?').join(',')})`); values.push(...ids); }
     values.push(Math.min(Math.max(Number(limit) || 100, 1), 500));
     const rows = await this.query(`SELECT c.id, c.fingerprint FROM po_contents c JOIN po_games g ON g.id=c.game_id LEFT JOIN po_translation_jobs j ON j.content_id=c.id AND j.target_language=? AND j.translation_version=? WHERE ${clauses.join(' AND ')} ORDER BY c.collected_at ASC LIMIT ?`, values);
     for (const row of rows) await this.enqueueTranslationJob(row.id, { targetLanguage, version, contentFingerprint: row.fingerprint, force });
     return rows.length;
   }
-  async claimTranslationJobs({ targetLanguage = 'zh-CN', version = 'translation-v1', leaseOwner, leaseSeconds = 300, limit = 20, jobId, jobIds, contentIds } = {}) {
+  async claimTranslationJobs({ targetLanguage = 'zh-CN', version = 'translation-v1', leaseOwner, leaseSeconds = 300, limit = 20, jobId, jobIds, contentIds, newestFirst = false } = {}) {
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const claimOwner = `${leaseOwner || 'translation'}:${uuid()}`;
     const normalizeIds = (value, name) => {
@@ -1052,7 +1053,7 @@ class Repository {
       }
       return normalized;
     };
-    const filters = ["j.target_language=?", "j.translation_version=?", "g.region_code='overseas'", 'c.is_deleted=0', "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", "(j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW()))"];
+    const filters = ["j.target_language=?", "j.translation_version=?", "g.region_code='overseas'", 'c.is_deleted=0', 'j.content_fingerprint=c.fingerprint', "COALESCE(j.error_code,'')<>'OVERSEAS_BOUNDED_VERIFICATION_HOLD'", "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", "(j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW()))"];
     const filterParams = [targetLanguage, version];
     if (jobId !== undefined && jobIds !== undefined) {
       const error = new Error('jobId and jobIds are mutually exclusive');
@@ -1072,7 +1073,7 @@ class Repository {
     await this.query(`UPDATE po_translation_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_games g ON g.id=c.game_id
       SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=j.attempts+1, j.error_code=NULL, j.error_message=NULL
       WHERE ${filters.join(' AND ')}
-      ORDER BY j.created_at ASC LIMIT ?`, [claimOwner, Number(leaseSeconds), ...filterParams, safeLimit]);
+      ORDER BY j.created_at ${newestFirst ? 'DESC' : 'ASC'}, j.id ${newestFirst ? 'DESC' : 'ASC'} LIMIT ?`, [claimOwner, Number(leaseSeconds), ...filterParams, safeLimit]);
     return this.query(`SELECT j.*, c.title, c.body, c.fingerprint, c.content_type, c.game_id, c.community_id, c.source_id, s.platform, g.region_code
       FROM po_translation_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id
       WHERE j.lease_owner=? AND j.status='running' AND j.target_language=? AND j.translation_version=? ORDER BY j.created_at ASC`, [claimOwner, targetLanguage, version]);
@@ -1934,7 +1935,7 @@ class Repository {
     const translationVersion = process.env.AI_TRANSLATION_VERSION || 'translation-v1';
     return this.query(`SELECT c.*, a.account_name, s.platform, s.display_name AS source_name, g.region_code,
       an.sentiment, an.negative_score, an.confidence, an.quality_score, an.recommend_home, an.recommend_pin, an.recommend_feature, an.quality_reason, an.severity, an.topics, an.matched_keywords, an.summary,
-      an.model_name, an.analysis_level, an.analysis_version, an.trigger_reason, ${analysisReasonSql('an')}, an.analyzed_at,
+      an.model_name, an.analysis_level, an.analysis_version, an.trigger_reason, ${analysisReasonSql('an')}, ${sentimentScoreSql('an')}, an.analyzed_at,
       COALESCE(j.status,CASE WHEN an.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status,
       j.error_code AS analysis_error_code, j.error_message AS analysis_error_message,
       CASE WHEN g.region_code='overseas' THEN COALESCE(tj.status,CASE WHEN tr.content_id IS NOT NULL AND tr.content_fingerprint=c.fingerprint THEN 'completed' ELSE 'not_requested' END) ELSE 'not_requested' END AS translation_status,

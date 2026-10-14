@@ -45,9 +45,17 @@
   function renderTranslation(item, esc) {
     if ((item?.region_code || item?.regionCode) !== 'overseas') return '';
     const translation = item.translation || { status: item.translation_status, title: item.translated_title, body: item.translated_body, errorCode: item.translation_error_code };
-    const ready = translation.status === 'completed' && (translation.title || translation.body);
-    const message = translation.errorCode === 'AI_TRANSLATION_DAILY_LIMIT_REACHED' ? '今日翻译额度已用完，请稍后重试' : translation.status === 'failed' ? '中文翻译生成失败，请重试' : item.is_deleted ? '已删除内容暂无中文翻译' : '正在生成中文翻译…';
+    const ready = translation.status === 'completed' && (translation.title || translation.body) && (hasTranslationText(item) || (item.body === undefined && item.title === undefined));
+    const message = translationMessage(item, translation);
     return `<div class="translation-block detail-block" data-translation-id="${esc(item.id || '')}" data-translation-ready="${ready ? 'true' : 'false'}"><div class="detail-label">中文翻译</div>${ready ? `${translation.title ? `<div class="translation-title">${esc(translation.title)}</div>` : ''}${translation.body ? `<div class="detail-text translation-text">${esc(translation.body)}</div>` : ''}` : `<div class="translation-state">${esc(message)}</div>${!item.is_deleted ? `<button class="row-action" data-translation-retry="${esc(item.id || '')}" hidden>重试翻译</button>` : ''}`}</div>`;
+  }
+  function hasTranslationText(item) {
+    return [item?.title, item?.body].some(value => /[\p{L}\p{N}]/u.test(String(value || '').replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/<[^>]*>/g, ' ').replace(/https?:\/\/[^\s"'<>()]+/gi, ' ')));
+  }
+  function translationMessage(item, translation) {
+    if (!hasTranslationText(item)) return '无可翻译文字（图片或视频不进行文字翻译）';
+    if (translation.errorCode === 'AI_TRANSLATION_DAILY_LIMIT_REACHED') return '今日翻译额度已用完，明日自动继续';
+    return { pending: '中文翻译排队中', running: '中文翻译生成中', retryable: '中文翻译等待重试', failed: '中文翻译生成失败', completed: '暂无中文译文' }[translation.status] || '暂无中文翻译';
   }
   function renderContentNode(item, matchedIds, label, esc) {
     const title = String(item.title || '').trim();
@@ -78,5 +86,5 @@
       <section class="detail-block" data-detail-module="resolution"><div class="detail-label">处置状态 <span class="state-badge ${esc(status)}">钉钉：${esc(dingLabel(status))}</span></div><div class="detail-text"><select class="input" id="alertStatus" style="width:100%"><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已处理</option><option value="false_positive">误报</option></select><textarea class="input" id="resolutionNote" style="height:80px;width:100%;margin-top:10px;padding-top:8px" placeholder="填写处置备注">${esc(alert.resolution_note || '')}</textarea><button class="btn primary" id="saveAlert" style="margin-top:10px">保存处置结果</button></div></section>`;
   }
 
-  return { contentTypeLabel, extractAiSummary, formatTitle, render, renderBodyWithImages, renderTranslation, renderContentNode, renderRelatedContents, renderTriggerDetail, severityLabel };
+  return { contentTypeLabel, extractAiSummary, formatTitle, render, renderBodyWithImages, renderTranslation, renderContentNode, renderRelatedContents, renderTriggerDetail, severityLabel, hasTranslationText, translationMessage };
 });
