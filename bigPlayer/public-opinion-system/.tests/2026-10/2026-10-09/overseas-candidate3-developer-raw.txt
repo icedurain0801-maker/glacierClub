@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: new trusted response safely reuses old identity without re-marking historical raw
+ok 1 - new trusted response safely reuses old identity without re-marking historical raw
+  ---
+  duration_ms: 7.0153
+  type: 'test'
+  ...
+# Subtest: different historical site is preserved as historical observation
+ok 2 - different historical site is preserved as historical observation
+  ---
+  duration_ms: 0.574
+  type: 'test'
+  ...
+# Subtest: fake and cross-instance proofs cannot admit reuse
+ok 3 - fake and cross-instance proofs cannot admit reuse
+  ---
+  duration_ms: 1.1055
+  type: 'test'
+  ...
+# Subtest: actual provider ID and board conflicts cannot mint proofs
+ok 4 - actual provider ID and board conflicts cannot mint proofs
+  ---
+  duration_ms: 0.5966
+  type: 'test'
+  ...
+# Subtest: existing board/version conflicts and substituted raw payload reject
+ok 5 - existing board/version conflicts and substituted raw payload reject
+  ---
+  duration_ms: 1.2445
+  type: 'test'
+  ...
+# Subtest: outside-window normal reuse fails closed
+ok 6 - outside-window normal reuse fails closed
+  ---
+  duration_ms: 0.5465
+  type: 'test'
+  ...
+# Subtest: same fingerprint cannot conceal changed body or deleted content
+ok 7 - same fingerprint cannot conceal changed body or deleted content
+  ---
+  duration_ms: 0.8891
+  type: 'test'
+  ...
+# Subtest: offline actual session connector page repository and atomic job SQL
+ok 8 - offline actual session connector page repository and atomic job SQL
+  ---
+  duration_ms: 16.1639
+  type: 'test'
+  ...
+# Subtest: canonical JOIN supplies missing region without querying credentials
+ok 9 - canonical JOIN supplies missing region without querying credentials
+  ---
+  duration_ms: 1.7386
+  type: 'test'
+  ...
+# Subtest: non-run preserves default-account selection
+ok 10 - non-run preserves default-account selection
+  ---
+  duration_ms: 0.1932
+  type: 'test'
+  ...
+# Subtest: missing and conflicting JOIN identities fail closed
+ok 11 - missing and conflicting JOIN identities fail closed
+  ---
+  duration_ms: 2.3792
+  type: 'test'
+  ...
+# Subtest: unknown enum and supplied conflicting scope fail closed
+ok 12 - unknown enum and supplied conflicting scope fail closed
+  ---
+  duration_ms: 0.328
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20475.8779

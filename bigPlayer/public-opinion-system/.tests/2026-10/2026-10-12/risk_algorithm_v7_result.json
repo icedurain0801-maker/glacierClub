@@ -1,0 +1,74 @@
+{
+  "policyVersion": "game-impact-evidence-v7",
+  "tests": {
+    "workspacePassed": 49,
+    "workspaceFailed": 0,
+    "stagedCheckoutPassed": 49,
+    "stagedCheckoutFailed": 0,
+    "guiCases": [
+      "attention",
+      "negative",
+      "urgent",
+      "normal"
+    ],
+    "realLocalAiHttp": true,
+    "mockedModelResponse": true,
+    "productionAiCalls": 0
+  },
+  "productionBrowser": {
+    "contentId": "0399ee49-35e3-4223-bc08-632b7a2d2b94",
+    "overviewNegativeContains": true,
+    "overviewAttentionExcludes": true,
+    "contentSeverity": "negative",
+    "handlingStatus": "pending",
+    "checkboxEnabled": true,
+    "negativeApiContains": true,
+    "attentionApiExcludes": true,
+    "detailSeverity": "negative",
+    "browser": "Edge",
+    "headless": false,
+    "errors": []
+  },
+  "runtimeResults": [
+    {
+      "service": "PublicOpinionApi",
+      "policy": "game-impact-evidence-v7",
+      "severities": [
+        "attention",
+        "negative",
+        "urgent",
+        "normal"
+      ],
+      "release": "release-20261012-game-risk-v7-r3"
+    },
+    {
+      "service": "PublicOpinionWorker",
+      "policy": "game-impact-evidence-v7",
+      "severities": [
+        "attention",
+        "negative",
+        "urgent",
+        "normal"
+      ],
+      "release": "worker-release-20261012-game-risk-v7-r3"
+    },
+    {
+      "service": "PublicOpinionAnalysisWorker",
+      "policy": "game-impact-evidence-v7",
+      "severities": [
+        "attention",
+        "negative",
+        "urgent",
+        "normal"
+      ],
+      "release": "analysis-release-20261012-game-risk-v7-r3"
+    }
+  ],
+  "packageValidation": {
+    "api": 398,
+    "worker": 409,
+    "analysisWorker": 409
+  },
+  "productionReanalysis": false,
+  "historicalNotifications": false
+}

@@ -3,6 +3,8 @@ const { DouyinConnector } = require('./douyinConnector');
 const { DouyinOAuthService } = require('../services/douyinOAuthService');
 const { XiaohongshuConnector } = require('./xiaohongshuConnector');
 const { TapTapConnector } = require('./taptapConnector');
+const { DiscordConnector } = require('./discordConnector');
+const { FacebookGraphConnector } = require('./facebookGraphConnector');
 
 class ExternalPlatformConnector extends BaseConnector {
   constructor(platform, envKey, env = process.env) { super({ platform }); this.enabled = env[`${envKey}_ENABLED`] === 'true' || env[`${envKey}_ENABLED`] === '1'; this.apiBaseUrl = env[`${envKey}_API_BASE_URL`] || ''; this.token = env[`${envKey}_API_TOKEN`] || ''; }
@@ -15,6 +17,8 @@ function buildExternalConnectors(env = process.env, dependencies = {}) {
   const oauthService = dependencies.douyinOAuthService || new DouyinOAuthService(env, dependencies);
   return {
     taptap: new TapTapConnector(env, dependencies),
+    discord: new DiscordConnector(env, dependencies),
+    facebook: new FacebookGraphConnector(env, dependencies),
     bilibili: new ExternalPlatformConnector('bilibili', 'BILIBILI', env),
     douyin: new DouyinConnector(env, { ...dependencies, oauthService }),
     xiaohongshu: new XiaohongshuConnector(env, dependencies),
@@ -22,4 +26,4 @@ function buildExternalConnectors(env = process.env, dependencies = {}) {
     tieba: new ExternalPlatformConnector('tieba', 'TIEBA', env)
   };
 }
-module.exports = { ExternalPlatformConnector, buildExternalConnectors, DouyinConnector, XiaohongshuConnector };
+module.exports = { ExternalPlatformConnector, buildExternalConnectors, DiscordConnector, DouyinConnector, FacebookGraphConnector, XiaohongshuConnector };

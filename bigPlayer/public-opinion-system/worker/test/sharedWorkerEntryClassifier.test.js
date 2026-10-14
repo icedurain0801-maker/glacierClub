@@ -1,0 +1,23 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+require('../../server/src/runtimeEnv').loadRuntimeEnv=()=>{};
+const {createSharedWorkerEntryClassifier,assertSharedWorkerEntryClassifier}=require('../src/sharedWorkerEntryClassifier');
+function fixture(patch={}){const row={s_id:'source',s_game_id:'game',g_id:'game',s_community_id:'community',c_id:'community',c_game_id:'game',s_platform:'bigplayer_h5',g_region_code:'overseas',s_enabled:1,g_enabled:1,c_status:'enabled',s_requested_at:'marker',r_id:'run',r_source_id:'source',r_account_id:'account',r_site_id:'en',r_trigger_type:'scheduled_site',r_parent_run_id:'parent',r_status:'queued',...patch};const calls=[];const repo={query:async(sql,p)=>{calls.push({sql,p});assert.doesNotMatch(sql,/FOR UPDATE|INSERT|UPDATE po_|DELETE/);return [row];}};return {repo,calls,classify:createSharedWorkerEntryClassifier({repo})};}
+test('missing region is canonicalized from persistent source before routing',async()=>{const f=fixture(),v=await f.classify({id:'source'});assert.equal(v.candidate,true);assert.equal(v.source.region_code,'overseas');assert.equal(v.source.collect_requested_at,'marker');assert.ok(Object.isFrozen(v.source));});
+test('forged region, overwritten queue source and poll trigger refuse classification',async()=>{for(const [patch,source,run] of [[{}, {id:'source',region_code:'domestic'},null],[{r_source_id:'another'},{id:'source'},{id:'run',source_id:'source'}],[{}, {id:'source'},{id:'run',trigger_type:'manual'}]]){const f=fixture(patch);await assert.rejects(()=>f.classify(source,run),{code:'WORKER_ENTRY_IDENTITY_INVALID'});}});
+test('non-target does not newly require default account or optional community',async()=>{for(const platform of ['discord','taptap','bigplayer_h5']){const f=fixture({s_platform:platform,g_region_code:'domestic',s_community_id:null,c_id:null,c_game_id:null}),v=await f.classify({id:'source'});assert.equal(v.candidate,false);assert.equal(f.calls.length,1);}});
+test('copied or cross-repo classifier does not authorize worker intake',()=>{const f=fixture();assert.equal(assertSharedWorkerEntryClassifier(f.classify,f.repo),f.classify);assert.throws(()=>assertSharedWorkerEntryClassifier(f.classify,{}));assert.throws(()=>assertSharedWorkerEntryClassifier(f.classify.bind(null),f.repo));});
+test('actual manual intake rejects false region before marker clearing or operation',async()=>{const f=fixture(),calls=[];Object.assign(f.repo,{listRunnableSyncRuns:async()=>[],listManualDueSources:async()=>[{id:'source',region_code:'domestic'}],clearManualRequest:async()=>calls.push('clear'),listDueSources:async()=>[]});
+ const deps={repo:f.repo,classifyWorkerEntry:f.classify,unifiedScheduler:{mode:'off'},runSource:async()=>calls.push('run')};
+ await require('../src/worker').runOnce(deps);assert.deepEqual(calls,[]);
+});
+test('source aliases cannot change recovery or poll attribution',async()=>{for(const key of ['sourceId','source_id']){const f=fixture();await assert.rejects(()=>f.classify({id:'source',[key]:'another'}),{code:'WORKER_ENTRY_IDENTITY_INVALID'});}});
+test('valid candidate marker without durable admission is never cleared',async()=>{const f=fixture(),calls=[];Object.assign(f.repo,{listRunnableSyncRuns:async()=>[],listManualDueSources:async()=>[{id:'source'}],clearManualRequest:async()=>calls.push('clear'),listDueSources:async()=>[]});
+ await assert.rejects(()=>require('../src/worker').runOnce({repo:f.repo,classifyWorkerEntry:f.classify,unifiedScheduler:{mode:'off'},runSource:async()=>calls.push('run')}),{code:'OVERSEAS_MANUAL_RECEIPT_REQUIRED'});assert.deepEqual(calls,[]);
+});
+test('invalid identity is isolated while unrelated domestic due source still runs',async()=>{const f=fixture({g_region_code:'domestic'}),calls=[];Object.assign(f.repo,{listRunnableSyncRuns:async()=>[],listManualDueSources:async()=>[{id:'source',region_code:'overseas'}],clearManualRequest:async()=>calls.push('clear'),listDueSources:async()=>[{id:'source'}]});
+ await require('../src/worker').runOnce({repo:f.repo,classifyWorkerEntry:f.classify,unifiedScheduler:{mode:'off'},runSource:async(_deps,s)=>calls.push(s.region_code)});assert.deepEqual(calls,['domestic']);
+});
+test('database errors are not disguised as invalid-item skips',async()=>{const f=fixture();f.repo.query=async()=>{throw Object.assign(Error('synthetic database'),{code:'ISOLATED_DB_READ_FAILURE'});};Object.assign(f.repo,{listRunnableSyncRuns:async()=>[],listManualDueSources:async()=>[{id:'source'}]});
+ await assert.rejects(()=>require('../src/worker').runOnce({repo:f.repo,classifyWorkerEntry:f.classify,unifiedScheduler:{mode:'off'}}),{code:'ISOLATED_DB_READ_FAILURE'});
+});

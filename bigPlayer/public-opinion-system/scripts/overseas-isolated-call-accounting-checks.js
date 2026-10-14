@@ -1,0 +1,60 @@
+'use strict';
+const crypto=require('node:crypto'),assert=require('node:assert/strict');
+const {canonical}=require('../worker/src/overseasBigPlayerRunContractJournal');
+const {createControlledManifest}=require('../worker/src/overseasControlledManifest');
+const {createScheduledIsolatedTarget}=require('../server/src/db/overseasScheduledIsolatedTarget');
+const {statements,createIsolatedCallBudget}=require('../server/src/db/overseasIsolatedCallBudget');
+async function checkCallAccounting({repo,control,root,directory,serverPid,sourceId,accountId,gameId,communityId}){
+ const isolation=createScheduledIsolatedTarget({repo,repositoryRoot:root,directory,serverPid});await isolation.verifyConnection(control);
+ for(const sql of statements)await control.query(sql);
+ const identity={sourceId,accountId,gameId,communityId,windowStart:'2026-01-01T00:00:00.000Z',windowEnd:'2026-01-02T00:00:00.000Z'};
+ const tuple={contentId:crypto.randomUUID(),jobId:crypto.randomUUID(),fingerprint:'c'.repeat(64),targetLanguage:'zh-CN',version:'translation-accounting-v1'};
+ await control.query("INSERT INTO po_contents(id,game_id,community_id,source_id,account_id,external_id,fingerprint,published_at) VALUES (?,?,?,?,?,?,?,'2026-01-01 01:00:00')",[tuple.contentId,gameId,communityId,sourceId,accountId,'fixture-call-accounting',tuple.fingerprint]);
+ await control.query('INSERT INTO po_translation_jobs(id,content_id,target_language,translation_version,content_fingerprint) VALUES (?,?,?,?,?)',[tuple.jobId,tuple.contentId,tuple.targetLanguage,tuple.version,tuple.fingerprint]);
+ const manifest=createControlledManifest({kind:'translation',identity,tuples:[tuple]}),make=()=>createIsolatedCallBudget({repo,isolation,dailyCap:4,scopeCap:4}),input=callId=>({manifest,identity,tuple,callId});
+ const tables=['po_fixture_call_manifests','po_fixture_call_budgets','po_fixture_calls','po_fixture_disabled_outbox','po_fixture_call_charges','po_fixture_call_accounting_mutex','po_translation_jobs','po_contents','po_sources','po_games','po_communities'];
+ const snapshot=async()=>{await isolation.verifyConnection(control);return canonical(await Promise.all(tables.map(async t=>(await control.query(`SELECT * FROM ${t} ORDER BY 1,2`))[0])));};
+ const [[{day:realDay}]]=await control.query('SELECT CAST(UTC_DATE() AS CHAR) AS day');
+ const syntheticSeconds=Math.floor(Date.parse(`${realDay}T00:00:00.000Z`)/1000)-43200,syntheticDay=new Date(syntheticSeconds*1000).toISOString().slice(0,10);
+ // The first reservation alone uses controlled previous-day session time.
+ const clockRepo={pool:{getConnection:async()=>{const c=await repo.pool.getConnection();try{await isolation.verifyConnection(c);await c.query('SET timestamp=?',[syntheticSeconds]);const [[r]]=await c.query('SELECT CAST(UTC_DATE() AS CHAR) AS day');assert.equal(r.day,syntheticDay);}catch(e){c.destroy();throw e;}return new Proxy(c,{get(t,k){if(k==='release')return()=>t.destroy();if(k==='commit'||k==='rollback')return async()=>{try{return await t[k]();}finally{await t.query('SET timestamp=DEFAULT');}};const v=t[k];return typeof v==='function'?v.bind(t):v;}});}}};
+ const clockIsolation=createScheduledIsolatedTarget({repo:clockRepo,repositoryRoot:root,directory,serverPid});
+ const receipt=await createIsolatedCallBudget({repo:clockRepo,isolation:clockIsolation,dailyCap:4,scopeCap:4}).reserve(input(crypto.randomUUID()));
+ const otherManifest=createControlledManifest({kind:'translation',identity:{...identity,windowEnd:'2026-01-03T00:00:00.000Z'},tuples:[tuple]});
+ await control.query('INSERT INTO po_fixture_call_manifests VALUES (?,?)',[otherManifest.manifestSha256,canonical({kind:otherManifest.kind,identity:otherManifest.identity,tuples:otherManifest.tuples})]);
+ const clean=await snapshot(),checks=[],negativeEvidence=[];
+ const [budgets]=await control.query('SELECT scope_sha,CAST(budget_day AS CHAR) budget_day,cap,used FROM po_fixture_call_budgets ORDER BY scope_sha,budget_day');
+ const [[charge]]=await control.query('SELECT call_id,manifest_sha,tuple_sha,scope_sha,CAST(budget_day AS CHAR) budget_day,daily_cap,scope_cap,binding_sha FROM po_fixture_call_charges WHERE call_id=?',[receipt.callId]);
+ const [[call]]=await control.query('SELECT call_id,manifest_sha,tuple_sha,scope_sha,CAST(budget_day AS CHAR) budget_day,status FROM po_fixture_calls WHERE call_id=?',[receipt.callId]);assert.equal(charge.budget_day,syntheticDay);
+ const ledgerError='ISOLATED_CALL_BUDGET_LEDGER_MISMATCH',chargeError='ISOLATED_CALL_CHARGE_LEDGER_MISMATCH';
+ async function reject(label,work,code){const before=await snapshot();await assert.rejects(work,e=>e.code===code,label);assert.equal(await snapshot(),before,`${label}: writes`);checks.push(label);negativeEvidence.push({label,errorCode:code,zeroWrites:true});}
+ async function mutation(label,inject,restore,code){await isolation.verifyConnection(control);const [r]=await inject();assert.equal(r.affectedRows,1,`${label}: rows`);try{await reject(`${label}_reserve`,()=>make().reserve(input(crypto.randomUUID())),code);await reject(`${label}_consume`,()=>make().consumeFake({manifest,identity,tuple,receipt}),code);}finally{await isolation.verifyConnection(control);await restore();}assert.equal(await snapshot(),clean,`${label}: restore`);}
+ for(const b of budgets){
+  const label=b.budget_day==='1970-01-01'?'scope':'global',where=[b.scope_sha,b.budget_day];
+  await mutation(`${label}_used_1_to_0`,()=>control.query('UPDATE po_fixture_call_budgets SET used=0 WHERE scope_sha=? AND budget_day=?',where),()=>control.query('UPDATE po_fixture_call_budgets SET used=? WHERE scope_sha=? AND budget_day=?',[b.used,...where]),ledgerError);
+  await mutation(`${label}_budget_deleted`,()=>control.query('DELETE FROM po_fixture_call_budgets WHERE scope_sha=? AND budget_day=?',where),()=>control.query('INSERT INTO po_fixture_call_budgets VALUES (?,?,?,?)',[b.scope_sha,b.budget_day,b.cap,b.used]),ledgerError);
+  await mutation(`${label}_budget_day_rekey`,()=>control.query("UPDATE po_fixture_call_budgets SET budget_day='1969-12-31' WHERE scope_sha=? AND budget_day=?",where),()=>control.query("UPDATE po_fixture_call_budgets SET budget_day=? WHERE scope_sha=? AND budget_day='1969-12-31'",[b.budget_day,b.scope_sha]),ledgerError);
+  const changedSha='d'.repeat(64);
+  await mutation(`${label}_budget_scope_rekey`,()=>control.query('UPDATE po_fixture_call_budgets SET scope_sha=? WHERE scope_sha=? AND budget_day=?',[changedSha,...where]),()=>control.query('UPDATE po_fixture_call_budgets SET scope_sha=? WHERE scope_sha=? AND budget_day=?',[b.scope_sha,changedSha,b.budget_day]),ledgerError);
+ }
+ for(const [field,value] of [['budget_day','1969-12-31'],['scope_sha','d'.repeat(64)],['tuple_sha','d'.repeat(64)],['manifest_sha',otherManifest.manifestSha256]])await mutation(`call_${field}_drift`,()=>control.query(`UPDATE po_fixture_calls SET ${field}=? WHERE call_id=?`,[value,call.call_id]),()=>control.query(`UPDATE po_fixture_calls SET ${field}=? WHERE call_id=?`,[call[field],call.call_id]),chargeError);
+ await mutation('charge_deleted',()=>control.query('DELETE FROM po_fixture_call_charges WHERE call_id=?',[charge.call_id]),()=>control.query('INSERT INTO po_fixture_call_charges VALUES (?,?,?,?,?,?,?,?)',[charge.call_id,charge.manifest_sha,charge.tuple_sha,charge.scope_sha,charge.budget_day,charge.daily_cap,charge.scope_cap,charge.binding_sha]),chargeError);
+ for(const [field,value] of [['budget_day','1969-12-31'],['scope_sha','d'.repeat(64)],['manifest_sha','d'.repeat(64)],['tuple_sha','d'.repeat(64)],['daily_cap',5],['scope_cap',5],['binding_sha','d'.repeat(64)]])await mutation(`charge_${field}_drift`,()=>control.query(`UPDATE po_fixture_call_charges SET ${field}=? WHERE call_id=?`,[value,charge.call_id]),()=>control.query(`UPDATE po_fixture_call_charges SET ${field}=? WHERE call_id=?`,[charge[field],charge.call_id]),chargeError);
+ await mutation('accounting_guard_deleted',()=>control.query('DELETE FROM po_fixture_call_accounting_mutex WHERE id=1'),()=>control.query("INSERT INTO po_fixture_call_accounting_mutex VALUES (1,'fixture-call-accounting-v1')"),'ISOLATED_CALL_ACCOUNTING_GUARD_MISSING');
+ const [beforeCross]=await control.query('SELECT * FROM po_fixture_call_budgets ORDER BY scope_sha,budget_day');
+ assert.equal((await make().consumeFake({manifest,identity,tuple,receipt})).status,'fake_consumed');
+ const [afterCross]=await control.query('SELECT * FROM po_fixture_call_budgets ORDER BY scope_sha,budget_day');assert.equal(canonical(afterCross),canonical(beforeCross));
+ const [[{n:newDayBuckets}]]=await control.query('SELECT COUNT(*) n FROM po_fixture_call_budgets WHERE budget_day=?',[realDay]);assert.equal(Number(newDayBuckets),0);checks.push('synthetic_previous_utc_day_receipt_consumed_without_new_charge');
+ const replayBefore=await snapshot(),replay=await make().reserve(input(receipt.callId));assert.equal(replay.status,'already_recorded');assert.equal(replay.automaticConsumeAllowed,false);assert.equal(await snapshot(),replayBefore);checks.push('cross_day_reserve_replay_zero_writes');
+ const currentReceipt=await make().reserve(input(crypto.randomUUID()));assert.equal((await make().reserve(input(crypto.randomUUID()))).status,'reserved');
+ const [[beforeRace]]=await control.query('SELECT COUNT(*) n FROM po_fixture_call_charges');assert.equal(Number(beforeRace.n),3);
+ const race=await Promise.allSettled([make().reserve(input(crypto.randomUUID())),make().reserve(input(crypto.randomUUID()))]);
+ assert.equal(race.filter(r=>r.status==='fulfilled'&&r.value.status==='reserved').length,1);assert.equal(race.filter(r=>r.status==='rejected'&&r.reason.code==='ISOLATED_CALL_BUDGET_EXHAUSTED').length,1);
+ const [[afterRace]]=await control.query('SELECT COUNT(*) n FROM po_fixture_call_charges'),[[callsAfterRace]]=await control.query('SELECT COUNT(*) n FROM po_fixture_calls');assert.equal(Number(afterRace.n),4);assert.equal(Number(callsAfterRace.n),4);checks.push('new_mutex_last_slot_distinct_reserve_single_winner');
+ await reject('reserve_scope_at_cap',()=>make().reserve(input(crypto.randomUUID())),'ISOLATED_CALL_BUDGET_EXHAUSTED');assert.equal((await make().consumeFake({manifest,identity,tuple,receipt:currentReceipt})).status,'fake_consumed');await reject('consumption_replay',()=>make().consumeFake({manifest,identity,tuple,receipt:currentReceipt}),'ISOLATED_CALL_NOT_RESERVED');
+ const [finalBudgets]=await control.query('SELECT scope_sha,CAST(budget_day AS CHAR) budget_day,cap,used FROM po_fixture_call_budgets ORDER BY scope_sha,budget_day');assert.equal(finalBudgets.length,3);assert.equal(Number(finalBudgets.find(b=>b.budget_day==='1970-01-01').used),4);assert.equal(Number(finalBudgets.find(b=>b.budget_day===syntheticDay).used),1);assert.equal(Number(finalBudgets.find(b=>b.budget_day===realDay).used),3);
+ const [[{n:chargeCount}]]=await control.query('SELECT COUNT(*) n FROM po_fixture_call_charges');assert.equal(Number(chargeCount),4);const [outbox]=await control.query('SELECT * FROM po_fixture_disabled_outbox');assert.equal(outbox.length,2);assert.ok(outbox.every(r=>r.status==='disabled'));
+ const [[job]]=await control.query('SELECT status,attempts FROM po_translation_jobs WHERE id=?',[tuple.jobId]);assert.equal(job.status,'pending');assert.equal(Number(job.attempts),0);
+ return{status:'PASS_ISOLATED_CALL_ACCOUNTING_SEMANTICS',checks,negativeEvidence,snapshotTables:tables,finalBudgets,charges:Number(chargeCount),semanticUsageReconciliationVerified:true,budgetRowDeletionOrDayRekeyVerified:true,callManifestFkValidDriftRejected:true,lastSlotConcurrencyVerified:true,raceSuccessfulReservations:1,raceRejectedReservations:1,syntheticCrossUtcDayVerified:true,realMidnightVerified:false,prepaidReceiptAtScopeCapConsumed:true,syntheticClockConnectionDestroyed:true,guardLocksWholeFixture:true,productionScaleAlgorithm:false,coordinatedAdministratorLedgerRewriteResisted:false,translationJobExecuted:false,realAiExecuted:false,realHttpExecuted:false,realNotificationExecuted:false,productionActivationAllowed:false};
+}
+module.exports={checkCallAccounting};

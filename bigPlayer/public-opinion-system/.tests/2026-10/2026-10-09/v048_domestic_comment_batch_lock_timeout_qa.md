@@ -1,0 +1,11 @@
+# Domestic today comment batch and 926802 lock-timeout QA
+
+Status: PASS_17_EXPLICIT_POST_PAGES / 926802_NO_GO_EXCEPT_ONE_CONTROLLED_RETRY / REMAINDER_PENDING
+
+The manager ran frozen graph v3 one-post/one-page comment plans serially. Independent SELECT-only `v047_domestic_comment_batch_readonly_qa.js` reconciled 17 successful reports covering 20 distinct in-window comments: target source/account/community, stored post root and parent, depth 1, original UTC publication time, ID-matched provider raw, post-scoped URL, nonempty text, matching light AI-job fingerprint, and each task checkpoint `completed` with lease cleared. AI jobs were in mixed pending/running/completed states; queue evidence does not mean analysis finished.
+
+The 18th report, `graph-v3-comments-926802-page1-execution.json`, is `FAILED_GRAPH / ER_LOCK_WAIT_TIMEOUT`. Independent SELECT found the exact `926802:root:0` checkpoint `idle`, `items_fetched=0`, `cursor=NULL`, lease clear, and zero in-window comments stored under that post. The manager's read-only snapshot also reported account advisory lock clear and no current `innodb_lock_waits`; this later snapshot cannot establish the lock-timeout root cause. No partial commit was observed. Post `926803` and remaining targets were not executed.
+
+Only a single controlled retry of **926802 alone** is conditionally acceptable: recheck advisory lock and target checkpoint lease, use the identical graph v3 115-file/CLI SHA, source/account/site/window, null cursor and `maxPages=1`, plus a new approved plan and nonexisting output. Do not reset, delete or broaden scope. A second failure is immediate NO_GO with contemporaneous lock/transaction/stage evidence; no further blind retry. This exception does not restore general continuation GO or prove full comments/replies, other feeds, home pagination exhaustion, scheduler health, AI completion or release readiness.
+
+External read-only content UI showed 116 domestic BigPlayer posts and 19 comments on the Shanghai today filter while the comment batch was still advancing; that is a point-in-time UI observation, not the terminal count for the 20-comment DB batch. The original 116 home posts independently passed full raw SHA/fingerprint/AI-job checks in `v046_domestic_116_posts_independent_qa.md`.

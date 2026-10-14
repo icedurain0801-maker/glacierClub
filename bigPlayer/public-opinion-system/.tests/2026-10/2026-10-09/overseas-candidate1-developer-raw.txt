@@ -1,0 +1,418 @@
+TAP version 13
+# Subtest: AUTH-01 uses LoginSessionClient when account password exists
+ok 1 - AUTH-01 uses LoginSessionClient when account password exists
+  ---
+  duration_ms: 1.9867
+  type: 'test'
+  ...
+# Subtest: AUTH-02 login failure is terminal and does not fall back to token
+ok 2 - AUTH-02 login failure is terminal and does not fall back to token
+  ---
+  duration_ms: 0.5979
+  type: 'test'
+  ...
+# Subtest: AUTH-02 claimAuthResult failure is terminal and does not fall back to token
+ok 3 - AUTH-02 claimAuthResult failure is terminal and does not fall back to token
+  ---
+  duration_ms: 0.2849
+  type: 'test'
+  ...
+# Subtest: AUTH-03 uses configured token only when password is absent
+ok 4 - AUTH-03 uses configured token only when password is absent
+  ---
+  duration_ms: 0.2119
+  type: 'test'
+  ...
+# Subtest: AUTH-04 reports authorization_missing when neither password nor token exists
+ok 5 - AUTH-04 reports authorization_missing when neither password nor token exists
+  ---
+  duration_ms: 0.3033
+  type: 'test'
+  ...
+# Subtest: HOST-01/02 use club.q1.com only and fail before network for unsafe Q1 origins
+ok 6 - HOST-01/02 use club.q1.com only and fail before network for unsafe Q1 origins
+  ---
+  duration_ms: 1.167
+  type: 'test'
+  ...
+# Subtest: COMMENT-01/02/04 include post and activity roots with reply linkage and declared/actual counts separated
+ok 7 - COMMENT-01/02/04 include post and activity roots with reply linkage and declared/actual counts separated
+  ---
+  duration_ms: 5.584
+  type: 'test'
+  ...
+# Subtest: COMMENT-03 filters replies by their own timestamp using the same half-open UTC window
+ok 8 - COMMENT-03 filters replies by their own timestamp using the same half-open UTC window
+  ---
+  duration_ms: 0.5745
+  type: 'test'
+  ...
+# Subtest: overseas preserves an old top comment as context for a window-new reply only
+ok 9 - overseas preserves an old top comment as context for a window-new reply only
+  ---
+  duration_ms: 0.6435
+  type: 'test'
+  ...
+# Subtest: overseas token health uses Q1 context, configured board and JSON feed on its own origin
+ok 10 - overseas token health uses Q1 context, configured board and JSON feed on its own origin
+  ---
+  duration_ms: 5.3028
+  type: 'test'
+  ...
+# Subtest: overseas 401/403 and malformed JSON remain unauthorized without legacy fallback
+ok 11 - overseas 401/403 and malformed JSON remain unauthorized without legacy fallback
+  ---
+  duration_ms: 1.172
+  type: 'test'
+  ...
+# Subtest: Q1 rejects cross-region request destinations before sending credentials
+ok 12 - Q1 rejects cross-region request destinations before sending credentials
+  ---
+  duration_ms: 1.0182
+  type: 'test'
+  ...
+# Subtest: Q1 rejects a response reporting a different region origin
+ok 13 - Q1 rejects a response reporting a different region origin
+  ---
+  duration_ms: 0.3102
+  type: 'test'
+  ...
+# Subtest: REG-04 domestic and overseas BigPlayer fixtures keep independent configured origins
+ok 14 - REG-04 domestic and overseas BigPlayer fixtures keep independent configured origins
+  ---
+  duration_ms: 2.0315
+  type: 'test'
+  ...
+# Subtest: N arbitrary sites exchange context, deduplicate cache, and redact request evidence
+ok 15 - N arbitrary sites exchange context, deduplicate cache, and redact request evidence
+  ---
+  duration_ms: 4.0098
+  type: 'test'
+  ...
+# Subtest: account, board, source and base token isolate cache
+ok 16 - account, board, source and base token isolate cache
+  ---
+  duration_ms: 0.8396
+  type: 'test'
+  ...
+# Subtest: scope and snapshot fail before network; rejected exchange evicts cache without retry
+ok 17 - scope and snapshot fail before network; rejected exchange evicts cache without retry
+  ---
+  duration_ms: 1.5045
+  type: 'test'
+  ...
+# Subtest: cross-region redirect and pre-abort are rejected
+ok 18 - cross-region redirect and pre-abort are rejected
+  ---
+  duration_ms: 0.4259
+  type: 'test'
+  ...
+# Subtest: normalizes legacy xhs platform and identifies social platforms
+ok 19 - normalizes legacy xhs platform and identifies social platforms
+  ---
+  duration_ms: 0.7821
+  type: 'test'
+  ...
+# Subtest: accepts Discord as a source platform without treating it as a social login platform
+ok 20 - accepts Discord as a source platform without treating it as a social login platform
+  ---
+  duration_ms: 0.1064
+  type: 'test'
+  ...
+# Subtest: accepts Facebook only as a source write platform without treating it as a social login platform
+ok 21 - accepts Facebook only as a source write platform without treating it as a social login platform
+  ---
+  duration_ms: 0.0958
+  type: 'test'
+  ...
+# Subtest: normalizes only single-handle official Facebook Page URLs
+ok 22 - normalizes only single-handle official Facebook Page URLs
+  ---
+  duration_ms: 0.7758
+  type: 'test'
+  ...
+# Subtest: validates and masks mainland mobile credentials without changing password
+ok 23 - validates and masks mainland mobile credentials without changing password
+  ---
+  duration_ms: 1.3526
+  type: 'test'
+  ...
+# Subtest: rejects invalid social credential combinations
+ok 24 - rejects invalid social credential combinations
+  ---
+  duration_ms: 0.2013
+  type: 'test'
+  ...
+# Subtest: validates endpoint shape without accepting embedded credentials or fragments
+ok 25 - validates endpoint shape without accepting embedded credentials or fragments
+  ---
+  duration_ms: 0.2439
+  type: 'test'
+  ...
+# Subtest: DEDUP-01 merged and category feeds share source/external/contentType identity and enqueue AI once
+ok 26 - DEDUP-01 merged and category feeds share source/external/contentType identity and enqueue AI once
+  ---
+  duration_ms: 5.2272
+  type: 'test'
+  ...
+# Subtest: daily Q1 waits for an in-flight feed before closing the commit lane
+ok 27 - daily Q1 waits for an in-flight feed before closing the commit lane
+  ---
+  duration_ms: 166.2608
+  type: 'test'
+  ...
+# Subtest: adapter fails cross-platform requests before transport and never activates missing schema
+ok 28 - adapter fails cross-platform requests before transport and never activates missing schema
+  ---
+  duration_ms: 1.5233
+  type: 'test'
+  ...
+# Subtest: unchanged and old parents still schedule comments, domestic and cross-account scopes reject
+ok 29 - unchanged and old parents still schedule comments, domestic and cross-account scopes reject
+  ---
+  duration_ms: 1.5842
+  type: 'test'
+  ...
+# Subtest: historical parents exhaust keyset pages and guard every load
+ok 30 - historical parents exhaust keyset pages and guard every load
+  ---
+  duration_ms: 0.4239
+  type: 'test'
+  ...
+# Subtest: foreign site and unproven history never become complete; stalled cursor fails
+ok 31 - foreign site and unproven history never become complete; stalled cursor fails
+  ---
+  duration_ms: 0.3133
+  type: 'test'
+  ...
+# Subtest: expired lease acquisition does not advance schedule state before enqueue
+ok 32 - expired lease acquisition does not advance schedule state before enqueue
+  ---
+  duration_ms: 4.5781
+  type: 'test'
+  ...
+# Subtest: scheduled enqueue inserts first and returns the winning run for a new slot
+ok 33 - scheduled enqueue inserts first and returns the winning run for a new slot
+  ---
+  duration_ms: 0.4612
+  type: 'test'
+  ...
+# Subtest: advanceLease moves the cursor only after a successful enqueue
+ok 34 - advanceLease moves the cursor only after a successful enqueue
+  ---
+  duration_ms: 0.2378
+  type: 'test'
+  ...
+# Subtest: preserves canonical MariaDB timestamps and nullable windows without timezone conversion
+ok 35 - preserves canonical MariaDB timestamps and nullable windows without timezone conversion
+  ---
+  duration_ms: 0.1822
+  type: 'test'
+  ...
+# Subtest: normalizes explicit timezone offsets and rejects ambiguous local timestamps
+ok 36 - normalizes explicit timezone offsets and rejects ambiguous local timestamps
+  ---
+  duration_ms: 0.5767
+  type: 'test'
+  ...
+# Subtest: duplicate scheduled slot returns the existing run without pre-reading
+ok 37 - duplicate scheduled slot returns the existing run without pre-reading
+  ---
+  duration_ms: 0.2299
+  type: 'test'
+  ...
+# Subtest: atomic BigPlayer multi-site slot creates one scheduled parent and internal scheduled_site children
+ok 38 - atomic BigPlayer multi-site slot creates one scheduled parent and internal scheduled_site children
+  ---
+  duration_ms: 2.3585
+  type: 'test'
+  ...
+# Subtest: atomic BigPlayer multi-site slot rolls back when every configured site is disabled
+ok 39 - atomic BigPlayer multi-site slot rolls back when every configured site is disabled
+  ---
+  duration_ms: 0.5744
+  type: 'test'
+  ...
+# Subtest: overseas BigPlayer production-shaped site identity mismatch rolls back; legacy-aligned registry keeps its cursor
+ok 40 - overseas BigPlayer production-shaped site identity mismatch rolls back; legacy-aligned registry keeps its cursor
+  ---
+  duration_ms: 2.4646
+  type: 'test'
+  ...
+# Subtest: manual and legacy runs cannot enter the scheduled-slot merge path
+ok 41 - manual and legacy runs cannot enter the scheduled-slot merge path
+  ---
+  duration_ms: 0.4348
+  type: 'test'
+  ...
+# Subtest: lease acquisition is a conditional update that increments and returns epoch
+ok 42 - lease acquisition is a conditional update that increments and returns epoch
+  ---
+  duration_ms: 0.2972
+  type: 'test'
+  ...
+# Subtest: an active manual run blocks lease acquisition in the same atomic update
+ok 43 - an active manual run blocks lease acquisition in the same atomic update
+  ---
+  duration_ms: 0.6871
+  type: 'test'
+  ...
+# Subtest: an unexpired lease rejects acquisition without reading an epoch
+ok 44 - an unexpired lease rejects acquisition without reading an epoch
+  ---
+  duration_ms: 0.1404
+  type: 'test'
+  ...
+# Subtest: renew and release require source, run, owner, epoch and an unexpired lease
+ok 45 - renew and release require source, run, owner, epoch and an unexpired lease
+  ---
+  duration_ms: 0.3224
+  type: 'test'
+  ...
+# Subtest: finalize atomically updates run and state behind the full fencing token
+ok 46 - finalize atomically updates run and state behind the full fencing token
+  ---
+  duration_ms: 0.3397
+  type: 'test'
+  ...
+# Subtest: expired or stale epoch cannot finalize
+ok 47 - expired or stale epoch cannot finalize
+  ---
+  duration_ms: 0.1387
+  type: 'test'
+  ...
+# Subtest: listWorkerAlerts keeps multi-worker alerts and filters retired legacy restart identities
+ok 48 - listWorkerAlerts keeps multi-worker alerts and filters retired legacy restart identities
+  ---
+  duration_ms: 0.2097
+  type: 'test'
+  ...
+# Subtest: schedules domestic BigPlayer and overseas Discord through the same decision path
+ok 49 - schedules domestic BigPlayer and overseas Discord through the same decision path
+  ---
+  duration_ms: 5.967
+  type: 'test'
+  ...
+# Subtest: same platform keeps independent source leases and schedules both sources
+ok 50 - same platform keeps independent source leases and schedules both sources
+  ---
+  duration_ms: 0.4293
+  type: 'test'
+  ...
+# Subtest: BigPlayer, TapTap, and Discord each isolate leases by source rather than platform
+ok 51 - BigPlayer, TapTap, and Discord each isolate leases by source rather than platform
+  ---
+  duration_ms: 4.2908
+  type: 'test'
+  ...
+# Subtest: admits Last Light BigPlayer after stale state recovery and advances its next slot
+ok 52 - admits Last Light BigPlayer after stale state recovery and advances its next slot
+  ---
+  duration_ms: 0.2664
+  type: 'test'
+  ...
+# Subtest: second overseas BigPlayer source without config.boardId stops before atomic scheduling or run creation
+ok 53 - second overseas BigPlayer source without config.boardId stops before atomic scheduling or run creation
+  ---
+  duration_ms: 0.2878
+  type: 'test'
+  ...
+# Subtest: scheduled BigPlayer catchup carries a bounded seven-day UTC window
+ok 54 - scheduled BigPlayer catchup carries a bounded seven-day UTC window
+  ---
+  duration_ms: 0.251
+  type: 'test'
+  ...
+# Subtest: scheduled BigPlayer catchup extends a natural-day window to the actual execution cutoff
+ok 55 - scheduled BigPlayer catchup extends a natural-day window to the actual execution cutoff
+  ---
+  duration_ms: 0.2381
+  type: 'test'
+  ...
+# Subtest: Discord and TapTap windows are not extended by the BigPlayer cutoff rule
+ok 56 - Discord and TapTap windows are not extended by the BigPlayer cutoff rule
+  ---
+  duration_ms: 0.2999
+  type: 'test'
+  ...
+# Subtest: configured multi-site source stays parent-plus-children when only one site is enabled
+ok 57 - configured multi-site source stays parent-plus-children when only one site is enabled
+  ---
+  duration_ms: 0.4171
+  type: 'test'
+  ...
+# Subtest: non-BigPlayer scheduled sources keep their connector-defined window
+ok 58 - non-BigPlayer scheduled sources keep their connector-defined window
+  ---
+  duration_ms: 0.3479
+  type: 'test'
+  ...
+# Subtest: returns stable enablement and region rejection reasons
+ok 59 - returns stable enablement and region rejection reasons
+  ---
+  duration_ms: 0.1888
+  type: 'test'
+  ...
+# Subtest: rejects missing, mismatched, unauthorized and expired default accounts
+ok 60 - rejects missing, mismatched, unauthorized and expired default accounts
+  ---
+  duration_ms: 0.1513
+  type: 'test'
+  ...
+# Subtest: rejects unauthorized sources and unavailable connector capability
+ok 61 - rejects unauthorized sources and unavailable connector capability
+  ---
+  duration_ms: 0.1449
+  type: 'test'
+  ...
+# Subtest: active_window is evaluated in Beijing time, including cross-midnight windows
+ok 62 - active_window is evaluated in Beijing time, including cross-midnight windows
+  ---
+  duration_ms: 0.2983
+  type: 'test'
+  ...
+# Subtest: malformed active_window objects and JSON fail closed
+ok 63 - malformed active_window objects and JSON fail closed
+  ---
+  duration_ms: 0.2497
+  type: 'test'
+  ...
+# Subtest: rejects an authorized source whose authorization has expired
+ok 64 - rejects an authorized source whose authorization has expired
+  ---
+  duration_ms: 0.0914
+  type: 'test'
+  ...
+# Subtest: active source lease prevents concurrent enqueue
+ok 65 - active source lease prevents concurrent enqueue
+  ---
+  duration_ms: 0.1462
+  type: 'test'
+  ...
+# Subtest: enqueue failure is isolated and later sources still run
+ok 66 - enqueue failure is isolated and later sources still run
+  ---
+  duration_ms: 0.3061
+  type: 'test'
+  ...
+# Subtest: lease acquisition failure is isolated and later sources still run
+ok 67 - lease acquisition failure is isolated and later sources still run
+  ---
+  duration_ms: 0.2863
+  type: 'test'
+  ...
+# Subtest: uses source+slot idempotency and preserves manual/legacy evidence
+ok 68 - uses source+slot idempotency and preserves manual/legacy evidence
+  ---
+  duration_ms: 0.2296
+  type: 'test'
+  ...
+1..68
+# tests 68
+# suites 0
+# pass 68
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10810.8491

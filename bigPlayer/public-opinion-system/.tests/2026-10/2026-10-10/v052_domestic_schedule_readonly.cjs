@@ -1,0 +1,26 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path');
+const project=path.resolve(__dirname,'../../..');
+require(path.join(project,'server/src/runtimeEnv')).loadRuntimeEnv();
+const {Repository}=require(path.join(project,'server/src/db/repository'));
+(async()=>{const repo=new Repository({...process.env,DB_POOL_SIZE:'1'});let c;
+try{c=await repo.pool.getConnection();await c.query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
+const q=async(sql,p=[])=>(await c.query({sql,timeout:15000},p))[0];
+const clock=await q('SELECT NOW(3) local_now,UTC_TIMESTAMP(3) utc_now');
+const communities=await q("SELECT cm.id,cm.name,cm.game_id,cm.status FROM po_communities cm JOIN po_games g ON g.id=cm.game_id WHERE g.region_code='domestic'");
+const sources=await q("SELECT s.id,s.display_name,s.game_id,s.community_id,s.platform,s.enabled,s.auth_status,s.auth_expire_at,s.default_account_id,s.frequency_seconds,s.schedule_effective_at,s.schedule_version,s.active_window,s.last_success_at,s.collect_requested_at,s.config FROM po_sources s JOIN po_games g ON g.id=s.game_id WHERE g.region_code='domestic'");
+for(const s of sources){let config;try{config=JSON.parse(s.config||'{}');}catch{config={};}s.config=Object.fromEntries(Object.entries(config).filter(([k])=>/schedule|daily|timezone|frequency|boardId|collectionWindow/i.test(k)));}
+const ids=sources.map(s=>s.id),m=ids.map(()=>'?').join(',');
+const accounts=await q(`SELECT id,source_id,game_id,community_id,platform,enabled,auth_status,auth_expire_at FROM po_accounts WHERE source_id IN (${m})`,ids);
+const schedules=await q(`SELECT * FROM po_source_schedule_state WHERE source_id IN (${m})`,ids);
+const runs=await q(`SELECT id,source_id,account_id,parent_run_id,site_id,status,trigger_type,scheduled_at,window_start,window_end,created_at,started_at,finished_at,updated_at,fetched_count,stored_count,error_code,error_message,lease_owner,lease_epoch,lease_until,attempts,next_retry_at FROM po_sync_runs WHERE source_id IN (${m}) AND (created_at>='2026-10-10 00:00:00' OR status IN ('queued','running')) ORDER BY created_at DESC LIMIT 40`,ids);
+const contents=[];for(const s of sources)contents.push({sourceId:s.id,rows:await q('SELECT id,external_id,community_id,content_type,published_at,collected_at,last_seen_at FROM po_contents WHERE source_id=? ORDER BY collected_at DESC LIMIT 3',[s.id])});
+const gate=await q("SELECT *,lease_until>UTC_TIMESTAMP(3) AS live FROM po_worker_leases WHERE lease_key='worker_scheduler'");
+const heartbeat=await q('SELECT worker_id,last_seen_at,scan_started_at,scan_finished_at,scan_status,scan_error,current_scan FROM po_worker_heartbeats ORDER BY last_seen_at DESC LIMIT 1');
+const runIds=['e56eebe7-1280-42eb-9d39-d5d90da0f3eb','d7830bff-ef41-4ef7-a2a9-821ad4ebc6c4','61726610-541b-439b-bce7-a26dda7bae84'];
+const runData=await q('SELECT rc.run_id,rc.sync_scope,rc.change_type,c.community_id,COUNT(*) count,MIN(c.published_at) first_published,MAX(c.published_at) last_published,MIN(c.collected_at) first_collected,MAX(c.collected_at) last_collected,MAX(c.last_seen_at) last_seen FROM po_sync_run_contents rc JOIN po_contents c ON c.id=rc.content_id WHERE rc.run_id IN (?,?,?) GROUP BY rc.run_id,rc.sync_scope,rc.change_type,c.community_id',runIds);
+const checkpoint=await q('SELECT * FROM po_sync_checkpoints WHERE id=?',['caebdaf5-25eb-48f2-ae8a-6477de95ed6f']);
+await c.rollback();const output={capturedAt:new Date().toISOString(),clock,communities,sources,accounts,schedules,runs,contents,gate,heartbeat,readOnly:true};
+output.runData=runData;output.checkpoint=checkpoint;
+const target=path.resolve(project,'../../.temp',`qa-v052-domestic-schedule-${Date.now()}.json`);fs.writeFileSync(target,JSON.stringify(output,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify({capturedAt:output.capturedAt,clock,runData,checkpoint,gate,evidencePath:target},null,2));
+}finally{if(c)c.release();await repo.pool.end();}})().catch(e=>{console.error(JSON.stringify({code:e.code,message:e.message}));process.exitCode=1;});

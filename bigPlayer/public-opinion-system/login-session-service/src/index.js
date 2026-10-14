@@ -8,6 +8,19 @@ const { MemoryChallengeStore, MemoryExchangeStore, MemorySessionStore } = requir
 const { loadLocalEnvironment } = require('./env');
 const { createCredentialResolver } = require('./credentials');
 const { BigPlayerH5PlaywrightAutomation } = require('./adapters/bigPlayerH5Playwright');
+const fs = require('node:fs');
+
+function resolveBrowserExecutable(env = process.env) {
+  const configured = String(env.LOGIN_SESSION_BROWSER_EXECUTABLE_PATH || '').trim();
+  if (configured) return configured;
+  if (process.platform !== 'win32') return null;
+  const candidates = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+  ];
+  return candidates.find(file => fs.existsSync(file)) || null;
+}
 
 function createAdapters(env = process.env, options = {}) {
   const mockEnabled = ['1', 'true'].includes(String(env.LOGIN_SESSION_MOCK_ENABLED || '').toLowerCase());
@@ -15,7 +28,7 @@ function createAdapters(env = process.env, options = {}) {
   const credentialResolver = options.credentialResolver || null;
   let bigplayerAutomation = options.automation?.bigplayer_h5 || null;
   if (!bigplayerAutomation && credentialResolver) {
-    try { bigplayerAutomation = new BigPlayerH5PlaywrightAutomation({ credentialResolver, playwright: options.playwright, headless: String(env.LOGIN_SESSION_HEADLESS || 'true') !== 'false', timeoutMs: Number(env.LOGIN_AUTOMATION_TIMEOUT_MS || 30000), challengeTtlMs: Number(env.LOGIN_CHALLENGE_TTL_MS || 300000) }); }
+    try { bigplayerAutomation = new BigPlayerH5PlaywrightAutomation({ credentialResolver, playwright: options.playwright, headless: String(env.LOGIN_SESSION_HEADLESS || 'true') !== 'false', timeoutMs: Number(env.LOGIN_AUTOMATION_TIMEOUT_MS || 30000), challengeTtlMs: Number(env.LOGIN_CHALLENGE_TTL_MS || 300000), executablePath: resolveBrowserExecutable(env) }); }
     catch (error) { bigplayerAutomation = { readiness: () => ({ available: false, code: error.code || 'AUTOMATION_NOT_CONFIGURED', message: 'BigPlayer login automation is not available' }) }; }
   }
   return options.adapters || {

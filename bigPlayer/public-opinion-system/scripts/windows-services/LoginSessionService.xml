@@ -1,0 +1,20 @@
+<service>
+  <id>PublicOpinionLoginSession</id>
+  <name>PublicOpinionLoginSession</name>
+  <description>Public Opinion loopback login-session service</description>
+  <executable>%NODE_EXE%</executable>
+  <arguments>"%APP_ROOT%\login-session-service\src\index.js"</arguments>
+  <workingdirectory>%APP_ROOT%\login-session-service</workingdirectory>
+  <env name="PUBLIC_OPINION_ENV_FILE" value="%PUBLIC_OPINION_ENV_FILE%" />
+  <env name="NODE_PATH" value="" />
+  <env name="NODE_OPTIONS" value="" />
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <serviceaccount><domain>NT AUTHORITY</domain><user>LocalService</user></serviceaccount>
+  <stoptimeout>60 sec</stoptimeout>
+  <logpath>%SERVICE_LOG_ROOT%\PublicOpinionLoginSession</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>14</keepFiles></log>
+</service>

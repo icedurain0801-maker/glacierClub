@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: overseas BigPlayer aligned sites retain legacy identity and checkpoint cursor while creating three board-scoped children
+not ok 1 - overseas BigPlayer aligned sites retain legacy identity and checkpoint cursor while creating three board-scoped children
+  ---
+  duration_ms: 15.7774
+  type: 'test'
+  location: 'C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\project manage\\bigPlayer\\public-opinion-system\\server\\test\\repository.test.js:1725:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    父 Run 保留已核实的 boardId
+    + actual - expected
+
+    + undefined
+    - '100017'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '100017'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (C:\Users\Administrator\AppData\Roaming\Code\User\project manage\bigPlayer\public-opinion-system\server\test\repository.test.js:1743:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: startBoundedSourceBackfill stores one exact UTC window without mutating account metadata or checkpoints
+not ok 2 - startBoundedSourceBackfill stores one exact UTC window without mutating account metadata or checkpoints
+  ---
+  duration_ms: 3.4525
+  type: 'test'
+  location: 'C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\project manage\\bigPlayer\\public-opinion-system\\server\\test\\repository.test.js:1792:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+    + []
+    - [
+    -   'c1',
+    -   '2',
+    -   'collection'
+    - ]
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'c1'
+    1: '2'
+    2: 'collection'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (C:\Users\Administrator\AppData\Roaming\Code\User\project manage\bigPlayer\public-opinion-system\server\test\repository.test.js:1805:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4326.4692

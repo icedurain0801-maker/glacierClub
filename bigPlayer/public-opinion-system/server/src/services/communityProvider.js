@@ -107,7 +107,7 @@ class CommunityDirectory {
     return items;
   }
 
-  async list(filters) {
+  async list(filters = {}) {
     try { await this.refresh(); }
     catch (error) {
       console.error(error.code || error.name || 'COMMUNITY_PROVIDER_ERROR', error.message);
@@ -116,7 +116,11 @@ class CommunityDirectory {
   }
 
   async requireEnabled({ communityId, gameId, regionCode }) {
-    await this.refresh();
+    try { await this.refresh(); }
+    catch (error) {
+      const unavailable = ['COMMUNITY_PROVIDER_NOT_CONFIGURED', 'COMMUNITY_PROVIDER_UNAVAILABLE', 'COMMUNITY_PROVIDER_TIMEOUT', 'COMMUNITY_PROVIDER_ERROR'].includes(error.code);
+      if (!unavailable) throw error;
+    }
     const community = await this.repo.getCommunityForGame(communityId, gameId, { enabledOnly: true });
     if (!community || (regionCode && community.region_code !== regionCode)) {
       const error = new Error('社区不存在、与区域或游戏不匹配，或已停用');

@@ -1,0 +1,5 @@
+param([Parameter(Mandatory)][string]$ReleaseRoot,[Parameter(Mandatory)][string]$ReleaseBase,[string]$ServiceRoot)
+$ErrorActionPreference='Stop';$release=[IO.Path]::GetFullPath($ReleaseRoot).TrimEnd('\');$base=[IO.Path]::GetFullPath($ReleaseBase).TrimEnd('\')
+if([IO.Path]::GetFullPath((Split-Path -Parent $release)).TrimEnd('\')-ne$base-or$release-eq$base){throw "Refusing Worker release cleanup outside release base: $release"}
+if(Test-Path -LiteralPath $release){& node.exe -e "require('node:fs').rmSync(process.argv[1],{recursive:true,force:true,maxRetries:3})" $release;if($LASTEXITCODE-ne 0){throw 'Worker release cleanup failed'}}
+if($ServiceRoot){$services=[IO.Path]::GetFullPath($ServiceRoot).TrimEnd('\');foreach($name in @('PublicOpinionWorker.exe','PublicOpinionWorker.xml')){$artifact=[IO.Path]::GetFullPath((Join-Path $services $name));if([IO.Path]::GetFullPath((Split-Path -Parent $artifact)).TrimEnd('\')-ne$services){throw 'Worker artifact escaped service root'};if(Test-Path -LiteralPath $artifact){[IO.File]::Delete($artifact)}}}

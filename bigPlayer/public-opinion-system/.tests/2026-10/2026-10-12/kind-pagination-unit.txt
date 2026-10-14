@@ -1,0 +1,48 @@
+TAP version 13
+# Subtest: getOverview 返回完整归属的 trend、hotNegative 与当前告警
+ok 1 - getOverview 返回完整归属的 trend、hotNegative 与当前告警
+  ---
+  duration_ms: 4.7204
+  type: 'test'
+  ...
+# Subtest: getOverview reuses content stats and negative list without extra type or status predicates
+ok 2 - getOverview reuses content stats and negative list without extra type or status predicates
+  ---
+  duration_ms: 0.9794
+  type: 'test'
+  ...
+# Subtest: BigPlayer kind filters list, tree, and total before pagination with the same predicate
+ok 3 - BigPlayer kind filters list, tree, and total before pagination with the same predicate
+  ---
+  duration_ms: 1.3148
+  type: 'test'
+  ...
+# Subtest: BigPlayer kind-only count keeps source join and invalid kinds cannot execute a query
+ok 4 - BigPlayer kind-only count keeps source join and invalid kinds cannot execute a query
+  ---
+  duration_ms: 1.1681
+  type: 'test'
+  ...
+# Subtest: getOverview publication total includes posts/dynamics and comments in the same scope
+ok 5 - getOverview publication total includes posts/dynamics and comments in the same scope
+  ---
+  duration_ms: 1.2957
+  type: 'test'
+  ...
+# Subtest: getOverview both mixed columns use stable publication order and Top10 SQL
+ok 6 - getOverview both mixed columns use stable publication order and Top10 SQL
+  ---
+  duration_ms: 1.0285
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24.8813
+
+OFFLINE_GUARD_DENIALS:{}

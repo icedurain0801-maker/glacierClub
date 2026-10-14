@@ -1,4 +1,7 @@
 const { BaseConnector, ConnectorError, ConnectorPageError, ConnectorPageResult, normalizeRawContent, validatePagination, flattenCommentTree } = require('./baseConnector');
+const { createQ1LanguageResolver } = require('./q1LanguageResolver');
+// A token belongs to one capability probe, never to the connector or a later request.
+const capabilityProbeTokens = new WeakMap();
 
 function parseList(value, fallback) { return value ? value.split(',').map(item => item.trim()).filter(Boolean) : fallback; }
 function capabilityStatusFromError(error) {
@@ -8,7 +11,20 @@ function capabilityStatusFromError(error) {
   return code;
 }
 
+const Q1_ALLOWED_HOSTS = new Set(['club.q1.com', 'club-en.q1.com', 'club.iyogames.cn']);
+const Q1_MAX_BOUNDED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function hostOf(url) { try { return new URL(url).host; } catch { return ''; } }
+function q1SafeUrl(url) {
+  try {
+    const parsed = new URL(String(url));
+    return parsed.protocol === 'https:'
+      && (!parsed.port || parsed.port === '443')
+      && !parsed.username
+      && !parsed.password
+      && !parsed.hash
+      && Q1_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch { return false; }
+}
 function safeHttpUrl(value) {
   try {
     const parsed = new URL(String(value));
@@ -19,10 +35,14 @@ function safeHttpUrl(value) {
   } catch { return false; }
 }
 function sameHost(url, allowedHosts) { const host = hostOf(url); return Boolean(host) && allowedHosts.includes(host); }
-function isQ1Source(source) { return hostOf(parseSourceConfig(source).baseUrl).toLowerCase() === 'club.q1.com'; }
+function isQ1Source(source) { const host = hostOf(parseSourceConfig(source).baseUrl).toLowerCase(); return Q1_ALLOWED_HOSTS.has(host); }
 function authorizationValue(token) {
   const value = String(token || '').trim();
   return /^Bearer\s+/i.test(value) ? value : `Bearer ${value}`;
+}
+function tokenReauthorizationError(error) {
+  if (error?.code !== 'AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED') return error;
+  return new ConnectorError('UNAUTHORIZED', 'Q1 API token was rejected; reauthorization is required', { cause: error.code });
 }
 function q1Language(value) {
   const language = String(value || '').trim().toLowerCase();
@@ -129,15 +149,28 @@ function q1BoardFeeds(payload, board) {
   if (feeds.length === 1) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 board schema did not expose info or circle feeds');
   return feeds;
 }
-function q1FeedCursor(value, feed) {
-  const initial = { version: 1, endpointKind: feed.endpointKind, feedKey: feed.feedKey, pageIndex: 1, offsetId: 0, previousFingerprint: null };
+function q1FeedCursor(value, feed, segmentId = null) {
+  const initial = { version: 2, endpointKind: feed.endpointKind, feedKey: feed.feedKey, pageIndex: 1, offsetId: 0, previousFingerprint: null, previousOldestPublishedAt: null, timeOrderVerified: false, pagesFetched: 0, segmentPagesFetched: 0, segmentCount: segmentId == null ? 0 : 1, segmentId: segmentId == null ? null : String(segmentId), consecutiveNoNewPages: 0, repeatedPageRetries: 0 };
   if (value == null || value === '') return initial;
   let parsed;
   try { parsed = JSON.parse(String(value)); } catch { throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed pagination cursor is invalid'); }
   const pageIndex = Number(parsed.pageIndex);
   const offsetId = Number(parsed.offsetId);
-  if (parsed.version !== 1 || parsed.endpointKind !== feed.endpointKind || parsed.feedKey !== feed.feedKey || !Number.isInteger(pageIndex) || pageIndex < 1 || !Number.isInteger(offsetId) || offsetId < 0) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed pagination cursor does not match the feed');
-  return { version: 1, endpointKind: feed.endpointKind, feedKey: feed.feedKey, pageIndex, offsetId, previousFingerprint: parsed.previousFingerprint == null ? null : String(parsed.previousFingerprint) };
+  const pagesFetched = Number(parsed.pagesFetched || 0);
+  const segmentPagesFetched = Number(parsed.segmentPagesFetched || 0);
+  const segmentCount = Number(parsed.segmentCount || 0);
+  const consecutiveNoNewPages = Number(parsed.consecutiveNoNewPages || 0);
+  const repeatedPageRetries = Number(parsed.repeatedPageRetries || 0);
+  const previousOldestPublishedAt = parsed.previousOldestPublishedAt == null ? null : String(parsed.previousOldestPublishedAt);
+  const timeOrderVerified = parsed.timeOrderVerified === true;
+  const timeOrderRestarts = Number(parsed.timeOrderRestarts || 0);
+  if (!Number.isInteger(timeOrderRestarts) || timeOrderRestarts < 0 || timeOrderRestarts > 1) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed restart cursor is invalid');
+  if (![1, 2].includes(parsed.version) || parsed.endpointKind !== feed.endpointKind || parsed.feedKey !== feed.feedKey || !Number.isInteger(pageIndex) || pageIndex < 1 || !Number.isInteger(offsetId) || offsetId < 0 || !Number.isInteger(pagesFetched) || pagesFetched < 0 || !Number.isInteger(segmentPagesFetched) || segmentPagesFetched < 0 || !Number.isInteger(segmentCount) || segmentCount < 0 || !Number.isInteger(consecutiveNoNewPages) || consecutiveNoNewPages < 0 || !Number.isInteger(repeatedPageRetries) || repeatedPageRetries < 0) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed pagination cursor does not match the feed');
+  if (previousOldestPublishedAt != null && !Number.isFinite(Date.parse(previousOldestPublishedAt))) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed time-order cursor is invalid');
+  const parsedSegmentId = parsed.segmentId == null ? null : String(parsed.segmentId);
+  const activeSegmentId = segmentId == null ? parsedSegmentId : String(segmentId);
+  const segmentChanged = parsedSegmentId !== activeSegmentId;
+  return { version: 2, endpointKind: feed.endpointKind, feedKey: feed.feedKey, pageIndex, offsetId, previousFingerprint: parsed.previousFingerprint == null ? null : String(parsed.previousFingerprint), previousOldestPublishedAt, timeOrderVerified, timeOrderRestarts, pagesFetched, segmentPagesFetched: segmentChanged ? 0 : segmentPagesFetched, segmentCount: segmentChanged ? segmentCount + 1 : segmentCount, segmentId: activeSegmentId, consecutiveNoNewPages, repeatedPageRetries };
 }
 function q1PageData(payload) {
   const data = payload?.data;
@@ -186,7 +219,81 @@ function q1Media(content) {
   return urls;
 }
 
-function q1Post(item, context) {
+const Q1_RAW_POST_FIELDS = Object.freeze([
+  'id', 'postId', 'title', 'content', 'commentCount', 'thumbsUpCount', 'clickCount',
+  'createTime', 'updateTime', 'user', 'boardId', 'sectionId', 'type', 'status',
+  'moderatorIsDelete', 'isDeleted', 'tags', 'topic'
+]);
+const Q1_SENSITIVE_RAW_KEYS = new Set(['authorization', 'sessionid', 'apikey', 'credential', 'bearer', 'privatekey']);
+function q1PlainObject(value) { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+function q1HasTextContent(content) {
+  let found = false;
+  const visit = value => {
+    if (found) return;
+    if (typeof value === 'string') {
+      const text = value.trim();
+      if (text && !safeHttpUrl(text)) found = true;
+      return;
+    }
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    if (!q1PlainObject(value)) return;
+    // Q1 type=1 blocks are media regardless of how their data is encoded. In
+    // particular, relative paths and data URIs must not make an image-only
+    // detail look like usable post text.
+    if (Number(value.type) === 1) return;
+    for (const [key, child] of Object.entries(value)) {
+      if (['text', 'value', 'content', 'data', 'desc', 'description', 'title', 'children', 'blocks'].includes(key)) visit(child);
+    }
+  };
+  visit(content);
+  return found;
+}
+function q1MergeNonNull(base, patch) {
+  if (!q1PlainObject(patch)) return patch == null ? base : patch;
+  const merged = q1PlainObject(base) ? { ...base } : {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value == null || (typeof value === 'string' && value.trim() === '')) continue;
+    merged[key] = q1PlainObject(value) ? q1MergeNonNull(merged[key], value) : value;
+  }
+  return merged;
+}
+function q1SensitiveKey(key) {
+  const normalized = String(key).replace(/[^a-z0-9]/gi, '').toLowerCase();
+  return /token|password|secret|cookie/i.test(key)
+    || Q1_SENSITIVE_RAW_KEYS.has(normalized);
+}
+function q1StripSensitive(value) {
+  if (Array.isArray(value)) return value.map(q1StripSensitive);
+  if (!q1PlainObject(value)) return value;
+  const safe = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (q1SensitiveKey(key)) continue;
+    safe[key] = q1StripSensitive(child);
+  }
+  return safe;
+}
+function q1SafeRawPost(item) {
+  const raw = {};
+  for (const key of Q1_RAW_POST_FIELDS) if (item?.[key] !== undefined) raw[key] = q1StripSensitive(item[key]);
+  if (item?._contentIntegrity) raw._contentIntegrity = q1StripSensitive(item._contentIntegrity);
+  return raw;
+}
+function q1EnrichedPost(listItem, detailItem) {
+  const merged = q1MergeNonNull(listItem, detailItem);
+  // Feed identity and collection-window time come from the list response. A
+  // detail response may be stale or refer to a later edit timestamp.
+  merged.id = listItem.id;
+  merged.createTime = listItem.createTime;
+  merged.content = detailItem.content;
+  merged._contentMedia = [...new Set([...q1Media(listItem.content), ...q1Media(detailItem.content)])];
+  merged._contentIntegrity = { status: 'detail_enriched' };
+  return merged;
+}
+function q1FallbackPost(listItem, code) {
+  return { ...listItem, _contentIntegrity: { status: 'summary_fallback', code } };
+}
+
+function q1Post(item, context, endpointKind = 'post') {
   const id = item?.id;
   if (id == null) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 post id is required');
   const personality = item.user?.personality || {};
@@ -196,11 +303,11 @@ function q1Post(item, context) {
   detail.searchParams.set('source', '0');
   return {
     externalId: String(id),
-    contentType: 'post',
+    contentType: endpointKind === 'activity' ? 'activity' : 'post',
     title: String(item.title || '').trim(),
     body: q1Body(item.content),
-    media: q1Media(item.content),
-    rawPayload: item,
+    media: Array.isArray(item._contentMedia) ? item._contentMedia : q1Media(item.content),
+    rawPayload: q1SafeRawPost(item),
     authorName: String(personality.nickName || personality.nickname || '').trim(),
     platformAuthorId: account.id == null ? null : String(account.id),
     publishedAt: item.createTime || null,
@@ -217,6 +324,50 @@ function q1Post(item, context) {
     moderatorIsDelete: item.moderatorIsDelete === true,
     isDeleted: item.isDeleted === true || item.moderatorIsDelete === true || (item.status != null && Number(item.status) < 0)
   };
+}
+function q1BoundedWindow(dailyBounded, publishedFrom, publishedTo, historyStart = null) {
+  const hasHistoryStart = historyStart != null && historyStart !== '';
+  if (!dailyBounded) {
+    if (hasHistoryStart) throw new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 historyStart requires an explicit bounded collection window');
+    return null;
+  }
+  const fromMs = publishedFrom == null || publishedFrom === '' ? NaN : new Date(publishedFrom).getTime();
+  const toMs = publishedTo == null || publishedTo === '' ? NaN : new Date(publishedTo).getTime();
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs || toMs - fromMs > Q1_MAX_BOUNDED_WINDOW_MS) {
+    throw new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 bounded collection requires a valid window no longer than 7 days');
+  }
+  if (hasHistoryStart && new Date(historyStart).getTime() !== fromMs) {
+    throw new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 historyStart must match the bounded collection start');
+  }
+  return { fromMs, toMs };
+}
+function q1ObservationTime(value) {
+  const time = value == null ? NaN : new Date(value).getTime();
+  return Number.isFinite(time) ? { time, utc: new Date(time).toISOString() } : null;
+}
+function q1CandidateObservation({ items, boundedWindow, endpointKind, feedKey, httpStatus }) {
+  const candidates = Array.isArray(items) ? items : [];
+  const times = candidates.map(item => q1ObservationTime(item?.createTime));
+  const snapshot = (item, time) => item == null ? null : {
+    externalId: item.id == null ? null : String(item.id),
+    publishedAtUtc: time?.utc || null
+  };
+  const inWindowCount = boundedWindow
+    ? times.filter(item => item && item.time >= boundedWindow.fromMs && item.time < boundedWindow.toMs).length
+    : 0;
+  return {
+    endpointKind: String(endpointKind || ''),
+    feedKey: String(feedKey || ''),
+    candidateCount: candidates.length,
+    validCreateTimeCount: times.filter(Boolean).length,
+    inWindowCreateTimeCount: inWindowCount,
+    firstCandidate: snapshot(candidates[0], times[0]),
+    lastCandidate: snapshot(candidates.at(-1), times.at(-1)),
+    httpStatus: Number.isInteger(Number(httpStatus)) ? Number(httpStatus) : null
+  };
+}
+function q1BoundaryIncomplete(reason) {
+  return new ConnectorError('COLLECTION_BOUNDARY_INCOMPLETE', `Q1 bounded collection could not prove complete traversal: ${reason}`, { reason });
 }
 function q1Comment(item, context, rootContentId, parentId = null) {
   const id = item?.id;
@@ -256,11 +407,11 @@ function q1CommentCursor(value) {
   } catch {}
   throw new ConnectorError('INVALID_PAGINATION', 'Q1 comment pagination cursor is invalid');
 }
-function q1CommentPage(payload, { rootContentId, commentId, cursor, limit, context }) {
+function q1CommentPage(payload, { rootContentId, commentId, cursor, limit, context, boundedWindow = null, preserveContext = false }) {
   if (!payload || !Array.isArray(payload.data) || !Number.isFinite(Number(payload.total))) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 comment response is malformed');
   const seen = new Set();
   const replyTargets = [];
-  const items = payload.data.map(item => {
+  const items = payload.data.flatMap(item => {
     const top = q1Comment(item, context, rootContentId, commentId);
     const replies = q1Array(item.replies, item.children).map(reply => q1Comment(reply, context, rootContentId, top.externalId));
     for (const entry of [top, ...replies]) {
@@ -268,17 +419,26 @@ function q1CommentPage(payload, { rootContentId, commentId, cursor, limit, conte
       seen.add(entry.externalId);
     }
     if (commentId == null && (Number(item.commentCount || 0) > replies.length || item.hasMore === true || item.repliesHasMore === true)) replyTargets.push({ postId: String(rootContentId), commentId: top.externalId, sortType: cursor.sortType });
-    return replies.length ? { ...top, replies } : top;
+    if (!boundedWindow) return [replies.length ? { ...top, replies } : top];
+    const entries = [top, ...replies];
+    const timestamps = entries.map(entry => entry.publishedAt == null ? NaN : new Date(entry.publishedAt).getTime());
+    if (timestamps.some(value => !Number.isFinite(value))) throw new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 comment is missing a usable published time');
+    const topInWindow = timestamps[0] >= boundedWindow.fromMs && timestamps[0] < boundedWindow.toMs;
+    const repliesInWindow = replies.filter((_reply, index) => timestamps[index + 1] >= boundedWindow.fromMs && timestamps[index + 1] < boundedWindow.toMs);
+    if (topInWindow) return [{ ...top, ...(repliesInWindow.length ? { replies: repliesInWindow } : {}) }];
+    if (preserveContext && repliesInWindow.length) return [{ ...top, recoveryContextAncestor: true, replies: repliesInWindow }];
+    return repliesInWindow;
   });
   const pageSize = Number(limit);
   const total = Number(payload.total);
   const fingerprint = q1PageFingerprint(payload.data);
-  if (items.length && fingerprint === cursor.previousFingerprint) throw new ConnectorError('INVALID_PAGINATION', 'Q1 comment pagination returned a duplicate page');
+  if (payload.data.length && fingerprint === cursor.previousFingerprint) throw new ConnectorError('INVALID_PAGINATION', 'Q1 comment pagination returned a duplicate page');
   const explicitHasMore = q1PageData(payload).hasMore;
-  const hasMore = items.length > 0 && (explicitHasMore == null ? (items.length >= pageSize && items.length < total) : explicitHasMore);
-  const nextOffset = items.length ? String(payload.data.at(-1)?.id ?? '') : '';
+  if (boundedWindow && explicitHasMore === true && payload.data.length === 0) throw q1BoundaryIncomplete('provider_empty_page');
+  const hasMore = payload.data.length > 0 && (explicitHasMore == null ? (payload.data.length >= pageSize && payload.data.length < total) : explicitHasMore);
+  const nextOffset = payload.data.length ? String(payload.data.at(-1)?.id ?? '') : '';
   if (hasMore && (!nextOffset || nextOffset === cursor.offsetId)) throw new ConnectorError('INVALID_PAGINATION', 'Q1 comment pagination cursor did not advance');
-  if (!items.length && total > 0 && cursor.offsetId === '0') throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 comment response is empty before total is reached');
+  if (!payload.data.length && total > 0 && cursor.offsetId === '0') throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 comment response is empty before total is reached');
   const page = new ConnectorPageResult({
     items,
     nextCursor: hasMore ? JSON.stringify({ version: 1, offsetId: nextOffset, sortType: cursor.sortType, commentId, previousFingerprint: fingerprint }) : null,
@@ -321,24 +481,116 @@ function extractPage(payload) {
   });
 }
 
+function combinedSignal(signal, timeoutMs) {
+  const timeoutSignal = Number.isFinite(timeoutMs) && timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : null;
+  if (!signal) return timeoutSignal;
+  if (!timeoutSignal) return signal;
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([signal, timeoutSignal]);
+  const controller = new AbortController();
+  const abort = source => { if (!controller.signal.aborted) controller.abort(source.reason); };
+  if (signal.aborted) abort(signal); else signal.addEventListener('abort', () => abort(signal), { once: true });
+  if (timeoutSignal.aborted) abort(timeoutSignal); else timeoutSignal.addEventListener('abort', () => abort(timeoutSignal), { once: true });
+  return controller.signal;
+}
+function abortedError(signal) { return signal?.reason instanceof Error ? signal.reason : new ConnectorError('COLLECTION_CANCELLED', 'collection was cancelled'); }
+function q1CancellationCause(error, signal) {
+  const cancellationCodes = new Set(['COLLECTION_CANCELLED', 'SYNC_RUN_LEASE_LOST', 'CHECKPOINT_LEASE_LOST', 'DAILY_RUN_TIMEOUT', 'ABORT_ERR']);
+  const seen = new Set();
+  let current = error;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    if (cancellationCodes.has(current.code) || current.name === 'AbortError') return error;
+    current = current.cause;
+  }
+  if (signal?.aborted) return abortedError(signal);
+  return null;
+}
+function q1DetailFallbackCode(error) {
+  const seen = new Set();
+  let current = error;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    if (current.code === 'MALFORMED_RESPONSE' || current.code === 'DETAIL_RESPONSE_INVALID') return 'DETAIL_RESPONSE_INVALID';
+    current = current.cause;
+  }
+  return 'DETAIL_FETCH_FAILED';
+}
+async function q1ConcurrentMap(items, concurrency, mapper, signal) {
+  if (!items.length) return [];
+  if (signal?.aborted) throw abortedError(signal);
+  const results = new Array(items.length);
+  const controller = new AbortController();
+  const poolSignal = signal
+    ? (typeof AbortSignal.any === 'function'
+        ? AbortSignal.any([signal, controller.signal])
+        : (() => {
+            const combined = new AbortController();
+            const forward = source => { if (!combined.signal.aborted) combined.abort(source.reason); };
+            if (signal.aborted) forward(signal); else signal.addEventListener('abort', () => forward(signal), { once: true });
+            controller.signal.addEventListener('abort', () => forward(controller.signal), { once: true });
+            return combined.signal;
+          })())
+    : controller.signal;
+  let nextIndex = 0;
+  let fatalError = null;
+  const fail = error => {
+    if (fatalError) return;
+    fatalError = error;
+    if (!controller.signal.aborted) controller.abort(error);
+  };
+  const worker = async () => {
+    while (!fatalError) {
+      // An in-flight mapper may preserve a more useful ConnectorPageError
+      // chain than the raw signal reason, so let it win the fatal-error race.
+      if (poolSignal.aborted) return;
+      const index = nextIndex;
+      if (index >= items.length) return;
+      nextIndex += 1;
+      try { results[index] = await mapper(items[index], index, poolSignal); }
+      catch (error) { fail(error); return; }
+    }
+  };
+  await Promise.allSettled(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  if (fatalError) throw fatalError;
+  if (poolSignal.aborted) throw abortedError(poolSignal);
+  return results;
+}
+
 class BigPlayerH5Connector extends BaseConnector {
-  constructor(env = process.env, { credentialContext = null, fetchImpl = globalThis.fetch, authRefreshCoordinator = null } = {}) {
+  constructor(env = process.env, { credentialContext = null, fetchImpl = globalThis.fetch, authRefreshCoordinator = null, loginSessionClient = null, isolatedSiteSession = null, overseasSiteSession = null } = {}) {
     super({ platform: 'bigplayer_h5', capabilities: ['posts', 'comments', 'owned_content'] });
     this.enabled = env.BIGPLAYER_H5_ENABLED === 'true' || env.BIGPLAYER_H5_ENABLED === '1';
     this.envBaseUrl = env.BIGPLAYER_H5_API_BASE_URL || env.BIGPLAYER_H5_BASE_URL || '';
     this.allowedHosts = parseList(env.BIGPLAYER_H5_ALLOWED_HOSTS, hostOf(this.envBaseUrl) ? [hostOf(this.envBaseUrl)] : []);
+    // The verified mainland alternate origin uses the same Q1 API contract.
+    // Preserve deliberately restricted overseas/isolated instances.
+    if (this.allowedHosts.includes('club.q1.com') && !this.allowedHosts.includes('club.iyogames.cn')) this.allowedHosts.push('club.iyogames.cn');
     this.paths = { posts: env.BIGPLAYER_H5_POSTS_PATH || '/internal/opinion/posts', comments: env.BIGPLAYER_H5_COMMENTS_PATH || '/internal/opinion/posts/:postId/comments' };
     this.credentialContext = credentialContext;
     this.authRefreshCoordinator = authRefreshCoordinator;
+    this.loginSessionClient = loginSessionClient;
     this.fetchImpl = fetchImpl;
+    this.resolveQ1Language = createQ1LanguageResolver(fetchImpl, overseasSiteSession ? {
+      timeoutMs: Math.min(60000, Math.max(10000, Number(env.BIGPLAYER_H5_TIMEOUT_MS) || 10000))
+    } : {});
+    if (isolatedSiteSession && (fetchImpl === globalThis.fetch || typeof isolatedSiteSession.tokenFor !== 'function')) throw new ConnectorError('PRODUCTION_EXECUTION_DISABLED', 'site session requires isolated transport');
+    this.isolatedSiteSession = isolatedSiteSession;
+    if (overseasSiteSession && typeof overseasSiteSession.tokenFor !== 'function') throw new TypeError('overseas site session is invalid');
+    this.overseasSiteSession = overseasSiteSession;
     this.cookie = env.BIGPLAYER_H5_AUTH_COOKIE || '';
     this.bearer = env.BIGPLAYER_H5_BEARER_TOKEN || '';
     this.maxDepth = Number(env.BIGPLAYER_H5_MAX_DEPTH || 5);
     this.maxPages = Number(env.BIGPLAYER_H5_MAX_PAGES || 100);
+    const configuredFeedMaxPages = Number(env.BIGPLAYER_H5_FEED_MAX_PAGES);
+    this.feedMaxPages = Number.isInteger(configuredFeedMaxPages) && configuredFeedMaxPages > 0 ? configuredFeedMaxPages : null;
+    this.feedNoNewPageBudget = Math.max(1, Number(env.BIGPLAYER_H5_FEED_NO_NEW_PAGE_BUDGET || 2));
     this.delayMs = Number(env.BIGPLAYER_H5_DELAY_MS || 500);
     this.timeoutMs = Number(env.BIGPLAYER_H5_TIMEOUT_MS || 15000);
+    this.loginPollIntervalMs = Math.max(0, Number(env.BIGPLAYER_H5_LOGIN_POLL_INTERVAL_MS || 250));
+    this.loginPollTimeoutMs = Math.max(1, Number(env.BIGPLAYER_H5_LOGIN_POLL_TIMEOUT_MS || 30000));
   }
-  hostAllowed(url) { return safeHttpUrl(url) && sameHost(url, this.allowedHosts); }
+  hostAllowed(url) { return safeHttpUrl(url) && sameHost(url, this.allowedHosts)
+    && (hostOf(url) !== 'club.iyogames.cn' || q1SafeUrl(url)); }
   resolveBaseUrl(source) { return parseSourceConfig(source).baseUrl || this.envBaseUrl; }
   endpointFor(capability, source, pathParams = {}) {
     const config = parseSourceConfig(source);
@@ -374,70 +626,231 @@ class BigPlayerH5Connector extends BaseConnector {
     const reason = !this.enabled ? 'disabled by configuration' : !required ? (legacyBase ? 'postsApiUrl and commentsApiUrl are required' : 'baseUrl not configured') : !hostsAllowed ? 'API endpoint host outside allowed hosts' : null;
     return { platform: this.platform, installed, configured: installed, reason, capabilities: this.capabilities, endpoints };
   }
-  async loadApiToken(source, credentialContext = this.credentialContext) {
+  async loadApiToken(source, credentialContext = this.credentialContext, account = null) {
     if (!credentialContext) throw new ConnectorError('CREDENTIAL_CONTEXT_REQUIRED', 'account credential context is required');
+    const credentialSubject = account || source?.account || source;
+    const probe = capabilityProbeTokens.get(credentialContext);
+    if (probe && probe.connector === this && probe.sourceId === String(source?.id || '') && probe.accountId === String(credentialSubject?.id || '')) {
+      if (!probe.promise) probe.promise = this.loadApiToken(source, probe.original, account);
+      return probe.promise;
+    }
+    let passwordLoaded = null;
+    if (typeof credentialContext.load === 'function') {
+      try { passwordLoaded = await credentialContext.load(credentialSubject, 'account_password'); }
+      catch (error) {
+        if (error?.code !== 'CREDENTIAL_NOT_FOUND') throw error;
+      }
+    }
+    if (passwordLoaded) {
+      try {
+        const binding = { accountId: credentialSubject?.id, sourceId: source?.id, platform: source?.platform || this.platform };
+        if (typeof this.loginSessionClient?.startLogin !== 'function' || typeof this.loginSessionClient?.claimAuthResult !== 'function') {
+          throw new ConnectorError('LOGIN_SESSION_CLIENT_UNAVAILABLE', 'LoginSessionClient login flow is unavailable');
+        }
+        if (typeof this.loginSessionClient.bindAccount === 'function') {
+          await this.loginSessionClient.bindAccount({ ...binding, credentialRef: `credential:${binding.accountId}:account_password` });
+        }
+        const started = await this.loginSessionClient.startLogin({ ...binding, credential: passwordLoaded, reason: 'api_authorization' });
+        await this.waitForLoginCompletion(binding, started);
+        const result = await this.loginSessionClient.claimAuthResult(binding);
+        const apiToken = result?.apiToken || result?.accessToken;
+        if (!apiToken) throw new Error('login session returned no API token');
+        if (typeof credentialContext.saveApiAuthorization === 'function') await credentialContext.saveApiAuthorization(source, credentialSubject, result);
+        return apiToken;
+      } catch (error) {
+        throw new ConnectorError('AUTHORIZATION_FAILED', 'BigPlayer API account login failed', { cause: error?.code || 'LOGIN_FAILED' });
+      }
+    }
     const loaded = typeof credentialContext.loadApiToken === 'function'
-      ? await credentialContext.loadApiToken(source, 'api_token')
-      : typeof credentialContext.load === 'function' ? await credentialContext.load(source, 'api_token') : credentialContext;
+      ? await credentialContext.loadApiToken(credentialSubject, 'api_token')
+      : typeof credentialContext.load === 'function' ? await credentialContext.load(credentialSubject, 'api_token') : credentialContext;
     const apiToken = typeof loaded === 'string' ? loaded : loaded?.apiToken;
-    if (!apiToken) throw new ConnectorError('CREDENTIAL_SECRET_MISSING', 'account API token is required');
+    if (!apiToken) throw new ConnectorError('AUTHORIZATION_MISSING', 'BigPlayer API authorization is missing');
     return apiToken;
   }
-  async requestQ1(path, source, apiToken, params = {}, page = 1, capability = 'posts', authRefreshRetried = false) {
+  async requestQ1(path, source, apiToken, params = {}, page = 1, capability = 'posts', authRefreshRetried = false, signal = null, requestContext = {}) {
+    const activeProbe = capabilityProbeTokens.get(requestContext.credentialContext);
+    const subject = requestContext.account || source.account;
+    if (activeProbe?.connector === this && activeProbe.sourceId === String(source?.id || '') && activeProbe.accountId === String(subject?.id || '') && activeProbe.promise) apiToken = await activeProbe.promise;
     const context = q1Context(source);
     const url = new URL(path, context.baseUrl);
     for (const [key, value] of Object.entries(params)) if (value != null && value !== '') url.searchParams.set(key, String(value));
-    if (!this.hostAllowed(url.toString())) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'H5 API URL is outside allowed hosts');
+    if (!q1SafeUrl(context.baseUrl.toString()) || !q1SafeUrl(url.toString()) || url.origin !== context.baseUrl.origin) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'Q1 API URL must use the source approved HTTPS origin');
+    if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
+    const overseasSession = source.region_code === 'overseas' && source.platform === 'bigplayer_h5' ? this.overseasSiteSession : null;
+    let siteToken;
+    try { siteToken = this.isolatedSiteSession ? await this.isolatedSiteSession.tokenFor(source, apiToken, signal)
+      : overseasSession ? await overseasSession.tokenFor(source, apiToken, signal) : null; }
+    catch (error) {
+      if (!['UNAUTHORIZED', 'PERMISSION_DENIED'].includes(error.code) || !overseasSession || !this.authRefreshCoordinator || authRefreshRetried) throw error;
+      overseasSession.invalidate(source, apiToken);
+      const account = requestContext.account || source.account;
+      if (!account?.id) throw new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing');
+      if (signal?.aborted) throw new ConnectorError('COLLECTION_CANCELLED', 'collection cancelled');
+      try { await this.authRefreshCoordinator.refresh({ source, account, signal }); }
+      catch { throw new ConnectorError('AUTH_REFRESH_FAILED', 'overseas account refresh failed'); }
+      if (signal?.aborted) throw new ConnectorError('COLLECTION_CANCELLED', 'collection cancelled');
+      const token = await this.loadApiToken(source, requestContext.credentialContext || this.credentialContext, account);
+      return this.requestQ1(path, source, token, params, page, capability, true, signal, requestContext);
+    }
+    context.language = await this.resolveQ1Language(context.baseUrl, context.language, signal);
     let response;
     try {
+      if (typeof source?.__recordHttpRequest === 'function') await source.__recordHttpRequest({ url: url.toString(), capability, page });
       response = await this.fetchImpl(url, {
         redirect: 'manual',
-        headers: { accept: 'application/json', authorization: authorizationValue(apiToken), 'content-language': context.language, 'user-agent': 'PublicOpinionSystem/1.0' },
-        signal: AbortSignal.timeout(this.timeoutMs)
+        headers: { accept: 'application/json', authorization: siteToken ?? authorizationValue(apiToken), 'content-language': context.language, 'user-agent': 'PublicOpinionSystem/1.0' },
+        signal: combinedSignal(signal, this.timeoutMs)
       });
-    } catch (error) { throw new ConnectorPageError(this.platform, capability, page, error); }
-    if (response.url && !this.hostAllowed(response.url)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'H5 API redirected outside allowed hosts'));
+    } catch (error) {
+      if (overseasSession && /^OVERSEAS_(DISPATCH|NETWORK_CONTRACT)_/.test(error?.code || '')) throw error;
+      throw new ConnectorPageError(this.platform, capability, page, this.isolatedSiteSession || overseasSession
+      ? new ConnectorError(signal?.aborted ? 'COLLECTION_CANCELLED' : 'Q1_SITE_REQUEST_FAILED', 'isolated site request failed')
+      : signal?.aborted ? abortedError(signal) : error); }
+    if (response.url && (!q1SafeUrl(response.url) || new URL(response.url).origin !== context.baseUrl.origin)) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'Q1 API redirected outside the source approved HTTPS origin'));
+    if (!response.ok && (response.status === 401 || response.status === 403) && this.isolatedSiteSession) {
+      this.isolatedSiteSession.invalidate(source, apiToken);
+      throw new ConnectorPageError(this.platform, capability, page, new ConnectorError(response.status === 401 ? 'UNAUTHORIZED' : 'PERMISSION_DENIED', 'site authorization was rejected'));
+    }
     if (!response.ok && (response.status === 401 || response.status === 403) && this.authRefreshCoordinator && !authRefreshRetried) {
-      const account = source.account || (source.account_id ? { id: source.account_id, platform: source.platform } : null);
-      if (!account?.id) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing'));
-      await this.authRefreshCoordinator.refresh({ source, account });
-      const refreshedToken = await this.loadApiToken(source, this.credentialContext);
-      return this.requestQ1(path, source, refreshedToken, params, page, capability, true);
+      overseasSession?.invalidate(source, apiToken);
+      const refreshAccount = requestContext.account || source.account || (source.account_id ? { id: source.account_id, platform: source.platform } : null);
+      const refreshCredentialContext = requestContext.credentialContext || this.credentialContext;
+      if (!refreshAccount?.id) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing'));
+      if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
+      try { await this.authRefreshCoordinator.refresh({ source, account: refreshAccount, signal }); }
+      catch (error) { throw new ConnectorPageError(this.platform, capability, page, tokenReauthorizationError(error)); }
+      if (signal?.aborted) throw new ConnectorPageError(this.platform, capability, page, abortedError(signal));
+      const probe = capabilityProbeTokens.get(refreshCredentialContext);
+      if (probe?.connector === this) probe.promise = null;
+      const refreshedToken = await this.loadApiToken(source, refreshCredentialContext, refreshAccount);
+      return this.requestQ1(path, source, refreshedToken, params, page, capability, true, signal, { credentialContext: refreshCredentialContext, account: refreshAccount });
     }
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) overseasSession?.invalidate(source, apiToken);
       const code = response.status === 401 ? 'UNAUTHORIZED' : response.status === 403 ? 'PERMISSION_DENIED' : response.status === 429 ? 'RATE_LIMITED' : `H5_HTTP_${response.status}`;
       throw new ConnectorPageError(this.platform, capability, page, new ConnectorError(code, 'H5 API request failed'));
     }
     let payload;
     try { payload = await response.json(); } catch { throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('MALFORMED_RESPONSE', 'H5 API returned invalid JSON')); }
     if (payload?.code != null && Number(payload.code) !== 0) throw new ConnectorPageError(this.platform, capability, page, new ConnectorError('H5_API_ERROR', 'Q1 H5 API rejected the request', { providerCode: payload.code }));
+    if (payload && typeof payload === 'object') Object.defineProperty(payload, '__q1HttpStatus', { value: Number(response.status), enumerable: false });
     return payload;
   }
-  async discoverFeeds({ source, account, credentialContext = this.credentialContext } = {}) {
+  async discoverFeeds({ source, account, credentialContext = this.credentialContext, signal = null } = {}) {
     const context = q1Context(source);
     if (!context.gameId || !context.gameVersion || !context.env) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', 'Q1 source URL must include env, gameId and gameVersion');
-    const apiToken = await this.loadApiToken(source, credentialContext);
-    const boards = q1Boards(await this.requestQ1('/api/club/v1/auth/user/context', { ...source, account }, apiToken, {}, 1));
+    const configuredBoardId = String(parseSourceConfig(source).boardId || '').trim();
+    if (!/^[1-9]\d*$/.test(configuredBoardId)) throw new ConnectorError('BOARD_ID_REQUIRED', 'BigPlayer source boardId is required');
+    const apiToken = await this.loadApiToken(source, credentialContext, account);
+    const requestSource = { ...source, account: account || source?.account };
+    const requestContext = { credentialContext, account: account || source?.account || null };
+    let boards;
+    try { boards = q1Boards(await this.requestQ1('/api/club/v1/auth/user/context', requestSource, apiToken, {}, 1, 'posts', false, signal, requestContext)); }
+    catch (error) {
+      if (error?.code === 'MALFORMED_RESPONSE' && /did not return a board/.test(error.message)) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not available to this source account`);
+      throw error;
+    }
+    const board = boards.find(item => item.id === configuredBoardId);
+    if (!board) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not available to this source account`);
     const feeds = [];
-    for (const board of boards) {
-      const schema = await this.requestQ1('/api/club/v2/auth/board', { ...source, account }, apiToken, { id: board.id }, 1);
-      feeds.push(...q1BoardFeeds(schema, board));
+    for (const selectedBoard of [board]) {
+      if (signal?.aborted) throw abortedError(signal);
+      let schema;
+      try {
+        schema = await this.requestQ1('/api/club/v2/auth/board', requestSource, apiToken, { id: selectedBoard.id }, 1, 'posts', false, signal, requestContext);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        if (source.region_code === 'overseas' && /^OVERSEAS_(DISPATCH|NETWORK_CONTRACT)_/.test(error?.code || '')) throw error;
+        if (['PERMISSION_DENIED', 'H5_HTTP_404'].includes(error?.cause?.code || error?.code)) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not accessible`);
+        try { schema = await this.requestQ1('/api/club/v1/auth/board', requestSource, apiToken, { id: selectedBoard.id }, 1, 'posts', false, signal, requestContext); }
+        catch (fallbackError) {
+          if (['PERMISSION_DENIED', 'H5_HTTP_404'].includes(fallbackError?.cause?.code || fallbackError?.code)) throw new ConnectorError('BOARD_NOT_ACCESSIBLE', `BigPlayer board ${configuredBoardId} is not accessible`);
+          throw fallbackError;
+        }
+      }
+      feeds.push(...q1BoardFeeds(schema, selectedBoard).map(feed => ({ ...feed, boardName: selectedBoard.name })));
     }
     if (!feeds.length) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 board schema did not expose any feeds');
     return feeds;
   }
-  async listFeedContents({ source, account, credentialContext = this.credentialContext, cursor, limit, feed, publishedFrom = null, publishedTo = null, dailyBounded = false, ...descriptor } = {}) {
+  async waitForLoginCompletion(binding, started = {}) {
+    const statusOf = value => String(value?.status || '').trim().toLowerCase();
+    const terminalFailure = value => ['manual_verification', 'challenge', 'expired', 'invalid', 'revoked', 'failed'].includes(statusOf(value)) || Boolean(value?.failureCode || value?.errorCode);
+    if (statusOf(started) === 'active') return started;
+    if (terminalFailure(started)) {
+      const error = new Error('login session authorization failed');
+      error.code = started.failureCode || started.errorCode || 'LOGIN_FAILED';
+      error.details = started.diagnostics || null;
+      throw error;
+    }
+    if (typeof this.loginSessionClient?.getStatus !== 'function') {
+      const error = new Error('login session completion status is unavailable');
+      error.code = 'LOGIN_STATUS_UNAVAILABLE';
+      throw error;
+    }
+    const deadline = Date.now() + this.loginPollTimeoutMs;
+    let current = started;
+    while (Date.now() <= deadline) {
+      current = await this.loginSessionClient.getStatus(binding);
+      if (statusOf(current) === 'active') return current;
+      if (terminalFailure(current)) {
+        const error = new Error('login session authorization failed');
+        error.code = current.failureCode || current.errorCode || 'LOGIN_FAILED';
+        error.details = current.diagnostics || null;
+        throw error;
+      }
+      if (Date.now() >= deadline) break;
+      if (this.loginPollIntervalMs > 0) await new Promise(resolve => setTimeout(resolve, this.loginPollIntervalMs));
+    }
+    const timeout = new Error('login session authorization timed out');
+    timeout.code = 'AUTHORIZATION_TIMEOUT';
+    throw timeout;
+  }
+  async enrichQ1FeedItems({ items, source, account, credentialContext, apiToken, page, signal }) {
+    const requestSource = { ...source, account: account || source?.account };
+    const requestContext = { credentialContext, account: account || source?.account || null };
+    const enrichedItems = await q1ConcurrentMap(items, 4, async (listItem, _index, detailSignal) => {
+      if (detailSignal.aborted) throw abortedError(detailSignal);
+      if (listItem?.id == null || String(listItem.id).trim() === '') throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 post id is required');
+      let payload;
+      try {
+        payload = await this.requestQ1('/api/club/v1/auth/post/', requestSource, apiToken, { postId: String(listItem?.id), source: 0 }, page, 'posts', false, detailSignal, requestContext);
+      } catch (error) {
+        if (source.region_code === 'overseas' && /^OVERSEAS_(DISPATCH|NETWORK_CONTRACT)_/.test(error?.code || '')) throw error;
+        const cancellation = q1CancellationCause(error, detailSignal);
+        if (cancellation) throw cancellation;
+        return q1FallbackPost(listItem, q1DetailFallbackCode(error));
+      }
+      if (detailSignal.aborted) throw abortedError(detailSignal);
+      const detailItem = payload?.data;
+      const detailId = detailItem?.id ?? detailItem?.postId;
+      if (!q1PlainObject(detailItem) || detailId == null || String(detailId) !== String(listItem?.id) || !q1HasTextContent(detailItem.content)) {
+        return q1FallbackPost(listItem, 'DETAIL_RESPONSE_INVALID');
+      }
+      return q1EnrichedPost(listItem, detailItem);
+    }, signal);
+    const enriched = enrichedItems.filter(item => item?._contentIntegrity?.status === 'detail_enriched').length;
+    return { items: enrichedItems, diagnostics: { attempted: items.length, enriched, fallback: items.length - enriched } };
+  }
+  async listFeedContents({ source, account, credentialContext = this.credentialContext, signal = null, cursor, limit, feed, segmentId = null, publishedFrom = null, publishedTo = null, dailyBounded = false, historyStart = null, captureCandidateObservation = false, ...descriptor } = {}) {
     const context = q1Context(source);
     if (!context.gameId || !context.gameVersion || !context.env) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', 'Q1 source URL must include env, gameId and gameVersion');
+    const boundedWindow = q1BoundedWindow(dailyBounded, publishedFrom, publishedTo, historyStart);
     const currentFeed = feed && typeof feed === 'object' ? feed : descriptor;
     const endpoint = { merged: '/api/club/v1/auth/post/model/merged-list', info: '/api/club/v1/auth/post/list', activity: '/api/club/v1/auth/post/activity/list' }[currentFeed.endpointKind];
     const boardId = q1PositiveId(currentFeed.boardId);
+    const configuredBoardId = String(parseSourceConfig(source).boardId || '').trim();
+    if (!/^[1-9]\d*$/.test(configuredBoardId)) throw new ConnectorError('BOARD_ID_REQUIRED', 'BigPlayer source boardId is required');
+    if (boardId !== configuredBoardId) throw new ConnectorError('BOARD_SCOPE_MISMATCH', 'Q1 feed board does not match this source');
     const sectionId = currentFeed.sectionId == null ? null : String(currentFeed.sectionId);
     if (!endpoint || !boardId || !sectionId || currentFeed.feedKey !== q1FeedKey(currentFeed)) throw new ConnectorError('INVALID_FEED_DESCRIPTOR', 'Q1 feed descriptor is invalid');
     const pageSize = limit == null ? 20 : Number(limit);
     if (!Number.isInteger(pageSize) || pageSize <= 0) throw new ConnectorError('INVALID_PAGINATION', 'pagination limit must be a positive integer');
-    const current = q1FeedCursor(cursor, currentFeed);
-    const apiToken = await this.loadApiToken(source, credentialContext);
+    const current = q1FeedCursor(cursor, currentFeed, segmentId);
+    const Q1_MAX_OFFSET = 10000; // Q1 activity/info 接口的 offsetId 硬上限：实测 offset=10000 返回 HTTP 400
+    if (boundedWindow && current.offsetId >= Q1_MAX_OFFSET) throw q1BoundaryIncomplete('provider_offset_ceiling');
+    const apiToken = await this.loadApiToken(source, credentialContext, account);
     const params = { boardId, sectionId, pageSize, offsetId: current.offsetId };
     if (currentFeed.endpointKind === 'merged') params.pageIndex = current.pageIndex;
     else {
@@ -447,40 +860,109 @@ class BigPlayerH5Connector extends BaseConnector {
       if (currentFeed.orderType != null) params.orderType = Number(currentFeed.orderType);
       if (currentFeed.isUltimate != null) params.isUltimate = Number(Boolean(currentFeed.isUltimate));
     }
-    const payload = await this.requestQ1(endpoint, { ...source, account }, apiToken, params, current.pageIndex, 'posts');
+    let payload;
+    try {
+      payload = await this.requestQ1(endpoint, { ...source, account: account || source?.account }, apiToken, params, current.pageIndex, 'posts', false, signal, { credentialContext, account: account || source?.account || null });
+    } catch (error) {
+      // The Q1 API hard-rejects offsetId >= 10000 with HTTP 400. When the cursor has already
+      // reached that ceiling, the scope is exhausted: stop paginating gracefully instead of
+      // failing the whole sync run with CONNECTOR_PAGE_FAILED on every subsequent run.
+      if (current.offsetId >= Q1_MAX_OFFSET && (error.cause?.code === 'H5_HTTP_400' || error.code === 'H5_HTTP_400')) {
+        if (boundedWindow) throw q1BoundaryIncomplete('provider_offset_ceiling');
+        return new ConnectorPageResult({ items: [], nextCursor: null, hasMore: false, capability: 'authorized_scope', raw: { code: 0, data: { items: [], offsetCeilingReached: true, offsetId: current.offsetId } } });
+      }
+      throw error;
+    }
     const result = q1PageData(payload);
     if (!Array.isArray(result.items)) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 H5 API page result is malformed');
+    if (boundedWindow && result.hasMore === true && result.items.length === 0) throw q1BoundaryIncomplete('provider_empty_page');
     const fingerprint = q1PageFingerprint(result.items);
-    if (result.items.length && fingerprint === current.previousFingerprint) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed pagination returned a duplicate page');
+    const duplicatePage = result.items.length > 0 && fingerprint === current.previousFingerprint;
     if (!result.items.length && result.total != null && current.offsetId < result.total) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 feed returned an empty page before total was reached');
     const consumedOffset = current.offsetId + result.items.length;
     const nextOffset = result.nextOffset == null ? consumedOffset : result.nextOffset;
-    const hasMore = result.items.length > 0 && (
-      result.hasMore === true
-        || (result.hasMore === false
-          ? result.total != null && consumedOffset < result.total
-          : result.total != null
-            ? consumedOffset < result.total
-            : true)
-    );
-    if (hasMore && (!Number.isInteger(nextOffset) || nextOffset <= current.offsetId)) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed pagination cursor did not advance');
-    const items = result.items.map(item => q1Post(item, context));
-    const fromMs = publishedFrom == null ? -Infinity : new Date(publishedFrom).getTime();
-    const toMs = publishedTo == null ? Infinity : new Date(publishedTo).getTime();
-    const timestamps = items.map(item => item.publishedAt == null ? NaN : new Date(item.publishedAt).getTime());
-    if (dailyBounded && timestamps.some(value => !Number.isFinite(value))) throw new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 post is missing a usable published time');
-    const inWindow = dailyBounded ? items.filter((item, index) => timestamps[index] >= fromMs && timestamps[index] < toMs) : items;
-    const crossedLowerBound = dailyBounded && timestamps.length > 0 && Math.min(...timestamps) < fromMs;
-    const boundedHasMore = hasMore && !crossedLowerBound;
+    const listedItems = result.items.map(item => q1Post(item, context, currentFeed.endpointKind));
+    const timestamps = listedItems.map(item => item.publishedAt == null ? NaN : new Date(item.publishedAt).getTime());
+    const candidateObservation = captureCandidateObservation
+      ? q1CandidateObservation({ items: result.items, boundedWindow, endpointKind: currentFeed.endpointKind, feedKey: currentFeed.feedKey, httpStatus: payload?.__q1HttpStatus })
+      : null;
+    if (boundedWindow && timestamps.some(value => !Number.isFinite(value))) {
+      const error = new ConnectorError('COLLECTION_BOUNDARY_UNVERIFIED', 'Q1 post is missing a usable published time');
+      if (candidateObservation) error.candidateObservation = candidateObservation;
+      throw error;
+    }
+    const pageNewestToOldest = timestamps.every((value, index) => index === 0 || value <= timestamps[index - 1]);
+    const previousOldestMs = current.previousOldestPublishedAt == null ? NaN : Date.parse(current.previousOldestPublishedAt);
+    const crossPageNonIncreasing = Number.isFinite(previousOldestMs) && (timestamps.length === 0 || timestamps[0] <= previousOldestMs);
+    const timeOrderVerified = current.offsetId === 0
+      ? pageNewestToOldest
+      : current.timeOrderVerified && pageNewestToOldest && crossPageNonIncreasing;
+    const pageEntirelyBeforeWindow = Boolean(boundedWindow) && timestamps.length > 0 && timestamps.every(value => value < boundedWindow.fromMs);
+    const timeBoundaryReached = pageEntirelyBeforeWindow && current.timeOrderVerified && pageNewestToOldest && crossPageNonIncreasing;
+    // The provider's explicit flag is authoritative. Some Q1 feeds omit it; in
+    // that case retain the conservative total/cursor fallback for compatibility.
+    const rawProviderHasMore = result.items.length > 0 && (result.hasMore == null
+      ? (result.total != null ? consumedOffset < result.total : true)
+      : result.hasMore);
+    const providerHasMore = rawProviderHasMore && !timeBoundaryReached;
+    if (providerHasMore && (!Number.isInteger(nextOffset) || nextOffset <= current.offsetId)) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed pagination cursor did not advance');
+    const selectedItems = boundedWindow
+      ? result.items.filter((_item, index) => timestamps[index] >= boundedWindow.fromMs && timestamps[index] < boundedWindow.toMs)
+      : result.items;
+    const enrichment = duplicatePage
+      ? { items: [], diagnostics: { attempted: 0, enriched: 0, fallback: 0 } }
+      : await this.enrichQ1FeedItems({ items: selectedItems, source, account, credentialContext, apiToken, page: current.pageIndex, signal });
+    const items = enrichment.items.map(item => q1Post(item, context, currentFeed.endpointKind));
+    const inWindow = items;
+    // A live list may shift while paging. Recheck once from the head rather
+    // than permanently poisoning chronological proof after a transient jump.
+    const restartTimeOrder = Boolean(boundedWindow) && rawProviderHasMore && nextOffset < Q1_MAX_OFFSET && !timeOrderVerified && (current.timeOrderRestarts || 0) < 1;
+    const pagesFetched = current.pagesFetched + 1;
+    const segmentPagesFetched = current.segmentPagesFetched + 1;
+    const consecutiveNoNewPages = duplicatePage || !inWindow.length ? current.consecutiveNoNewPages + 1 : 0;
+    const repeatedPageRetries = duplicatePage ? current.repeatedPageRetries + 1 : 0;
+    // A Q1 feed can legally traverse up to the provider's offset ceiling. The generic
+    // HTML crawler page limit is unrelated and used to stop feeds halfway at offset 5000.
+    const feedPageBudget = this.feedMaxPages || Math.ceil(Q1_MAX_OFFSET / pageSize);
+    const pageBudgetExhausted = segmentPagesFetched >= feedPageBudget;
+    const noNewPageBudgetExhausted = consecutiveNoNewPages >= this.feedNoNewPageBudget;
+    const stalled = duplicatePage && repeatedPageRetries >= 2;
+    if (boundedWindow && providerHasMore) {
+      if (stalled) throw q1BoundaryIncomplete('provider_pagination_stalled');
+    }
+    const budgetExhausted = pageBudgetExhausted || (!boundedWindow && noNewPageBudgetExhausted);
+    const boundaryIncompleteReason = boundedWindow && providerHasMore && !restartTimeOrder
+      ? (nextOffset >= Q1_MAX_OFFSET ? 'provider_offset_ceiling' : (pageBudgetExhausted ? 'provider_pagination_budget_exhausted' : null))
+      : null;
+    // A bounded segment must persist the cursor from its last allowed page before
+    // the worker marks the segment partial. The next run resumes this position
+    // with a fresh local budget while pagesFetched remains cumulative audit data.
+    const hasMore = providerHasMore && !stalled && (Boolean(boundedWindow) || !budgetExhausted);
+    const paginationDiagnostics = {
+      providerHasMore,
+      pagesFetched,
+      segmentPagesFetched,
+      segmentCount: current.segmentCount,
+      segmentId: current.segmentId,
+      consecutiveNoNewPages,
+      repeatedPageRetries,
+      timeOrderVerified,
+      timeOrderRestarted: restartTimeOrder,
+      timeBoundaryReached,
+      contentEnrichment: enrichment.diagnostics,
+      ...(boundaryIncompleteReason ? { incomplete: true, code: boundaryIncompleteReason } : (budgetExhausted ? { incomplete: true, code: 'provider_pagination_budget_exhausted' } : {})),
+      ...(stalled ? { incomplete: true, code: 'provider_pagination_stalled' } : {})
+    };
     return new ConnectorPageResult({
       items: inWindow,
-      nextCursor: boundedHasMore ? JSON.stringify({ version: 1, endpointKind: currentFeed.endpointKind, feedKey: currentFeed.feedKey, pageIndex: currentFeed.endpointKind === 'merged' ? current.pageIndex + 1 : current.pageIndex, offsetId: nextOffset, previousFingerprint: fingerprint }) : null,
-      hasMore: boundedHasMore,
+      nextCursor: hasMore ? JSON.stringify({ version: 2, endpointKind: currentFeed.endpointKind, feedKey: currentFeed.feedKey, pageIndex: currentFeed.endpointKind === 'merged' ? current.pageIndex + 1 : current.pageIndex, offsetId: nextOffset, previousFingerprint: fingerprint, previousOldestPublishedAt: Number.isFinite(timestamps.at(-1)) ? new Date(timestamps.at(-1)).toISOString() : current.previousOldestPublishedAt, timeOrderVerified, pagesFetched, segmentPagesFetched, segmentCount: current.segmentCount, segmentId: current.segmentId, consecutiveNoNewPages, repeatedPageRetries, timeOrderRestarts: current.timeOrderRestarts || 0, ...(restartTimeOrder ? { offsetId: 0, pageIndex: 1, previousFingerprint: null, previousOldestPublishedAt: null, timeOrderVerified: false, timeOrderRestarts: 1, repeatedPageRetries: 0 } : {}) }) : null,
+      hasMore,
       capability: 'authorized_scope',
-      raw: payload
+      raw: { ...payload, paginationDiagnostics, ...(candidateObservation ? { candidateObservation } : {}) }
     });
   }
-  async listQ1Posts({ source, account, credentialContext = this.credentialContext, cursor, limit } = {}) {
+  async listQ1Posts({ source, account, credentialContext = this.credentialContext, signal = null, cursor, limit, dailyBounded = false, publishedFrom = null, publishedTo = null, historyStart = null } = {}) {
+    q1BoundedWindow(dailyBounded, publishedFrom, publishedTo, historyStart);
     let feed;
     if (cursor != null && cursor !== '') {
       let parsed;
@@ -490,9 +972,9 @@ class BigPlayerH5Connector extends BaseConnector {
         feed = { boardId: parts[0], pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', tabName: '首页', type: null, orderType: null, isUltimate: null, feedKey: parsed.feedKey };
       }
     }
-    if (!feed) feed = (await this.discoverFeeds({ source, account, credentialContext })).find(item => item.endpointKind === 'merged');
+    if (!feed) feed = (await this.discoverFeeds({ source, account, credentialContext, signal })).find(item => item.endpointKind === 'merged');
     if (!feed) throw new ConnectorError('MALFORMED_RESPONSE', 'Q1 board schema did not expose a home feed');
-    return this.listFeedContents({ source, credentialContext, cursor, limit, ...feed });
+    return this.listFeedContents({ source, account, credentialContext, signal, cursor, limit, feed, dailyBounded, publishedFrom, publishedTo, historyStart });
   }
   async accountHealth(source) {
     const installation = await this.installationHealth(source);
@@ -502,7 +984,10 @@ class BigPlayerH5Connector extends BaseConnector {
       else await this.requestJson('posts', source, { limit: 1 }, this.credentialContext, {}, { probe: true });
       return { ...installation, authorized: true, configured: true, reason: null };
     } catch (error) {
-      return { ...installation, authorized: false, configured: false, reason: error.cause?.code || error.code || 'account credential invalid' };
+      const failure = error.cause || error;
+      const loginCause = failure.code === 'AUTHORIZATION_FAILED' ? failure.details?.cause : null;
+      const reason = typeof loginCause === 'string' && /^[A-Z][A-Z0-9_]{0,79}$/.test(loginCause) ? loginCause : failure.code || 'account credential invalid';
+      return { ...installation, authorized: false, configured: false, reason };
     }
   }
   async healthCheck(source) {
@@ -523,13 +1008,14 @@ class BigPlayerH5Connector extends BaseConnector {
     for (const [key, value] of Object.entries(params)) if (value != null && value !== '') url.searchParams.set(key, String(value));
     if (!this.hostAllowed(url.toString())) throw new ConnectorError('H5_URL_OUTSIDE_ALLOWED_HOSTS', 'H5 API URL is outside allowed hosts');
     let response;
-    try { response = await this.fetchImpl(url, { redirect: 'manual', headers: { accept: 'application/json', authorization: authorizationValue(apiToken), 'user-agent': 'PublicOpinionSystem/1.0' }, signal: AbortSignal.timeout(this.timeoutMs) }); }
+    try { if (typeof source?.__recordHttpRequest === 'function') await source.__recordHttpRequest({ url: url.toString(), capability, page: params.cursor || 1 }); response = await this.fetchImpl(url, { redirect: 'manual', headers: { accept: 'application/json', authorization: authorizationValue(apiToken), 'user-agent': 'PublicOpinionSystem/1.0' }, signal: AbortSignal.timeout(this.timeoutMs) }); }
     catch (error) { throw new ConnectorPageError(this.platform, capability, params.cursor || 1, error); }
     if (response.url && !this.hostAllowed(response.url)) throw new ConnectorPageError(this.platform, capability, params.cursor || 1, new ConnectorError('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS', 'H5 API redirected outside allowed hosts'));
     if (!response.ok && (response.status === 401 || response.status === 403) && this.authRefreshCoordinator && !authRefreshRetried) {
       const account = params.account || source.account || (source.account_id ? { id: source.account_id, platform: source.platform } : null);
       if (!account?.id) throw new ConnectorPageError(this.platform, capability, params.cursor || 1, new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is missing'));
-      await this.authRefreshCoordinator.refresh({ source, account });
+      try { await this.authRefreshCoordinator.refresh({ source, account }); }
+      catch (error) { throw new ConnectorPageError(this.platform, capability, params.cursor || 1, tokenReauthorizationError(error)); }
       return this.requestJson(capability, source, params, credentialContext, pathParams, { probe, authRefreshRetried: true });
     }
     if (!response.ok) {
@@ -544,44 +1030,49 @@ class BigPlayerH5Connector extends BaseConnector {
   }
   async detectCapabilities({ source, account, credentialContext = this.credentialContext, postId, postIds = [] } = {}) {
     const results = {};
-    let samplePostId = postId == null || String(postId).trim() === '' ? null : String(postId).trim();
-    const suppliedPostIds = Array.isArray(postIds) ? postIds.map(value => String(value || '').trim()).filter(Boolean) : [];
-    if (suppliedPostIds.length) samplePostId = suppliedPostIds[0];
-    for (const capability of ['posts', 'comments']) {
-      if (!this.hasSourceCapability(capability, source)) { results[capability] = { status: 'unsupported' }; continue; }
-      if (capability === 'comments' && !samplePostId) {
+    const probeContext = credentialContext && typeof credentialContext === 'object' ? Object.create(credentialContext) : credentialContext;
+    const subject = account || source?.account || source;
+    if (probeContext && typeof probeContext === 'object') capabilityProbeTokens.set(probeContext, { connector: this, sourceId: String(source?.id || ''), accountId: String(subject?.id || ''), original: credentialContext, promise: null });
+    const input = { source: { ...source, account: account || source?.account }, account, credentialContext: probeContext, limit: 1 };
+    const failure = error => {
+      const cause = error?.cause || error;
+      const code = cause?.code === 'AUTHORIZATION_FAILED' ? cause.details?.cause || cause.code : cause?.code;
+      return { status: capabilityStatusFromError(error), ...(/^[A-Z][A-Z0-9_]{0,79}$/.test(code || '') ? { errorCode: code } : {}) };
+    };
+    let samplePostId = Array.isArray(postIds) && postIds.length ? String(postIds[0] || '').trim() : String(postId || '').trim();
+    try {
+      if (!this.hasSourceCapability('posts', source)) results.posts = { status: 'unsupported' };
+      else {
         try {
-          const page = isQ1Source(source)
-            ? await this.listQ1Posts({ source, account, credentialContext, limit: 1 })
-            : await this.requestJson('posts', { ...source, account }, { accountId: account?.platform_account_id, limit: 1 }, credentialContext);
+          const page = isQ1Source(source) ? await this.listQ1Posts(input) : await this.requestJson('posts', input.source, { accountId: account?.platform_account_id, limit: 1 }, probeContext);
           const item = page.items?.[0];
-          samplePostId = item?.externalId ?? item?.id ?? item?.postId ?? null;
-        } catch (error) {
-          results.posts = results.posts || { status: capabilityStatusFromError(error) };
-        }
+          if (!samplePostId) samplePostId = String(item?.externalId ?? item?.id ?? item?.postId ?? '');
+          results.posts = { status: 'available' };
+        } catch (error) { results.posts = failure(error); }
       }
-      if (capability === 'comments' && !samplePostId) { results.comments = { status: 'configured', requiresParentId: true, untested: true }; continue; }
-      try {
-        if (capability === 'posts') {
-          if (isQ1Source(source)) await this.listQ1Posts({ source, account, credentialContext, limit: 1 });
-          else await this.requestJson('posts', { ...source, account }, { accountId: account?.platform_account_id, limit: 1 }, credentialContext);
-        } else {
-          await this.listComments({ source, account, credentialContext, postId: samplePostId, limit: 1 });
-        }
-        results[capability] = { status: 'available', ...(capability === 'comments' ? { requiresParentId: true, samplePostId } : {}) };
-      } catch (error) { results[capability] = { status: capabilityStatusFromError(error), ...(capability === 'comments' ? { requiresParentId: true, samplePostId } : {}) }; }
+      if (!this.hasSourceCapability('comments', source)) results.comments = { status: 'unsupported' };
+      else if (!samplePostId) results.comments = { status: 'configured', requiresParentId: true, untested: true };
+      else {
+        try {
+          await this.listComments({ ...input, postId: samplePostId });
+          results.comments = { status: 'available', requiresParentId: true, samplePostId };
+        } catch (error) { results.comments = { ...failure(error), requiresParentId: true, samplePostId }; }
+      }
+      return results;
+    } finally {
+      if (probeContext && typeof probeContext === 'object') capabilityProbeTokens.delete(probeContext);
     }
-    return results;
   }
   async listOwnedContents(input = {}) { return this.listPosts(input); }
-  async listPosts({ source, account, credentialContext, cursor, limit, updatedSince, historyStart } = {}) {
-    if (isQ1Source(source)) return validatePagination({ cursor, limit, page: await this.listQ1Posts({ source, account, credentialContext, cursor, limit }) });
+  async listPosts({ source, account, credentialContext, signal = null, cursor, limit, updatedSince, historyStart, dailyBounded = false, publishedFrom = null, publishedTo = null } = {}) {
+    if (isQ1Source(source)) return validatePagination({ cursor, limit, page: await this.listQ1Posts({ source, account, credentialContext, signal, cursor, limit, dailyBounded, publishedFrom, publishedTo, historyStart }) });
     const page = await this.requestJson('posts', source, { account: account || null, accountId: account?.platform_account_id, cursor, limit, updatedSince, historyStart }, credentialContext);
     return validatePagination({ cursor, limit, page });
   }
-  async listQ1Comments({ source, account, credentialContext = this.credentialContext, postId, cursor, limit, commentId = null, sortType = 0 } = {}) {
+  async listQ1Comments({ source, account, credentialContext = this.credentialContext, signal = null, postId, cursor, limit, commentId = null, sortType = 0, dailyBounded = false, publishedFrom = null, publishedTo = null, historyStart = null } = {}) {
     if (postId == null || String(postId).trim() === '') throw new ConnectorError('POST_ID_REQUIRED', 'postId is required');
-    const apiToken = await this.loadApiToken(source, credentialContext);
+    const boundedWindow = q1BoundedWindow(dailyBounded, publishedFrom, publishedTo, historyStart);
+    const apiToken = await this.loadApiToken(source, credentialContext, account);
     const context = q1Context(source);
     const current = q1CommentCursor(cursor);
     const effectiveCommentId = commentId == null ? current.commentId : String(commentId);
@@ -589,13 +1080,14 @@ class BigPlayerH5Connector extends BaseConnector {
     if (!Number.isInteger(effectiveSortType) || effectiveSortType < 0 || effectiveSortType > 2) throw new ConnectorError('INVALID_PAGINATION', 'Q1 comment sortType must be 0, 1 or 2');
     const pageSize = limit == null ? 20 : Number(limit);
     if (!Number.isInteger(pageSize) || pageSize <= 0) throw new ConnectorError('INVALID_PAGINATION', 'pagination limit must be a positive integer');
-    const payload = await this.requestQ1(`/api/club/v1/auth/comment/${encodeURIComponent(String(postId))}`, { ...source, account }, apiToken, { offsetId: current.offsetId, pageSize, postId: String(postId), commentId: effectiveCommentId, sortType: effectiveSortType }, current.offsetId, 'comments');
-    return validatePagination({ cursor, limit, page: q1CommentPage(payload, { rootContentId: postId, commentId: effectiveCommentId, cursor: { ...current, sortType: effectiveSortType }, limit: pageSize, context }) });
+    const payload = await this.requestQ1(`/api/club/v1/auth/comment/${encodeURIComponent(String(postId))}`, { ...source, account: account || source?.account }, apiToken, { offsetId: current.offsetId, pageSize, postId: String(postId), commentId: effectiveCommentId, sortType: effectiveSortType }, current.offsetId, 'comments', false, signal, { credentialContext, account: account || source?.account || null });
+    return validatePagination({ cursor, limit, page: q1CommentPage(payload, { rootContentId: postId, commentId: effectiveCommentId, cursor: { ...current, sortType: effectiveSortType }, limit: pageSize, context, boundedWindow,
+      preserveContext: source.region_code === 'overseas' && source.platform === 'bigplayer_h5' }) });
   }
-  async listComments({ source, account, credentialContext, postId, rootContentId, cursor, limit, updatedSince, commentId = null, sortType = 0 } = {}) {
+  async listComments({ source, account, credentialContext, signal = null, postId, rootContentId, cursor, limit, updatedSince, commentId = null, sortType = 0, dailyBounded = false, publishedFrom = null, publishedTo = null, historyStart = null } = {}) {
     const id = postId || rootContentId;
     if (!id) throw new ConnectorError('POST_ID_REQUIRED', 'postId is required');
-    if (isQ1Source(source)) return this.listQ1Comments({ source, account, credentialContext, postId: id, cursor, limit, commentId, sortType });
+    if (isQ1Source(source)) return this.listQ1Comments({ source, account, credentialContext, signal, postId: id, cursor, limit, commentId, sortType, dailyBounded, publishedFrom, publishedTo, historyStart });
     const page = await this.requestJson('comments', source, { account: account || null, postId: parseSourceConfig(source).commentsApiUrl ? id : undefined, cursor, limit, updatedSince }, credentialContext, { postId: id });
     page.items = flattenCommentTree(page.items, { rootPlatformContentId: id });
     return validatePagination({ cursor, limit, page });
@@ -626,4 +1118,4 @@ class BigPlayerH5Connector extends BaseConnector {
     return items;
   }
 }
-module.exports = { BigPlayerH5Connector, parseSourceConfig, extractPage };
+module.exports = { BigPlayerH5Connector, parseSourceConfig, extractPage, q1PageData };

@@ -1,0 +1,470 @@
+TAP version 13
+# Subtest: unbound direct dispatch and cross-site copied source fail before transport
+ok 1 - unbound direct dispatch and cross-site copied source fail before transport
+  ---
+  duration_ms: 23.8634
+  type: 'test'
+  ...
+# Subtest: epoch lost after asynchronous preparation rejects token_exchange dispatch
+ok 2 - epoch lost after asynchronous preparation rejects token_exchange dispatch
+  ---
+  duration_ms: 12.5763
+  type: 'test'
+  ...
+# Subtest: epoch lost after asynchronous preparation rejects detail dispatch
+ok 3 - epoch lost after asynchronous preparation rejects detail dispatch
+  ---
+  duration_ms: 10.8985
+  type: 'test'
+  ...
+# Subtest: epoch lost after asynchronous preparation rejects comments dispatch
+ok 4 - epoch lost after asynchronous preparation rejects comments dispatch
+  ---
+  duration_ms: 12.132
+  type: 'test'
+  ...
+# Subtest: epoch lost after asynchronous preparation rejects retry dispatch
+ok 5 - epoch lost after asynchronous preparation rejects retry dispatch
+  ---
+  duration_ms: 10.658
+  type: 'test'
+  ...
+# Subtest: dispatch initiates before commit and releases locks before response resolves
+ok 6 - dispatch initiates before commit and releases locks before response resolves
+  ---
+  duration_ms: 11.2199
+  type: 'test'
+  ...
+# Subtest: commit unknown after dispatch destroys connection and never sends twice
+ok 7 - commit unknown after dispatch destroys connection and never sends twice
+  ---
+  duration_ms: 10.4958
+  type: 'test'
+  ...
+# Subtest: even a bound isolated transport cannot dispatch to another origin
+ok 8 - even a bound isolated transport cannot dispatch to another origin
+  ---
+  duration_ms: 8.3274
+  type: 'test'
+  ...
+# Subtest: actual adapter blocks stale token_exchange request after asynchronous preparation
+ok 9 - actual adapter blocks stale token_exchange request after asynchronous preparation
+  ---
+  duration_ms: 13.4174
+  type: 'test'
+  ...
+# Subtest: actual adapter blocks stale detail request after asynchronous preparation
+ok 10 - actual adapter blocks stale detail request after asynchronous preparation
+  ---
+  duration_ms: 12.4329
+  type: 'test'
+  ...
+# Subtest: actual adapter blocks stale comments request after asynchronous preparation
+ok 11 - actual adapter blocks stale comments request after asynchronous preparation
+  ---
+  duration_ms: 11.9898
+  type: 'test'
+  ...
+[worker] rejected intake identity errorCode=WORKER_ENTRY_IDENTITY_INVALID
+[worker] rejected intake identity errorCode=WORKER_ENTRY_IDENTITY_INVALID
+# Subtest: actual adapter blocks stale retry request after asynchronous preparation
+ok 12 - actual adapter blocks stale retry request after asynchronous preparation
+  ---
+  duration_ms: 11.6466
+  type: 'test'
+  ...
+# Subtest: caller flag without committed receipt cannot skip the content enqueue
+ok 13 - caller flag without committed receipt cannot skip the content enqueue
+  ---
+  duration_ms: 1.3368
+  type: 'test'
+  ...
+# Subtest: atomic overseas direct downstream still consumes light and deep queues
+ok 14 - atomic overseas direct downstream still consumes light and deep queues
+  ---
+  duration_ms: 0.5074
+  type: 'test'
+  ...
+# Subtest: forged or wrapped store rejects even when AI is disabled
+ok 15 - forged or wrapped store rejects even when AI is disabled
+  ---
+  duration_ms: 0.6647
+  type: 'test'
+  ...
+# Subtest: domestic, other platforms, and non-atomic overseas keep existing enqueue
+ok 16 - domestic, other platforms, and non-atomic overseas keep existing enqueue
+  ---
+  duration_ms: 1.1519
+  type: 'test'
+  ...
+# Subtest: atomic store cannot lose its flag and silently duplicate the legacy enqueue
+ok 17 - atomic store cannot lose its flag and silently duplicate the legacy enqueue
+  ---
+  duration_ms: 0.3467
+  type: 'test'
+  ...
+# Subtest: exact content allowlist is passed to both light and deep and limits enqueue
+ok 18 - exact content allowlist is passed to both light and deep and limits enqueue
+  ---
+  duration_ms: 0.6311
+  type: 'test'
+  ...
+# Subtest: empty, duplicate or malformed allowlist rejects before enqueue or claim
+ok 19 - empty, duplicate or malformed allowlist rejects before enqueue or claim
+  ---
+  duration_ms: 0.3704
+  type: 'test'
+  ...
+# Subtest: out-of-allowlist claimed job cannot reach AI or downstream writes
+ok 20 - out-of-allowlist claimed job cannot reach AI or downstream writes
+  ---
+  duration_ms: 0.5321
+  type: 'test'
+  ...
+# Subtest: legacy SQL removes only board fields and preserves values
+ok 21 - legacy SQL removes only board fields and preserves values
+  ---
+  duration_ms: 0.4628
+  type: 'test'
+  ...
+# Subtest: actual Repository commits once per page and rerun is idempotent
+ok 22 - actual Repository commits once per page and rerun is idempotent
+  ---
+  duration_ms: 4.2583
+  type: 'test'
+  ...
+# Subtest: empty page rejects unverified contract before connection
+ok 23 - empty page rejects unverified contract before connection
+  ---
+  duration_ms: 0.2206
+  type: 'test'
+  ...
+# Subtest: empty page fences run site and epoch
+ok 24 - empty page fences run site and epoch
+  ---
+  duration_ms: 0.3727
+  type: 'test'
+  ...
+# Subtest: existing context ancestor cannot bypass conflicting scope
+ok 25 - existing context ancestor cannot bypass conflicting scope
+  ---
+  duration_ms: 0.5637
+  type: 'test'
+  ...
+# Subtest: unknown historical site URL fails closed
+ok 26 - unknown historical site URL fails closed
+  ---
+  duration_ms: 0.7737
+  type: 'test'
+  ...
+# Subtest: fingerprint collision cannot overwrite another external id
+ok 27 - fingerprint collision cannot overwrite another external id
+  ---
+  duration_ms: 0.5942
+  type: 'test'
+  ...
+# Subtest: missing comment parent rolls back actual Repository
+ok 28 - missing comment parent rolls back actual Repository
+  ---
+  duration_ms: 0.5695
+  type: 'test'
+  ...
+# Subtest: beforeCommit uses same transaction and queue failure rolls back content
+ok 29 - beforeCommit uses same transaction and queue failure rolls back content
+  ---
+  duration_ms: 0.7125
+  type: 'test'
+  ...
+# Subtest: incoming conflicting raw marker rejects before INSERT
+ok 30 - incoming conflicting raw marker rejects before INSERT
+  ---
+  duration_ms: 0.579
+  type: 'test'
+  ...
+# Subtest: checkpoint wrong site is rejected even on empty page
+ok 31 - checkpoint wrong site is rejected even on empty page
+  ---
+  duration_ms: 0.5737
+  type: 'test'
+  ...
+# Subtest: stale cursor rejects before an empty page can advance checkpoint
+ok 32 - stale cursor rejects before an empty page can advance checkpoint
+  ---
+  duration_ms: 0.3464
+  type: 'test'
+  ...
+# Subtest: expired checkpoint fails closed
+ok 33 - expired checkpoint fails closed
+  ---
+  duration_ms: 1.0494
+  type: 'test'
+  ...
+# Subtest: reply cannot attach directly to root and deleted parents reject
+ok 34 - reply cannot attach directly to root and deleted parents reject
+  ---
+  duration_ms: 0.9783
+  type: 'test'
+  ...
+# Subtest: renewal SQL fences live run epoch and checkpoint cursor
+ok 35 - renewal SQL fences live run epoch and checkpoint cursor
+  ---
+  duration_ms: 0.6042
+  type: 'test'
+  ...
+# Subtest: commit acknowledgement loss destroys connection without unsafe retry
+ok 36 - commit acknowledgement loss destroys connection without unsafe retry
+  ---
+  duration_ms: 0.6923
+  type: 'test'
+  ...
+# Subtest: scheduled evidence is immutable and cannot have manual shape
+ok 37 - scheduled evidence is immutable and cannot have manual shape
+  ---
+  duration_ms: 0.588
+  type: 'test'
+  ...
+# Subtest: exact parent/child/version/window/site rejects drift
+ok 38 - exact parent/child/version/window/site rejects drift
+  ---
+  duration_ms: 0.7257
+  type: 'test'
+  ...
+# Subtest: unknown fields/noncanonical slot/self-parent reject and slot affects identity
+ok 39 - unknown fields/noncanonical slot/self-parent reject and slot affects identity
+  ---
+  duration_ms: 0.4162
+  type: 'test'
+  ...
+# Subtest: scheduled batch has deterministic closed parent/site identities and order-independent digest
+ok 40 - scheduled batch has deterministic closed parent/site identities and order-independent digest
+  ---
+  duration_ms: 7.8991
+  type: 'test'
+  ...
+# Subtest: cross-source/version/config/parent scopes and invented run ids reject
+ok 41 - cross-source/version/config/parent scopes and invented run ids reject
+  ---
+  duration_ms: 1.5189
+  type: 'test'
+  ...
+# Subtest: duplicate sites/URLs, unknown fields and invalid parent/window/slot fail closed
+ok 42 - duplicate sites/URLs, unknown fields and invalid parent/window/slot fail closed
+  ---
+  duration_ms: 0.6514
+  type: 'test'
+  ...
+# Subtest: scheduled child cursor shape may narrow start but never expand parent scope
+ok 43 - scheduled child cursor shape may narrow start but never expand parent scope
+  ---
+  duration_ms: 0.2089
+  type: 'test'
+  ...
+# Subtest: isolated target is repo-bound and every check only queries exact identity
+ok 44 - isolated target is repo-bound and every check only queries exact identity
+  ---
+  duration_ms: 11.3605
+  type: 'test'
+  ...
+# Subtest: 3306, wrong server/schema/datadir/PID path all reject before any mutation
+ok 45 - 3306, wrong server/schema/datadir/PID path all reject before any mutation
+  ---
+  duration_ms: 7.6158
+  type: 'test'
+  ...
+# Subtest: changed owned PID rejects before requesting any SQL
+ok 46 - changed owned PID rejects before requesting any SQL
+  ---
+  duration_ms: 6.4948
+  type: 'test'
+  ...
+# Subtest: complete column inventory never grants scheduled activation
+ok 47 - complete column inventory never grants scheduled activation
+  ---
+  duration_ms: 0.6353
+  type: 'test'
+  ...
+# Subtest: missing columns and unknown inventory fail closed
+ok 48 - missing columns and unknown inventory fail closed
+  ---
+  duration_ms: 0.3198
+  type: 'test'
+  ...
+# Subtest: inspector cannot be copied or used with a different repository
+ok 49 - inspector cannot be copied or used with a different repository
+  ---
+  duration_ms: 0.1787
+  type: 'test'
+  ...
+# Subtest: anchor uses fixed DB clock, Shanghai schedule slot and existing seven-day window
+ok 50 - anchor uses fixed DB clock, Shanghai schedule slot and existing seven-day window
+  ---
+  duration_ms: 1.4365
+  type: 'test'
+  ...
+# Subtest: copied or cross-repository anchor is not trusted
+ok 51 - copied or cross-repository anchor is not trusted
+  ---
+  duration_ms: 0.3547
+  type: 'test'
+  ...
+# Subtest: mismatched version, frequency or persisted due slot refuses read-only preparation
+ok 52 - mismatched version, frequency or persisted due slot refuses read-only preparation
+  ---
+  duration_ms: 0.5321
+  type: 'test'
+  ...
+# Subtest: completed site cursor only narrows start within the trusted parent window
+ok 53 - completed site cursor only narrows start within the trusted parent window
+  ---
+  duration_ms: 0.5611
+  type: 'test'
+  ...
+# Subtest: run coalesces and pause stops admission synchronously while scan cleanup is joined
+ok 54 - run coalesces and pause stops admission synchronously while scan cleanup is joined
+  ---
+  duration_ms: 0.7985
+  type: 'test'
+  ...
+# Subtest: failed scan still waits separate admitted cleanup ticket
+ok 55 - failed scan still waits separate admitted cleanup ticket
+  ---
+  duration_ms: 0.2657
+  type: 'test'
+  ...
+# Subtest: admission stop or any quiescence failure blocks close without closing pool
+ok 56 - admission stop or any quiescence failure blocks close without closing pool
+  ---
+  duration_ms: 0.7542
+  type: 'test'
+  ...
+# Subtest: rollback keeps stopped for unknown/pending/old-release incompatible evidence
+ok 57 - rollback keeps stopped for unknown/pending/old-release incompatible evidence
+  ---
+  duration_ms: 0.4528
+  type: 'test'
+  ...
+# Subtest: close waits readonly assessment, denies new assessment and never restarts
+ok 58 - close waits readonly assessment, denies new assessment and never restarts
+  ---
+  duration_ms: 0.3696
+  type: 'test'
+  ...
+# Subtest: original non-target scheduler reference preserved, no activation permission
+ok 59 - original non-target scheduler reference preserved, no activation permission
+  ---
+  duration_ms: 0.1448
+  type: 'test'
+  ...
+# Subtest: copied dependencies cannot grant ledger or audit capabilities
+ok 60 - copied dependencies cannot grant ledger or audit capabilities
+  ---
+  duration_ms: 0.2758
+  type: 'test'
+  ...
+# Subtest: checkpoint evidence preserves exact cursor bytes
+ok 61 - checkpoint evidence preserves exact cursor bytes
+  ---
+  duration_ms: 0.2646
+  type: 'test'
+  ...
+# Subtest: checkpoint identity checks all scope/window/task components
+ok 62 - checkpoint identity checks all scope/window/task components
+  ---
+  duration_ms: 0.2318
+  type: 'test'
+  ...
+# Subtest: invalid counter/cursor values cannot weaken completion evidence
+ok 63 - invalid counter/cursor values cannot weaken completion evidence
+  ---
+  duration_ms: 0.2392
+  type: 'test'
+  ...
+# Subtest: SQL datetime and canonical ISO represent the same checkpoint timestamps
+ok 64 - SQL datetime and canonical ISO represent the same checkpoint timestamps
+  ---
+  duration_ms: 0.112
+  type: 'test'
+  ...
+# Subtest: strict stage-covered factory never accepts missing or copied capabilities
+ok 65 - strict stage-covered factory never accepts missing or copied capabilities
+  ---
+  duration_ms: 7.2987
+  type: 'test'
+  ...
+# Subtest: missing region is canonicalized from persistent source before routing
+ok 66 - missing region is canonicalized from persistent source before routing
+  ---
+  duration_ms: 0.6192
+  type: 'test'
+  ...
+# Subtest: forged region, overwritten queue source and poll trigger refuse classification
+ok 67 - forged region, overwritten queue source and poll trigger refuse classification
+  ---
+  duration_ms: 0.3374
+  type: 'test'
+  ...
+# Subtest: non-target does not newly require default account or optional community
+ok 68 - non-target does not newly require default account or optional community
+  ---
+  duration_ms: 1.3016
+  type: 'test'
+  ...
+# Subtest: copied or cross-repo classifier does not authorize worker intake
+ok 69 - copied or cross-repo classifier does not authorize worker intake
+  ---
+  duration_ms: 0.1679
+  type: 'test'
+  ...
+# Subtest: actual manual intake rejects false region before marker clearing or operation
+ok 70 - actual manual intake rejects false region before marker clearing or operation
+  ---
+  duration_ms: 4.4747
+  type: 'test'
+  ...
+# Subtest: source aliases cannot change recovery or poll attribution
+ok 71 - source aliases cannot change recovery or poll attribution
+  ---
+  duration_ms: 0.2105
+  type: 'test'
+  ...
+# Subtest: valid candidate marker without durable admission is never cleared
+ok 72 - valid candidate marker without durable admission is never cleared
+  ---
+  duration_ms: 1.1158
+  type: 'test'
+  ...
+# Subtest: invalid identity is isolated while unrelated domestic due source still runs
+ok 73 - invalid identity is isolated while unrelated domestic due source still runs
+  ---
+  duration_ms: 1.2731
+  type: 'test'
+  ...
+# Subtest: database errors are not disguised as invalid-item skips
+ok 74 - database errors are not disguised as invalid-item skips
+  ---
+  duration_ms: 0.5783
+  type: 'test'
+  ...
+# Subtest: initial and poll work share a single bounded permit without double release
+ok 75 - initial and poll work share a single bounded permit without double release
+  ---
+  duration_ms: 0.1664
+  type: 'test'
+  ...
+# Subtest: invalid concurrency never admits work
+ok 76 - invalid concurrency never admits work
+  ---
+  duration_ms: 0.1243
+  type: 'test'
+  ...
+1..76
+# tests 76
+# suites 0
+# pass 76
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 373.612
+
+OFFLINE_GUARD_DENIALS:{}
