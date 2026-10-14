@@ -12,6 +12,7 @@ test('isolated authorized flow partitions in-memory tokens and reuses existing c
   const rootToken = 'fixture-root+token/&=';
   const transport = async (url, options) => {
     requests.push({ url: new URL(url), options });
+    if (url.pathname.endsWith('/setting/language')) return response(url, { code: 0, data: [{ languageID: 2, code: 'en-US' }, { languageID: 9, code: 'ko-KR' }, { languageID: 16, code: 'ja-jp' }] });
     if (url.pathname.endsWith('/login/token')) {
       assert.equal(url.searchParams.get('token'), rootToken);
       assert.equal(url.searchParams.get('sdkToken'), '');
@@ -77,7 +78,9 @@ test('scope, production transport, cancellation and redirect fail closed', async
 
 test('rejected auth invalidates cache without refreshing shared credentials; transport error does not leak URL', async () => {
   let exchanges = 0, refreshes = 0;
-  const transport = async url => url.pathname.endsWith('/login/token')
+  const transport = async url => url.pathname.endsWith('/setting/language')
+    ? response(url, { code: 0, data: [{ languageID: 2, code: 'en-US' }] })
+    : url.pathname.endsWith('/login/token')
     ? (exchanges++, response(url, { code: 0, data: { token: 'fixture-site' } }))
     : { ok: false, status: 401, url: String(url) };
   const session = createIsolatedLastNightSiteSession({ isolated: true, transport });

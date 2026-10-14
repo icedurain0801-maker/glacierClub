@@ -46,6 +46,7 @@ async function runBacklogIteration(deps, processFn = processAnalysisBacklog, { s
 async function runAnalysisLoop(deps, { sleepFn = sleep, signal, processFn = processAnalysisBacklog, log = console.log } = {}) {
   const idleMs = Math.max(100, Number(process.env.AI_ANALYSIS_WORKER_IDLE_MS || 1000));
   let nextMetricsAt = 0;
+  let metricsPending = false;
   while (!signal?.aborted) {
     let result;
     try {
@@ -55,11 +56,16 @@ async function runAnalysisLoop(deps, { sleepFn = sleep, signal, processFn = proc
       await sleepFn(idleMs);
       continue;
     }
-    log(JSON.stringify({ task: 'analysis-worker', at: new Date().toISOString(), analyzed: result?.analyzed || 0, skipped: Boolean(result?.skipped) }));
-    if (Date.now() >= nextMetricsAt && typeof deps.repo.countAnalysisJobs === 'function') {
+    log(JSON.stringify({ task: 'analysis-worker', at: new Date().toISOString(), analyzed: result?.analyzed || 0, skipped: Boolean(result?.skipped), timings: result?.timings }));
+    if (!metricsPending && Date.now() >= nextMetricsAt && typeof deps.repo.countAnalysisJobs === 'function') {
       nextMetricsAt = Date.now() + 60000;
-      try { log(JSON.stringify({ task: 'analysis-queue', at: new Date().toISOString(), ...await deps.repo.countAnalysisJobs({ profile: 'light', version: deps.ai.profiles.light.version }) })); }
-      catch (error) { console.error('[analysis-worker] metrics failed:', error?.code || 'ANALYSIS_METRICS_FAILED'); }
+      metricsPending = true;
+      // Queue/integrity telemetry scans must not pause useful analysis work.
+      // Only one read-only metrics request may run at a time.
+      void Promise.resolve().then(() => deps.repo.countAnalysisJobs({ profile: 'light', version: deps.ai.profiles.light.version }))
+        .then(metrics => log(JSON.stringify({ task: 'analysis-queue', at: new Date().toISOString(), ...metrics })))
+        .catch(error => console.error('[analysis-worker] metrics failed:', error?.code || 'ANALYSIS_METRICS_FAILED'))
+        .finally(() => { metricsPending = false; });
     }
     await sleepFn(result?.analyzed ? 100 : idleMs);
   }

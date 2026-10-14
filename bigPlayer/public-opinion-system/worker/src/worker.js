@@ -241,9 +241,15 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
   }
   if (scope.enqueueOnly) return { analyzed: 0, alerted: 0, enqueued: changed.length };
   let analyzed = 0; let alerted = 0;
+  const timings = { claimMs: 0, cacheMs: 0, modelMs: 0, persistMs: 0 };
+  const iterationStarted = Date.now();
+  const rulesByScope = new Map();
   const game = { id: source?.game_id || null, name: source?.game_name || source?.display_name || null, region_code: source?.region_code || null, community_id: source?.community_id || null, dingtalk_webhook_ref: source?.dingtalk_webhook_ref || null };
   for (const profile of ['light', 'deep']) {
+    const globalSinglePassDeep = ai.singlePass && profile === 'deep' && !source && !allowedContents && !scope.publishedFrom && !scope.publishedTo;
+    if (globalSinglePassDeep && Date.now() < (deps.emptyDeepCheckAt || 0)) continue;
     const spec = profileSpec(ai, profile);
+    const claimStarted = Date.now();
     const claimedJobs = await repo.claimAnalysisJobs({
       profile,
       version: spec.version,
@@ -258,48 +264,70 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
       publishedTo: scope.publishedTo,
       ...(allowedContents?{contentIds:exactContentIds}:{} )
     });
+    timings.claimMs += Date.now() - claimStarted;
     const jobs = Array.isArray(claimedJobs) ? claimedJobs : [];
     if(allowedContents&&jobs.some(job=>!allowedContents.has(job.content_id)))throw stableError('ANALYSIS_ALLOWLIST_VIOLATION','claimed content outside exact allowlist');
-    if (!jobs.length) continue;
+    if (!jobs.length) {
+      // TypeSafe never promotes light jobs; poll an empty global legacy deep
+      // queue once per minute. Scoped/manual work always checks immediately.
+      if (globalSinglePassDeep) deps.emptyDeepCheckAt = Date.now() + 60000;
+      continue;
+    }
+    if (globalSinglePassDeep) deps.emptyDeepCheckAt = 0;
+    const cacheStarted = Date.now();
     const cached = typeof repo.getAnalysisCache === 'function' ? await repo.getAnalysisCache(jobs.map(job => analysisCacheKey(ai, job, profile))) : [];
+    timings.cacheMs += Date.now() - cacheStarted;
     const cacheByKey = new Map(cached.map(row => [row.cache_key || row.cacheKey, cacheAnalysis(row)]));
     const pending = []; const results = new Array(jobs.length);
     jobs.forEach((job, index) => { const hit = cacheByKey.get(analysisCacheKey(ai, job, profile)); if (hit) results[index] = hit; else pending.push({ job, index }); });
     try {
       if (pending.length) {
-        const analyses = await ai.analyzeBatch(pending.map(({ job }) => ({ title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
+        const modelStarted = Date.now();
+        const analyses = await ai.analyzeBatch(pending.map(({ job }) => ({ contentType: job.content_type, title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
+        timings.modelMs += Date.now() - modelStarted;
         pending.forEach(({ index }, i) => { results[index] = analyses[i]; });
       }
-      for (let index = 0; index < jobs.length; index += 1) {
-        const job = jobs[index]; const raw = job; const cachedAnalysis = cacheAnalysis(job); const analysis = normalizePersistedAnalysis({ ...results[index], analysisLevel: profile, profile, analysisVersion: results[index]?.analysisVersion || spec.version, contentFingerprint: job.content_fingerprint || job.fingerprint, normalizationBatchId: scope.runId || job.sync_run_id || job.id, cacheKey: analysisCacheKey(ai, job, profile), triggerReason: job.trigger_reason || null, matchedKeywords: cachedAnalysis?.matchedKeywords || parseObject(job.matched_keywords) || [] }, job);
-        const escalatedFromLight = profile === 'deep' && ['light_escalation', 'keyword_match'].includes(job.trigger_reason);
-        const lightAnalysis = escalatedFromLight && typeof repo.getLightAnalysis === 'function' ? normalizePersistedAnalysis(await repo.getLightAnalysis(job.content_id), job) : null;
-        if (typeof repo.insertAnalysis === 'function') await repo.insertAnalysis(job.content_id, analysis);
-        if (typeof repo.reconcilePositiveRiskAlerts === 'function') await repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: scope.runId || job.sync_run_id || job.id });
-        if (typeof repo.upsertAnalysisCache === 'function' && !cacheByKey.has(analysisCacheKey(ai, job, profile))) await repo.upsertAnalysisCache({ ...analysis, cacheKey: analysisCacheKey(ai, job, profile), contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
-        const qualityCandidate = profile === 'deep' ? qualityCandidateOf(analysis) : null;
-        if (qualityCandidate && typeof repo.upsertQualityCandidate === 'function') { try { await repo.upsertQualityCandidate(job.content_id, qualityCandidate); } catch (qualityError) { console.error('upsertQualityCandidate failed:', qualityError?.code || 'QUALITY_CANDIDATE_FAILED'); } }
-        await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status: 'completed' }); analyzed += 1;
-        const jobRules = source?.game_id ? sourceRules : (typeof repo.loadKeywordRules === 'function' ? await repo.loadKeywordRules(job.game_id, job.platform, job.community_id) : []);
-        const hit = matchRules({ title: raw.title, body: raw.body, authorName: raw.author_name || raw.authorName }, jobRules);
-        const promoted = profile === 'light' && shouldDeepAnalyze(analysis, hit);
-        if (promoted && (typeof ai?.configured !== 'function' || ai.configured('deep'))) await repo.enqueueAnalysisJob(job.content_id, { profile: 'deep', version: profileSpec(ai, 'deep').version, contentFingerprint: analysis.contentFingerprint, triggerReason: hit.matchedKeywords?.length ? 'keyword_match' : 'light_escalation', matchedKeywords: hit.matchedKeywords || analysis.matchedKeywords });
-        if (!promoted && analysis.severity === 'urgent') {
-          const alertAnalysis = effectiveAnalysisForAlert(analysis, lightAnalysis);
-          // 注意 ...raw 放前面：raw（=job 行）的 id 是 job id，若放在后会覆盖正确的 content id，
-          // 导致 po_alert_contents 的 FK 静默失败（INSERT IGNORE 吞错），告警丢失关联内容。
-          const alertGame = source?.game_id ? game : { id: job.game_id, name: job.game_name || job.platform, region_code: job.region_code, community_id: job.community_id, dingtalk_webhook_ref: null };
-          const alertContent = { ...raw, id: job.content_id, game_id: job.game_id, community_id: job.community_id };
-          assertCanonicalCommunityScope(alertGame, alertContent);
-          const created = hit.needAI && job.game_id ? await deps.alertEngine.process({ game: alertGame, content: alertContent, hit, analysis: alertAnalysis }) : (alertAnalysis.severity === 'urgent' && job.game_id && typeof deps.alertEngine.processAiUrgent === 'function' ? await deps.alertEngine.processAiUrgent({ game: alertGame, content: alertContent, analysis: alertAnalysis }) : []);
-          alerted += created.filter(item => !item.reused).length;
+      const persistStarted = Date.now();
+      await runBounded(jobs.map((job, index) => ({ job, index })), deps.analysisPersistConcurrency || 1, async ({ index }) => {
+        try {
+          const job = jobs[index]; const raw = job; const cachedAnalysis = cacheAnalysis(job); const analysis = normalizePersistedAnalysis({ ...results[index], analysisLevel: profile, profile, analysisVersion: results[index]?.analysisVersion || spec.version, contentFingerprint: job.content_fingerprint || job.fingerprint, normalizationBatchId: scope.runId || job.sync_run_id || job.id, cacheKey: analysisCacheKey(ai, job, profile), triggerReason: job.trigger_reason || null, matchedKeywords: cachedAnalysis?.matchedKeywords || parseObject(job.matched_keywords) || [] }, job);
+          const escalatedFromLight = profile === 'deep' && ['light_escalation', 'keyword_match'].includes(job.trigger_reason);
+          const lightAnalysis = escalatedFromLight && typeof repo.getLightAnalysis === 'function' ? normalizePersistedAnalysis(await repo.getLightAnalysis(job.content_id), job) : null;
+          if (typeof repo.insertAnalysis === 'function') await repo.insertAnalysis(job.content_id, analysis);
+          if (typeof repo.reconcilePositiveRiskAlerts === 'function') await repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: scope.runId || job.sync_run_id || job.id });
+          if (typeof repo.upsertAnalysisCache === 'function' && !cacheByKey.has(analysisCacheKey(ai, job, profile))) await repo.upsertAnalysisCache({ ...analysis, cacheKey: analysisCacheKey(ai, job, profile), contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
+          const qualityCandidate = profile === 'deep' || ai.singlePass ? qualityCandidateOf(analysis) : null;
+          if (qualityCandidate && typeof repo.upsertQualityCandidate === 'function') { try { await repo.upsertQualityCandidate(job.content_id, qualityCandidate); } catch (qualityError) { console.error('upsertQualityCandidate failed:', qualityError?.code || 'QUALITY_CANDIDATE_FAILED'); } }
+          await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status: 'completed' }); analyzed += 1;
+          const ruleKey = JSON.stringify([job.game_id, job.platform, job.community_id]);
+          if (!source?.game_id && !rulesByScope.has(ruleKey)) rulesByScope.set(ruleKey, typeof repo.loadKeywordRules === 'function' ? repo.loadKeywordRules(job.game_id, job.platform, job.community_id) : Promise.resolve([]));
+          const jobRules = source?.game_id ? sourceRules : await rulesByScope.get(ruleKey);
+          const hit = matchRules({ title: raw.title, body: raw.body, authorName: raw.author_name || raw.authorName }, jobRules);
+          // 旧light→deep升级保留；TypeSafe单次判断完成，不重复调旧模型。
+          const promoted = !ai.singlePass && profile === 'light' && shouldDeepAnalyze(analysis, hit);
+          if (promoted && (typeof ai?.configured !== 'function' || ai.configured('deep'))) await repo.enqueueAnalysisJob(job.content_id, { profile: 'deep', version: profileSpec(ai, 'deep').version, contentFingerprint: analysis.contentFingerprint, triggerReason: hit.matchedKeywords?.length ? 'keyword_match' : 'light_escalation', matchedKeywords: hit.matchedKeywords || analysis.matchedKeywords });
+          if (!promoted && analysis.severity === 'urgent') {
+            const alertAnalysis = effectiveAnalysisForAlert(analysis, lightAnalysis);
+            // 注意 ...raw 放前面：raw（=job 行）的 id 是 job id，若放在后会覆盖正确的 content id，
+            // 导致 po_alert_contents 的 FK 静默失败（INSERT IGNORE 吞错），告警丢失关联内容。
+            const alertGame = source?.game_id ? game : { id: job.game_id, name: job.game_name || job.platform, region_code: job.region_code, community_id: job.community_id, dingtalk_webhook_ref: null };
+            const alertContent = { ...raw, id: job.content_id, game_id: job.game_id, community_id: job.community_id };
+            assertCanonicalCommunityScope(alertGame, alertContent);
+            const created = hit.needAI && job.game_id ? await deps.alertEngine.process({ game: alertGame, content: alertContent, hit, analysis: alertAnalysis }) : (alertAnalysis.severity === 'urgent' && job.game_id && typeof deps.alertEngine.processAiUrgent === 'function' ? await deps.alertEngine.processAiUrgent({ game: alertGame, content: alertContent, analysis: alertAnalysis }) : []);
+            alerted += created.filter(item => !item.reused).length;
+          }
+        } catch (error) {
+          const job = jobs[index]; const attempts = Number(job.attempts || 1);
+          const status = attempts >= (deps.analysisMaxAttempts || 3) ? 'failed' : 'retryable';
+          await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status, errorCode: errorCode(error), errorMessage: safeErrorMessage(error, 'analysis job failed'), retryAt: status === 'retryable' ? new Date(Date.now() + (deps.analysisRetryBaseMs || 1000) * 2 ** Math.max(0, attempts - 1)) : null });
         }
-      }
+      });
+      timings.persistMs += Date.now() - persistStarted;
     } catch (error) {
       for (const job of jobs) { const attempts = Number(job.attempts || 1); const status = attempts >= (deps.analysisMaxAttempts || 3) ? 'failed' : 'retryable'; const retryAt = status === 'retryable' ? new Date(Date.now() + (deps.analysisRetryBaseMs || 1000) * 2 ** Math.max(0, attempts - 1)) : null; await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status, errorCode: errorCode(error), errorMessage: safeErrorMessage(error, 'analysis job failed'), retryAt }); }
     }
   }
-  return { analyzed, alerted };
+  return { analyzed, alerted, ...(deps.analysisTimingEnabled ? { timings: { ...timings, elapsedMs: Date.now() - iterationStarted } } : {}) };
 }
 
 async function processAnalysisBacklog(deps) {
@@ -1296,7 +1324,7 @@ function buildDeps(env = process.env) {
     connectorCapabilities: schedulerConnectorCapabilities(connectors)
   };
   const bigPlayerCandidateObservation = { enabled: String(env.BIGPLAYER_CANDIDATE_OBSERVATION_ENABLED || '').trim().toLowerCase() === 'true', sourceId: String(env.BIGPLAYER_CANDIDATE_OBSERVATION_SOURCE_ID || '').trim() || null, runId: String(env.BIGPLAYER_CANDIDATE_OBSERVATION_RUN_ID || '').trim() || null };
-  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), leaseOwner, workerId, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), leaseHeartbeatMs: Number(env.SYNC_LEASE_HEARTBEAT_MS || 0), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), queuePollIntervalMs: Math.max(250, Number(env.WORKER_QUEUE_POLL_INTERVAL_MS || 5000)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), bigPlayerCandidateObservation, unifiedScheduler };
+  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), leaseOwner, workerId, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), leaseHeartbeatMs: Number(env.SYNC_LEASE_HEARTBEAT_MS || 0), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), queuePollIntervalMs: Math.max(250, Number(env.WORKER_QUEUE_POLL_INTERVAL_MS || 5000)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisTimingEnabled: env.AI_ANALYSIS_TIMINGS === "1", analysisPersistConcurrency: Math.min(4, Math.max(1, Number(env.AI_ANALYSIS_PERSIST_CONCURRENCY || 1))), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), bigPlayerCandidateObservation, unifiedScheduler };
 }
 async function unifiedSchedulerSchemaReady(connection) {
   const [rows] = await connection.query(

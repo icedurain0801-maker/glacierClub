@@ -55,6 +55,8 @@ try {
     & node.exe -e "const fs=require('node:fs');try{fs.lstatSync(process.argv[1]);fs.rmSync(process.argv[1],{recursive:true,force:true})}catch(error){if(error.code!=='ENOENT')throw error}" $workspaceLink
     if ($LASTEXITCODE -ne 0) { throw "Workspace link cleanup failed with exit code $LASTEXITCODE" }
     Copy-Tree (Join-Path $source 'server\src') (Join-Path $stage 'server\src')
+    # TypeSafe test bridge reuses the independently delivered Python client.
+    Copy-Item -LiteralPath (Join-Path $source 'sentiment_evaluator.py') -Destination (Join-Path $stage 'server\src\integrations\sentiment_evaluator.py')
     New-Item -ItemType Directory -Path (Join-Path $stage 'shared') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $source 'shared\riskModes.js') -Destination (Join-Path $stage 'shared\riskModes.js')
     Copy-Item -LiteralPath (Join-Path $source 'shared\bigPlayerBoard.js') -Destination (Join-Path $stage 'shared\bigPlayerBoard.js')

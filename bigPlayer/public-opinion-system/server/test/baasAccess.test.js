@@ -30,6 +30,15 @@ test('anonymous, malformed and roleless users cannot gain access', async () => {
   for (const roles of [[], ['owner'], ['unknown'], 'admin']) await assert.rejects(make(user(roles)).authenticate(req()), { code: 'BAAS_ROLE_REQUIRED' });
 });
 
+test('SSO 运营角色仅在舆情服务启用角色映射后进入待授权状态', async () => {
+  const me = user(['Ops_chaoneng_cn']);
+  await assert.rejects(make(me).authenticate(req()), { code: 'BAAS_ROLE_REQUIRED' });
+  const identity = await new BaasAccess({ allowRoleMapping: true, fetchImpl: async () => new Response(JSON.stringify(me)) }).authorize(req(), '/api/public-opinion/contents');
+  assert.deepEqual(identity.roleKeys, ['Ops_chaoneng_cn']);
+  assert.equal(identity.pendingRoleMapping, true);
+  assert.deepEqual(identity.permissions, { read: true, review: true, manage: true });
+});
+
 test('owner maps to admin, reviewer can review, analysts and viewers remain read-only', async () => {
   for (const role of ['analyst', 'viewer']) {
     const access = make(user([role]));

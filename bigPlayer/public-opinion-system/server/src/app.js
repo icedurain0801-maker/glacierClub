@@ -2,8 +2,9 @@ const { loadRuntimeEnv } = require('./runtimeEnv');
 loadRuntimeEnv();
 
 const http = require('node:http');
+const { syncCollectionCheckTasks } = require('./services/collectionCheckSync');
 const { BaasAccess, publicSourceSummary } = require('./services/baasAccess');
-const baasAccess = new BaasAccess();
+const baasAccess = new BaasAccess({ allowRoleMapping: true });
 const { parseBatchHandling } = require('./services/contentHandling');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -21,6 +22,8 @@ const { LoginSessionClient } = require('./services/loginSessionClient');
 const { AuthRefreshCoordinator } = require('./services/authRefreshCoordinator');
 const { CommunityProvider, CommunityDirectory } = require('./services/communityProvider');
 const { normalizeSiteUrls, normalizeUrl } = require('./services/bigplayerSiteConfig');
+const { SourceAuthorizationCheck, prepare: prepareAuthorizationCheck } = require('./services/sourceAuthorizationCheck');
+const sourceAuthorizationCheck = new SourceAuthorizationCheck();
 const { SOURCE_PLATFORMS, OVERSEAS_LAST_NIGHT_GAME_ID, OVERSEAS_LAST_NIGHT_COMMUNITY_ID, isSocialPlatform, isWesternOverseasSource, WESTERN_EDITION_SCOPE, maskPhone, normalizeFacebookPageUrl, normalizePlatform, socialSecret, validateEndpoint, validateFacebookPageUrl, validateSocialCredential, validateWesternSourceUrl } = require('./services/sourceValidators');
 const { normalizeRiskFilters } = require('../../shared/riskModes');
 const { createSupervisor } = require('./runtimeSupervisor');
@@ -37,6 +40,8 @@ const loginSessionClient = new LoginSessionClient();
 const authRefreshCoordinator = new AuthRefreshCoordinator({ repo, loginSessionClient });
 const connectors = { bigplayer_h5: new BigPlayerH5Connector(process.env, { credentialContext, authRefreshCoordinator, loginSessionClient }), ...buildExternalConnectors(process.env, { credentialContext, douyinOAuthService: douyinOAuth }) };
 const ai = new AiAnalyzer();
+const { TypeSafeTestService } = require('./services/typesafeTestService');
+const typeSafeTests = new TypeSafeTestService({ repo });
 const dingTalk = new DingTalkNotifier();
 const SYNC_MODES = new Set(['incremental', 'backfill']);
 function validBigPlayerBoardId(value) { return typeof value === 'string' || typeof value === 'number' ? /^[1-9]\d*$/.test(String(value)) && Number.isSafeInteger(Number(value)) : false; }
@@ -58,6 +63,8 @@ function requireCredentialResolveAccess(req) {
 }
 async function resolveCredential(req) {
   requireCredentialResolveAccess(req); const body = await readBody(req);
+  const previewCredential = sourceAuthorizationCheck.resolvePreview(body);
+  if (previewCredential && body.platform === 'bigplayer_h5' && body.credentialType === 'account_password') return previewCredential;
   const sourceId = String(body.sourceId || '').trim(), accountId = String(body.accountId || '').trim();
   const platform = normalizePlatform(body.platform), credentialType = String(body.credentialType || '').trim(), credentialRef = String(body.credentialRef || '').trim();
   if (!sourceId || !accountId || platform !== 'bigplayer_h5' || credentialType !== 'account_password' || credentialRef !== `credential:${accountId}:account_password`) { const error = new Error('invalid credential binding'); error.code = 'INVALID_INPUT'; throw error; }
@@ -782,6 +789,52 @@ async function resolveCanonicalScope(input = {}) {
   }
 }
 async function resolveRequestScope(url, options) { return resolveCanonicalScope(scopeFromQuery(url, options)); }
+const PERMISSION_NAV = Object.freeze([
+  ['overview', '舆情数据概览'], ['content', '抓取内容管理'], ['alerts', '舆情通知管理'],
+  ['sources', '抓取账号管理'], ['runs', '抓取任务记录'], ['keywords', '监控关键词设置']
+]);
+const SSO_ROLES = Object.freeze([
+  { key: 'Ops_chaoneng_cn', name: '超能国内运营' }, { key: 'Ops_dengta_cn', name: '灯塔海外运营' }, { key: 'Ops_weimian2_cn', name: '位面2海外运营' }
+]);
+function navForRequest(pathname) {
+  const path = pathname.replace('/api/public-opinion/', '');
+  // 社区目录是所有已授权功能的共同依赖；不能因没有“概览”权限而让来源、内容等页面无法加载其社区范围。
+  if (/^(overview|overview-trend)(?:\/|$)/.test(path)) return 'overview';
+  if (/^(contents|quality-contents)(?:\/|$)/.test(path)) return 'content';
+  if (/^alerts(?:\/|$)/.test(path)) return 'alerts';
+  if (/^(sources|accounts|credentials|oauth)(?:\/|$)/.test(path)) return 'sources';
+  if (/^sync-runs(?:\/|$)/.test(path)) return 'runs';
+  if (/^keyword-rules(?:\/|$)/.test(path)) return 'keywords';
+  return null;
+}
+async function applySsoRolePermissions(identity) {
+  if (!identity || !identity.pendingRoleMapping) return identity;
+  const rows = await repo.listSsoRolePermissions();
+  const allowed = rows.filter(row => identity.roleKeys.includes(row.role_key));
+  if (!allowed.length) { const error = new Error('当前 SSO 角色尚未配置舆情权限，请联系管理员'); error.code = 'BAAS_ROLE_REQUIRED'; error.status = 403; throw error; }
+  const navigation = [...new Set(allowed.map(row => row.nav_key))];
+  const communityIds = [...new Set(allowed.map(row => String(row.community_id)))];
+  return Object.freeze({ ...identity, permissions: { read: true, review: true, manage: true }, navigation, communityIds, pendingRoleMapping: false, scoped: true });
+}
+function assertCommunityScope(identity, communityId) {
+  if (!identity?.scoped || communityId == null || identity.communityIds.includes(String(communityId))) return;
+  const error = new Error('当前角色未获此社区权限'); error.code = 'BAAS_FORBIDDEN'; error.status = 403; throw error;
+}
+async function assertResourceScope(identity, { sourceId, accountId, syncRunId } = {}) {
+  if (!identity?.scoped) return;
+  if (sourceId) {
+    const source = await sourceById(sourceId);
+    if (source) assertCommunityScope(identity, source.community_id);
+  }
+  if (accountId) {
+    const account = await repo.getAccount(accountId);
+    if (account) assertCommunityScope(identity, account.community_id);
+  }
+  if (syncRunId) {
+    const run = await repo.getSyncRun(syncRunId);
+    if (run) assertCommunityScope(identity, run.community_id || run.run_community_id);
+  }
+}
 
 async function handler(req, res) {
   res.corsHeaders = corsHeaders(req);
@@ -802,15 +855,43 @@ async function handler(req, res) {
   try {
     if (req.method === 'GET' && url.pathname === '/api/public-opinion/auth/config') {
       res.noStore = true;
-      return json(res, 200, success(baasAccess.publicConfig()));
+      return json(res, 200, success(baasAccess.publicConfig(req)));
     }
     // Machine imports retain their existing token checks; no loopback or client-role bypass.
     const machineImport = req.method === 'POST' && (url.pathname === '/api/public-opinion/analysis/content-batch' || /^\/api\/public-opinion\/sources\/[^/]+\/import$/.test(url.pathname));
     if (baasAccess.enabled && !machineImport) req.baasIdentity = await baasAccess.authorize(req, url.pathname);
+    if (req.baasIdentity) req.baasIdentity = await applySsoRolePermissions(req.baasIdentity);
     if (req.method === 'GET' && url.pathname === '/api/public-opinion/auth/session') {
       res.noStore = true;
       return json(res, 200, success({ enabled: baasAccess.enabled, identity: req.baasIdentity || null }));
     }
+    if (resource === 'api-config' && id === 'typesafe' && path.length === 2) return await typeSafeTests.handleRequest(req, res, { path: ['typesafe-test', 'config'], id: 'config', json, success, errorPayload, readBody });
+    if (resource === 'typesafe-test') return await typeSafeTests.handleRequest(req, res, { path, id, json, success, errorPayload, readBody });
+    if (resource === 'permission-rules') {
+      if (!req.baasIdentity?.roles?.includes('admin')) return json(res, 403, errorPayload('BAAS_FORBIDDEN', '仅应用管理员可以配置权限'));
+      if (req.method === 'GET' && path.length === 1) return json(res, 200, success({ roles: SSO_ROLES, navigation: PERMISSION_NAV.map(([key, label]) => ({ key, label })), communities: await communityDirectory.list({ includeDisabled: false }), grants: await repo.listSsoRolePermissions() }));
+      if (req.method === 'PUT' && path.length === 2) {
+        const body = await readBody(req); const role = String(id || '');
+        const validNav = new Set(PERMISSION_NAV.map(([key]) => key));
+        const roleKeys = new Set(SSO_ROLES.map(item => item.key));
+        const grants = Array.isArray(body.grants) ? body.grants : [];
+        if (!roleKeys.has(role)) return json(res, 400, errorPayload('INVALID_INPUT', 'SSO 角色不存在'));
+        if (grants.some(grant => !validNav.has(String(grant.navKey)) || !String(grant.communityId))) return json(res, 400, errorPayload('INVALID_INPUT', '权限项格式无效'));
+        const known = new Set((await communityDirectory.list({ includeDisabled: false })).map(item => String(item.id)));
+        if (grants.some(grant => !known.has(String(grant.communityId)))) return json(res, 400, errorPayload('INVALID_INPUT', '社区不存在或已停用'));
+        return json(res, 200, success({ grants: await repo.replaceSsoRolePermissions(role, grants) }));
+      }
+      return json(res, 404, errorPayload('NOT_FOUND', 'route not found'));
+    }
+    const requestedNav = navForRequest(url.pathname);
+    if (req.baasIdentity?.scoped && requestedNav && !req.baasIdentity.navigation.includes(requestedNav)) return json(res, 403, errorPayload('BAAS_FORBIDDEN', '当前角色未获此导航功能权限'));
+    assertCommunityScope(req.baasIdentity, url.searchParams.get('communityId'));
+    // Query 参数和资源 ID 都可能指定社区范围。先按资源归属收敛，避免绕过前端菜单直接访问别的社区。
+    await assertResourceScope(req.baasIdentity, {
+      sourceId: resource === 'sources' && id ? id : url.searchParams.get('sourceId'),
+      accountId: resource === 'accounts' && id ? id : url.searchParams.get('accountId'),
+      syncRunId: resource === 'sync-runs' && id ? id : undefined
+    });
     if (req.method === 'GET' && !resource) return json(res, 200, success({
       service: 'public-opinion-system',
       message: '舆情分析 API 已启动，请访问具体资源接口',
@@ -853,7 +934,8 @@ async function handler(req, res) {
       const regionCode = url.searchParams.get('regionCode') || undefined;
       const gameId = url.searchParams.get('gameId') || undefined;
       const externalId = url.searchParams.get('externalId') || undefined;
-      return json(res, 200, success(await communityDirectory.list({ gameId, regionCode, externalId, includeDisabled: url.searchParams.get('includeDisabled') !== 'false' })));
+      const communities = await communityDirectory.list({ gameId, regionCode, externalId, includeDisabled: url.searchParams.get('includeDisabled') !== 'false' });
+      return json(res, 200, success(req.baasIdentity?.scoped ? communities.filter(item => req.baasIdentity.communityIds.includes(String(item.id))) : communities));
     }
     if (['POST', 'PATCH'].includes(req.method) && resource === 'communities') return json(res, 410, errorPayload('COMMUNITY_MANAGED_EXTERNALLY', '社区由外部后台维护，本系统不再提供新增或编辑能力'));
     if (req.method === 'GET' && resource === 'sources' && id && path[2] === 'sync-runs' && path[3] === 'latest' && path.length === 4) {
@@ -1383,6 +1465,7 @@ async function handler(req, res) {
         try { await loginSessionClient.bindAccount({ sourceId, accountId, platform, credentialRef: `credential:${accountId}:${credentialType}`, maskedPhone: isSocialPlatform(platform) ? maskPhone(body.phone) : maskLoginIdentifier(h5Account) }); }
         catch (error) { console.warn(error.code || 'LOGIN_SESSION_BIND_FAILED', 'credential saved; login binding will be restored on the next login request'); }
       }
+      syncCollectionCheckTasks();
       return json(res, legacyAccount ? 200 : 201, success(await sourceWithAccount(created.source), legacyAccount ? { adopted: true } : {}));
     }
 
@@ -1404,7 +1487,7 @@ async function handler(req, res) {
     // TapTap 免登源复用该端点更新基础字段与监控账号 ID（accountIds），不接受凭据。
     if (req.method === 'PATCH' && resource === 'sources' && id && path[2] === 'configuration' && path.length === 3) {
       const body = await readBody(req);
-      const allowed = new Set(['displayName', 'baseUrl', 'siteUrls', 'boardId', 'frequencySeconds', 'syncMode', 'historyStart', 'enabled', 'credential', 'accountIds', 'groupIds', 'scheduleTime', 'guildId', 'channelIds', 'channelScope', 'includeThreads', 'includeReplies', 'historySyncEnabled', 'anonymizeAuthors', 'retentionDays']);
+      const allowed = new Set(['displayName', 'baseUrl', 'siteUrls', 'boardId', 'frequencySeconds', 'syncMode', 'historyStart', 'enabled', 'credential', 'accountIds', 'groupIds', 'scheduleTime', 'guildId', 'channelIds', 'channelScope', 'includeThreads', 'includeReplies', 'historySyncEnabled', 'anonymizeAuthors', 'retentionDays', 'authorizationCheckToken']);
       for (const key of Object.keys(body || {})) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported field: ${key}`));
       const currentSource = await sourceById(id);
       if (!currentSource) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
@@ -1416,6 +1499,13 @@ async function handler(req, res) {
         if (sensitiveError) return json(res, 400, errorPayload(sensitiveError.code, sensitiveError.message, sensitiveError.details));
       }
       if (currentSource.platform !== 'bigplayer_h5' && currentSource.platform !== 'taptap' && currentSource.platform !== 'discord' && currentSource.platform !== 'facebook') return json(res, 400, errorPayload('CAPABILITY_UNSUPPORTED', 'source configuration endpoint is not supported for this platform'));
+      let authorizationReceipt;
+      if (currentSource.platform === 'bigplayer_h5') {
+        const account = await defaultAccountForSource(currentSource);
+        if (!account) return json(res, 400, errorPayload('ACCOUNT_NOT_FOUND', '默认账号未配置'));
+        authorizationReceipt = sourceAuthorizationCheck.require(body.authorizationCheckToken, currentSource, account,
+          prepareAuthorizationCheck(currentSource, body, connectors.bigplayer_h5.allowedHosts));
+      }
       if (body.boardId !== undefined && currentSource.platform !== 'bigplayer_h5') return json(res, 400, errorPayload('INVALID_INPUT', 'boardId is only supported for BigPlayer'));
       if (currentSource.platform === 'bigplayer_h5' && !validBigPlayerBoardId(body.boardId ?? parseConfig(currentSource.config).boardId)) return json(res, 400, errorPayload('INVALID_BOARD_ID', 'BigPlayer boardId 必须为正整数'));
       if (currentSource.platform === 'discord') {
@@ -1519,6 +1609,18 @@ async function handler(req, res) {
       const discordConfigPatch = currentSource.platform === 'discord' ? discordSourceConfig(body, {}) : undefined;
       const updatedBaseUrl = normalizedSites?.baseUrl ?? (body.baseUrl == null ? undefined : currentSource.platform === 'facebook' ? normalizeFacebookPageUrl(body.baseUrl) : String(body.baseUrl).trim());
       const updated = await repo.updateSourceConfiguration(id, { displayName: String(body.displayName).trim(), baseUrl: updatedBaseUrl, siteUrls: normalizedSites?.siteUrls, boardId: currentSource.platform === 'bigplayer_h5' ? String(body.boardId ?? parseConfig(currentSource.config).boardId) : undefined, frequencySeconds, syncMode: body.syncMode, historyStart: body.historyStart, enabled: body.enabled, credential, credentialCipher: encryptedCredential, accountIds: taptapAccountIds, groupIds: taptapGroupIds, discordConfig: discordConfigPatch, scheduleTime: currentSource.platform === 'taptap' ? normalizeScheduleTime(body.scheduleTime) : undefined });
+      if (authorizationReceipt) {
+        const account = await defaultAccountForSource(updated.source);
+        await repo.updateSourceAuth(id, { authStatus: 'authorized' });
+        if (account) await repo.updateAccount(account.id, { authStatus: 'authorized' });
+        for (const scope of ['posts', 'comments']) {
+          const values = Object.values(authorizationReceipt.capabilities).map(site => site[scope]);
+          const failure = values.find(value => value?.status !== 'available');
+          const status = failure?.status || (values.length ? 'authorized_scope' : 'unconfigured');
+          await repo.upsertSourceCapability(id, scope, { status, detail: failure || {} });
+        }
+      }
+      syncCollectionCheckTasks();
       return json(res, 200, success(await sourceWithAccount(updated.source)));
     }
 
@@ -1569,6 +1671,7 @@ async function handler(req, res) {
         patch.config = { ...parseConfig(currentSource.config), ...(body.postsApiUrl !== undefined ? { postsApiUrl: body.postsApiUrl } : {}), ...(body.commentsApiUrl !== undefined ? { commentsApiUrl: body.commentsApiUrl } : {}) };
       }
       const source = patch.config ? await repo.updateSourceConfig(id, patch.config, patch) : await repo.updateSource(id, patch);
+      if (source) syncCollectionCheckTasks();
       if (source && (body.platformAccountId != null || body.accountName != null || body.syncMode != null || body.historyStart !== undefined)) {
         const account = await defaultAccountForSource(source);
         if (account) {
@@ -1656,6 +1759,24 @@ async function handler(req, res) {
       }
       if (req.method === 'POST' && path[2] === 'login' && path[3] === 'challenge' && path[4] === 'cancel') return json(res, 200, success(await updateSocialStatus(source, account, await loginSessionClient.revokeSession(binding))));
       if (req.method === 'POST' && path[2] === 'logout') return json(res, 200, success(await updateSocialStatus(source, account, await loginSessionClient.revokeSession(binding))));
+    }
+
+    // Detect current draft without saving configuration or replacing credentials.
+    if (req.method === 'POST' && resource === 'sources' && id && path[2] === 'check-authorization' && path.length === 3) {
+      res.noStore = true;
+      const source = await sourceById(id);
+      if (!source) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
+      if (source.platform !== 'bigplayer_h5') return json(res, 400, errorPayload('CAPABILITY_UNSUPPORTED', '仅支持 BigPlayer 授权检测'));
+      assertWesternSourceRecord(source);
+      const body = await readBody(req);
+      const allowed = new Set(['boardId', 'baseUrl', 'siteUrls', 'credential']);
+      if (Object.keys(body || {}).some(key => !allowed.has(key))) return json(res, 400, errorPayload('INVALID_INPUT', '不支持的检测字段'));
+      const account = await defaultAccountForSource(source);
+      if (!account) return json(res, 400, errorPayload('ACCOUNT_NOT_FOUND', '默认账号未配置'));
+      const prepared = prepareAuthorizationCheck(source, body, connectors.bigplayer_h5.allowedHosts);
+      const result = await sourceAuthorizationCheck.check({ source, account, prepared, connector: connectors.bigplayer_h5, credentialContext });
+      const token = result.authStatus === 'authorized' ? sourceAuthorizationCheck.issue(source, account, prepared, result.capabilities) : null;
+      return json(res, 200, success({ ...result, authorizationCheckToken: token, expiresInSeconds: token ? 300 : 0 }));
     }
 
     // 检测授权：账号级凭据由共享 CredentialContext 解密，连接器不再读取进程级 Cookie/Token。

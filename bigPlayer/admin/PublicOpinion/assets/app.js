@@ -379,6 +379,21 @@ function bindHotTabs() {
     };
   });
 }
+function updateContentTopicsVisibility(overview = null) {
+  const urgentCard = $('#hotList')?.closest('.page-card');
+  const attentionCard = $('#attentionList')?.closest('.page-card');
+  const section = urgentCard?.closest('.overview-section');
+  const grid = urgentCard?.parentElement;
+  // Overview lists mix posts/dynamics and comments; an empty selected tab
+  // must not hide the other tab or turn a failed request into an empty state.
+  const urgentEmpty = Array.isArray(overview?.hotNegative) && overview.hotNegative.length === 0;
+  const attentionEmpty = Array.isArray(overview?.hotAttention) && overview.hotAttention.length === 0;
+  if (urgentCard) urgentCard.hidden = urgentEmpty;
+  if (attentionCard) attentionCard.hidden = attentionEmpty;
+  if (section) section.hidden = urgentEmpty && attentionEmpty;
+  grid?.classList.toggle('overview-single-content', urgentEmpty !== attentionEmpty);
+  renumberOverviewSections();
+}
 function renumberOverviewSections() {
   let number = 0;
   document.querySelectorAll('.overview-workbench > .overview-section').forEach(section => {
@@ -557,6 +572,7 @@ function renderOverview(overview) {
     const attention = $('#viewAllAttention'); if (attention) attention.href = negativeContentHref('attention');
   }
   state.overview = overview || {};
+  updateContentTopicsVisibility(state.overview);
   renderMetrics(state.overview.metrics || {});
   renderSourceDistribution(state.overview.sourceDistribution || []);
   renderTrend(state.overview.trend || [], state.overview.sentiment);
@@ -569,11 +585,13 @@ function renderOverview(overview) {
 async function load() {
   renderRefreshFrequency('采集频率加载中…');
   hotPanelsReady = false;
+  updateContentTopicsVisibility();
   Object.values(hotPanels).forEach(panel => { panel.serial += 1; panel.items = []; });
   renderAlerts([]);
   const serial = ++loadSerial;
   const lifecycle = state.scope?.beginRequest?.();
   if (lifecycle && !lifecycle.allowed) {
+    updateContentTopicsVisibility({ hotNegative: [], hotAttention: [] });
     renderRefreshFrequency('暂无可用社区');
     state.sources = []; state.overview = null; finishOverviewLoading();
     ['#metrics', '#sourceDistribution', '#trend', '#topics', '#attentionList', '#alerts', '#hotList'].forEach(selector => { const el = $(selector); if (el) el.innerHTML = '<div class="module-state">当前地区暂无可用社区</div>'; });

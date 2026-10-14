@@ -42,7 +42,11 @@ function proxyRequest(req, res, requestUrl) {
   const headers = {};
   for (const [name, value] of Object.entries(req.headers)) if (!hopByHop.has(name.toLowerCase())) headers[name] = value;
   headers.host = upstream.host;
-  headers['x-forwarded-host'] = req.headers.host || '';
+  const proxyPeer = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  // Kong uses multiple peers in its private gateway subnet.
+  const trustedGateway = /^172\.16\.127\.(?:\d{1,3})$/.test(proxyPeer);
+  const incomingHost = (['127.0.0.1', '::1'].includes(proxyPeer) || trustedGateway) ? req.headers['x-forwarded-host'] : null;
+  headers['x-forwarded-host'] = incomingHost || req.headers.host || '';
   headers['x-forwarded-proto'] = 'http';
   const proxy = http.request(target, { method: req.method, headers, timeout: 30000 }, response => {
     const responseHeaders = {};

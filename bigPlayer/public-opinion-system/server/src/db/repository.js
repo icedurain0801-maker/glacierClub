@@ -1,3 +1,4 @@
+const { analysisPublishedFrom } = require('../services/analysisWindow');
 const mysql = require('mysql2/promise');
 const { qualityBodyLength, qualityBodyLengthSql } = require('../services/qualityBodyText');
 const ContentHandling = require('../services/contentHandling');
@@ -228,6 +229,9 @@ function isWithinActiveWindow(activeWindow, now = new Date()) {
 class Repository {
   constructor(env = process.env) {
     this.advisoryLocks = new Map();
+    this.analysisFastClaim = env.AI_ANALYSIS_FAST_CLAIM === "1";
+    this.analysisClaimCover = env.AI_ANALYSIS_CLAIM_COVER === "1";
+    this.analysisOldEmptyUntil = new Map();
     this.syncUpsertMaxAttempts = Math.max(1, Number(env.SYNC_UPSERT_MAX_RETRIES || 4));
     this.syncUpsertRetryBaseMs = Math.max(0, Number(env.SYNC_UPSERT_RETRY_BASE_MS == null ? 80 : env.SYNC_UPSERT_RETRY_BASE_MS));
     this.syncUpsertLockWaitSeconds = Math.max(1, Number(env.SYNC_UPSERT_LOCK_WAIT_SECONDS || 30));
@@ -279,6 +283,22 @@ class Repository {
     return this.query(`SELECT c.*, g.name AS game_name, g.region_code, COALESCE(source_stats.source_count,0) AS source_count, COALESCE(content_stats.content_count,0) AS content_count FROM po_communities c JOIN po_games g ON g.id=c.game_id LEFT JOIN (SELECT community_id, COUNT(*) AS source_count FROM po_sources WHERE (JSON_EXTRACT(config,'$.deleted') IS NULL OR JSON_EXTRACT(config,'$.deleted')=false) GROUP BY community_id) source_stats ON source_stats.community_id=c.id LEFT JOIN (SELECT community_id, COUNT(*) AS content_count FROM po_contents GROUP BY community_id) content_stats ON content_stats.community_id=c.id ${where} ORDER BY g.region_code, g.name, c.sort_order, c.name`, values);
   }
   async getCommunity(id) { return (await this.listCommunities({})).find(row => String(row.id) === String(id)) || null; }
+  async listSsoRolePermissions() {
+    return this.query('SELECT role_key,nav_key,community_id FROM po_sso_role_permissions ORDER BY role_key,nav_key,community_id');
+  }
+  async replaceSsoRolePermissions(roleKey, grants = []) {
+    const safeRole = String(roleKey || '').trim();
+    if (!/^[A-Za-z0-9_:-]{2,120}$/.test(safeRole)) { const error = new Error('角色标识格式无效'); error.code = 'INVALID_INPUT'; throw error; }
+    const rows = [...new Map((grants || []).map(item => [`${item.navKey}|${item.communityId}`, { navKey: String(item.navKey || ''), communityId: String(item.communityId || '') }])).values()];
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM po_sso_role_permissions WHERE role_key=?', [safeRole]);
+      for (const row of rows) await conn.query('INSERT INTO po_sso_role_permissions (role_key,nav_key,community_id) VALUES (?,?,?)', [safeRole,row.navKey,row.communityId]);
+      await conn.commit();
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+    return this.listSsoRolePermissions();
+  }
   async syncCommunityMirror(items = []) {
     const conn = await this.pool.getConnection();
     try {
@@ -796,6 +816,7 @@ class Repository {
     return (await this.query('SELECT * FROM po_analysis_jobs WHERE content_id=? AND analysis_profile=? AND analysis_version=?', [contentId, profile, version]))[0] || null;
   }
   async claimAnalysisJobs({ profile, version, leaseOwner, leaseSeconds = 300, limit = 100, sourceId, accountId, gameId, communityId, publishedFrom, publishedTo, businessDate, contentIds, allowDisabledSource = false } = {}) {
+    publishedFrom = analysisPublishedFrom(publishedFrom);
     const gateConnection = this.advisoryLocks.get('po-analysis-consumer');
     if (gateConnection) {
       const [rows] = await gateConnection.query("SELECT IS_USED_LOCK('po-analysis-consumer')=CONNECTION_ID() AS owned");
@@ -849,7 +870,36 @@ class Repository {
     params.push(safeLimit);
     // Preserve the existing recent-first policy; queue metrics expose historical starvation.
     const recencyOrder = "CASE WHEN j.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 0 ELSE 1 END, j.created_at ASC";
+    if (this.analysisFastClaim) {
+      // A non-locking candidate scan avoids broad UPDATE JOIN locks. Recheck every
+      // scope/state predicate in the ID-bounded UPDATE; racing consumers cannot
+      // steal an active lease or widen the manual source/content/date fence.
+      const eligible = "(j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW()))";
+      const selectCandidates = async (extra = '', limit = safeLimit, extraParams = []) => this.query(`SELECT ${this.analysisClaimCover ? "STRAIGHT_JOIN " : ""}j.id FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id WHERE j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND ${eligible}${extra} ORDER BY ${this.analysisClaimCover ? 'j.created_at ASC' : recencyOrder} LIMIT ?`, [...params.slice(2, -1), ...extraParams, limit]);
+      let candidates;
+      if (this.analysisClaimCover) {
+        // Split the existing recent-first ordering into two disjoint index ranges.
+        // A scoped/manual claim must always inspect both ranges immediately.
+        const [{ cutoff }] = await this.query('SELECT DATE_SUB(NOW(), INTERVAL 7 DAY) AS cutoff');
+        candidates = await selectCandidates(' AND j.created_at>=?', safeLimit, [cutoff]);
+        const cacheableOldScan = !sourceId && !accountId && !gameId && !communityId && !contentIds && !allowDisabledSource && !publishedTo;
+        const oldKey = JSON.stringify([profile, version, publishedFrom ? new Date(publishedFrom).toISOString().slice(0, 10) : 'all']);
+        if (candidates.length < safeLimit && (!cacheableOldScan || Date.now() >= (this.analysisOldEmptyUntil.get(oldKey) || 0))) {
+          const older = await selectCandidates(' AND j.created_at<?', safeLimit - candidates.length, [cutoff]);
+          candidates.push(...older);
+          if (cacheableOldScan) {
+            if (!older.length) this.analysisOldEmptyUntil.set(oldKey, Date.now() + 60000);
+            else this.analysisOldEmptyUntil.delete(oldKey);
+            if (this.analysisOldEmptyUntil.size > 10) this.analysisOldEmptyUntil.delete(this.analysisOldEmptyUntil.keys().next().value);
+          }
+        }
+      } else candidates = await selectCandidates();
+      if (!candidates.length) return [];
+      const ids = candidates.map(row => row.id);
+      await this.query(`UPDATE po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=IF(NOT(j.content_fingerprint<=>c.fingerprint),1,j.attempts+1), j.content_fingerprint=c.fingerprint, j.error_code=NULL, j.error_message=NULL WHERE j.id IN (${ids.map(() => '?').join(',')}) AND j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND ${eligible}`, [...params.slice(0, 2), ...ids, ...params.slice(2, -1)]);
+    } else {
     await this.query(`UPDATE po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=j.attempts+1, j.error_code=NULL, j.error_message=NULL WHERE j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND (j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW())) ORDER BY ${recencyOrder} LIMIT ?`, params);
+    }
     return this.query("SELECT j.*, c.game_id, c.community_id, c.source_id, c.account_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.fingerprint, c.is_deleted, s.platform, g.name AS game_name, g.region_code, cm.name AS community_name FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE j.lease_owner=? AND j.status='running' AND j.analysis_profile=? AND j.analysis_version=? ORDER BY j.created_at ASC", [claimOwner, profile, version]);
   }
   async finishAnalysisJob(id, { leaseOwner, status = 'completed', errorCode, errorMessage, retryAt } = {}) { await this.query('UPDATE po_analysis_jobs SET status=?, error_code=?, error_message=?, next_retry_at=?, completed_at=CASE WHEN ?=\'completed\' THEN NOW() ELSE completed_at END, lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE id=? AND lease_owner=?', [status, errorCode || null, errorMessage ? String(errorMessage).slice(0, 500) : null, retryAt || null, status, id, leaseOwner]); }
@@ -1060,6 +1110,7 @@ class Repository {
     return result;
   }
   async enqueueMissingAnalysis({ version = 'sentiment-v2', profile = 'light', limit = 100, accountId, regionCode, gameId, communityId, sourceId, contentType, publishedFrom, publishedTo, contentIds, force = false } = {}) {
+    publishedFrom = analysisPublishedFrom(publishedFrom);
     const values = [profile, version];
     const clauses = ['c.is_deleted=0', force ? "(j.id IS NULL OR j.status IN ('failed','retryable'))" : 'j.id IS NULL'];
     for (const [value, sql] of [[accountId, 'c.account_id'], [gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id'], [contentType, 'c.content_type']]) {
@@ -1079,6 +1130,7 @@ class Repository {
     return rows.length;
   }
   async countAnalysisJobs({ profile, version, sourceId, accountId, gameId, communityId, contentIds, contentType, sentiment, severity, analysisStatus, analysisLevel, keyword, publishedFrom, publishedTo } = {}) {
+    publishedFrom = analysisPublishedFrom(publishedFrom);
     const clauses = ['j.analysis_profile=?', 'j.analysis_version=?', 'c.is_deleted=0'];
     const values = [profile, version];
     for (const [value, sql] of [[sourceId, 'c.source_id'], [accountId, 'c.account_id'], [gameId, 'c.game_id'], [communityId, 'c.community_id'], [contentType, 'c.content_type']]) {
@@ -1274,18 +1326,28 @@ class Repository {
   async getSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '' }) {
     const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
     const params = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
-    return (await this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=?`, params))[0] || null;
+    return (await this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? ORDER BY (status='completed') DESC,(\`cursor\` IS NOT NULL) DESC,id LIMIT 1`, params))[0] || null;
   }
   async claimSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', syncMode = 'incremental', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '', leaseOwner, leaseSeconds = 300 }) {
     if (syncScope === 'replies') return null;
-    const id = uuid();
-    await this.query('INSERT IGNORE INTO po_sync_checkpoints (id, account_id, site_id, task_kind, task_key, sync_scope, root_platform_content_id, window_start, window_end, sync_mode, status) VALUES (?,?,?,?,?,?,?,?,?,?,\'idle\')', [id, accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd, syncMode]);
+    const conn = await this.pool.getConnection();
     const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
-    const identityParams = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
-    const claimed = await this.query(`UPDATE po_sync_checkpoints SET status='running', lease_owner=?, lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), sync_mode=?, error_code=NULL, error_message=NULL WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? AND (status IN ('idle','failed','completed') OR (status='running' AND lease_until<UTC_TIMESTAMP(3)))`, [leaseOwner || null, Number(leaseSeconds), syncMode, ...identityParams]);
-    if (!claimed.affectedRows) return null;
-    const checkpoint = await this.getSyncCheckpoint({ accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd });
-    return checkpoint && checkpoint.status === 'running' && checkpoint.lease_owner === (leaseOwner || null) ? checkpoint : null;
+    const params = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
+    try {
+      await conn.beginTransaction();
+      // Nullable site_id cannot enforce uniqueness. Serialize creation per account
+      // and retain the completed/most-progressed canonical checkpoint without deleting legacy rows.
+      const [accounts] = await conn.query('SELECT id FROM po_accounts WHERE id=? FOR UPDATE', [accountId]);
+      if (!accounts.length) { await conn.commit(); return null; }
+      const [existing] = await conn.query(`SELECT id FROM po_sync_checkpoints WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? ORDER BY (status='completed') DESC,(\`cursor\` IS NOT NULL) DESC,id LIMIT 1 FOR UPDATE`, params);
+      const id = existing[0]?.id || uuid();
+      if (!existing.length) await conn.query("INSERT INTO po_sync_checkpoints (id,account_id,site_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end,sync_mode,status) VALUES (?,?,?,?,?,?,?,?,?,?,'idle')", [id, accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd, syncMode]);
+      const [claimed] = await conn.query("UPDATE po_sync_checkpoints SET status='running',lease_owner=?,lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),sync_mode=?,error_code=NULL,error_message=NULL WHERE id=? AND (status IN ('idle','failed','completed') OR (status='running' AND (lease_until IS NULL OR lease_until<UTC_TIMESTAMP(3))))", [leaseOwner || null, Number(leaseSeconds), syncMode, id]);
+      const [rows] = claimed.affectedRows ? await conn.query('SELECT * FROM po_sync_checkpoints WHERE id=?', [id]) : [[]];
+      await conn.commit();
+      return rows[0] || null;
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
   }
   async releaseSyncCheckpoint(id, patch = {}) {
     const ownership = patch.leaseOwner == null ? '' : ' AND lease_owner=?';

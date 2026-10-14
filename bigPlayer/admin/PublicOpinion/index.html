@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script src="assets/baas-auth.js?v=20261012-1"></script>
+<script src="assets/baas-auth.js?v=20261013-global-api-r1"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>舆情数据概览 - 舆情管理后台</title>
-<link rel="icon" type="image/svg+xml" href="opinion-favicon.svg">
+<link rel="icon" type="image/svg+xml" href="opinion-favicon-v2.svg">
 <link rel="stylesheet" href="../../shared/sidebar.css?v=200">
 <link rel="stylesheet" href="public-opinion.css?v=199">
 <style>
@@ -32,7 +32,7 @@
 .overview-section .metric-attention .metric-head,.overview-section .metric-negative .metric-head,.overview-section .metric-urgent .metric-head,.overview-section .metric-attention .metric-value,.overview-section .metric-negative .metric-value,.overview-section .metric-urgent .metric-value,.overview-section .metric-attention .metric-foot,.overview-section .metric-negative .metric-foot,.overview-section .metric-urgent .metric-foot{color:var(--metric-risk)}
 .overview-section .metric-attention .metric-icon,.overview-section .metric-negative .metric-icon,.overview-section .metric-urgent .metric-icon{color:var(--metric-risk);background:#ffffff80}
 </style>
-<style>.hot-type-tabs{display:flex;gap:8px;padding:10px 16px 0;border-bottom:1px solid #edf0f5}.hot-type-tab{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 12px;color:#667085;font-size:13px;cursor:pointer}.hot-type-tab.active{color:#2563eb;border-bottom-color:#2563eb;font-weight:600}.overview-negative-content .hot-type-tab.active{color:#b91c1c;border-bottom-color:#b91c1c}.hot-type-tab:focus-visible{outline:2px solid #2563eb;outline-offset:-2px;border-radius:4px}</style><style id="independent-line-trend">.line-trend-panel{margin-top:20px;padding-top:18px;border-top:1px solid #eaecf0}.line-trend-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.line-trend-head h3{margin:0 0 5px;font-size:14px}.line-trend-head small,.line-trend-caption{color:#98a2b3;font-size:11px}.line-trend-head .tab{cursor:pointer}.line-trend-head .tab.active{background:#eff6ff;color:#2563eb}.line-trend-scroll{overflow-x:auto}.line-trend-scroll svg{display:block;width:100%;min-width:420px}.line-trend-scroll circle:focus{outline:none;stroke:#182230;stroke-width:2}.line-trend-caption{text-align:center;margin-top:4px}</style></head>
+<style>.hot-type-tabs{display:flex;gap:8px;padding:10px 16px 0;border-bottom:1px solid #edf0f5}.hot-type-tab{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 12px;color:#667085;font-size:13px;cursor:pointer}.hot-type-tab.active{color:#2563eb;border-bottom-color:#2563eb;font-weight:600}.overview-negative-content .hot-type-tab.active{color:#b91c1c;border-bottom-color:#b91c1c}.hot-type-tab:focus-visible{outline:2px solid #2563eb;outline-offset:-2px;border-radius:4px}</style><style id="independent-line-trend">.line-trend-panel{margin-top:20px;padding-top:18px;border-top:1px solid #eaecf0}.line-trend-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.line-trend-head h3{margin:0 0 5px;font-size:14px}.line-trend-head small,.line-trend-caption{color:#98a2b3;font-size:11px}.line-trend-head .tab{cursor:pointer}.line-trend-head .tab.active{background:#eff6ff;color:#2563eb}.line-trend-scroll{overflow-x:auto}.line-trend-scroll svg{display:block;width:100%;min-width:420px}.line-trend-scroll circle:focus{outline:none;stroke:#182230;stroke-width:2}.line-trend-caption{text-align:center;margin-top:4px}</style><style id="empty-risk-content-layout">.overview-section[hidden],.overview-two-equal>.page-card[hidden]{display:none}.overview-two-equal.overview-single-content{grid-template-columns:minmax(0,1fr)}</style></head>
 <body>
 <nav id="sidebar" class="sidebar"></nav>
 <main class="admin-main">
@@ -104,10 +104,10 @@
   </div>
 </main>
 <div class="drawer-mask" id="drawerMask"><aside class="drawer"><button class="drawer-close" id="drawerClose">×</button><div id="drawerContent"></div></aside></div><div class="toast" id="toast"></div>
-<script src="../../shared/sidebar-data.js?v=200"></script><script src="../../shared/sidebar.js?v=200"></script>
+<script src="../../shared/sidebar-data.js?v=20261013-global-api-r1"></script><script src="../../shared/sidebar.js?v=20261013-global-api-r1"></script>
 <script>
   initSidebar({root:'../..',currentHref:'admin/PublicOpinion/index.html'});
 </script>
-<script src="assets/source-status.js?v=1"></script><script src="../../public-opinion-system/shared/riskModes.js?v=20261012-merged-urgent-r1"></script><script src="assets/scope.js?v=148"></script><script src="assets/alert-detail.js?v=1"></script><script src="assets/app.js?v=20261012-merged-urgent-r1"></script>
+<script src="assets/source-status.js?v=1"></script><script src="../../public-opinion-system/shared/riskModes.js?v=20261012-merged-urgent-r1"></script><script src="assets/scope.js?v=148"></script><script src="assets/alert-detail.js?v=1"></script><script src="assets/app.js?v=20261012-empty-risk-modules-r1"></script>
 </body>
 </html>

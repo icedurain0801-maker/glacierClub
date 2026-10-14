@@ -1,4 +1,5 @@
 const { BaseConnector, ConnectorError, ConnectorPageError, ConnectorPageResult, normalizeRawContent, validatePagination, flattenCommentTree } = require('./baseConnector');
+const { createQ1LanguageResolver } = require('./q1LanguageResolver');
 // A token belongs to one capability probe, never to the connector or a later request.
 const capabilityProbeTokens = new WeakMap();
 
@@ -162,12 +163,14 @@ function q1FeedCursor(value, feed, segmentId = null) {
   const repeatedPageRetries = Number(parsed.repeatedPageRetries || 0);
   const previousOldestPublishedAt = parsed.previousOldestPublishedAt == null ? null : String(parsed.previousOldestPublishedAt);
   const timeOrderVerified = parsed.timeOrderVerified === true;
+  const timeOrderRestarts = Number(parsed.timeOrderRestarts || 0);
+  if (!Number.isInteger(timeOrderRestarts) || timeOrderRestarts < 0 || timeOrderRestarts > 1) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed restart cursor is invalid');
   if (![1, 2].includes(parsed.version) || parsed.endpointKind !== feed.endpointKind || parsed.feedKey !== feed.feedKey || !Number.isInteger(pageIndex) || pageIndex < 1 || !Number.isInteger(offsetId) || offsetId < 0 || !Number.isInteger(pagesFetched) || pagesFetched < 0 || !Number.isInteger(segmentPagesFetched) || segmentPagesFetched < 0 || !Number.isInteger(segmentCount) || segmentCount < 0 || !Number.isInteger(consecutiveNoNewPages) || consecutiveNoNewPages < 0 || !Number.isInteger(repeatedPageRetries) || repeatedPageRetries < 0) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed pagination cursor does not match the feed');
   if (previousOldestPublishedAt != null && !Number.isFinite(Date.parse(previousOldestPublishedAt))) throw new ConnectorError('INVALID_PAGINATION', 'Q1 feed time-order cursor is invalid');
   const parsedSegmentId = parsed.segmentId == null ? null : String(parsed.segmentId);
   const activeSegmentId = segmentId == null ? parsedSegmentId : String(segmentId);
   const segmentChanged = parsedSegmentId !== activeSegmentId;
-  return { version: 2, endpointKind: feed.endpointKind, feedKey: feed.feedKey, pageIndex, offsetId, previousFingerprint: parsed.previousFingerprint == null ? null : String(parsed.previousFingerprint), previousOldestPublishedAt, timeOrderVerified, pagesFetched, segmentPagesFetched: segmentChanged ? 0 : segmentPagesFetched, segmentCount: segmentChanged ? segmentCount + 1 : segmentCount, segmentId: activeSegmentId, consecutiveNoNewPages, repeatedPageRetries };
+  return { version: 2, endpointKind: feed.endpointKind, feedKey: feed.feedKey, pageIndex, offsetId, previousFingerprint: parsed.previousFingerprint == null ? null : String(parsed.previousFingerprint), previousOldestPublishedAt, timeOrderVerified, timeOrderRestarts, pagesFetched, segmentPagesFetched: segmentChanged ? 0 : segmentPagesFetched, segmentCount: segmentChanged ? segmentCount + 1 : segmentCount, segmentId: activeSegmentId, consecutiveNoNewPages, repeatedPageRetries };
 }
 function q1PageData(payload) {
   const data = payload?.data;
@@ -567,6 +570,9 @@ class BigPlayerH5Connector extends BaseConnector {
     this.authRefreshCoordinator = authRefreshCoordinator;
     this.loginSessionClient = loginSessionClient;
     this.fetchImpl = fetchImpl;
+    this.resolveQ1Language = createQ1LanguageResolver(fetchImpl, overseasSiteSession ? {
+      timeoutMs: Math.min(60000, Math.max(10000, Number(env.BIGPLAYER_H5_TIMEOUT_MS) || 10000))
+    } : {});
     if (isolatedSiteSession && (fetchImpl === globalThis.fetch || typeof isolatedSiteSession.tokenFor !== 'function')) throw new ConnectorError('PRODUCTION_EXECUTION_DISABLED', 'site session requires isolated transport');
     this.isolatedSiteSession = isolatedSiteSession;
     if (overseasSiteSession && typeof overseasSiteSession.tokenFor !== 'function') throw new TypeError('overseas site session is invalid');
@@ -687,6 +693,7 @@ class BigPlayerH5Connector extends BaseConnector {
       const token = await this.loadApiToken(source, requestContext.credentialContext || this.credentialContext, account);
       return this.requestQ1(path, source, token, params, page, capability, true, signal, requestContext);
     }
+    context.language = await this.resolveQ1Language(context.baseUrl, context.language, signal);
     let response;
     try {
       if (typeof source?.__recordHttpRequest === 'function') await source.__recordHttpRequest({ url: url.toString(), capability, page });
@@ -907,6 +914,9 @@ class BigPlayerH5Connector extends BaseConnector {
       : await this.enrichQ1FeedItems({ items: selectedItems, source, account, credentialContext, apiToken, page: current.pageIndex, signal });
     const items = enrichment.items.map(item => q1Post(item, context, currentFeed.endpointKind));
     const inWindow = items;
+    // A live list may shift while paging. Recheck once from the head rather
+    // than permanently poisoning chronological proof after a transient jump.
+    const restartTimeOrder = Boolean(boundedWindow) && rawProviderHasMore && nextOffset < Q1_MAX_OFFSET && !timeOrderVerified && (current.timeOrderRestarts || 0) < 1;
     const pagesFetched = current.pagesFetched + 1;
     const segmentPagesFetched = current.segmentPagesFetched + 1;
     const consecutiveNoNewPages = duplicatePage || !inWindow.length ? current.consecutiveNoNewPages + 1 : 0;
@@ -921,7 +931,7 @@ class BigPlayerH5Connector extends BaseConnector {
       if (stalled) throw q1BoundaryIncomplete('provider_pagination_stalled');
     }
     const budgetExhausted = pageBudgetExhausted || (!boundedWindow && noNewPageBudgetExhausted);
-    const boundaryIncompleteReason = boundedWindow && providerHasMore
+    const boundaryIncompleteReason = boundedWindow && providerHasMore && !restartTimeOrder
       ? (nextOffset >= Q1_MAX_OFFSET ? 'provider_offset_ceiling' : (pageBudgetExhausted ? 'provider_pagination_budget_exhausted' : null))
       : null;
     // A bounded segment must persist the cursor from its last allowed page before
@@ -937,6 +947,7 @@ class BigPlayerH5Connector extends BaseConnector {
       consecutiveNoNewPages,
       repeatedPageRetries,
       timeOrderVerified,
+      timeOrderRestarted: restartTimeOrder,
       timeBoundaryReached,
       contentEnrichment: enrichment.diagnostics,
       ...(boundaryIncompleteReason ? { incomplete: true, code: boundaryIncompleteReason } : (budgetExhausted ? { incomplete: true, code: 'provider_pagination_budget_exhausted' } : {})),
@@ -944,7 +955,7 @@ class BigPlayerH5Connector extends BaseConnector {
     };
     return new ConnectorPageResult({
       items: inWindow,
-      nextCursor: hasMore ? JSON.stringify({ version: 2, endpointKind: currentFeed.endpointKind, feedKey: currentFeed.feedKey, pageIndex: currentFeed.endpointKind === 'merged' ? current.pageIndex + 1 : current.pageIndex, offsetId: nextOffset, previousFingerprint: fingerprint, previousOldestPublishedAt: Number.isFinite(timestamps.at(-1)) ? new Date(timestamps.at(-1)).toISOString() : current.previousOldestPublishedAt, timeOrderVerified, pagesFetched, segmentPagesFetched, segmentCount: current.segmentCount, segmentId: current.segmentId, consecutiveNoNewPages, repeatedPageRetries }) : null,
+      nextCursor: hasMore ? JSON.stringify({ version: 2, endpointKind: currentFeed.endpointKind, feedKey: currentFeed.feedKey, pageIndex: currentFeed.endpointKind === 'merged' ? current.pageIndex + 1 : current.pageIndex, offsetId: nextOffset, previousFingerprint: fingerprint, previousOldestPublishedAt: Number.isFinite(timestamps.at(-1)) ? new Date(timestamps.at(-1)).toISOString() : current.previousOldestPublishedAt, timeOrderVerified, pagesFetched, segmentPagesFetched, segmentCount: current.segmentCount, segmentId: current.segmentId, consecutiveNoNewPages, repeatedPageRetries, timeOrderRestarts: current.timeOrderRestarts || 0, ...(restartTimeOrder ? { offsetId: 0, pageIndex: 1, previousFingerprint: null, previousOldestPublishedAt: null, timeOrderVerified: false, timeOrderRestarts: 1, repeatedPageRetries: 0 } : {}) }) : null,
       hasMore,
       capability: 'authorized_scope',
       raw: { ...payload, paginationDiagnostics, ...(candidateObservation ? { candidateObservation } : {}) }

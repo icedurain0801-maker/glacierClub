@@ -529,7 +529,7 @@ function bindH5CredentialMode(source, creating, renderCreate) {
 }
 function platformPanel(source, creating = false) {
   const platform = normalizedPlatform(source); const configured = credentialConfigured(source); const identity = accountIdentity(source);
-  if (platform === 'bigplayer_h5') { const siteUrls = sourceSiteUrls(source); return `<div class="detail-block"><div class="detail-label">大玩家 H5 站点</div><div class="field site-url-field"><label for="cfgSiteUrlList">站点地址<span class="required">*</span></label><div class="site-url-list" id="cfgSiteUrlList">${siteUrlRowsMarkup(siteUrls)}</div><div class="site-url-actions"><button type="button" class="btn" id="btnAddSiteUrl">+ 添加站点</button></div><div class="subline">每个站点单独填写；保存时会逐项规范化并拒绝重复或不安全地址。</div></div><input type="hidden" id="cfgBaseUrl" value="${esc(siteUrls[0] || '')}">${isOverseasLastNight(source) ? '<div class="field"><label>起始路径</label><input class="input" value="/" readonly></div><div class="sensitive-note">欧美版可在凭据、授权和帖子同步能力检测通过后启用；若保存时被拒绝，将显示后端门禁原因。</div>' : ''}${h5CredentialFields(source, creating)}${creating ? '' : '<div class="action-row" style="margin-top:12px"><button class="btn" id="btnCheckAuth">检测授权</button><button class="btn" id="btnCheckCapabilities">检测能力</button></div>'}</div>${capabilityPanel(source)}`; }
+  if (platform === 'bigplayer_h5') { const siteUrls = sourceSiteUrls(source); return `<div class="detail-block"><div class="detail-label">大玩家 H5 站点</div><div class="field site-url-field"><label for="cfgSiteUrlList">站点地址<span class="required">*</span></label><div class="site-url-list" id="cfgSiteUrlList">${siteUrlRowsMarkup(siteUrls)}</div><div class="site-url-actions"><button type="button" class="btn" id="btnAddSiteUrl">+ 添加站点</button></div><div class="subline">每个站点单独填写；保存时会逐项规范化并拒绝重复或不安全地址。</div></div><input type="hidden" id="cfgBaseUrl" value="${esc(siteUrls[0] || '')}">${isOverseasLastNight(source) ? '<div class="field"><label>起始路径</label><input class="input" value="/" readonly></div><div class="sensitive-note">欧美版可在凭据、授权和帖子同步能力检测通过后启用；若保存时被拒绝，将显示后端门禁原因。</div>' : ''}${h5CredentialFields(source, creating)}${creating ? '' : '<div class="action-row" style="margin-top:12px"><button class="btn" id="btnCheckAuth">检测授权</button><span id="authorizationCheckHint" class="subline">先检测授权，通过后才能保存配置</span></div>'}</div>${capabilityPanel(source)}`; }
   if (platform === 'taptap') return `<div class="detail-block"><div class="detail-label">TapTap 网页地址</div><div class="field"><label for="cfgBaseUrl">网页地址<span class="required">*</span></label><input class="input" id="cfgBaseUrl" type="url" value="${esc(configValue(source, 'baseUrl', 'base_url') || taptapDefaultUrl(source))}" placeholder="https://www.taptap.cn/app/.../topic?os=android"></div></div>`;
   if (Status.isSocialLoginPlatform(platform)) return `<div class="detail-block"><div class="detail-label">平台登录凭据</div><div class="field"><label>国家/地区代码</label><input class="input" value="+86" readonly></div><div class="field"><label>手机号${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPhone" inputmode="numeric" maxlength="11" autocomplete="off" value="${creating ? '' : esc(pick(identity.account, 'masked_phone', 'maskedPhone') || pick(source, 'masked_phone', 'maskedPhone') || '')}" placeholder="11 位中国大陆手机号" ${creating ? '' : 'readonly'}></div><div class="field"><label>登录密码${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPassword" type="password" autocomplete="new-password" placeholder="${configured ? '凭据已配置；留空不修改' : '请输入登录密码'}"></div><div class="field"><label>确认密码${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPasswordConfirm" type="password" autocomplete="new-password" placeholder="再次输入登录密码"></div><div class="sensitive-note">创建后为“待验证”，不会自动登录。密码不回显、不写入 URL 或浏览器存储。</div></div>${creating ? '' : capabilityPanel(source)}`;
   if (platform === 'discord') {
@@ -734,9 +734,11 @@ function renderDetail(source) {
     : `<div class="drawer-header">${detailHeader(source)}</div><div class="drawer-body"><div class="detail-grid${usesSingleColumnDetailLayout ? ' detail-grid--single' : ''}"><div class="detail-column">${commonFields(source, false)}${platformPanel(source)}${syncControls(source)}</div>${usesSingleColumnDetailLayout ? '' : `<div class="detail-column validation-column"><div class="validation-workspace">${validationPanel(source)}</div></div>`}</div></div>`;
   $('#drawerContent').innerHTML = `${content}<div class="drawer-footer"><button class="btn primary" id="btnSaveSource">保存配置</button><button class="btn" id="btnCancel">关闭</button></div>`;
   setCommonValues(source); bindSiteUrlActions(); bindH5CredentialMode(source, false); bindDiscordChannelScope(); $('#btnSaveSource').onclick = () => saveSource(source); $('#btnCancel').onclick = closeDrawer; bindPlatformActions(source); bindSyncActions(source); bindValidationActions(source);
+  if (normalizedPlatform(source) === 'bigplayer_h5') bindAuthorizationGate(source);
 }
 async function saveSource(source) {
   if (!canUseSavedSource(source)) return;
+  if (normalizedPlatform(source) === 'bigplayer_h5' && !authorizationGateReady(source)) return toast('请先检测当前配置的授权，通过后才能保存');
   if (normalizedPlatform(source) === 'facebook') return submitFacebookSource(source, false);
   const serial = state.requestSerial, sourceId = savedSourceId(source);
   const scopeEpoch = state.scope?.epoch?.(), selectedScope = state.scope?.selected?.() || {};
@@ -785,6 +787,7 @@ async function saveSource(source) {
   }
   else if (!ACTIONABLE.has(normalizedPlatform(source))) patch.platformAccountId = $('#cfgAccountId').value.trim();
   if ((normalizedPlatform(source) === 'bigplayer_h5' || normalizedPlatform(source) === 'discord') && credential && Object.keys(credential).length) patch.credential = credential;
+  if (normalizedPlatform(source) === 'bigplayer_h5') patch.authorizationCheckToken = state.authorizationCheck.token;
   try {
     if (normalizedPlatform(source) === 'bigplayer_h5' || normalizedPlatform(source) === 'taptap' || normalizedPlatform(source) === 'discord') {
       try { await api(`/sources/${source.id}/configuration`, { method: 'PATCH', body: JSON.stringify(patch) }); }
@@ -865,7 +868,70 @@ function sourceActionReason(reason) {
   }[reason] || reason;
 }
 
-function bindPlatformActions(source) { if ($('#btnCheckAuth')) $('#btnCheckAuth').onclick = event => runSourceAction(source, 'check-auth', '授权检测完成', {}, { keepOpen: true, button: event.currentTarget }); if ($('#btnCheckCapabilities')) $('#btnCheckCapabilities').onclick = event => runSourceAction(source, 'check-capabilities', '能力检测完成', {}, { keepOpen: true, button: event.currentTarget }); }
+function bindPlatformActions(source) { if ($('#btnCheckAuth')) $('#btnCheckAuth').onclick = event => normalizedPlatform(source) === 'bigplayer_h5' ? checkDraftAuthorization(source, event.currentTarget) : runSourceAction(source, 'check-auth', '授权检测完成', {}, { keepOpen: true, button: event.currentTarget }); if ($('#btnCheckCapabilities')) $('#btnCheckCapabilities').onclick = event => runSourceAction(source, 'check-capabilities', '能力检测完成', {}, { keepOpen: true, button: event.currentTarget }); }
+function authorizationFormKey(source) {
+  return JSON.stringify([source.id, state.h5AuthMode, readSiteUrlRows(), ...['#cfgBoardId', '#cfgToken', '#cfgH5Account', '#cfgH5Password'].map(selector => $(selector)?.value || '')]);
+}
+function authorizationGateReady(source) {
+  const check = state.authorizationCheck;
+  return check?.token && check.expires > Date.now() && check.key === authorizationFormKey(source);
+}
+function bindAuthorizationGate(source) {
+  const invalidate = () => { state.authorizationCheck = null; $('#btnSaveSource').disabled = true; if ($('#authorizationCheckHint')) $('#authorizationCheckHint').textContent = '配置已变更，请重新检测授权'; };
+  $('#btnSaveSource').disabled = !authorizationGateReady(source);
+  for (const selector of ['#cfgBoardId', '#cfgToken', '#cfgH5Account', '#cfgH5Password', '#cfgSiteUrlList']) {
+    $(selector)?.addEventListener('input', invalidate);
+    $(selector)?.addEventListener('change', invalidate);
+  }
+  $('#cfgSiteUrlList')?.addEventListener('click', event => { if (event.target.closest('button')) invalidate(); });
+  $('#btnAddSiteUrl')?.addEventListener('click', invalidate);
+  if ($('#btnCheckLogin')) $('#btnCheckLogin').onclick = event => checkDraftAuthorization(source, event.currentTarget);
+}
+async function checkDraftAuthorization(source, button) {
+  if (!canUseSavedSource(source) || state.authorizationChecking) return;
+  const parsed = validateSiteUrlRows();
+  if (parsed.error) return toast(parsed.error);
+  const boardId = $('#cfgBoardId')?.value.trim();
+  if (!/^[1-9]\d*$/.test(boardId)) return toast('版块 ID 必须为正整数');
+  const body = { boardId, baseUrl: parsed.urls[0] };
+  const savedSites = Array.isArray(configOf(source).siteUrls) ? sourceSiteUrls(source) : [];
+  if (savedSites.length !== parsed.urls.length || savedSites.some((url, index) => url !== parsed.urls[index])) body.siteUrls = parsed.urls;
+  if (h5AuthMode(source) === 'token') {
+    const token = ($('#cfgToken')?.value || '').trim();
+    if (token && !isCredentialMask(token)) body.credential = { credentialType: 'api_token', secret: token };
+    else if (!credentialConfigured(source)) return toast('请填写有效 Token');
+  } else {
+    const result = Status.validateH5CredentialUpdate({ account: $('#cfgH5Account')?.value.trim() || '', password: $('#cfgH5Password')?.value || '' });
+    if (result.error) return toast(result.error);
+    if (result.credential) body.credential = result.credential;
+  }
+  const key = authorizationFormKey(source), serial = state.requestSerial;
+  state.authorizationCheck = null; state.authorizationChecking = true;
+  $('#btnSaveSource').disabled = true; button.disabled = true; button.textContent = '授权与能力检测中…';
+  try {
+    const result = await api(`/sources/${source.id}/check-authorization`, { method: 'POST', body: JSON.stringify(body) });
+    if (serial !== state.requestSerial || state.activeSourceId !== String(source.id)) return;
+    if (key !== authorizationFormKey(source)) return toast('检测期间配置已变更，请重新检测');
+    const sites = Object.values(result.capabilities || {});
+    const capabilities = {};
+    for (const [scope] of STAGES) {
+      const values = sites.map(site => site[scope]);
+      const failure = values.find(value => value?.status !== 'available');
+      capabilities[scope] = failure || (values.length ? { status: 'authorized_scope' } : { status: 'unconfigured' });
+    }
+    const panel = $('#drawerContent .cap-grid');
+    if (panel) panel.innerHTML = STAGES.map(([scope, label]) => `<div class="cap-item"><div class="cap-name">${label}</div><span class="pill ${esc(capabilities[scope].status)}">${esc(capabilityLabel(capabilities[scope].status))}</span></div>`).join('');
+    if (result.authStatus !== 'authorized' || !result.authorizationCheckToken) {
+      $('#authorizationCheckHint').textContent = '授权未通过，不能保存配置';
+      return toast(`授权未通过：${sourceActionReason(result.reason || 'AUTHORIZATION_FAILED')}`);
+    }
+    state.authorizationCheck = { token: result.authorizationCheckToken, key, expires: Date.now() + result.expiresInSeconds * 1000 };
+    $('#btnSaveSource').disabled = false;
+    $('#authorizationCheckHint').textContent = '授权通过，可保存配置；采集能力结果见下方';
+    toast('授权与能力检测完成');
+  } catch (error) { if (serial === state.requestSerial) toast(`检测失败：${sourceRequestError(source, error)}`); }
+  finally { state.authorizationChecking = false; if (button.isConnected) { button.disabled = false; button.textContent = '检测授权'; } }
+}
 function bindSyncActions(source) { const actions = { btnPauseSync: ['sync/pause', {}, '同步已暂停'], btnResumeSync: ['sync/resume', {}, '同步已继续'] }; if ($('#btnRunSync')) $('#btnRunSync').onclick = event => startSync(source, event.currentTarget, sourceMode(source)); Object.entries(actions).forEach(([id, [path, body, message]]) => { if ($(`#${id}`)) $(`#${id}`).onclick = () => runSourceAction(source, path, message, body); }); if ($('#btnResetSync')) $('#btnResetSync').onclick = () => { if (confirm('确认从历史起点重新抓取授权范围内的全部 Feed、帖子、评论和回复？当前运行会保留为审计记录。')) runSourceAction(source, 'sync/reset', '授权范围全量回溯已提交', {}); }; }
 function bindValidationActions(source) { if ($('#btnCheckLogin')) $('#btnCheckLogin').onclick = () => checkLogin(source); if ($('#btnLogout')) $('#btnLogout').onclick = () => logout(source); if ($('#btnSubmitChallenge')) $('#btnSubmitChallenge').onclick = () => submitChallenge(source); if ($('#btnCancelChallenge')) $('#btnCancelChallenge').onclick = () => cancelChallenge(source); }
 async function checkLogin(source) { if (!canCheckSavedSource(source)) return; const serial = ++state.authSerial; try { cacheLoginStatus(source, await api(`/sources/${source.id}/login/check`, { method: 'POST', body: '{}' })); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; state.challenge = challengeOf(state.loginStatus); if (!state.challenge && Status.loginMeta(state.loginStatus).state === 'manual_verification') state.challenge = await api(`/sources/${source.id}/login/challenge`); if (serial !== state.authSerial || state.activeSourceId !== String(source.id)) return; renderDetail(source); startChallengeWork(source); renderRows(); toast(Status.loginMeta(state.loginStatus).state === 'healthy' ? '授权验证通过' : '授权检测已完成'); } catch (error) { if (serial === state.authSerial) toast(`授权检测失败：${sourceRequestError(source, error)}`); } }

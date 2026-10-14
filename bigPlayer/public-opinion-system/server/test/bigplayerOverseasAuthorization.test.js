@@ -9,6 +9,7 @@ function fixture({status=200, malformed=false, redirect=false}={}) {
     credentialContext:{loadApiToken:async()=> 'fixture-only'},
     fetchImpl:async (value,options) => {
       const url=new URL(value); requests.push({url,options});
+      if(url.pathname.endsWith('/setting/language')) return {ok:true,status:200,url:String(url),json:async()=>({code:0,data:[{languageID:2,code:'en-US'}]})};
       // The public legacy endpoint is an HTML SPA fallback, not a JSON API.
       if(url.pathname.startsWith('/internal/') || malformed) return {ok:true,status:200,url:String(url),json:async()=>{throw new SyntaxError('fixture HTML');}};
       if(status!==200) return {ok:false,status,url:String(url)};
@@ -24,17 +25,18 @@ test('overseas token health uses Q1 context, configured board and JSON feed on i
   const {connector,requests}=fixture();
   const health=await connector.accountHealth(source);
   assert.equal(health.authorized,true,health.reason);
-  assert.deepEqual(requests.map(x=>x.url.pathname),['/api/club/v1/auth/user/context','/api/club/v2/auth/board','/api/club/v1/auth/post/model/merged-list']);
+  assert.deepEqual(requests.map(x=>x.url.pathname),['/api/club/v1/setting/language','/api/club/v1/auth/user/context','/api/club/v2/auth/board','/api/club/v1/auth/post/model/merged-list']);
   assert.ok(requests.every(x=>x.url.origin==='https://club-en.q1.com' && x.options.redirect==='manual'));
-  assert.equal(requests[1].url.searchParams.get('id'),'100017');
-  assert.equal(requests[2].url.searchParams.get('boardId'),'100017');
-  assert.equal(requests[0].options.headers['content-language'],'en-US');
+  assert.equal(requests[2].url.searchParams.get('id'),'100017');
+  assert.equal(requests[3].url.searchParams.get('boardId'),'100017');
+  assert.equal(requests[1].options.headers['content-language'],'en-US');
+  assert.equal(requests[0].options.headers.authorization,undefined);
 });
 test('overseas 401/403 and malformed JSON remain unauthorized without legacy fallback',async()=>{
   for(const [options,reason] of [[{status:401},'UNAUTHORIZED'],[{status:403},'PERMISSION_DENIED'],[{malformed:true},'MALFORMED_RESPONSE']]){
     const {connector,requests}=fixture(options); const health=await connector.accountHealth(source);
     assert.equal(health.authorized,false); assert.equal(health.reason,reason);
-    assert.equal(requests.length,1); assert.equal(requests[0].url.pathname,'/api/club/v1/auth/user/context');
+    assert.equal(requests.length,2); assert.equal(requests[1].url.pathname,'/api/club/v1/auth/user/context');
   }
 });
 test('Q1 rejects cross-region request destinations before sending credentials',async()=>{

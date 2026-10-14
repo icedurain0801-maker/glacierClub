@@ -98,6 +98,25 @@ function normalizeAnalysisResult(analysis, context = {}) {
     try { persistedContext = JSON.parse(persistedContext); } catch (_) { persistedContext = {}; }
   }
   analysis = { ...persistedContext, ...analysis };
+  // TypeSafe has already applied its confidence/issue/emergency gates. Do not
+  // run the legacy decision tree again and turn neutral text back into risk.
+  const typeSafe = analysis.typeSafeDecision || analysis.rawAnalysis?.typeSafeDecision;
+  if (typeSafe?.provider === 'typesafe-v11-production-v1') {
+    const levels = { L0: 'normal', L1: 'attention', L2: 'negative', L3: 'urgent' };
+    if (!levels[typeSafe.final_level] || !levels[typeSafe.raw_level]
+      || !['auto_passed', 'manual_review'].includes(typeSafe.status)
+      || !Number.isFinite(typeSafe.confidence) || typeSafe.confidence < 0 || typeSafe.confidence > 1) {
+      throw Object.assign(new Error('TYPESAFE_INVALID_DECISION'), { code: 'TYPESAFE_INVALID_DECISION' });
+    }
+    const reason = String(analysis.rawAnalysis?.reason || analysis.reason || analysis.analysis_reason || '').slice(0, 255);
+    return { ...analysis, severity: levels[typeSafe.final_level], typeSafeDecision: typeSafe,
+      rawAnalysis: { ...(analysis.rawAnalysis || {}), typeSafeDecision: typeSafe, reason },
+      confidence: typeSafe.confidence, needsDeep: false, reason, analysisReason: reason,
+      riskPolicyVersion: typeSafe.provider, severityNormalizationReasons: ['typesafe_business_gates'],
+      gameComplaint: ['L2', 'L3'].includes(typeSafe.final_level),
+      urgentImpact: typeSafe.final_level === 'L3' ? typeSafe.emergency_trigger : 'none',
+      urgentEvidence: typeSafe.final_level === 'L3' ? typeSafe.evidence : '' };
+  }
   const storedDecision = analysis.riskDecision ?? analysis.rawAnalysis?.riskDecision;
   const normalized = normalizeSeverity({ ...analysis, riskDecision: storedDecision,
     title: context.title ?? analysis.title,

@@ -45,12 +45,22 @@ function publicSourceSummary(source) {
 }
 
 class BaasAccess {
-  constructor({ env = process.env, fetchImpl = verifiedIdentityFetch } = {}) {
+  constructor({ env = process.env, fetchImpl = verifiedIdentityFetch, allowRoleMapping = false } = {}) {
     this.enabled = env.PUBLIC_OPINION_BAAS_ENABLED === 'true';
     this.fetch = fetchImpl;
+    this.allowRoleMapping = allowRoleMapping;
   }
-  publicConfig() {
-    return { enabled: this.enabled, appKey: BAAS_APP_KEY, baseUrl: BAAS_BASE_URL, sdkUrl: `${BAAS_BASE_URL}/glacier-baas-sdk.js` };
+  publicViewer(req) {
+    if (!this.enabled) return null;
+    const remote = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+    const trustedProxy = ['127.0.0.1', '::1'].includes(remote);
+    const host = String(trustedProxy && req.headers['x-forwarded-host'] ? req.headers['x-forwarded-host'] : req.headers.host || '').toLowerCase();
+    if (host !== 'lfy3001.dev.q1op.com' && host !== 'lfy3001.dev.q1op.com:443') return null;
+    return Object.freeze({ id: 'public-viewer', displayName: '免登录查看', roles: ['viewer'], permissions: { read: true, review: false, manage: false }, publicReadOnly: true });
+  }
+  publicConfig(req) {
+    const identity = req && this.publicViewer(req);
+    return { enabled: this.enabled, appKey: BAAS_APP_KEY, baseUrl: BAAS_BASE_URL, sdkUrl: `${BAAS_BASE_URL}/glacier-baas-sdk.js`, ...(identity ? { publicReadOnly: true, identity } : {}) };
   }
   async authenticate(req) {
     const authorization = req.headers.authorization;
@@ -74,13 +84,20 @@ class BaasAccess {
       throw accessError('BAAS_REALNAME_REQUIRED', 403, '仅实名冰川用户可以访问舆情系统');
     }
     // Roles come only from the fixed application's /me response, never client headers or claims.
-    const roles = [...new Set((Array.isArray(me.roles) ? me.roles : []).filter(role => ROLES.has(role)))];
+    const roleKeys = [...new Set((Array.isArray(me.roles) ? me.roles : []).filter(role => typeof role === 'string' && role.length <= 120))];
+    const roles = roleKeys.filter(role => ROLES.has(role));
     if (me.role === 'owner' && !roles.includes('admin')) roles.push('admin');
     const permissions = permissionsFor(roles);
-    if (!permissions.read) throw accessError('BAAS_ROLE_REQUIRED', 403, '尚未分配舆情系统角色，请联系应用管理员');
-    return Object.freeze({ id: me.end_user_id, externalId: typeof me.external_id === 'string' ? me.external_id : null, displayName: String(me.display_name || ''), roles, permissions });
+    // 非内置 SSO 角色会由应用数据库中的角色-导航-社区规则二次收敛；未配置规则仍会被 API 拒绝。
+    if (!permissions.read && (!this.allowRoleMapping || !roleKeys.length)) throw accessError('BAAS_ROLE_REQUIRED', 403, '尚未分配舆情系统角色，请联系应用管理员');
+    return Object.freeze({ id: me.end_user_id, externalId: typeof me.external_id === 'string' ? me.external_id : null, displayName: String(me.display_name || ''), roles, roleKeys, permissions: permissions.read ? permissions : { read: true, review: true, manage: true }, pendingRoleMapping: !permissions.read });
   }
   async authorize(req, pathname) {
+    const publicIdentity = this.publicViewer(req);
+    if (publicIdentity && !req.headers.authorization) {
+      if (req.method === 'GET' && requiredPermission(req.method, pathname) === 'read') return publicIdentity;
+      throw accessError('BAAS_LOGIN_REQUIRED', 401, '当前入口仅供免登录查看，管理和处理操作请使用 SSO 登录入口');
+    }
     const identity = await this.authenticate(req);
     if (!identity.permissions[requiredPermission(req.method, pathname)]) throw accessError('BAAS_FORBIDDEN', 403, '当前角色没有此操作权限');
     return identity;

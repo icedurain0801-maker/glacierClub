@@ -29,11 +29,12 @@
   });
   const style = document.createElement('style');
   style.textContent = '.po-auth-panel{position:fixed;inset:0;z-index:10000;display:grid;place-content:center;gap:12px;background:#f7f9fc;color:#344054;padding:32px;text-align:center}.po-auth-panel button{padding:8px 16px;cursor:pointer}.po-auth-user{position:fixed;right:16px;bottom:12px;z-index:50;display:flex;align-items:center;gap:10px;background:white;border:1px solid #d0d5dd;border-radius:6px;padding:8px 12px;font-size:12px}html[data-po-review="false"] :is([data-quality-action],#saveAlert,.batch-handling-bar,.single-handling-footer,[data-handling-id]){display:none!important}html[data-po-manage="false"] #reanalyzeBtn{display:none!important}html[data-po-manage="false"] a:is([href*="sources.html"],[href*="keywords.html"],[href*="collection-runs.html"]){display:none!important}';
-  style.textContent += '.command-bar .po-auth-tools{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-width:100%;min-width:0}.command-bar .po-auth-tools>.top-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:100%}.po-auth-user{position:static;right:auto;bottom:auto;z-index:auto;flex-wrap:wrap;justify-content:flex-end;max-width:100%;color:#344054}.po-auth-user button{min-height:28px;cursor:pointer}@media(max-width:800px){.command-bar .po-auth-tools{width:100%;margin-top:12px}.po-auth-user{gap:8px}}';
+  style.textContent += '.command-bar{background:linear-gradient(120deg,#142f57,#1c477e 58%,#285d96)!important;color:#fff!important;border-color:rgba(255,255,255,.12)!important}.command-bar .eyebrow{color:#9fceff!important}.command-bar h1{color:#fff!important}.command-bar p{color:rgba(255,255,255,.78)!important}.command-bar .po-auth-tools{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-width:100%;min-width:0}.command-bar .po-auth-tools>.top-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:100%}.command-bar [data-po-scope] .select,.command-bar select{background:rgba(255,255,255,.12)!important;border-color:rgba(255,255,255,.26)!important;color:#fff!important}.command-bar select option{color:#1a2b45}.po-auth-user{position:static;right:auto;bottom:auto;z-index:auto;display:block;max-width:100%;padding:0;border:0;background:transparent;color:#fff}.po-auth-user-menu{position:relative}.po-auth-user-menu>summary{list-style:none}.po-auth-user-menu>summary::-webkit-details-marker{display:none}.po-auth-user-trigger{display:flex;align-items:center;gap:8px;min-height:40px;padding:4px 11px 4px 4px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.09);color:#fff;cursor:pointer;user-select:none}.po-auth-user-trigger:hover,.po-auth-user-menu[open] .po-auth-user-trigger{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.3)}.po-auth-user-trigger:focus-visible{outline:2px solid #b9dcff;outline-offset:2px}.po-auth-avatar{width:30px;height:30px;display:grid;place-items:center;flex:0 0 30px;border-radius:50%;background:#eef5ff;color:#1d5fbf;font-size:14px;font-weight:700}.po-auth-identity{display:flex;align-items:center;gap:7px;min-width:0;text-align:left}.po-auth-name{max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;color:#fff}.po-auth-role{display:inline-flex;align-items:center;min-height:20px;padding:1px 6px;border:1px solid rgba(255,255,255,.28);border-radius:4px;color:rgba(255,255,255,.9);font-size:11px;line-height:1.2;white-space:nowrap}.po-auth-chevron{color:rgba(255,255,255,.82);font-size:14px;transition:transform .15s ease}.po-auth-user-menu[open] .po-auth-chevron{transform:rotate(180deg)}.po-auth-popover{position:absolute;right:0;top:calc(100% + 8px);z-index:120;width:218px;padding:6px;border:1px solid #eaecf0;border-radius:8px;background:#fff;box-shadow:0 12px 24px rgba(16,24,40,.16)}.po-auth-menu-head{padding:8px 9px 10px}.po-auth-menu-head strong,.po-auth-menu-head span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.po-auth-menu-head strong{font-size:12px;color:#182230}.po-auth-menu-head span{margin-top:3px;color:#667085;font-size:11px}.po-auth-menu-status{color:#027a48!important}.po-auth-menu-separator{height:1px;margin:4px 0;background:#eaecf0}.po-auth-menu-item{display:flex;align-items:center;width:100%;min-height:34px;border:0;border-radius:4px;background:transparent;padding:0 9px;color:#344054;font-size:12px;text-align:left;cursor:pointer}.po-auth-menu-item:hover{background:#f2f4f7}.po-auth-menu-item.danger{color:#b42318}.po-auth-menu-item.danger:hover{background:#fff1f0}@media(max-width:800px){.command-bar .po-auth-tools{width:100%;margin-top:12px}.po-auth-user-menu{align-self:flex-end}}';
   // Keep every account element on the same center line; draw the chevron independently of font metrics.
   style.textContent += '.po-auth-user-trigger{box-sizing:border-box;height:40px;line-height:1}.po-auth-avatar{line-height:1}.po-auth-identity{align-self:center;align-items:center;line-height:1}.po-auth-name{display:inline-flex;align-items:center;height:20px;line-height:20px}.po-auth-role{box-sizing:border-box;height:20px;min-height:20px;justify-content:center;line-height:1}.po-auth-chevron{display:inline-flex;align-items:center;justify-content:center;align-self:center;flex:0 0 12px;width:12px;height:20px;font-size:0;line-height:1}.po-auth-chevron::before{content:"";display:block;width:5px;height:5px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-1.5px) rotate(45deg)}';
   document.head.append(style);
   let panel;
+  let userMenuListenersBound = false;
   const domReady = document.readyState === 'loading' ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true })) : Promise.resolve();
   function mountUserBar(bar) {
     const header = document.querySelector('.command-bar');
@@ -43,6 +44,22 @@
     tools.append(bar);
     if (scope) tools.append(scope);
     header.append(tools);
+  }
+  function bindUserMenuClose() {
+    if (userMenuListenersBound) return;
+    userMenuListenersBound = true;
+    document.addEventListener('click', event => {
+      document.querySelectorAll('.po-auth-user-menu[open]').forEach(menu => {
+        if (!menu.contains(event.target)) menu.removeAttribute('open');
+      });
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      document.querySelectorAll('.po-auth-user-menu[open]').forEach(menu => menu.removeAttribute('open'));
+    });
+  }
+  function userInitial(name) {
+    return Array.from(String(name || '').trim())[0] || '冰';
   }
   async function show(message, retry = false) {
     await domReady;
@@ -68,6 +85,18 @@
     if (!response.ok) throw new Error('无法读取登录配置');
     const config = (await response.json()).data;
     if (!config.enabled) return { enabled: false };
+    if (config.publicReadOnly) {
+      identity = config.identity;
+      document.documentElement.dataset.poReview = 'false';
+      document.documentElement.dataset.poManage = 'false';
+      if (/\/(?:sources|keywords|collection-runs|api-config)\.html$/.test(location.pathname)) {
+        location.replace('index.html'); return new Promise(() => {});
+      }
+      await domReady;
+      const bar = document.createElement('div'); bar.className = 'po-auth-user';
+      bar.textContent = '免登录查看 · 只读'; mountUserBar(bar);
+      return { enabled: true, publicReadOnly: true, identity };
+    }
     if (signedOut) { await showSignedOut(); return { enabled: true, signedOut: true }; }
     await show('正在验证冰川登录身份…');
     await loadScript(config.sdkUrl);
@@ -83,21 +112,39 @@
     if (!session.ok) throw new Error(result.error?.message || '无法验证舆情访问权限');
     if (signedOut) { app.auth.logout(); await showSignedOut(); return { enabled: true, signedOut: true }; }
     identity = result.data.identity;
+    if (/\/api-config\.html$/.test(location.pathname) && !identity.roles?.includes('admin')) {
+      location.replace('index.html'); return new Promise(() => {});
+    }
     document.documentElement.dataset.poReview = String(identity.permissions.review);
     document.documentElement.dataset.poManage = String(identity.permissions.manage);
-    if (!identity.permissions.manage && /\/(?:sources|keywords|collection-runs)\.html$/.test(location.pathname)) {
+    if (!identity.permissions.manage && /\/(?:sources|keywords|collection-runs|api-config)\.html$/.test(location.pathname)) {
       location.replace('index.html'); return new Promise(() => {});
     }
     await domReady;
     panel?.remove();
-    const bar = document.createElement('div'); bar.className = 'po-auth-user';
-    const name = document.createElement('span'); name.textContent = `${identity.displayName || '冰川用户'} · ${identity.roles.join(' / ')}`; bar.append(name);
+    const displayName = identity.displayName || '冰川用户';
+    const roleLabel = identity.roles.map(role => ({ admin: '管理员', reviewer: '审核员' }[role] || role)).join(' / ') || '成员';
+    const bar = document.createElement('details'); bar.className = 'po-auth-user po-auth-user-menu';
+    const trigger = document.createElement('summary'); trigger.className = 'po-auth-user-trigger'; trigger.setAttribute('aria-label', '打开账号菜单');
+    const avatar = document.createElement('span'); avatar.className = 'po-auth-avatar'; avatar.textContent = userInitial(displayName); trigger.append(avatar);
+    const identityText = document.createElement('span'); identityText.className = 'po-auth-identity';
+    const name = document.createElement('span'); name.className = 'po-auth-name'; name.textContent = displayName; identityText.append(name);
+    const role = document.createElement('span'); role.className = 'po-auth-role'; role.textContent = roleLabel; identityText.append(role); trigger.append(identityText);
+    const chevron = document.createElement('span'); chevron.className = 'po-auth-chevron'; chevron.setAttribute('aria-hidden', 'true'); chevron.textContent = '⌄'; trigger.append(chevron);
+    bar.append(trigger);
+    const popover = document.createElement('div'); popover.className = 'po-auth-popover';
+    const menuHead = document.createElement('div'); menuHead.className = 'po-auth-menu-head';
+    const menuName = document.createElement('strong'); menuName.textContent = displayName; menuHead.append(menuName);
+    const menuRole = document.createElement('span'); menuRole.textContent = roleLabel; menuHead.append(menuRole);
+    const menuStatus = document.createElement('span'); menuStatus.className = 'po-auth-menu-status'; menuStatus.textContent = '已登录'; menuHead.append(menuStatus);
+    popover.append(menuHead);
     if (identity.permissions.manage) {
-      const manage = document.createElement('button'); manage.textContent = '成员与权限';
-      manage.onclick = async () => { try { if (!app.admin.openManager) await loadScript(`${config.baseUrl}/glacier-baas-admin-ui.js`); app.admin.openManager(); } catch (error) { await show(error.message, true); } }; bar.append(manage);
+      const separator = document.createElement('div'); separator.className = 'po-auth-menu-separator'; popover.append(separator);
+      const manage = document.createElement('button'); manage.className = 'po-auth-menu-item'; manage.textContent = '成员与权限';
+      manage.onclick = async () => { try { if (!app.admin.openManager) await loadScript(`${config.baseUrl}/glacier-baas-admin-ui.js`); app.admin.openManager(); } catch (error) { await show(error.message, true); } }; popover.append(manage);
     }
-    const logout = document.createElement('button'); logout.textContent = '退出'; logout.onclick = signOut; bar.append(logout);
-    mountUserBar(bar);
+    const logout = document.createElement('button'); logout.className = 'po-auth-menu-item danger'; logout.textContent = '退出登录'; logout.onclick = signOut; popover.append(logout);
+    bar.append(popover); bindUserMenuClose(); mountUserBar(bar);
     return { enabled: true, identity };
   })();
   ready.catch(error => signedOut ? showSignedOut() : show(error.message || '冰川登录失败', true));
@@ -109,6 +156,11 @@
     const state = await ready;
     if (signedOut) return loginRequired();
     if (!state.enabled) return nativeFetch(input, init);
+    if (state.publicReadOnly) {
+      const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+      if (method !== 'GET') return new Response(JSON.stringify({ error: { code: 'BAAS_LOGIN_REQUIRED', message: '当前入口仅供查看，请使用 SSO 登录入口执行操作' } }), { status: 401, headers: { 'content-type': 'application/json' } });
+      return nativeFetch(input, init);
+    }
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
     headers.set('Authorization', bearer());
     headers.delete('x-admin-user');

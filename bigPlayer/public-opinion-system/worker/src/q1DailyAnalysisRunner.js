@@ -119,7 +119,7 @@ class Q1AnalysisRunner {
     let results = jobs.map((job, index) => cached.get(keys[index]) || null);
     try {
       if (pending.length) {
-        const fresh = await analyzeWithFallback(this.ai, pending.map(job => ({ title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
+        const fresh = await analyzeWithFallback(this.ai, pending.map(job => ({ contentType: job.content_type, title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
         let cursor = 0; results = results.map(result => result || fresh[cursor++]);
       }
       for (let i = 0; i < jobs.length; i += 1) {
@@ -127,12 +127,13 @@ class Q1AnalysisRunner {
         await this.repo.insertAnalysis(job.content_id, analysis);
         if (typeof this.repo.reconcilePositiveRiskAlerts === 'function') await this.repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: this.claimOwner });
         if (!cached.has(keys[i])) await this.repo.upsertAnalysisCache({ ...analysis, cacheKey: keys[i], contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
-        if (profile === 'deep') { const quality = qualityOf(analysis); await this.repo.upsertQualityCandidate(job.content_id, { ...(quality || {}), body: job.body, sentiment: analysis.sentiment || '', analysisVersion: analysis.analysisVersion, modelName: analysis.modelName, contentFingerprint: analysis.contentFingerprint }); }
+        if (profile === 'deep' || this.ai.singlePass) { const quality = qualityOf(analysis); await this.repo.upsertQualityCandidate(job.content_id, { ...(quality || {}), body: job.body, sentiment: analysis.sentiment || '', analysisVersion: analysis.analysisVersion, modelName: analysis.modelName, contentFingerprint: analysis.contentFingerprint }); }
         await this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status: 'completed' });
         if (profile === 'light') {
           const rules = await this.repo.loadKeywordRules(job.game_id, job.platform, job.community_id);
           const hit = matchRules({ title: job.title, body: job.body, authorName: job.author_name }, rules);
-          if (shouldDeep(analysis, hit) && this.ai.configured('deep')) await this.repo.enqueueAnalysisJob(job.content_id, { profile: 'deep', version: this.ai.selectProfile('deep').version, contentFingerprint: analysis.contentFingerprint, triggerReason: hit.matchedKeywords?.length ? 'keyword_match' : 'light_escalation', matchedKeywords: hit.matchedKeywords || [] });
+          // 旧light/deep流程保留，TypeSafe不再新建深度二次分析任务。
+          if (!this.ai.singlePass && shouldDeep(analysis, hit) && this.ai.configured('deep')) await this.repo.enqueueAnalysisJob(job.content_id, { profile: 'deep', version: this.ai.selectProfile('deep').version, contentFingerprint: analysis.contentFingerprint, triggerReason: hit.matchedKeywords?.length ? 'keyword_match' : 'light_escalation', matchedKeywords: hit.matchedKeywords || [] });
           if (hit.needAI && this.alertEngine?.process) await this.alertEngine.process({ game: { id: job.game_id, name: job.game_name, region_code: job.region_code, community_id: job.community_id }, content: { ...job, id: job.content_id }, hit, analysis });
         }
       }

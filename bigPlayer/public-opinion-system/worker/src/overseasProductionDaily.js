@@ -10,6 +10,8 @@ const { normalizeRawContent } = require('../../server/src/connectors/baseConnect
 const { stripBoardInsert } = require('./overseasBigPlayerPageStore');
 const { createOverseasPageJobs } = require('./overseasBigPlayerPageJobs');
 const { createProxyFetch, networkFailure, retryNetwork } = require('./overseasProxyTransport');
+const { computeSchedule } = require('./scheduleSlots');
+const { collectComments, commentRootTasks, ensureCommentRootScope } = require('./overseasDailyComments');
 const SOURCE = '081a16d2-5545-4afd-9c65-e04777e4540b';
 const ACCOUNT = '75c8205f-37eb-4bdf-b6a4-f4f502e35658';
 const GAME = '00000000-0000-0000-0000-000000000002';
@@ -42,6 +44,19 @@ function selectDueSlot(nextScheduledAt, now = new Date()) {
 function todaySlot(now = new Date()) {
   const local=new Date(+now+28800000),start=Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate())-28800000-86400000;
   return {scheduledAt:now.toISOString(),windowStart:new Date(start).toISOString(),windowEnd:now.toISOString(),kind:'today'};
+}
+function configuredSlot(source, state, now = new Date()) {
+  const schedule = computeSchedule({ now, frequencySeconds: source.frequency_seconds,
+    effectiveAt: source.schedule_effective_at, lastProcessedScheduledAt: state?.last_scheduled_at });
+  if (!schedule.dueSlotAt) return null;
+  // Preserve the overseas overlapping coverage window (previous Beijing
+  // midnight through this slot). Content upserts deduplicate the overlap.
+  const window = todaySlot(new Date(schedule.dueSlotAt));
+  return { scheduledAt: schedule.dueSlotAt, windowStart: window.windowStart, windowEnd: window.windowEnd,
+    frequencySeconds: Number(source.frequency_seconds), scheduleVersion: Number(source.schedule_version) };
+}
+function nextScheduledAt(intent, source) {
+  return computeSchedule({ now: new Date(intent.scheduledAt), frequencySeconds: source.frequency_seconds }).nextSlotAt;
 }
 function durableJson(filename, value, exclusive = false) {
   const temporary = `${filename}.${crypto.randomUUID()}.staging`;
@@ -78,7 +93,7 @@ function assertSharedExclusion(manifestPath, processSnapshot) {
     newest = Math.max(newest, stat.mtimeMs);
   }
   const snapshot = processSnapshot || parse(execFileSync('powershell.exe', ['-NoProfile','-NonInteractive','-Command',
-    "$s=Get-CimInstance Win32_Service -Filter \"Name='PublicOpinionWorker'\"; $p=@(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $s.ProcessId -and $_.Name -eq 'node.exe' }); [pscustomobject]@{state=$s.State;processes=@($p | ForEach-Object { [pscustomobject]@{CommandLine=$_.CommandLine;CreationDate=$_.CreationDate.ToUniversalTime().ToString('o')} })} | ConvertTo-Json -Depth 4"], { encoding: 'utf8', windowsHide: true }));
+    "$s=Get-CimInstance Win32_Service -Filter \"Name='PublicOpinionWorker'\"; $p=@(Get-CimInstance Win32_Process -Filter \"ParentProcessId=$($s.ProcessId) AND Name='node.exe'\"); [pscustomobject]@{state=$s.State;processes=@($p | ForEach-Object { [pscustomobject]@{CommandLine=$_.CommandLine;CreationDate=$_.CreationDate.ToUniversalTime().ToString('o')} })} | ConvertTo-Json -Depth 4"], { encoding: 'utf8', windowsHide: true }));
   const workerPath = path.join(manifest.releaseRoot, 'worker/src/worker.js');
   const startedAt = +new Date(snapshot.processes?.[0]?.CreationDate);
   if (snapshot.state !== 'Running' || snapshot.processes?.length !== 1 || !Number.isFinite(startedAt)
@@ -151,7 +166,7 @@ async function loadScope(query, locked = false) {
 }
 function receiptFor(intent, site) {
   return { operation: 'overseas-production-daily-v1', scheduledAt: intent.scheduledAt, configSha256: intent.configSha256,
-    siteId: site.site_id, siteUrlSha256: sha(site.url), boardId: BOARD, cursor: null, pages: 0, done: false };
+    siteId: site.site_id, siteUrlSha256: sha(site.url), boardId: BOARD, cursor: null, pages: 0, phase: 'posts', done: false };
 }
 const LEGACY_HANDOFF_PARENT = '3653d4a7-b000-44ee-b60e-0be88f80efa0';
 const LEGACY_HANDOFF_CHILDREN = new Map([
@@ -182,6 +197,8 @@ async function admit(repo, intent, owner, directory) {
     const q = async (sql, params = []) => (await conn.query(sql, params))[0];
     const scope = await loadScope(q, true);
     if (scope.configSha256 !== intent.configSha256) fail('OVERSEAS_PRODUCTION_SCOPE_CHANGED');
+    if (intent.scheduleVersion != null && (intent.scheduleVersion !== Number(scope.source.schedule_version)
+      || intent.frequencySeconds !== Number(scope.source.frequency_seconds))) fail('OVERSEAS_PRODUCTION_SCHEDULE_CHANGED');
     const [state] = await q('SELECT *,lease_until>UTC_TIMESTAMP(3) AS live FROM po_source_schedule_state WHERE source_id=? FOR UPDATE', [SOURCE]);
     if (!state || (Number(state.live) && state.lease_run_id !== intent.parentId)) fail('OVERSEAS_PRODUCTION_SOURCE_BUSY');
     const [parent] = intent.kind==='today' ? await q('SELECT * FROM po_sync_runs WHERE source_id=? AND id=? FOR UPDATE',[SOURCE,intent.parentId]) : await q('SELECT * FROM po_sync_runs WHERE source_id=? AND scheduled_at=? FOR UPDATE', [SOURCE, dbTime(intent.scheduledAt)]);
@@ -259,11 +276,16 @@ async function commitPage({ repo, scope, intent, owner, child, page, feed, jobs 
     if (fresh.configSha256 !== intent.configSha256) fail('OVERSEAS_PRODUCTION_SCOPE_CHANGED');
     const columns = await q("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='po_contents'");
     const modern = ['board_id','board_name','board_key'].every(key => columns.some(row => row.COLUMN_NAME === key));
+    const syncScope = page.syncScope || 'posts';
+    if (!['posts','comments'].includes(syncScope)) fail('OVERSEAS_PRODUCTION_CONTENT_SCOPE');
+    if (syncScope==='comments') await ensureCommentRootScope(q,{sourceId:SOURCE,accountId:ACCOUNT,gameId:GAME,
+      communityId:COMMUNITY,siteId:child.site.site_id,boardId:BOARD,postId:page.rootPlatformContentId});
     const items = [];
     for (const raw of page.items) {
-      if (String(raw.boardId) !== BOARD || raw.contentType !== 'post') fail('OVERSEAS_PRODUCTION_CONTENT_SCOPE');
+      if (String(raw.boardId) !== BOARD || raw.contentType !== (syncScope === 'comments' ? 'comment' : 'post')) fail('OVERSEAS_PRODUCTION_CONTENT_SCOPE');
       const normalized = normalizeRawContent(raw);
-      if (!normalized.publishedAt || +normalized.publishedAt < +new Date(intent.windowStart) || +normalized.publishedAt >= +new Date(intent.windowEnd)) fail('OVERSEAS_PRODUCTION_CONTENT_WINDOW');
+      if (!normalized.publishedAt || (!raw.recoveryContextAncestor && (+normalized.publishedAt < +new Date(intent.windowStart) || +normalized.publishedAt >= +new Date(intent.windowEnd)))) fail('OVERSEAS_PRODUCTION_CONTENT_WINDOW');
+      if (raw.recoveryContextAncestor && syncScope !== 'comments') fail('OVERSEAS_PRODUCTION_CONTENT_SCOPE');
       const [existing] = await q('SELECT * FROM po_contents WHERE source_id=? AND external_id=? FOR UPDATE',[SOURCE,normalized.externalId]);
       if (existing && (existing.account_id !== ACCOUNT || existing.game_id !== GAME || existing.community_id !== COMMUNITY)) fail('OVERSEAS_PRODUCTION_CONTENT_SCOPE');
       const oldPayload = parse(existing?.raw_payload || '{}');
@@ -292,17 +314,35 @@ async function commitPage({ repo, scope, intent, owner, child, page, feed, jobs 
     const scopedFeed = { ...feed, feedKey: `overseas:${child.site.site_id}:${feed.feedKey}`, siteId: child.site.site_id,
       siteUrlSha256: sha(child.site.url), languageId: new URL(child.site.url).searchParams.get('languageId'), boardId: BOARD };
     const committed = await repo._upsertContentPageAttempt.call(facade,{ account:scope.account,source:scope.source,
-      syncRunId:child.run.id,leaseOwner:owner,leaseSeconds:LEASE_SECONDS,syncScope:'posts',items,feed:scopedFeed });
+      syncRunId:child.run.id,leaseOwner:owner,leaseSeconds:LEASE_SECONDS,syncScope,
+      rootPlatformContentId:page.rootPlatformContentId||'',items,feed:scopedFeed });
     await jobs({ facade,contents:committed.contents,items });
     // Association IDs remain attached to the preserved old runs. Count the
     // independent daily observations in its own atomic receipt even when an
     // observed content was already associated with the old collector.
     const counts=child.receipt.dailyCounts||{observations:0,inserted:0,changed:0,unchanged:0,stored:0};
-    const delta={observations:committed.contents.length,inserted:0,changed:0,unchanged:0,stored:committed.storedCount};
-    for(const entry of committed.contents)if(Object.hasOwn(delta,entry.change))delta[entry.change]++;
-    const receipt = { ...child.receipt, cursor:page.nextCursor, pages:child.receipt.pages+1, done:!page.hasMore,
+    const observed = committed.contents.filter((_entry,index)=>!items[index].recoveryContextAncestor);
+    const delta={observations:observed.length,inserted:0,changed:0,unchanged:0,stored:committed.storedCount};
+    for(const entry of observed)if(Object.hasOwn(delta,entry.change))delta[entry.change]++;
+    let patch = page.receiptPatch;
+    if (syncScope === 'posts' && !page.hasMore) {
+      const candidates = await q(`SELECT c.external_id,JSON_UNQUOTE(JSON_EXTRACT(m.feed_metadata,'$.siteId')) AS site_id
+        FROM po_contents c JOIN po_content_feed_memberships m ON m.content_id=c.id AND m.account_id=c.account_id
+        WHERE c.source_id=? AND c.account_id=? AND c.game_id=? AND c.community_id=? AND c.content_type='post'
+        AND c.is_deleted=0 AND JSON_UNQUOTE(JSON_EXTRACT(m.feed_metadata,'$.boardId'))=?
+        AND JSON_UNQUOTE(JSON_EXTRACT(m.feed_metadata,'$.siteId')) IS NOT NULL ORDER BY c.published_at DESC,c.id`,[SOURCE,ACCOUNT,GAME,COMMUNITY,BOARD]);
+      // Legacy faulty runs attached the same English root to all three sites.
+      // Resolve those duplicates to the original English site; never send
+      // the same root through three language comment queues.
+      const commentTasks=commentRootTasks(candidates,scope.sites,child.site.site_id);
+      patch={phase:'comments',commentTasks,done:commentTasks.length===0};
+    }
+    if (syncScope === 'comments' && !patch) fail('OVERSEAS_COMMENT_CHECKPOINT_REQUIRED');
+    const receipt = { ...child.receipt, ...(syncScope==='posts'?{cursor:page.nextCursor,pages:child.receipt.pages+1}:{}), ...patch,
+      commentObservations:Number(child.receipt.commentObservations||0)+(syncScope==='comments'?observed.length:0),
       dailyCounts:Object.fromEntries(Object.keys(counts).map(key=>[key,Number(counts[key])+delta[key]])) };
-    await q("UPDATE po_sync_runs SET error_message=?,error_code=NULL,status=?,finished_at=IF(?,UTC_TIMESTAMP(3),NULL),lease_owner=IF(?,NULL,lease_owner),lease_until=IF(?,NULL,lease_until) WHERE id=?", [JSON.stringify(receipt),page.hasMore?'running':'completed',!page.hasMore,!page.hasMore,!page.hasMore,child.run.id]);
+    if (syncScope==='comments') await q('UPDATE po_sync_runs SET fetched_count=fetched_count+?,inserted_count=inserted_count+?,changed_count=changed_count+?,unchanged_count=unchanged_count+?,discovered_count=discovered_count+?,stored_count=stored_count+? WHERE id=?',[delta.observations,delta.inserted,delta.changed,delta.unchanged,delta.observations,delta.stored,child.run.id]);
+    await q("UPDATE po_sync_runs SET error_message=?,error_code=NULL,status=?,finished_at=IF(?,UTC_TIMESTAMP(3),NULL),lease_owner=IF(?,NULL,lease_owner),lease_until=IF(?,NULL,lease_until) WHERE id=?", [JSON.stringify(receipt),receipt.done?'completed':'running',receipt.done,receipt.done,receipt.done,child.run.id]);
     await q('UPDATE po_sync_runs SET lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND) WHERE id=? AND lease_owner=?', [LEASE_SECONDS,intent.parentId,owner]);
     await q('UPDATE po_source_schedule_state SET lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND) WHERE source_id=? AND lease_owner=? AND lease_epoch=?', [LEASE_SECONDS,SOURCE,owner,scope.sourceEpoch]);
     return { receipt, storedCount:committed.storedCount, contentIds:committed.contents.map(entry => entry.content.id) };
@@ -314,6 +354,7 @@ async function collectSite({ connector, scoped, account, child, intent, commit, 
   const feeds = await connector.discoverFeeds({ source:scoped,account,signal });
   const feed = feeds.find(item => item.endpointKind === 'merged');
   if (!feed || String(feed.boardId) !== BOARD) fail('OVERSEAS_PRODUCTION_FEED_SCOPE');
+  if (child.receipt.phase==='comments') return collectComments({connector,scoped,account,child,intent,feed,check,commit,signal});
   for (let index = 0; index < maxPages; index++) {
     await check();
     const page = await connector.listFeedContents({ source:scoped,account,signal,feed,cursor:child.receipt.cursor,limit:20,
@@ -321,7 +362,10 @@ async function collectSite({ connector, scoped, account, child, intent, commit, 
     if (!Array.isArray(page.items) || typeof page.hasMore !== 'boolean' || (page.hasMore && (!page.nextCursor || page.nextCursor === child.receipt.cursor))) fail('OVERSEAS_PRODUCTION_PAGINATION_INVALID');
     const committed = await commit(page,feed);
     child.receipt = committed.receipt; // Cursor advances only after DB COMMIT ACK.
-    if (!page.hasMore) return { siteId:child.site.site_id,status:'completed',pages:index+1 };
+    if (!page.hasMore) {
+      if (child.receipt.phase==='comments') return collectComments({connector,scoped,account,child,intent,feed,check,commit,signal});
+      return { siteId:child.site.site_id,status:'completed',pages:index+1 };
+    }
   }
   fail('OVERSEAS_PRODUCTION_PAGE_BUDGET');
 }
@@ -332,16 +376,37 @@ async function finish(repo,intent,owner,scope,errorCode = null) {
     if (state?.lease_owner !== owner || Number(state.lease_epoch) !== scope.sourceEpoch) fail('OVERSEAS_PRODUCTION_LEASE_LOST');
     if (errorCode) await q("UPDATE po_sync_runs SET status='partial',error_code=?,finished_at=UTC_TIMESTAMP(3),lease_owner=NULL,lease_until=NULL WHERE parent_run_id=? AND status='running' AND lease_owner=?",[errorCode,intent.parentId,owner]);
     const ids=scope.children.map(child=>child.run.id);
-    const children = await q(`SELECT status,error_message,fetched_count,inserted_count,changed_count,unchanged_count,stored_count FROM po_sync_runs WHERE parent_run_id=? AND id IN (${ids.map(()=>'?').join(',')}) FOR UPDATE`,[intent.parentId,...ids]);
+    const children = await q(`SELECT id,status,error_message,fetched_count,inserted_count,changed_count,unchanged_count,stored_count FROM po_sync_runs WHERE parent_run_id=? AND id IN (${ids.map(()=>'?').join(',')}) FOR UPDATE`,[intent.parentId,...ids]);
     const complete = children.length === 3 && children.every(child => child.status === 'completed');
     const countKeys={fetched_count:'observations',inserted_count:'inserted',changed_count:'changed',unchanged_count:'unchanged',stored_count:'stored'};
+    for (const child of children) {
+      const receipt=productionReceipt(child);
+      if (!receipt?.dailyCounts || receipt.phase!=='comments') continue;
+      if (!receipt.legacyHandoff) {
+        const associations=await q(`SELECT rc.change_type,COUNT(*) AS total,SUM(c.content_type='comment') AS comments
+          FROM po_sync_run_contents rc JOIN po_contents c ON c.id=rc.content_id WHERE rc.run_id=? GROUP BY rc.change_type`,[child.id]);
+        const counted={observations:0,inserted:0,changed:0,unchanged:0,stored:0};
+        receipt.commentObservations=0;
+        for (const row of associations) {
+          counted.observations+=Number(row.total);
+          if (Object.hasOwn(counted,row.change_type)) counted[row.change_type]+=Number(row.total);
+          receipt.commentObservations+=Number(row.comments);
+        }
+        counted.stored=counted.inserted+counted.changed;
+        receipt.dailyCounts=counted;
+        child.error_message=JSON.stringify(receipt);
+        await q('UPDATE po_sync_runs SET error_message=? WHERE id=?',[child.error_message,child.id]);
+      }
+      const values=Object.entries(countKeys).map(([column,key])=>Number(receipt.dailyCounts[key]||0)+Number(receipt.legacyHandoff?.baseline?.[column]||0));
+      await q('UPDATE po_sync_runs SET fetched_count=?,inserted_count=?,changed_count=?,unchanged_count=?,stored_count=?,comment_count=? WHERE id=?', [...values,Number(receipt.commentObservations||0),child.id]);
+    }
     const sum = key => children.reduce((total,child) => {
       const receipt=productionReceipt(child);
       return total+Number(receipt?.dailyCounts?.[countKeys[key]]??(Number(child[key]||0)-Number(receipt?.legacyHandoff?.baseline?.[key]||0)));
     },0);
     await q('UPDATE po_sync_runs SET status=?,error_code=?,finished_at=UTC_TIMESTAMP(3),lease_owner=NULL,lease_until=NULL,fetched_count=?,inserted_count=?,changed_count=?,unchanged_count=?,stored_count=? WHERE id=? AND lease_owner=?',[complete?'completed':'partial',complete?null:errorCode||'OVERSEAS_PRODUCTION_INCOMPLETE',sum('fetched_count'),sum('inserted_count'),sum('changed_count'),sum('unchanged_count'),sum('stored_count'),intent.parentId,owner]);
     const advanceSchedule=complete&&intent.kind!=='today';
-    await q('UPDATE po_source_schedule_state SET lease_owner=NULL,lease_until=NULL,lease_run_id=NULL,last_status=?,last_reason_code=?,last_scan_at=UTC_TIMESTAMP(3),last_scheduled_at=IF(?,?,last_scheduled_at),next_scheduled_at=IF(?,?,next_scheduled_at) WHERE source_id=? AND lease_owner=? AND lease_epoch=?',[complete?'completed':'partial',complete?null:errorCode,advanceSchedule,dbTime(intent.scheduledAt),advanceSchedule,dbTime(+new Date(intent.scheduledAt)+86400000),SOURCE,owner,scope.sourceEpoch]);
+    await q('UPDATE po_source_schedule_state SET lease_owner=NULL,lease_until=NULL,lease_run_id=NULL,last_status=?,last_reason_code=?,last_scan_at=UTC_TIMESTAMP(3),last_scheduled_at=IF(?,?,last_scheduled_at),next_scheduled_at=IF(?,?,next_scheduled_at) WHERE source_id=? AND lease_owner=? AND lease_epoch=?',[complete?'completed':'partial',complete?null:errorCode,advanceSchedule,dbTime(intent.scheduledAt),advanceSchedule,dbTime(nextScheduledAt(intent,scope.source)),SOURCE,owner,scope.sourceEpoch]);
     if (complete) await q('UPDATE po_sources SET last_success_at=UTC_TIMESTAMP(3) WHERE id=?',[SOURCE]);
     return { status:complete?'completed':'partial',sourceId:SOURCE,parentId:intent.parentId,children:children.length,observations:sum('fetched_count') };
   });
@@ -379,7 +444,7 @@ async function main(argv = process.argv.slice(2), {refreshToday=false} = {}) {
     finally{await repo.pool.end();}return;
   }
   const owner = `overseas-daily:${crypto.randomUUID()}`;
-  let lockConn, locked = false, intent, scope, intentPath, started = false, uncertain = false, timer, heartbeatError, heartbeat;
+  let lockConn, locked = false, intent, scope, intentPath, started = false, uncertain = false, timer, heartbeatError, heartbeat, pageCommitInProgress = false;
   const controller = new AbortController();
   const stop = () => controller.abort(); process.once('SIGINT',stop); process.once('SIGTERM',stop);
   try {
@@ -393,8 +458,8 @@ async function main(argv = process.argv.slice(2), {refreshToday=false} = {}) {
       if (previous.status !== 'completed') { intent = previous; intentPath = path.join(directory,name); break; }
     }
     if (!intent) {
-      const [schedule]=await repo.query('SELECT next_scheduled_at FROM po_source_schedule_state WHERE source_id=?',[SOURCE]);
-      const slot=refreshToday?todaySlot():selectDueSlot(schedule?.next_scheduled_at);
+      const [schedule]=await repo.query('SELECT last_scheduled_at,next_scheduled_at FROM po_source_schedule_state WHERE source_id=?',[SOURCE]);
+      const slot=refreshToday?todaySlot():configuredSlot(initial.source,schedule);
       if(!slot)return {status:'caught_up'};
       intentPath = path.join(directory,`${refreshToday?'today':'slot'}-${+new Date(slot.scheduledAt)}.json`);
       if (fs.existsSync(intentPath)) intent = parse(fs.readFileSync(intentPath,'utf8'));
@@ -412,7 +477,7 @@ async function main(argv = process.argv.slice(2), {refreshToday=false} = {}) {
     scope = await admit(repo,intent,owner,directory); started = !scope.alreadyCompleted;
     if (scope.alreadyCompleted) { durableJson(intentPath,{...intent,status:'completed'}); console.log(JSON.stringify({status:'already_completed',parentId:intent.parentId})); return {status:'already_completed'}; }
     timer = setInterval(()=>{
-      if (heartbeat || heartbeatError) return;
+      if (heartbeat || heartbeatError || pageCommitInProgress) return;
       heartbeat = renew(repo,intent,owner,scope).catch(error=>{heartbeatError=error;controller.abort();}).finally(()=>{heartbeat=null;});
     },30000);
     const jobs = createOverseasPageJobs({repairMissingJobs:true,analysisOptionsFor:()=>({profile:'light',version:new AiAnalyzer(process.env).profiles.light.version,triggerReason:'all_content'}),translationOptions:{targetLanguage:'zh-CN',version:process.env.AI_TRANSLATION_VERSION||'translation-v1'}});
@@ -452,13 +517,23 @@ async function main(argv = process.argv.slice(2), {refreshToday=false} = {}) {
       const scoped = {...scope.source,account:scope.account,siteId:child.site.site_id,site_id:child.site.site_id,siteUrl:child.site.url,config:{...parse(scope.source.config),baseUrl:child.site.url}};
       await collectSite({connector,scoped,account:scope.account,child,intent,maxPages,signal:controller.signal,check:async()=>{
         if (heartbeatError) throw heartbeatError;
-        await check();
+        // The transport verifies shared exclusion immediately before every
+        // HTTP request. Keep the page lock check here without repeating the
+        // expensive Windows process inventory before that same request.
         const [[owned]] = await lockConn.query('SELECT IS_USED_LOCK(?)=CONNECTION_ID() AS owned',[`po-overseas-production:${SOURCE}`]);
         if (!Number(owned.owned)) fail('OVERSEAS_PRODUCTION_LEASE_LOST');
       },commit:async(page,feed)=>{
-        const result = await commitWithLockRetry(()=>commitPage({repo,scope,intent,owner,child,page,feed,jobs}));
-        durableJson(intentPath,{...intent,status:'collecting',sentRequests:sent,lastCommittedSite:child.site.site_id,lastCommittedPages:result.receipt.pages});
-        return result;
+        // Both page commit and renewal lock the source/run rows. Do not let
+        // our own heartbeat time out behind a page's atomic queue writes.
+        // Page commit renews these same leases before COMMIT.
+        pageCommitInProgress = true;
+        try {
+          if (heartbeat) await heartbeat;
+          if (heartbeatError) throw heartbeatError;
+          const result = await commitWithLockRetry(()=>commitPage({repo,scope,intent,owner,child,page,feed,jobs}));
+          durableJson(intentPath,{...intent,status:'collecting',sentRequests:sent,lastCommittedSite:child.site.site_id,lastCommittedPages:result.receipt.pages});
+          return result;
+        } finally { pageCommitInProgress = false; }
       }});
     }
     clearInterval(timer); timer=null; if(heartbeat)await heartbeat;
@@ -492,8 +567,7 @@ async function main(argv = process.argv.slice(2), {refreshToday=false} = {}) {
   }
 }
 async function runScheduled(argv=process.argv.slice(2), execute=main) {
-  if(argv[0]!=='--execute')return execute(argv);
-  return execute(argv,{refreshToday:true});
+  return execute(argv);
 }
 if (require.main === module) runScheduled().catch(error=>{console.error(JSON.stringify({status:'failed',code:/^[A-Z0-9_]+$/.test(error.code||'')?error.code:'OVERSEAS_PRODUCTION_FAILED'}));process.exitCode=1;});
-module.exports = { dailySlot,selectDueSlot,todaySlot,idFor,collectSite,commitPage,assertSharedExclusion,main,runScheduled };
+module.exports = { dailySlot,selectDueSlot,todaySlot,configuredSlot,nextScheduledAt,idFor,collectSite,commitPage,assertSharedExclusion,main,runScheduled };

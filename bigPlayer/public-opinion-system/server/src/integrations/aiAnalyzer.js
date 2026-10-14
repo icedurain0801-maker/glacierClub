@@ -28,6 +28,9 @@ function tokenShare(total, count, index) {
 
 class AiAnalyzer {
   constructor(env = process.env) {
+    // 现役入口改由全局TypeSafe接管；旧构造与light/deep实现保留，切回时改为legacy。
+    if (env.PUBLIC_OPINION_ANALYSIS_PROVIDER === 'typesafe') return new (require('./typeSafeAnalyzer').TypeSafeAnalyzer)(env);
+    // 停用的旧分析入口：new AiAnalyzer({...env, PUBLIC_OPINION_ANALYSIS_PROVIDER:'legacy'})。
     this.enabled = env.AI_ANALYSIS_ENABLED === 'true' || env.AI_ANALYSIS_ENABLED === '1';
     this.url = env.AI_ANALYSIS_URL || '';
     this.token = env.AI_ANALYSIS_TOKEN || '';

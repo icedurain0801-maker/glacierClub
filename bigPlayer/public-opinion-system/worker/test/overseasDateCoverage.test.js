@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {selectDueSlot,todaySlot}=require('../src/overseasProductionDaily');
 const {runScheduled}=require('../src/overseasProductionDaily');
-test('scheduled execution selects rolling latest window directly',async()=>{const calls=[];await runScheduled(['--execute'],async(argv,options)=>{calls.push(options?.refreshToday||false);return {status:'completed'};});assert.deepEqual(calls,[true]);});
+test('scheduled execution uses configured slots rather than manual refresh',async()=>{const calls=[];await runScheduled(['--execute'],async(argv,options)=>{calls.push(options?.refreshToday||false);return {status:'completed'};});assert.deepEqual(calls,[false]);});
 test('failed rolling run stops for checkpoint recovery',async()=>{let calls=0;await runScheduled(['--execute'],async()=>{calls++;return {status:'partial'};});assert.equal(calls,1);});
 test('catchup chooses oldest due day rather than latest day',()=>{const s=selectDueSlot('2026-10-10 18:00:00.000',new Date('2026-10-12T01:00:00Z'));assert.equal(s.scheduledAt,'2026-10-10T18:00:00.000Z');assert.equal(s.windowStart,'2026-10-09T16:00:00.000Z');});
 test('caught up schedule does not repeat completed day',()=>assert.equal(selectDueSlot('2026-10-12 18:00:00.000',new Date('2026-10-12T01:00:00Z')),null));

@@ -58,3 +58,5 @@ const crawler = path.join(sourceRoot, 'scripts', 'q1_crawler.py');
 assertPlain(crawler); fs.mkdirSync(path.join(targetRoot, 'scripts'), { recursive: true });
 fs.copyFileSync(crawler, path.join(targetRoot, 'scripts', 'q1_crawler.py'));
 console.log(`PASS: copied Worker runtime closure (${copied.size + 1} source files)`);
+
+fs.copyFileSync(path.join(sourceRoot, 'sentiment_evaluator.py'), path.join(targetRoot, 'server/src/integrations/sentiment_evaluator.py'));

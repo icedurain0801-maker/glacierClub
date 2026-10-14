@@ -1241,3 +1241,42 @@ test('H5 direct endpoints are all checked against the server allowlist', async (
   assert.equal(health.installed, false);
   assert.match(health.reason, /outside allowed hosts/);
 });
+
+test('Q1 bounded collection replays transient disorder once and proves boundary from the head', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const offsets = []; const pages = [
+    ['2026-09-10T12:00:00Z', '2026-09-10T13:00:00Z'],
+    ['2026-09-10T13:00:00Z', '2026-09-10T12:00:00Z'],
+    ['2026-09-09T13:00:00Z', '2026-09-09T12:00:00Z']
+  ];
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, { credentialContext: credentialContext(), fetchImpl: async url => {
+    offsets.push(Number(new URL(url).searchParams.get('offsetId')));
+    const list = pages.shift().map((createTime, i) => ({ id: i + 1, createTime, title: 'test' }));
+    return { ok: true, status: 200, url: String(url), json: async () => ({ code: 0, data: { list, hasMore: true } }) };
+  } });
+  connector.enrichQ1FeedItems = async ({ items }) => ({ items, diagnostics: {} });
+  const input = { source, feed, limit: 2, dailyBounded: true, publishedFrom: '2026-09-10T00:00:00Z', publishedTo: '2026-09-11T00:00:00Z' };
+  const a = await connector.listFeedContents(input);
+  assert.equal(a.raw.paginationDiagnostics.timeOrderRestarted, true);
+  const b = await connector.listFeedContents({ ...input, cursor: a.nextCursor });
+  const c = await connector.listFeedContents({ ...input, cursor: b.nextCursor });
+  assert.deepEqual(offsets, [0, 0, 2]);
+  assert.equal(c.hasMore, false);
+  assert.equal(c.raw.paginationDiagnostics.timeBoundaryReached, true);
+});
+
+test('Q1 persistent disorder cannot reset indefinitely or claim a chronological boundary', async () => {
+  const source = { id: 's1', config: { baseUrl: 'https://club.q1.com/?env=web&gameId=2131&gameVersion=2131-CN-ZS', boardId: '2' } };
+  const feed = { boardId: '2', pageKind: 'home', endpointKind: 'merged', groupId: null, groupType: null, sectionId: '0', type: null, orderType: null, isUltimate: null };
+  feed.feedKey = ['2', 'home', 'merged', '', '0', '', '', ''].join(':');
+  const connector = new BigPlayerH5Connector({ BIGPLAYER_H5_ENABLED: 'true', BIGPLAYER_H5_ALLOWED_HOSTS: 'club.q1.com' }, { credentialContext: credentialContext(), fetchImpl: async url => ({ ok: true, status: 200, url: String(url), json: async () => ({ code: 0, data: { hasMore: true, list: [{ id: 1, createTime: '2026-09-09T12:00:00Z' }, { id: 2, createTime: '2026-09-09T13:00:00Z' }] } }) }) });
+  connector.enrichQ1FeedItems = async ({ items }) => ({ items, diagnostics: {} });
+  const input = { source, feed, limit: 2, dailyBounded: true, publishedFrom: '2026-09-10T00:00:00Z', publishedTo: '2026-09-11T00:00:00Z' };
+  const a = await connector.listFeedContents(input);
+  const b = await connector.listFeedContents({ ...input, cursor: a.nextCursor });
+  assert.equal(JSON.parse(b.nextCursor).offsetId, 2);
+  assert.equal(JSON.parse(b.nextCursor).timeOrderRestarts, 1);
+  assert.equal(b.raw.paginationDiagnostics.timeBoundaryReached, false);
+});

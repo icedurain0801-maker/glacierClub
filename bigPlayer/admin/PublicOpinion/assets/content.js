@@ -2,7 +2,7 @@ const API = window.PUBLIC_OPINION_API || '/api/public-opinion';
 const Detail = window.PublicOpinionAlertDetail;
 const Handling = window.PublicOpinionContentHandling;
 const RiskModes = window.PublicOpinionRiskModes;
-const state = { sources: [], contents: [], scope: null, contentMode: 'attention', riskContentType: '', page: 1, pageSize: 50, total: 0, requestSerial: 0, statsSerial: 0, deepLinkOpened: '', publishedFrom: '', publishedTo: '' };
+const state = { sources: [], contents: [], scope: null, contentMode: 'post', riskContentType: '', page: 1, pageSize: 50, total: 0, requestSerial: 0, statsSerial: 0, deepLinkOpened: '', publishedFrom: '', publishedTo: '' };
 const CONTENT_DATE_STORAGE_KEY = 'public-opinion:content:published-range';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -341,7 +341,7 @@ function restoreUrl(params = new URLSearchParams(window.location.search)) {
   if (isBigPlayerScope() && kind && [...(kindFilter?.options || [])].some(option => option.value === kind)) kindFilter.value = kind;
   const restoredRange = resolvePublishedRange(params); state.exactRange = restoredRange?.exact || null;
   $('#publishedFromFilter').value = restoredRange?.from || localDateString(new Date()); $('#publishedToFilter').value = restoredRange?.to || localDateString(new Date()); const range = normalizedPublishedRange(); state.publishedFrom = range.from; state.publishedTo = range.to; updateDatePresetState();
-  const legacyMode = { post: 'post', comment: 'comment' }[params.get('contentType')]; const riskMode = RiskModes.normalizeRiskMode(params.get('riskMode')); state.contentMode = modeConfig[params.get('contentMode')] ? params.get('contentMode') : (riskMode || legacyMode || 'attention'); if (state.contentMode === 'negative') state.contentMode = 'urgent'; updateContentMode();
+  const legacyMode = { post: 'post', comment: 'comment' }[params.get('contentType')]; const riskMode = RiskModes.normalizeRiskMode(params.get('riskMode')); state.contentMode = modeConfig[params.get('contentMode')] ? params.get('contentMode') : (riskMode || legacyMode || 'post'); if (state.contentMode === 'negative') state.contentMode = 'urgent'; updateContentMode();
   state.riskContentType = ['negative', 'attention', 'urgent'].includes(state.contentMode) && ['post', 'comment'].includes(params.get('contentType')) ? params.get('contentType') : '';
   updateContentMode();
   updateBigPlayerContentKindFilter();
