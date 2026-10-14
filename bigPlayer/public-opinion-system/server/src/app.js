@@ -17,6 +17,7 @@ const { AiAnalyzer } = require('./integrations/aiAnalyzer');
 const { DingTalkNotifier } = require('./integrations/dingTalkNotifier');
 const credentialCipher = require('./integrations/credentialCipher');
 const { CredentialContext } = require('./services/credentialContext');
+const { tokenExpiry } = require('./services/tokenExpiry');
 const { DouyinOAuthService } = require('./services/douyinOAuthService');
 const { LoginSessionClient } = require('./services/loginSessionClient');
 const { AuthRefreshCoordinator } = require('./services/authRefreshCoordinator');
@@ -459,6 +460,7 @@ async function sourceWithAccount(source, { summary = false } = {}) {
     account.credential_configured = Boolean(account.credential_configured || account.credentialConfigured || hasCredential);
     account.masked_phone = account.masked_login_identifier || null;
     account.hasToken = Boolean(account.hasToken || account.has_token || hasToken);
+    account.tokenExpiry = await tokenExpiry(repo, account, credentials);
     account.hasAccountPassword = Boolean(account.hasAccountPassword || account.has_account_password || hasAccountPassword);
     account.maskedAccount = account.masked_login_identifier || null;
   }
@@ -675,7 +677,7 @@ async function writeCredential(accountId, body, platform = '') {
   if (!body.secret || !String(body.secret).trim()) { const error = new Error('secret is required'); error.code = 'INVALID_INPUT'; throw error; }
   const credentialType = body.credentialType || 'api_token';
   const secretCipher = credentialCipher.encrypt(String(body.secret), process.env, { aad: credentialAad({ accountId, credentialType, platform }), kid: process.env.CREDENTIAL_ENC_KEY_ID || 'primary' });
-  return repo.upsertAccountCredential(accountId, { credentialType, secretCipher, status: 'active', expireAt: body.expireAt || null });
+  return repo.upsertAccountCredential(accountId, { credentialType, secretCipher, status: 'active', expireAt: body.expireAt || null, replaceExpireAt: ['api_token', 'oauth_access_refresh'].includes(credentialType) });
 }
 function loginBinding(source, account) { return { sourceId: source.id, accountId: account.id, platform: normalizePlatform(source.platform) }; }
 async function socialSourceAccount(id) {
