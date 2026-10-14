@@ -1,0 +1,20 @@
+<service>
+  <id>PublicOpinionFrontend3001</id>
+  <name>PublicOpinionFrontend3001</name>
+  <description>Public Opinion static frontend and API reverse proxy on port 3001</description>
+  <executable>%NODE_EXE%</executable>
+  <arguments>"%RUNTIME_ROOT%\frontend3001-server.js"</arguments>
+  <workingdirectory>%RUNTIME_ROOT%</workingdirectory>
+  <env name="FRONTEND3001_CONFIG_FILE" value="%CONFIG_FILE%" />
+  <env name="NODE_PATH" value="" />
+  <env name="NODE_OPTIONS" value="" />
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <serviceaccount><domain>NT AUTHORITY</domain><user>LocalService</user></serviceaccount>
+  <stoptimeout>30 sec</stoptimeout>
+  <logpath>%LOG_ROOT%</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>14</keepFiles></log>
+</service>

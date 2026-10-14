@@ -1,0 +1,11 @@
+# Domestic 926875 single lock-diagnostic gate
+
+Status: CONDITIONAL_GO_ONE_DIAGNOSTIC_ONLY / FOUR_LATER_TARGETS_STOPPED
+
+The v4 `926875` failure occurred at `store_comment_page/comment_upsert/operation 6`, `ER_LOCK_WAIT_TIMEOUT`. Independent SELECT-only QA found its checkpoint idle/items 0/null cursor/lease-free and zero in-window child comments. The fixed-list batch stopped before `926876,926878,926884,926885`.
+
+The target-specific wrapper `C:/Users/Administrator/AppData/Roaming/Code/User/project manage/.temp/domestic-today-recovery-20261009/diagnose-comment-926875.js` SHA256 is `5dd5465e3e7d766848b6187fa6fe4750771e75cb5394d0d05865d1e8054ceecc`; its test SHA256 is `985c01bd8ad852d124e3e341acb69e2a7b4b8822cf1c8db2acbc728bad3d9a88`. Its contents are exactly the reviewed 926820 wrapper with the hard-coded target ID changed; the claimed 200/100ms cadence is **not** in the file. Actual cadence is 500ms before a wait, 150ms for up to 5 seconds after first wait. Independent tests pass 3/3. The wrapper reads only safe INNODB lock/transaction metadata, preflights SELECT before launching the one child, has 2-second query timeout and 240-second child cap, omits SQL text, `trx_query`, `lock_data`, body and credentials, and does not issue DML/DDL/FOR UPDATE/KILL.
+
+Approved `graph-v4-comments-926875-diagnostic1.controlled-approved.json` changes only `postId` and new output from the previously reviewed 926820 diagnostic plan. It has the same domestic source/account/site/captured window, `mode=comments/maxPages=1`, exact current 115-file closure and CLI SHA. CLI output and separate `926875-diagnostic1-lock-evidence.json` were nonexistent at review.
+
+Conditional GO solely for the project manager to run the exact wrapper SHA once with this plan and new evidence output after checking account advisory lock and target checkpoint lease. Preserve original failure, new CLI report, lock sample and pre/post read-only checkpoint/content/AI evidence. Zero sampled waits or a successful retry do not establish root-cause repair. Any failure or sampler error stops; do not automatically retry or run the four later targets. Re-review is required if wrapper cadence or any file changes after this gate.

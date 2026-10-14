@@ -5,12 +5,19 @@ const { Repository } = require('../../server/src/db/repository');
 const { AiAnalyzer } = require('../../server/src/integrations/aiAnalyzer');
 const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
 const { matchRules } = require('../../server/src/pipeline/ruleEngine');
+const { normalizeAnalysisResult } = require('../../server/src/services/riskSeverityNormalizer');
 const crypto = require('node:crypto');
 
 const ACTIVE = new Set(['pending', 'running', 'retryable']);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const parseJson = value => { if (!value) return []; if (typeof value === 'object') return value; try { return JSON.parse(value); } catch (_) { return []; } };
 const errorCode = error => error?.code || 'Q1_ANALYSIS_BATCH_FAILED';
+function sanitizeMessage(value) {
+  return String(value || '')
+    .replace(/((?:authorization|cookie|token|password|secret|api[-_ ]?key)\s*[:=]\s*)[^\s,;}&]+/gi, '$1[redacted]')
+    .replace(/Bearer\s+[^\s,;}]+/gi, 'Bearer [redacted]')
+    .slice(0, 500);
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -36,19 +43,24 @@ function shouldDeep(analysis, hit, options = {}) {
     || Number(analysis?.confidence) < confidenceThreshold);
 }
 function cacheKey(ai, job, profile) { return ai.cacheKey(job.content_fingerprint || job.fingerprint, ai.selectProfile(profile), job); }
-function normalizeAnalysis(value, profile, fingerprint) {
+function normalizeAnalysis(value, profile, fingerprint, context = {}) {
   const sentiment = ['positive', 'neutral', 'negative'].includes(String(value?.sentiment || '').toLowerCase())
     ? String(value.sentiment).toLowerCase() : 'neutral';
-  const severity = ['normal', 'attention', 'urgent'].includes(String(value?.severity || '').toLowerCase())
-    ? String(value.severity).toLowerCase() : 'normal';
+  const severity = String(value?.severity || '').toLowerCase();
   const bounded = (input, fallback = 0) => {
     const number = Number(input);
     return Number.isFinite(number) ? Math.min(1, Math.max(0, number)) : fallback;
   };
+  const normalizedSeverity = normalizeAnalysisResult({ ...value, sentiment, severity, negativeScore: bounded(value?.negativeScore ?? value?.negative_score), confidence: bounded(value?.confidence), title: context.title, body: context.body, topics: value?.topics, reason: value?.reason });
   return {
     ...value,
     sentiment,
-    severity,
+    severity: normalizedSeverity.severity,
+    originalSeverity: normalizedSeverity.originalSeverity,
+    rawAnalysis: normalizedSeverity.rawAnalysis,
+    riskPolicyVersion: normalizedSeverity.riskPolicyVersion,
+    severityNormalizationReasons: normalizedSeverity.severityNormalizationReasons,
+    analysisReason: normalizedSeverity.analysisReason,
     negativeScore: bounded(value?.negativeScore ?? value?.negative_score),
     confidence: bounded(value?.confidence),
     qualityScore: bounded(value?.qualityScore ?? value?.quality_score),
@@ -86,8 +98,8 @@ async function analyzeWithFallback(ai, items, profile) {
 }
 
 class Q1AnalysisRunner {
-  constructor({ repo = new Repository(), ai = new AiAnalyzer(), alertEngine = new AlertEngine(), sourceId, contentIds = null, publishedFrom, publishedTo, batchSize = 100, parallel = 4, deepBatchSize = 10, deepParallel = 4, maxAttempts = 2, retryBaseMs = 1000, pollMs = 1000, timeoutMs = 2 * 60 * 60 * 1000, deepNegativeThreshold = 0.8, deepConfidenceThreshold = 0.55, log = console.log } = {}) {
-    this.repo = repo; this.ai = ai; this.alertEngine = alertEngine; this.sourceId = sourceId; this.contentIds = Array.isArray(contentIds) ? [...new Set(contentIds.map(String).filter(Boolean))] : null; this.publishedFrom = publishedFrom; this.publishedTo = publishedTo; this.batchSize = Math.min(Math.max(Number(batchSize) || 100, 1), 500); this.deepBatchSize = Math.min(Math.max(Number(deepBatchSize) || 10, 1), 100); this.parallel = Math.min(Math.max(Number(parallel) || 4, 1), 16); this.deepParallel = Math.min(Math.max(Number(deepParallel) || 4, 1), 16); this.maxAttempts = Math.max(Number(maxAttempts) || 2, 1); this.retryBaseMs = Math.max(Number(retryBaseMs) || 1000, 100); this.pollMs = Math.max(Number(pollMs) || 1000, 100); this.timeoutMs = Math.max(Number(timeoutMs) || 7200000, 1000); this.deepNegativeThreshold = Number(deepNegativeThreshold); this.deepConfidenceThreshold = Number(deepConfidenceThreshold); this.log = log;
+  constructor({ repo = new Repository(), ai = new AiAnalyzer(), alertEngine = new AlertEngine(), sourceId, contentIds = null, publishedFrom, publishedTo, businessDate, scope = {}, manualClaim = false, claimOwner, batchSize = 100, parallel = 4, deepBatchSize = 10, deepParallel = 4, maxAttempts = 2, retryBaseMs = 1000, pollMs = 1000, timeoutMs = 2 * 60 * 60 * 1000, deepNegativeThreshold = 0.8, deepConfidenceThreshold = 0.55, log = console.log } = {}) {
+    this.repo = repo; this.ai = ai; this.alertEngine = alertEngine; this.sourceId = sourceId; this.scope = scope || {}; this.contentIds = Array.isArray(contentIds) ? [...new Set(contentIds.map(String).filter(Boolean))] : null; this.publishedFrom = publishedFrom; this.publishedTo = publishedTo; this.businessDate = businessDate; this.manualClaim = manualClaim === true; this.claimOwner = claimOwner || (this.manualClaim ? `q1-daily:${process.pid}:${sourceId}:${businessDate}` : `q1-daily:${process.pid}`); this.batchSize = Math.min(Math.max(Number(batchSize) || 100, 1), 500); this.deepBatchSize = Math.min(Math.max(Number(deepBatchSize) || 10, 1), 100); this.parallel = Math.min(Math.max(Number(parallel) || 4, 1), 16); this.deepParallel = Math.min(Math.max(Number(deepParallel) || 4, 1), 16); this.maxAttempts = Math.max(Number(maxAttempts) || 2, 1); this.retryBaseMs = Math.max(Number(retryBaseMs) || 1000, 100); this.pollMs = Math.max(Number(pollMs) || 1000, 100); this.timeoutMs = Math.max(Number(timeoutMs) || 7200000, 1000); this.deepNegativeThreshold = Number(deepNegativeThreshold); this.deepConfidenceThreshold = Number(deepConfidenceThreshold); this.log = log;
   }
   async enqueueMissing(profile) {
     const spec = this.ai.selectProfile(profile); let total = 0;
@@ -98,7 +110,8 @@ class Q1AnalysisRunner {
   }
   async processBatch(profile) {
     const spec = this.ai.selectProfile(profile);
-    const jobs = await this.repo.claimAnalysisJobs({ profile, version: spec.version, leaseOwner: `q1-daily:${process.pid}`, leaseSeconds: 900, limit: profile === 'deep' ? this.deepBatchSize : this.batchSize, sourceId: this.sourceId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo });
+    const jobs = await this.repo.claimAnalysisJobs({ profile, version: spec.version, leaseOwner: this.claimOwner, leaseSeconds: 900, limit: profile === 'deep' ? this.deepBatchSize : this.batchSize, sourceId: this.sourceId, gameId: this.scope.gameId, communityId: this.scope.communityId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo, businessDate: this.businessDate, allowDisabledSource: this.manualClaim });
+    if (jobs.some(job => (this.scope.gameId && String(job.game_id) !== String(this.scope.gameId)) || (this.scope.communityId && String(job.community_id) !== String(this.scope.communityId)))) throw Object.assign(new Error('analysis job escaped canonical scope'), { code: 'ANALYSIS_SCOPE_MISMATCH' });
     if (!jobs.length) return 0;
     const keys = jobs.map(job => cacheKey(this.ai, job, profile));
     const cached = new Map((await this.repo.getAnalysisCache(keys)).map(row => [row.cache_key, row]));
@@ -106,34 +119,43 @@ class Q1AnalysisRunner {
     let results = jobs.map((job, index) => cached.get(keys[index]) || null);
     try {
       if (pending.length) {
-        const fresh = await analyzeWithFallback(this.ai, pending.map(job => ({ title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
+        const fresh = await analyzeWithFallback(this.ai, pending.map(job => ({ contentType: job.content_type, title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
         let cursor = 0; results = results.map(result => result || fresh[cursor++]);
       }
       for (let i = 0; i < jobs.length; i += 1) {
-        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint), analysisVersion: results[i]?.analysisVersion || spec.version, triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
+        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint, { title: job.title, body: job.body }), analysisVersion: results[i]?.analysisVersion || spec.version, normalizationBatchId: this.claimOwner, cacheKey: keys[i], triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
         await this.repo.insertAnalysis(job.content_id, analysis);
+        if (typeof this.repo.reconcilePositiveRiskAlerts === 'function') await this.repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: this.claimOwner });
         if (!cached.has(keys[i])) await this.repo.upsertAnalysisCache({ ...analysis, cacheKey: keys[i], contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
-        if (profile === 'deep') { const quality = qualityOf(analysis); await this.repo.upsertQualityCandidate(job.content_id, { ...(quality || {}), body: job.body, sentiment: analysis.sentiment || '', analysisVersion: analysis.analysisVersion, modelName: analysis.modelName, contentFingerprint: analysis.contentFingerprint }); }
+        if (profile === 'deep' || this.ai.singlePass) { const quality = qualityOf(analysis); await this.repo.upsertQualityCandidate(job.content_id, { ...(quality || {}), body: job.body, sentiment: analysis.sentiment || '', analysisVersion: analysis.analysisVersion, modelName: analysis.modelName, contentFingerprint: analysis.contentFingerprint }); }
         await this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status: 'completed' });
         if (profile === 'light') {
           const rules = await this.repo.loadKeywordRules(job.game_id, job.platform, job.community_id);
           const hit = matchRules({ title: job.title, body: job.body, authorName: job.author_name }, rules);
-          if (shouldDeep(analysis, hit) && this.ai.configured('deep')) await this.repo.enqueueAnalysisJob(job.content_id, { profile: 'deep', version: this.ai.selectProfile('deep').version, contentFingerprint: analysis.contentFingerprint, triggerReason: hit.matchedKeywords?.length ? 'keyword_match' : 'light_escalation', matchedKeywords: hit.matchedKeywords || [] });
+          // 旧light/deep流程保留，TypeSafe不再新建深度二次分析任务。
+          if (!this.ai.singlePass && shouldDeep(analysis, hit) && this.ai.configured('deep')) await this.repo.enqueueAnalysisJob(job.content_id, { profile: 'deep', version: this.ai.selectProfile('deep').version, contentFingerprint: analysis.contentFingerprint, triggerReason: hit.matchedKeywords?.length ? 'keyword_match' : 'light_escalation', matchedKeywords: hit.matchedKeywords || [] });
           if (hit.needAI && this.alertEngine?.process) await this.alertEngine.process({ game: { id: job.game_id, name: job.game_name, region_code: job.region_code, community_id: job.community_id }, content: { ...job, id: job.content_id }, hit, analysis });
         }
       }
       return jobs.length;
     } catch (error) {
-      await Promise.all(jobs.map(job => { const attempts = Number(job.attempts || 1); const status = attempts >= this.maxAttempts ? 'failed' : 'retryable'; const retryAt = status === 'retryable' ? new Date(Date.now() + this.retryBaseMs * 2 ** Math.max(0, attempts - 1)) : null; return this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status, errorCode: errorCode(error), errorMessage: error.message, retryAt }); }));
+      await Promise.all(jobs.map(job => { const attempts = Number(job.attempts || 1); const status = attempts >= this.maxAttempts ? 'failed' : 'retryable'; const retryAt = status === 'retryable' ? new Date(Date.now() + this.retryBaseMs * 2 ** Math.max(0, attempts - 1)) : null; return this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status, errorCode: errorCode(error), errorMessage: sanitizeMessage(error.message), retryAt }); }));
       this.log(`[q1-analysis] ${profile} batch failed: ${error.message}`);
       return 0;
     }
   }
   async counts(profile) { return this.repo.countAnalysisJobs({ profile, version: this.ai.selectProfile(profile).version, sourceId: this.sourceId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo }); }
   async run() {
+    const locked = await this.repo.acquireAdvisoryLock('po-analysis-consumer', 60);
+    if (!locked) throw Object.assign(new Error('analysis consumer is active'), { code: 'ANALYSIS_SCOPE_BUSY' });
+    try { return await this.runScoped(); }
+    finally { await this.repo.releaseAdvisoryLock('po-analysis-consumer'); }
+  }
+  async runScoped() {
     if (!this.sourceId || !this.publishedFrom || !this.publishedTo) throw new Error('sourceId and published window are required');
+    if ((this.scope.gameId && !this.scope.communityId) || (this.scope.communityId && !this.scope.gameId)) throw Object.assign(new Error('canonical game and community scope must be supplied together'), { code: 'ANALYSIS_SCOPE_REQUIRED' });
     if (!this.ai.configured('light')) throw new Error('AI_ANALYSIS_NOT_CONFIGURED');
-    const deadline = Date.now() + this.timeoutMs; const report = { sourceId: this.sourceId, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo, discovered: 0, completed: 0, failed: 0, passes: [] };
+    const deadline = Date.now() + this.timeoutMs; const report = { sourceId: this.sourceId, regionCode: this.scope.regionCode || null, externalCommunity: this.scope.externalCommunity || null, internalGameId: this.scope.gameId || null, internalCommunityId: this.scope.communityId || null, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo, discovered: 0, completed: 0, failed: 0, passes: [] };
     const profiles = ['light'];
     if (this.ai.configured('deep')) profiles.push('deep');
     for (const profile of profiles) {

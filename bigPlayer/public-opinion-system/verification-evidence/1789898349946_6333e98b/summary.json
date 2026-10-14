@@ -1,0 +1,618 @@
+{
+  "status": "PASS",
+  "candidate": "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\project manage\\bigPlayer\\public-opinion-system",
+  "evidenceDir": "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\project manage\\bigPlayer\\public-opinion-system\\verification-evidence\\1789898349946_6333e98b",
+  "databases": [
+    "candidate_verify_1789898349946_6333e98b_empty",
+    "candidate_verify_1789898349946_6333e98b_old-schema",
+    "candidate_verify_1789898349946_6333e98b_ledger-rerun",
+    "candidate_verify_1789898349946_6333e98b_fk-interrupted",
+    "candidate_verify_1789898349946_6333e98b_missing-window"
+  ],
+  "results": [
+    {
+      "name": "empty-db",
+      "status": "PASS",
+      "detail": {
+        "code": 0,
+        "stderr": ""
+      }
+    },
+    {
+      "name": "old-schema-upgrade",
+      "status": "PASS",
+      "detail": {
+        "through026": 0,
+        "upgradeCode": 0,
+        "appliedBeforeUpgrade": [
+          "001_initial.sql",
+          "002_p0_pipeline.sql",
+          "003_credential_cipher.sql",
+          "004_manual_collect.sql",
+          "005_owned_account_sync.sql",
+          "006_collection_source_direct_login.sql",
+          "007_realtime_sync_progress.sql",
+          "008_tiered_ai_analysis.sql",
+          "009_collection_run_management.sql",
+          "009_content_feed_memberships.sql",
+          "010_content_list_performance.sql",
+          "011_region_game_communities.sql",
+          "012_analysis_reason.sql",
+          "013_overview_alert_performance.sql",
+          "014_quality_content_recommendations.sql",
+          "015_analysis_covering_index.sql",
+          "016_account_credential_identity.sql",
+          "017_content_media.sql",
+          "018_keyword_rule_platform_normalization.sql",
+          "018_source_community_id.sql",
+          "023_unified_source_scheduling.sql",
+          "024_source_frequency_default.sql",
+          "025_worker_scan_leases.sql",
+          "026_scheduler_runtime_schema_reconciliation.sql"
+        ]
+      }
+    },
+    {
+      "name": "ledger-delete-rerun",
+      "status": "PASS",
+      "detail": {
+        "firstCode": 0,
+        "rerunCode": 0,
+        "finalLedgerRows": 2
+      }
+    },
+    {
+      "name": "fk-interrupted-rerun",
+      "status": "PASS",
+      "detail": {
+        "firstCode": 0,
+        "rerunCode": 0,
+        "parentFkCount": 1
+      }
+    },
+    {
+      "name": "missing-window-fail-fast",
+      "status": "PASS",
+      "detail": {
+        "through026Code": 0,
+        "failFastCode": 1,
+        "failFastMessage": "MIGRATION_027_PREREQUISITE_NOT_READY: 027 prerequisites not ready; versions=ok columns=po_sync_checkpoints.window_start=varchar(32)\n"
+      }
+    },
+    {
+      "name": "schema-invariants",
+      "status": "PASS",
+      "detail": {
+        "columns": [
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "id",
+            "column_type": "char(36)",
+            "is_nullable": "NO",
+            "column_key": "PRI"
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "account_id",
+            "column_type": "char(36)",
+            "is_nullable": "NO",
+            "column_key": "MUL"
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "sync_scope",
+            "column_type": "varchar(20)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "root_platform_content_id",
+            "column_type": "varchar(255)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "cursor",
+            "column_type": "text",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "status",
+            "column_type": "varchar(20)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "sync_mode",
+            "column_type": "varchar(20)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "last_item_at",
+            "column_type": "datetime",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "items_fetched",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "error_code",
+            "column_type": "varchar(80)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "error_message",
+            "column_type": "text",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "lease_owner",
+            "column_type": "varchar(160)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "lease_until",
+            "column_type": "datetime",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "updated_at",
+            "column_type": "datetime",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "task_kind",
+            "column_type": "varchar(40)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "task_key",
+            "column_type": "varchar(255)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "window_start",
+            "column_type": "varchar(32)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "window_end",
+            "column_type": "varchar(32)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "column_name": "site_id",
+            "column_type": "varchar(120)",
+            "is_nullable": "YES",
+            "column_key": "MUL"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "id",
+            "column_type": "char(36)",
+            "is_nullable": "NO",
+            "column_key": "PRI"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "account_id",
+            "column_type": "char(36)",
+            "is_nullable": "NO",
+            "column_key": "MUL"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "status",
+            "column_type": "varchar(30)",
+            "is_nullable": "NO",
+            "column_key": "MUL"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "sync_mode",
+            "column_type": "varchar(20)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "started_at",
+            "column_type": "datetime",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "finished_at",
+            "column_type": "datetime",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "discovered_count",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "stored_count",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "error_code",
+            "column_type": "varchar(80)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "error_message",
+            "column_type": "text",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "created_at",
+            "column_type": "datetime",
+            "is_nullable": "NO",
+            "column_key": "MUL"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "requested_at",
+            "column_type": "datetime",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "updated_at",
+            "column_type": "datetime",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "fetched_count",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "inserted_count",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "changed_count",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "unchanged_count",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "comment_count",
+            "column_type": "int(11)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "lease_owner",
+            "column_type": "varchar(160)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "lease_until",
+            "column_type": "datetime",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "source_id",
+            "column_type": "char(36)",
+            "is_nullable": "NO",
+            "column_key": "MUL"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "trigger_type",
+            "column_type": "varchar(32)",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "scheduled_at",
+            "column_type": "datetime(3)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "window_start",
+            "column_type": "datetime(3)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "window_end",
+            "column_type": "datetime(3)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "schedule_version",
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "attempts",
+            "column_type": "int(10) unsigned",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "next_retry_at",
+            "column_type": "datetime(3)",
+            "is_nullable": "YES",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "lease_epoch",
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "NO",
+            "column_key": ""
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "parent_run_id",
+            "column_type": "char(36)",
+            "is_nullable": "YES",
+            "column_key": "MUL"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "column_name": "site_id",
+            "column_type": "varchar(120)",
+            "is_nullable": "YES",
+            "column_key": "MUL"
+          }
+        ],
+        "constraints": [
+          {
+            "table_name": "po_sync_runs",
+            "constraint_name": "po_sync_runs_account_fk",
+            "referenced_table_name": "po_accounts",
+            "delete_rule": "CASCADE"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "constraint_name": "po_sync_runs_parent_fk",
+            "referenced_table_name": "po_sync_runs",
+            "delete_rule": "SET NULL"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "constraint_name": "po_sync_runs_source_fk",
+            "referenced_table_name": "po_sources",
+            "delete_rule": "RESTRICT"
+          }
+        ],
+        "indexes": [
+          {
+            "table_name": "po_sync_checkpoints",
+            "index_name": "po_sync_checkpoints_account_idx",
+            "non_unique": 1,
+            "columns_list": "account_id"
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "index_name": "po_sync_checkpoints_site_idx",
+            "non_unique": 1,
+            "columns_list": "site_id,account_id,status"
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "index_name": "po_sync_checkpoints_site_window_uk",
+            "non_unique": 0,
+            "columns_list": "account_id,site_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end"
+          },
+          {
+            "table_name": "po_sync_checkpoints",
+            "index_name": "PRIMARY",
+            "non_unique": 0,
+            "columns_list": "id"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_account_status_created_idx",
+            "non_unique": 1,
+            "columns_list": "account_id,status,created_at"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_created_id_idx",
+            "non_unique": 1,
+            "columns_list": "created_at,id"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_parent_site_idx",
+            "non_unique": 1,
+            "columns_list": "parent_run_id,site_id"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_queue_idx",
+            "non_unique": 1,
+            "columns_list": "status,scheduled_at,next_retry_at,created_at"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_site_status_idx",
+            "non_unique": 1,
+            "columns_list": "site_id,status"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_source_schedule_uk",
+            "non_unique": 0,
+            "columns_list": "source_id,scheduled_at"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_source_status_lease_idx",
+            "non_unique": 1,
+            "columns_list": "source_id,status,lease_until"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_source_trigger_schedule_idx",
+            "non_unique": 1,
+            "columns_list": "source_id,trigger_type,scheduled_at"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "po_sync_runs_status_lease_idx",
+            "non_unique": 1,
+            "columns_list": "status,lease_until"
+          },
+          {
+            "table_name": "po_sync_runs",
+            "index_name": "PRIMARY",
+            "non_unique": 0,
+            "columns_list": "id"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ddl-impact",
+      "status": "PASS",
+      "detail": {
+        "status": "PASS",
+        "version": "captured by production-schema probe when a production connection is supplied",
+        "rowCount": {
+          "policy": "record_only",
+          "source": "information_schema.tables.table_rows"
+        },
+        "lockWaits": {
+          "policy": "record_only; unavailable is explicit capability state",
+          "source": "information_schema.innodb_lock_waits"
+        },
+        "algorithm": "unspecified_by_migration_sql",
+        "lock": "unspecified_by_migration_sql",
+        "timeout": {
+          "variable": "lock_wait_timeout",
+          "policy": "record_only"
+        },
+        "failureStopPoint": "migration file and statement are preserved in child output; failed file is not added to po_schema_migrations",
+        "rollback": {
+          "transactional": false,
+          "implicitCommit": true,
+          "automatic": false,
+          "recovery": "stop; preserve failed DB/evidence; inspect and rerun idempotent migration"
+        }
+      }
+    },
+    {
+      "name": "rollback-boundary",
+      "status": "PASS",
+      "detail": {
+        "transactional": false,
+        "implicitCommit": true,
+        "automatic": false,
+        "recovery": "stop; preserve failed DB/evidence; inspect and rerun idempotent migration"
+      }
+    },
+    {
+      "name": "production-schema-evidence",
+      "status": "PASS",
+      "detail": {
+        "source": "candidate verification/production-schema.json",
+        "tables": 1
+      }
+    },
+    {
+      "name": "production-schema-compare",
+      "status": "PASS",
+      "detail": {
+        "mode": "read-only SHOW/SELECT",
+        "compared": [
+          "columns",
+          "constraints",
+          "indexes",
+          "create"
+        ],
+        "differences": []
+      }
+    }
+  ],
+  "databaseCleanup": {
+    "retained": [],
+    "cleaned": [
+      "candidate_verify_1789898349946_6333e98b_empty",
+      "candidate_verify_1789898349946_6333e98b_old-schema",
+      "candidate_verify_1789898349946_6333e98b_ledger-rerun",
+      "candidate_verify_1789898349946_6333e98b_fk-interrupted",
+      "candidate_verify_1789898349946_6333e98b_missing-window"
+    ]
+  }
+}

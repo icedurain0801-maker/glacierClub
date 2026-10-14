@@ -51,7 +51,12 @@ class AuthRefreshCoordinator {
         /^LOGIN_SESSION_/.test(error.code) ||
         /^LOGIN_/.test(error.code) ||
         /^CAPABILITY_/.test(error.code) ||
-        /^ADAPTER_/.test(error.code)
+        /^ADAPTER_/.test(error.code) ||
+        error.code === 'CREDENTIAL_RESOLVE_INVALID' ||
+        error.code === 'CREDENTIAL_RESOLVE_FAILED' ||
+        error.code === 'AUTOMATION_NOT_CONFIGURED' ||
+        error.code === 'ACCOUNT_BINDING_CONFLICT' ||
+        error.code === 'ACCOUNT_SCOPE_MISMATCH'
       )
         ? error.code
         : 'AUTH_REFRESH_FAILED';

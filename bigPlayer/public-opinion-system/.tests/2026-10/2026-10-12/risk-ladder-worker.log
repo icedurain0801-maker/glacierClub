@@ -1,0 +1,570 @@
+TAP version 13
+# Subtest: safeErrorMessage preserves nested connector cause code without exposing credentials
+ok 1 - safeErrorMessage preserves nested connector cause code without exposing credentials
+  ---
+  duration_ms: 2.1298
+  type: 'test'
+  ...
+# Subtest: Discord rate limit persists next eligible evidence and keeps the last safe checkpoint cursor
+ok 2 - Discord rate limit persists next eligible evidence and keeps the last safe checkpoint cursor
+  ---
+  duration_ms: 14.8318
+  type: 'test'
+  ...
+# Subtest: Discord comments 429 stops later comments and reply dispatch for the same run
+ok 3 - Discord comments 429 stops later comments and reply dispatch for the same run
+  ---
+  duration_ms: 3.1493
+  type: 'test'
+  ...
+# Subtest: rate limit retry uses bounded provider delay and bounded exponential fallback
+ok 4 - rate limit retry uses bounded provider delay and bounded exponential fallback
+  ---
+  duration_ms: 0.1611
+  type: 'test'
+  ...
+# Subtest: Discord rate limit retries through attempt four and becomes terminal at five
+ok 5 - Discord rate limit retries through attempt four and becomes terminal at five
+  ---
+  duration_ms: 0.1277
+  type: 'test'
+  ...
+# Subtest: Discord attempt five closes the run terminally and is not requeued
+ok 6 - Discord attempt five closes the run terminally and is not requeued
+  ---
+  duration_ms: 0.9372
+  type: 'test'
+  ...
+# Subtest: buildDeps wires the production H5 connector to the auth refresh coordinator
+ok 7 - buildDeps wires the production H5 connector to the auth refresh coordinator
+  ---
+  duration_ms: 9.1814
+  type: 'test'
+  ...
+# Subtest: H5 connector refreshes once after 401, rereads the token, and retries successfully
+ok 8 - H5 connector refreshes once after 401, rereads the token, and retries successfully
+  ---
+  duration_ms: 1.9349
+  type: 'test'
+  ...
+# Subtest: H5 connector does not refresh a second time after the retry is also 401
+ok 9 - H5 connector does not refresh a second time after the retry is also 401
+  ---
+  duration_ms: 1.1402
+  type: 'test'
+  ...
+# Subtest: shouldDeepAnalyze is pure and combines keyword and light risk signals
+ok 10 - shouldDeepAnalyze is pure and combines keyword and light risk signals
+  ---
+  duration_ms: 0.4113
+  type: 'test'
+  ...
+# Subtest: persisted analysis keeps original severity and normalization reasons
+ok 11 - persisted analysis keeps original severity and normalization reasons
+  ---
+  duration_ms: 0.3274
+  type: 'test'
+  ...
+# Subtest: positive deep result cannot inherit urgent severity from an earlier negative light result
+ok 12 - positive deep result cannot inherit urgent severity from an earlier negative light result
+  ---
+  duration_ms: 0.0911
+  type: 'test'
+  ...
+# Subtest: persistent downstream enqueues every changed item, caches light, escalates selective deep, and alerts matched/unmatched urgent separately
+ok 13 - persistent downstream enqueues every changed item, caches light, escalates selective deep, and alerts matched/unmatched urgent separately
+  ---
+  duration_ms: 2.9819
+  type: 'test'
+  ...
+# Subtest: effectiveAnalysisForAlert uses the final deep classification
+ok 14 - effectiveAnalysisForAlert uses the final deep classification
+  ---
+  duration_ms: 0.1013
+  type: 'test'
+  ...
+# Subtest: effectiveAnalysisForAlert keeps deep severity when deep is higher or equal
+ok 15 - effectiveAnalysisForAlert keeps deep severity when deep is higher or equal
+  ---
+  duration_ms: 0.109
+  type: 'test'
+  ...
+# Subtest: deep downgrade from light urgent suppresses ai_urgent alert
+ok 16 - deep downgrade from light urgent suppresses ai_urgent alert
+  ---
+  duration_ms: 1.4563
+  type: 'test'
+  ...
+# Subtest: deep without light_escalation trigger does not query light analysis
+ok 17 - deep without light_escalation trigger does not query light analysis
+  ---
+  duration_ms: 0.8153
+  type: 'test'
+  ...
+# Subtest: cached analysis keeps its model reason without calling AI
+ok 18 - cached analysis keeps its model reason without calling AI
+  ---
+  duration_ms: 0.5345
+  type: 'test'
+  ...
+# Subtest: quality candidates are created only after deep analysis and include recommendation fields
+ok 19 - quality candidates are created only after deep analysis and include recommendation fields
+  ---
+  duration_ms: 0.8809
+  type: 'test'
+  ...
+# Subtest: cached deep quality analysis creates the same candidate without calling AI
+ok 20 - cached deep quality analysis creates the same candidate without calling AI
+  ---
+  duration_ms: 0.5353
+  type: 'test'
+  ...
+# Subtest: persistent analysis failure marks retryable and does not discard existing light analysis
+ok 21 - persistent analysis failure marks retryable and does not discard existing light analysis
+  ---
+  duration_ms: 0.7221
+  type: 'test'
+  ...
+# Subtest: regular worker reconciles positive normal risk-keyword content without creating or notifying an alert
+ok 22 - regular worker reconciles positive normal risk-keyword content without creating or notifying an alert
+  ---
+  duration_ms: 0.6228
+  type: 'test'
+  ...
+# Subtest: persistent worker reconciles after persistence and retries without alerting when reconciliation fails
+ok 23 - persistent worker reconciles after persistence and retries without alerting when reconciliation fails
+  ---
+  duration_ms: 0.5049
+  type: 'test'
+  ...
+# Subtest: persistent analysis failure stores a redacted stable error summary
+ok 24 - persistent analysis failure stores a redacted stable error summary
+  ---
+  duration_ms: 0.5411
+  type: 'test'
+  ...
+# Subtest: global analysis backlog resolves keyword rules for each claimed community
+ok 25 - global analysis backlog resolves keyword rules for each claimed community
+  ---
+  duration_ms: 0.6112
+  type: 'test'
+  ...
+# Subtest: comment normalization keeps root, direct parent, and explicit depth metadata
+ok 26 - comment normalization keeps root, direct parent, and explicit depth metadata
+  ---
+  duration_ms: 0.134
+  type: 'test'
+  ...
+# Subtest: per-sync-run commit lane is FIFO and fixed at one active commit
+ok 27 - per-sync-run commit lane is FIFO and fixed at one active commit
+  ---
+  duration_ms: 23.0163
+  type: 'test'
+  ...
+# Subtest: daily analysis collection enqueues only and never claims or calls AI
+ok 28 - daily analysis collection enqueues only and never claims or calls AI
+  ---
+  duration_ms: 0.4422
+  type: 'test'
+  ...
+# Subtest: syncStage keeps one lease across pages and rejects repeated current cursor
+ok 29 - syncStage keeps one lease across pages and rejects repeated current cursor
+  ---
+  duration_ms: 1.5106
+  type: 'test'
+  ...
+# Subtest: syncStage times out a stalled page and releases its checkpoint
+ok 30 - syncStage times out a stalled page and releases its checkpoint
+  ---
+  duration_ms: 12.9728
+  type: 'test'
+  ...
+# Subtest: syncStage waits for page N commit before fetching page N+1
+ok 31 - syncStage waits for page N commit before fetching page N+1
+  ---
+  duration_ms: 15.9715
+  type: 'test'
+  ...
+# Subtest: late post-deadline fetch does not commit and keeps its checkpoint cursor
+ok 32 - late post-deadline fetch does not commit and keeps its checkpoint cursor
+  ---
+  duration_ms: 14.8196
+  type: 'test'
+  ...
+# Subtest: syncStage releases its checkpoint when the repository rejects a page commit
+ok 33 - syncStage releases its checkpoint when the repository rejects a page commit
+  ---
+  duration_ms: 1.4976
+  type: 'test'
+  ...
+# Subtest: runPagedSource schedules one comments checkpoint per post and never reply scope
+ok 34 - runPagedSource schedules one comments checkpoint per post and never reply scope
+  ---
+  duration_ms: 1.7469
+  type: 'test'
+  ...
+# Subtest: Facebook reply stage uses the comment checkpoint domain and dedicated task identity
+ok 35 - Facebook reply stage uses the comment checkpoint domain and dedicated task identity
+  ---
+  duration_ms: 0.4883
+  type: 'test'
+  ...
+# Subtest: Facebook worker runs posts, comments and replies through independent checkpoints and enqueues every change
+ok 36 - Facebook worker runs posts, comments and replies through independent checkpoints and enqueues every change
+  ---
+  duration_ms: 1.4978
+  type: 'test'
+  ...
+# Subtest: Facebook page failure keeps the last committed cursor and returns a stable failed run
+ok 37 - Facebook page failure keeps the last committed cursor and returns a stable failed run
+  ---
+  duration_ms: 0.3264
+  type: 'test'
+  ...
+# Subtest: Facebook posts failure after one committed page finishes partial at the last safe cursor
+ok 38 - Facebook posts failure after one committed page finishes partial at the last safe cursor
+  ---
+  duration_ms: 0.7799
+  type: 'test'
+  ...
+# Subtest: Facebook posts failure before any committed page remains failed
+ok 39 - Facebook posts failure before any committed page remains failed
+  ---
+  duration_ms: 0.5063
+  type: 'test'
+  ...
+# Subtest: Q1 dynamically schedules every discovered feed with an independent checkpoint and safe default concurrency
+ok 40 - Q1 dynamically schedules every discovered feed with an independent checkpoint and safe default concurrency
+  ---
+  duration_ms: 70.8137
+  type: 'test'
+  ...
+# Subtest: daily Q1 overlaps feed fetches, serializes commits, and starts comments before all feeds finish
+ok 41 - daily Q1 overlaps feed fetches, serializes commits, and starts comments before all feeds finish
+  ---
+  duration_ms: 76.8613
+  type: 'test'
+  ...
+# Subtest: daily Q1 multipage feed does not finish partial
+ok 42 - daily Q1 multipage feed does not finish partial
+  ---
+  duration_ms: 2.8204
+  type: 'test'
+  ...
+# Subtest: daily Q1 passes exact window identity and resumes only the same date
+ok 43 - daily Q1 passes exact window identity and resumes only the same date
+  ---
+  duration_ms: 4.351
+  type: 'test'
+  ...
+# Subtest: bounded Q1 segment persists the ceiling cursor before failing partial
+ok 44 - bounded Q1 segment persists the ceiling cursor before failing partial
+  ---
+  duration_ms: 1.9201
+  type: 'test'
+  ...
+# Subtest: daily required feed claim conflict cannot false-complete an empty authorized scope
+ok 45 - daily required feed claim conflict cannot false-complete an empty authorized scope
+  ---
+  duration_ms: 1.3171
+  type: 'test'
+  ...
+# Subtest: daily failure drains and closes the commit lane before finishing the sync run
+ok 46 - daily failure drains and closes the commit lane before finishing the sync run
+  ---
+  duration_ms: 20.3908
+  type: 'test'
+  ...
+# Subtest: daily Q1 schedules replies immediately from a committed comment page
+ok 47 - daily Q1 schedules replies immediately from a committed comment page
+  ---
+  duration_ms: 29.8082
+  type: 'test'
+  ...
+# Subtest: Q1 feed syncStage accumulates all pages after the first 20 items
+ok 48 - Q1 feed syncStage accumulates all pages after the first 20 items
+  ---
+  duration_ms: 8.3584
+  type: 'test'
+  ...
+# Subtest: Q1 reply targets are processed with bounded concurrency
+ok 49 - Q1 reply targets are processed with bounded concurrency
+  ---
+  duration_ms: 37.0696
+  type: 'test'
+  ...
+# Subtest: Q1 reply targets schedule comment-domain checkpoints with real comment IDs
+ok 50 - Q1 reply targets schedule comment-domain checkpoints with real comment IDs
+  ---
+  duration_ms: 2.103
+  type: 'test'
+  ...
+# Subtest: 授权闸门：未授权则不采集，回写 unauthorized 并 UNAUTHORIZED 结束
+ok 51 - 授权闸门：未授权则不采集，回写 unauthorized 并 UNAUTHORIZED 结束
+  ---
+  duration_ms: 0.3425
+  type: 'test'
+  ...
+# Subtest: checkAuthorization 已配置放行并回写 authorized
+ok 52 - checkAuthorization 已配置放行并回写 authorized
+  ---
+  duration_ms: 0.1146
+  type: 'test'
+  ...
+# Subtest: 未命中关键词的内容不送 AI（token 护栏）
+ok 53 - 未命中关键词的内容不送 AI（token 护栏）
+  ---
+  duration_ms: 0.195
+  type: 'test'
+  ...
+# Subtest: 命中关键词的内容只入队，采集不调用AI与告警
+ok 54 - 命中关键词的内容只入队，采集不调用AI与告警
+  ---
+  duration_ms: 0.2816
+  type: 'test'
+  ...
+# Subtest: 缺少连接器时 CONNECTOR_NOT_FOUND
+ok 55 - 缺少连接器时 CONNECTOR_NOT_FOUND
+  ---
+  duration_ms: 0.0806
+  type: 'test'
+  ...
+# Subtest: runOnce 优先处理手动请求并清空标记
+ok 56 - runOnce 优先处理手动请求并清空标记
+  ---
+  duration_ms: 3.5946
+  type: 'test'
+  ...
+# Subtest: runOnce 停用的手动源只清标记不采集
+ok 57 - runOnce 停用的手动源只清标记不采集
+  ---
+  duration_ms: 0.4862
+  type: 'test'
+  ...
+# Subtest: 分页根阶段优先 listOwnedContents，并传递 metadata 同步边界
+ok 58 - 分页根阶段优先 listOwnedContents，并传递 metadata 同步边界
+  ---
+  duration_ms: 0.7641
+  type: 'test'
+  ...
+# Subtest: TapTap 增量 owned_content 在页预算耗尽后从 checkpoint 游标续跑且不重复新增
+ok 59 - TapTap 增量 owned_content 在页预算耗尽后从 checkpoint 游标续跑且不重复新增
+  ---
+  duration_ms: 4.9444
+  type: 'test'
+  ...
+# Subtest: TapTap 游标续跑不影响回填、其他平台和评论游标
+ok 60 - TapTap 游标续跑不影响回填、其他平台和评论游标
+  ---
+  duration_ms: 0.4027
+  type: 'test'
+  ...
+# Subtest: 关键词搜索为每条有效规则建立独立 taskKind/taskKey stage
+ok 61 - 关键词搜索为每条有效规则建立独立 taskKind/taskKey stage
+  ---
+  duration_ms: 0.8837
+  type: 'test'
+  ...
+# Subtest: SESSION_EXPIRED 刷新会话后仅重试当前页一次
+ok 62 - SESSION_EXPIRED 刷新会话后仅重试当前页一次
+  ---
+  duration_ms: 0.3423
+  type: 'test'
+  ...
+# Subtest: 人工验证错误释放 checkpoint 且不推进 cursor
+ok 63 - 人工验证错误释放 checkpoint 且不推进 cursor
+  ---
+  duration_ms: 0.336
+  type: 'test'
+  ...
+# [worker] source isolated errorCode=BIGPLAYER_EFFECTIVE_WINDOW_REQUIRED message=BigPlayer sync run requires a persisted effective collection window
+# Subtest: runOnce 对不同 source 有界并发执行
+ok 64 - runOnce 对不同 source 有界并发执行
+  ---
+  duration_ms: 60.1071
+  type: 'test'
+  ...
+# Subtest: 不支持的子阶段记为 partial 而不是空数据成功
+ok 65 - 不支持的子阶段记为 partial 而不是空数据成功
+  ---
+  duration_ms: 1.7534
+  type: 'test'
+  ...
+# Subtest: Q1 ceiling feed is skipped while a healthy feed still accumulates and leaves the run partial
+ok 66 - Q1 ceiling feed is skipped while a healthy feed still accumulates and leaves the run partial
+  ---
+  duration_ms: 1.2291
+  type: 'test'
+  ...
+# Subtest: 人工验证使 run 和 source 明确进入待验证状态
+ok 67 - 人工验证使 run 和 source 明确进入待验证状态
+  ---
+  duration_ms: 0.4972
+  type: 'test'
+  ...
+# Subtest: runSource stops collection when the sync run lease is lost
+ok 68 - runSource stops collection when the sync run lease is lost
+  ---
+  duration_ms: 0.5767
+  type: 'test'
+  ...
+# Subtest: claimed paged run records a non-lease connector failure exactly once
+ok 69 - claimed paged run records a non-lease connector failure exactly once
+  ---
+  duration_ms: 0.8072
+  type: 'test'
+  ...
+# Subtest: stale sync-run owner does not finish collection run or mark source run
+ok 70 - stale sync-run owner does not finish collection run or mark source run
+  ---
+  duration_ms: 0.679
+  type: 'test'
+  ...
+# Subtest: sync page checks a propagated lease guard after connector completion before persisting
+ok 71 - sync page checks a propagated lease guard after connector completion before persisting
+  ---
+  duration_ms: 0.5742
+  type: 'test'
+  ...
+# Subtest: lease guard uses a monotonic deadline and stops renewing after loss
+ok 72 - lease guard uses a monotonic deadline and stops renewing after loss
+  ---
+  duration_ms: 0.1955
+  type: 'test'
+  ...
+# Subtest: precreated sync run is claimed once without enqueueing a duplicate
+ok 73 - precreated sync run is claimed once without enqueueing a duplicate
+  ---
+  duration_ms: 0.806
+  type: 'test'
+  ...
+# Subtest: failed sync run claim skips collection and does not create po_collection_runs row
+ok 74 - failed sync run claim skips collection and does not create po_collection_runs row
+  ---
+  duration_ms: 0.1465
+  type: 'test'
+  ...
+# Subtest: disabled AI skips persistent analysis without blocking collection
+ok 75 - disabled AI skips persistent analysis without blocking collection
+  ---
+  duration_ms: 0.116
+  type: 'test'
+  ...
+# Subtest: runOnce skips missing-analysis backfill when AI is disabled
+ok 76 - runOnce skips missing-analysis backfill when AI is disabled
+  ---
+  duration_ms: 0.2544
+  type: 'test'
+  ...
+# Subtest: runOnce prefers queued run while clearing compatible manual marker and deduping source
+ok 77 - runOnce prefers queued run while clearing compatible manual marker and deduping source
+  ---
+  duration_ms: 0.6611
+  type: 'test'
+  ...
+# Subtest: runOnce executes every runnable scheduled_site child and only marks the source after the parent aggregates
+ok 78 - runOnce executes every runnable scheduled_site child and only marks the source after the parent aggregates
+  ---
+  duration_ms: 1.5254
+  type: 'test'
+  ...
+# Subtest: createTaskScheduler stops queued work and rejects new scheduling
+ok 79 - createTaskScheduler stops queued work and rejects new scheduling
+  ---
+  duration_ms: 2.4362
+  type: 'test'
+  ...
+# Subtest: createTaskScheduler bounds shutdown without falsifying active work
+ok 80 - createTaskScheduler bounds shutdown without falsifying active work
+  ---
+  duration_ms: 18.4146
+  type: 'test'
+  ...
+# Subtest: daily Q1 discovery has a default deadline and receives cancellation
+ok 81 - daily Q1 discovery has a default deadline and receives cancellation
+  ---
+  duration_ms: 46.1608
+  type: 'test'
+  ...
+# Subtest: daily Q1 terminal page timeout is not rescheduled
+ok 82 - daily Q1 terminal page timeout is not rescheduled
+  ---
+  duration_ms: 15.0999
+  type: 'test'
+  ...
+# Subtest: runSource returns after lease loss while a daily scheduler task ignores abort
+ok 83 - runSource returns after lease loss while a daily scheduler task ignores abort
+  ---
+  duration_ms: 44.2909
+  type: 'test'
+  ...
+# [worker] BigPlayer candidate observation failed errorCode=DATABASE_ERROR
+# Subtest: lease loss aborts cancellable work and stops heartbeat timer
+ok 84 - lease loss aborts cancellable work and stops heartbeat timer
+  ---
+  duration_ms: 61.5342
+  type: 'test'
+  ...
+# Subtest: legacy no-slot paged source enqueues then claims and finishes the same run
+ok 85 - legacy no-slot paged source enqueues then claims and finishes the same run
+  ---
+  duration_ms: 1.4428
+  type: 'test'
+  ...
+# Subtest: BigPlayer multi-site child run resolves its own URL and keeps checkpoints site-scoped
+ok 86 - BigPlayer multi-site child run resolves its own URL and keeps checkpoints site-scoped
+  ---
+  duration_ms: 1.3516
+  type: 'test'
+  ...
+# Subtest: BigPlayer multi-site child run fails closed when its saved site is unavailable
+ok 87 - BigPlayer multi-site child run fails closed when its saved site is unavailable
+  ---
+  duration_ms: 0.2726
+  type: 'test'
+  ...
+# Subtest: BigPlayer candidate observation requires the exact enabled source and run, and audit failure does not interrupt collection
+ok 88 - BigPlayer candidate observation requires the exact enabled source and run, and audit failure does not interrupt collection
+  ---
+  duration_ms: 1.9036
+  type: 'test'
+  ...
+# Subtest: sync run pause settles after the current committed page and preserves its checkpoint cursor
+ok 89 - sync run pause settles after the current committed page and preserves its checkpoint cursor
+  ---
+  duration_ms: 1.1291
+  type: 'test'
+  ...
+# Subtest: precreated bounded run ignores legacy historyStart while supplying its fixed window to Q1 feeds
+ok 90 - precreated bounded run ignores legacy historyStart while supplying its fixed window to Q1 feeds
+  ---
+  duration_ms: 1.277
+  type: 'test'
+  ...
+# Subtest: precreated run with an invalid bounded window fails closed before connector collection
+ok 91 - precreated run with an invalid bounded window fails closed before connector collection
+  ---
+  duration_ms: 0.4396
+  type: 'test'
+  ...
+# Subtest: legacy no-slot paged source fallback creates a run with source identity and legacy trigger
+ok 92 - legacy no-slot paged source fallback creates a run with source identity and legacy trigger
+  ---
+  duration_ms: 0.9603
+  type: 'test'
+  ...
+# Subtest: paged run fences every write with the claimed lease owner, not the base owner
+ok 93 - paged run fences every write with the claimed lease owner, not the base owner
+  ---
+  duration_ms: 1.4261
+  type: 'test'
+  ...
+1..93
+# tests 93
+# suites 0
+# pass 93
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8474.6404

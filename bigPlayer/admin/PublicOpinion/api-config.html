@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>API配置 - 舆情分析系统</title>
+  <link rel="icon" type="image/svg+xml" href="opinion-favicon-v2.svg">
+  <link rel="stylesheet" href="../../shared/sidebar.css?v=20261013-global-api-r1">
+  <link rel="stylesheet" href="public-opinion.css?v=20261013-global-api-r1">
+  <link rel="stylesheet" href="assets/typesafe-test.css?v=20261013-global-api-r1">
+  <script src="assets/baas-auth.js?v=20261013-global-api-r1"></script>
+</head>
+<body>
+  <nav id="sidebar" class="sidebar"></nav>
+  <main class="admin-main">
+    <header class="command-bar"><div><div class="eyebrow">API CONFIGURATION</div><h1>API配置</h1><p>全局 API 配置，所有社区共享。密钥填写一次，检测通过后由后台加密保存。</p></div></header>
+    <div id="apiConfigRoot" hidden>
+      <section class="page-card typesafe-panel">
+        <header><h2>TypeSafe 密钥配置</h2><span class="global-badge">全局配置 · 所有社区</span></header>
+        <div class="typesafe-fields"><div><label for="typesafeEndpoint">接口地址</label><input id="typesafeEndpoint" value="https://chat-test.q1.com/v1/systemone" readonly></div><div><label for="typesafeModel">模型</label><input id="typesafeModel" value="jev-latest" readonly></div></div>
+        <label for="typesafeKey">API Key</label><input id="typesafeKey" type="password" maxlength="4096" autocomplete="new-password" placeholder="请输入冰川GPT API Key">
+        <p class="typesafe-note" id="typesafeConfigState">正在读取全局配置…</p>
+        <div class="typesafe-actions"><button type="button" class="btn primary" id="typesafeSave">检测并保存</button></div>
+        <p class="typesafe-note" id="typesafeUsage">正在读取自动分析状态…</p>
+      </section>
+      <section class="page-card typesafe-panel">
+        <header><h2>TypeSafe 分析测试</h2><div class="typesafe-actions"><button type="button" class="btn primary" id="typesafeRun" disabled>测试超能 50 条</button><button type="button" class="btn" id="typesafeRefresh">刷新结果</button></div></header>
+        <p class="typesafe-note">超能世界国服版最近帖子25条、评论25条；只分析本条文字。测试使用已保存的全局密钥，会产生平台用量；结果不覆盖已有分析、不发送通知。离开页面后任务仍在后台执行，返回可查看结果。</p>
+        <p id="typesafeMessage" class="typesafe-message" role="status" aria-live="polite"></p>
+        <div class="typesafe-table-wrap"><table class="typesafe-results"><thead><tr><th>类型</th><th>本条原文</th><th>现有等级</th><th>TypeSafe等级</th><th>置信度</th><th>状态</th></tr></thead><tbody id="typesafeRows"></tbody></table></div>
+      </section>
+    </div>
+  </main>
+  <button type="button" class="help-fab" id="help-fab">📋<span>需求说明</span></button>
+  <div class="help-panel-overlay" id="help-panel-overlay"></div>
+  <aside class="help-panel" id="help-panel" aria-label="API配置需求说明" inert><div class="help-panel-header"><div class="help-panel-title">API配置 — 需求说明</div><button type="button" class="help-panel-close" id="help-panel-close" aria-label="关闭需求说明">×</button></div><div class="help-panel-body"></div></aside>
+  <script src="../../shared/sidebar-data.js?v=20261013-global-api-r1"></script>
+  <script src="../../shared/sidebar.js?v=20261013-global-api-r1"></script>
+  <script>
+    initSidebar({root:'../..',currentHref:'admin/PublicOpinion/api-config.html'});
+    const helpPanel=document.getElementById('help-panel'), helpOverlay=document.getElementById('help-panel-overlay');
+    function closeHelpPanel(){helpPanel.classList.remove('open');helpOverlay.classList.remove('open');helpPanel.inert=true;document.getElementById('help-fab').focus();}
+    document.getElementById('help-fab').onclick=()=>{helpPanel.classList.add('open');helpOverlay.classList.add('open');helpPanel.inert=false;document.getElementById('help-panel-close').focus();};
+    document.getElementById('help-panel-close').onclick=closeHelpPanel;helpOverlay.onclick=closeHelpPanel;
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&helpPanel.classList.contains('open'))closeHelpPanel();});
+  </script>
+  <script src="assets/typesafe-test.js?v=20261013-global-api-r1"></script>
+</body>
+</html>

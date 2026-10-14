@@ -1,0 +1,15 @@
+# 富内容前向页执行候选
+
+Status: FROZEN / QA_PENDING / NOT_EXECUTED
+
+最终替换44kmhw：CY3JMq未执行即撤回，修new failed AI缺原因及重复覆盖状态问题。显式INSERT status/error_code，ON DUPLICATE KEY UPDATE id=id，既有running/completed不变；无文字/删除分别NO_ANALYZABLE_TEXT/CONTENT_DELETED。最终manifest SHA `42e696c6ac1048fe4f1486f217777c6129dc7f18162f0e04e50002b518396048`，CLI SHA不变，544+15。以下CY记录仅中间历史，实际执行仅新44kmhw独立QA后。
+
+用户已弹窗拍板：完整详情不强制文字，type5仅opaque保真，不猜媒体语义、不造body或OCR，不用摘要替详情；AI只显式title/真实text。
+
+正式候选仓库根 `.temp/bigplayer-recovery-20261009/lastnight-forward-CY3JMq`；manifest SHA `d0a9c741f12465aa800cc59b8e923d0650fd1ac90834905d91320b532b0cf271`；CLI SHA `1e17348a094e14cd213c8109b0347d75f07cf05c5a20d273639cfc5f6d52e564`；旧544未改，独立新增闭包15。eUp/qD等构建中间包未交执行，禁止使用；lYJYzP只保成功shape证据。
+
+新增inspect-rich-detail/execute-rich-detail模板，仍明确approved=false。经理先绑定原page1+Atca合法失败terminal SHA，重新inspect/hash，后同offset20页执行。独立LastNightCompleteDetailConnector复用真实Connector一次详情请求的响应collector，不重复6纯诊断，验证真实ID及非空type1/5 string blocks。无文本详情保存递归脱敏完整providerDetail及SHA，body空，raw中bodyTextAvailable=false/opaqueAnalyzed=false/mediaAnalyzed=false，title为真实title不充全文。
+
+独立richContentQuery覆盖actual legacyINSERT：必需scope列/参数映射完整，恢复真实isDeleted，最终fingerprint包括完整content blocks和title/author/delete，raw hash/ID不匹配拒。原normalizer不改；actual saved fingerprint传给AI enqueue。空title或deleted不创建可消费的pending分析，actual enqueue标failed/LAST_NIGHT_NO_ANALYZABLE_TEXT（非completed/neutral），有title标lastnight_explicit_title_only，正文仍空。现役worker真实processPersistentAnalysisJobs仅向ai.analyzeBatch投影title/body与context，不包含raw/media，因此scope是title-only；raw marker用于审计，不称媒体已分析。
+
+6项富合同/真实Connector/actual enqueue SQL测试通过；原forward12项继续适用。修复了测试发现的enqueue替换SQL少一个占位后参数同步删去问题。仍待QA独立全套/实际legacy raw读回/现场提交后验，不能提前声称真实page成功或全链。旧历史reuse-no-overwrite仍保，因此此候选不修历史缺失raw，只对本次fresh适用。完整23任务/02保持未完成原单。

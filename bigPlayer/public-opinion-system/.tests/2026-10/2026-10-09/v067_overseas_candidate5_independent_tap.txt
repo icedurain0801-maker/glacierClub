@@ -1,0 +1,172 @@
+TAP version 13
+# Subtest: new trusted response safely reuses old identity without re-marking historical raw
+ok 1 - new trusted response safely reuses old identity without re-marking historical raw
+  ---
+  duration_ms: 5.7648
+  type: 'test'
+  ...
+# Subtest: different historical site is preserved as historical observation
+ok 2 - different historical site is preserved as historical observation
+  ---
+  duration_ms: 0.5041
+  type: 'test'
+  ...
+# Subtest: fake and cross-instance proofs cannot admit reuse
+ok 3 - fake and cross-instance proofs cannot admit reuse
+  ---
+  duration_ms: 1.1349
+  type: 'test'
+  ...
+# Subtest: actual provider ID and board conflicts cannot mint proofs
+ok 4 - actual provider ID and board conflicts cannot mint proofs
+  ---
+  duration_ms: 0.6106
+  type: 'test'
+  ...
+# Subtest: existing board/version conflicts and substituted raw payload reject
+ok 5 - existing board/version conflicts and substituted raw payload reject
+  ---
+  duration_ms: 0.5376
+  type: 'test'
+  ...
+# Subtest: outside-window normal reuse fails closed
+ok 6 - outside-window normal reuse fails closed
+  ---
+  duration_ms: 0.8964
+  type: 'test'
+  ...
+# Subtest: same fingerprint cannot conceal changed body or deleted content
+ok 7 - same fingerprint cannot conceal changed body or deleted content
+  ---
+  duration_ms: 0.5786
+  type: 'test'
+  ...
+# Subtest: atomic overseas page does not enqueue its light version again
+ok 8 - atomic overseas page does not enqueue its light version again
+  ---
+  duration_ms: 2.141
+  type: 'test'
+  ...
+# Subtest: atomic overseas direct downstream still consumes light and deep queues
+ok 9 - atomic overseas direct downstream still consumes light and deep queues
+  ---
+  duration_ms: 0.9258
+  type: 'test'
+  ...
+# Subtest: domestic, other platforms, and non-atomic overseas keep existing enqueue
+ok 10 - domestic, other platforms, and non-atomic overseas keep existing enqueue
+  ---
+  duration_ms: 0.5748
+  type: 'test'
+  ...
+# Subtest: concrete network verifier rechecks DB drift and rejects missing journal or changed manifest
+ok 11 - concrete network verifier rechecks DB drift and rejects missing journal or changed manifest
+  ---
+  duration_ms: 63.2981
+  type: 'test'
+  ...
+# Subtest: offline actual session connector page repository and atomic job SQL
+ok 12 - offline actual session connector page repository and atomic job SQL
+  ---
+  duration_ms: 31.5248
+  type: 'test'
+  ...
+# Subtest: invalid network contract prevents every connector/transport call
+ok 13 - invalid network contract prevents every connector/transport call
+  ---
+  duration_ms: 6.3706
+  type: 'test'
+  ...
+# Subtest: explicit non-target route preserves source, deps, and zero identity SQL
+ok 14 - explicit non-target route preserves source, deps, and zero identity SQL
+  ---
+  duration_ms: 0.363
+  type: 'test'
+  ...
+# Subtest: stale completed AI and translation requeue exact version
+ok 15 - stale completed AI and translation requeue exact version
+  ---
+  duration_ms: 1.1277
+  type: 'test'
+  ...
+# Subtest: same completed and running versions stay idempotent
+ok 16 - same completed and running versions stay idempotent
+  ---
+  duration_ms: 0.2207
+  type: 'test'
+  ...
+# Subtest: different running AI or translation version rejects without mutating its lease
+ok 17 - different running AI or translation version rejects without mutating its lease
+  ---
+  duration_ms: 0.8351
+  type: 'test'
+  ...
+# Subtest: context ancestors never enter queues
+ok 18 - context ancestors never enter queues
+  ---
+  duration_ms: 0.1584
+  type: 'test'
+  ...
+# Subtest: content fingerprint mismatch rejects
+ok 19 - content fingerprint mismatch rejects
+  ---
+  duration_ms: 0.2856
+  type: 'test'
+  ...
+# Subtest: non-target uses exact original dependency object
+ok 20 - non-target uses exact original dependency object
+  ---
+  duration_ms: 0.8562
+  type: 'test'
+  ...
+# Subtest: overseas route isolates page store and connector without mutating originals
+ok 21 - overseas route isolates page store and connector without mutating originals
+  ---
+  duration_ms: 0.2528
+  type: 'test'
+  ...
+# Subtest: invalid identity and missing adapter never fall back to legacy
+ok 22 - invalid identity and missing adapter never fall back to legacy
+  ---
+  duration_ms: 0.4726
+  type: 'test'
+  ...
+# Subtest: drain rejects new admissions, retains active work and releases once
+ok 23 - drain rejects new admissions, retains active work and releases once
+  ---
+  duration_ms: 0.7741
+  type: 'test'
+  ...
+# Subtest: canonical JOIN supplies missing region without querying credentials
+ok 24 - canonical JOIN supplies missing region without querying credentials
+  ---
+  duration_ms: 1.9305
+  type: 'test'
+  ...
+# Subtest: non-run preserves default-account selection
+ok 25 - non-run preserves default-account selection
+  ---
+  duration_ms: 0.3401
+  type: 'test'
+  ...
+# Subtest: missing and conflicting JOIN identities fail closed
+ok 26 - missing and conflicting JOIN identities fail closed
+  ---
+  duration_ms: 2.1656
+  type: 'test'
+  ...
+# Subtest: unknown enum and supplied conflicting scope fail closed
+ok 27 - unknown enum and supplied conflicting scope fail closed
+  ---
+  duration_ms: 0.3246
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1866.6172

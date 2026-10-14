@@ -1,0 +1,2 @@
+ALTER TABLE po_sources
+  MODIFY COLUMN frequency_seconds INT NOT NULL DEFAULT 21600;

@@ -6,8 +6,11 @@
   "scripts": {
     "start": "node src/worker.js",
     "start:analysis": "node src/analysisWorker.js",
+    "start:translation": "node src/translationWorker.js",
     "start:daily": "node src/dailyRunner.js",
     "start:q1-daily": "node src/q1DailyJob.js",
+    "start:last-night-overseas-daily": "node src/lastNightOverseasDailyJob.js",
+    "preflight:last-night-overseas-daily": "node src/lastNightOverseasDailyJob.js --dry-run",
     "start:q1-analysis": "node src/q1DailyAnalysisRunner.js",
     "preflight:daily": "node src/dailyRunner.js --dry-run",
     "test": "node --test test/*.test.js"

@@ -1,23 +1,95 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { AiAnalyzer, truncate, fingerprintOf } = require('../src/integrations/aiAnalyzer');
 
-const ENV = { AI_ANALYSIS_ENABLED: 'true', AI_ANALYSIS_URL: 'https://ai.example.com/v1/chat/completions', AI_ANALYSIS_TOKEN: 'k', AI_ANALYSIS_MODEL: 'test-model' };
+const ENV = { AI_ANALYSIS_ENABLED: 'true', AI_ANALYSIS_URL: 'https://ai.example.com/v1/chat/completions', AI_ANALYSIS_TOKEN: 'k', AI_ANALYSIS_MODEL: 'test-model', AI_ANALYSIS_MAX_OUTPUT_TOKENS: '24000' };
+
+test('model output and memory cache enforce risk policy and preserve raw quality result', async () => {
+  const ai = new AiAnalyzer(ENV);
+  await withFetch(() => aiReply([{ i: 0, s: 'positive', v: 'urgent', n: 0.99, q: 0.93, h: true, p: true, f: true }]), async calls => {
+    const item = { title: '攻略', body: '完成目标' };
+    const first = await ai.analyze(item);
+    const cached = await ai.analyze(item);
+    assert.equal(calls.length, 1);
+    assert.equal(first.severity, 'normal');
+    assert.equal(cached.severity, 'normal');
+    assert.equal(cached.rawAnalysis.severity, 'normal');
+    assert.equal(cached.qualityScore, 0.93);
+    assert.equal(cached.recommendHome && cached.recommendPin && cached.recommendFeature, true);
+    assert.doesNotMatch(cached.reason, /positive_forced_normal/);
+  });
+});
+
+test('neutral consultation and neutral concrete problem have separate progressive levels', async () => {
+  const ai = new AiAnalyzer(ENV);
+  await withFetch(() => aiReply([
+    { i: 0, s: 'neutral', v: 'normal', n: 0.1, gx: true, gc: false, ge: '' },
+    { i: 1, s: 'neutral', v: 'attention', n: 0.1, gx: true, gc: true, ge: '奖励未到账' },
+    { i: 2, s: 'negative', v: 'urgent', n: 0.9, gx: true, gc: true, ge: '账号被盗' }
+  ]), async () => {
+    const result = await ai.analyzeBatch([{ body: '匹配机制怎么用' }, { body: '奖励未到账' }, { body: '账号被盗，全部道具丢失' }]);
+    assert.deepEqual(result.map(item => item.severity), ['normal', 'negative', 'urgent']);
+  });
+});
+
+test('low score semantic complaint requires an evidence excerpt from this content', async () => {
+  const ai = new AiAnalyzer(ENV);
+  const body = 'Matchmaking is unfair, our team has no chance.';
+  await withFetch(() => aiReply([
+    { i: 0, s: 'negative', v: 'attention', n: 0.2, c: 0.1, gc: true, ge: 'Matchmaking is unfair' },
+    { i: 1, s: 'negative', v: 'attention', n: 0.2, c: 0.1, gc: true, ge: 'invented complaint' },
+    { i: 2, s: 'negative', v: 'attention', n: 0.50, c: 0.1, gc: false, ge: '' }
+  ]), async () => {
+    const out = await ai.analyzeBatch([{ body }, { body: 'Where is the bug FAQ?' }, { body: 'Not enjoyable.' }]);
+    assert.equal(out[0].severity, 'attention');
+    assert.equal(out[0].needsDeep, true);
+    assert.equal(out[1].severity, 'attention');
+    assert.equal(out[1].gameComplaint, false);
+    assert.equal(out[2].severity, 'attention');
+  });
+});
 
 // 用一个可编排的假 fetch 替换全局，记录调用并按序返回。
 function withFetch(handler, fn) {
   const original = global.fetch; const calls = [];
-  global.fetch = async (url, opts) => { calls.push({ url, opts, body: JSON.parse(opts.body) }); return handler(calls.length - 1, calls); };
+  global.fetch = async (url, opts) => {
+    calls.push({ url, opts, body: JSON.parse(opts.body) });
+    const response = await handler(calls.length - 1, calls);
+    if (!response.fixture) return response;
+    const json = response.json;
+    response.json = async () => {
+      const data = await json();
+      const content = data.choices?.[0]?.message || data.content?.[0];
+      const key = data.choices ? 'content' : 'text';
+      const rows = JSON.parse(content[key]);
+      const request = JSON.parse(JSON.parse(opts.body).messages.at(-1).content.split('\n').at(-1));
+      for (const row of rows) {
+        const text = request[row.i].text;
+        const issue = row.gc === true || (row.v === 'urgent' && /宕机|小时|被盗/.test(text));
+        const rule = /被盗/.test(text) ? 'R6' : 'R7';
+        const level = row.s === 'positive' || (row.s === 'neutral' && !row.gx && !issue) ? 'L0' : issue ? row.v === 'urgent' ? 'L3' : 'L2' : 'L1';
+        row.v = { L0: 'normal', L1: 'attention', L2: 'negative', L3: 'urgent' }[level];
+        row.risk = { level, level_name: { L0: '噪声过滤', L1: '关注级', L2: '负面待处理', L3: '紧急告警' }[level],
+          gate_result: { L0: 'GATE0_noise', L1: 'GATE1_fail_L1', L2: 'GATE3_default_L2', L3: 'GATE2_pass_L3' }[level],
+          claim_type: issue ? 'fact' : 'emotion', issue_object: issue ? text : '', claim_evidence: row.ge || text,
+          issue_summary: issue ? '游戏功能故障' : null, confidence: row.c, reason: `“${text}”`, noise_reason: 'pure_meme',
+          evidence_types: [], action_intent: [], hit_rules: level === 'L3' ? [rule] : level === 'L2' ? ['G3'] : level === 'L1' ? ['G1'] : [], rule_evidence: { [rule]: text } };
+      }
+      content[key] = JSON.stringify(rows); return data;
+    };
+    return response;
+  };
   return Promise.resolve(fn(calls)).finally(() => { global.fetch = original; });
 }
 function aiReply(items, usage) { // 必填字段缺省值仅用于简化测试数据
   const completed = items.map(item => ({ c: 0.8, d: false, r: '内容仅表达事实确认，没有明显正面或负面情绪。', ...item }));
-  return { ok: true, status: 200, async json() { return { choices: [{ message: { content: JSON.stringify(completed) } }], ...(usage ? { usage } : {}) }; } };
+  return { fixture: true, ok: true, status: 200, async json() { return { choices: [{ message: { content: JSON.stringify(completed) } }], ...(usage ? { usage } : {}) }; } };
 }
 
 function anthropicReply(items) {
   const completed = items.map(item => ({ c: 0.8, d: false, r: '内容仅表达事实确认，没有明显正面或负面情绪。', ...item }));
-  return { ok: true, status: 200, async json() { return { content: [{ type: 'text', text: JSON.stringify(completed) }] }; } };
+  return { fixture: true, ok: true, status: 200, async json() { return { content: [{ type: 'text', text: JSON.stringify(completed) }] }; } };
 }
 
 test('Anthropic Messages 协议使用专用路径、请求头和响应解析', async () => {
@@ -43,7 +115,7 @@ test('批量分析返回等长同序结果', async () => {
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'urgent', n: 0.9, t: ['闪退'], m: '崩溃严重' }, { i: 1, s: 'positive', v: 'normal', n: 0.1, t: [], m: '好评' }]),
     async () => {
-      const out = await ai.analyzeBatch([{ title: 'a', body: '崩溃' }, { title: 'b', body: '好玩' }]);
+      const out = await ai.analyzeBatch([{ title: 'a', body: '全服宕机无法登录' }, { title: 'b', body: '好玩' }]);
       assert.equal(out.length, 2);
       assert.equal(out[0].sentiment, 'negative');
       assert.equal(out[0].severity, 'urgent');
@@ -84,7 +156,7 @@ test('旧响应缺少质量字段时默认不推荐且不影响风险解析', as
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'urgent', n: 0.95, t: ['崩溃'], m: '严重崩溃' }]),
     async () => {
-      const [out] = await ai.analyzeBatch([{ title: '崩溃', body: '无法启动' }], 'deep');
+      const [out] = await ai.analyzeBatch([{ title: '崩溃', body: '连续3小时无法启动游戏' }], 'deep');
       assert.equal(out.severity, 'urgent');
       assert.equal(out.qualityScore, 0);
       assert.equal(out.recommendHome, false);
@@ -100,7 +172,7 @@ test('相同内容命中缓存不重复调用', async () => {
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'attention', n: 0.5, t: [], m: 'x' }]),
     async (calls) => {
-      const item = { title: 'dup', body: '重复内容' };
+      const item = { title: 'dup', body: '重复内容', communityId: 'c1' };
       await ai.analyzeBatch([item]);
       await ai.analyzeBatch([{ ...item }]); // 同指纹
       assert.equal(calls.length, 1); // 第二次走缓存
@@ -151,7 +223,7 @@ test('模型返回 fenced JSON 时仍能解析', async () => {
       status: 200,
       async json() {
         return { choices: [{ message: { content: `\`\`\`json
-[{"i":0,"s":"neutral","v":"normal","n":0,"c":0.8,"d":false,"r":"判断明确","t":[],"m":"普通内容"}]
+[{"i":0,"s":"neutral","v":"normal","n":0,"c":0.8,"d":false,"r":"判断明确","t":[],"m":"普通内容","risk":{"level":"L0","level_name":"噪声过滤","gate_result":"GATE0_noise","claim_type":"emotion","claim_evidence":"a b","reason":"无风险内容","noise_reason":"pure_meme","confidence":0.8,"hit_rules":[],"evidence_types":[],"action_intent":[]}}]
 \`\`\`` } }] };
       }
     }),
@@ -230,7 +302,7 @@ test('缓存按 profile、model、version 隔离并在同批去重', async () =>
   await withFetch(
     () => aiReply([{ i: 0, s: 'negative', v: 'attention', n: 0.5, t: [], m: 'x' }]),
     async (calls) => {
-      const item = { title: 'dup', body: '重复内容' };
+      const item = { title: 'dup', body: '重复内容', communityId: 'c1' };
       const light = await ai.analyzeBatch([item, { ...item }]);
       assert.equal(calls.length, 1);
       assert.strictEqual(light[0], light[1]);
@@ -353,4 +425,55 @@ test('truncate/fingerprint 工具', () => {
   assert.equal(truncate('abcdef', 3), 'abc');
   assert.equal(fingerprintOf({ title: 't', body: 'b' }), fingerprintOf({ title: 't', body: 'b' }));
   assert.equal(fingerprintOf({ fingerprint: 'FIXED' }), 'FIXED');
+});
+
+test('light/deep use the same serial gates and prohibit score-only escalation', () => {
+  const ai = new AiAnalyzer(ENV);
+  for (const profile of [ai.profiles.light, ai.profiles.deep]) {
+    const system = ai.buildMessages([{ title: '标题', body: '正文' }], profile)[0].content;
+    assert.match(system, /negative_score>0\.50仅辅助/);
+    assert.match(system, /GATE1有不满\/疑似问题但无明确实际问题→L1/);
+    assert.match(system, /必须已过GATE1/);
+    assert.match(system, /互斥单选/);
+  }
+});
+
+test('severity 新提示词 schema 使旧缓存失效但不改变历史 analysisVersion', () => {
+  const ai = new AiAnalyzer({ ...ENV, AI_ANALYSIS_VERSION: 'existing-version' });
+  for (const profile of [ai.profiles.light, ai.profiles.deep]) {
+    const payload = {
+      promptSchemaVersion: 'sentiment-quality-verifiable-issue-gates-v10-neutral-no-risk',
+      riskPolicyVersion: 'verifiable-issue-gates-v11-attention-narrowed',
+      retentionPolicyVersion: 'v9-retention',
+      regionCode: 'legacy-unassigned', gameId: 'legacy-unassigned',
+      communityId: 'legacy-unassigned', platform: 'legacy-unassigned',
+      fingerprint: 'same-content', profile: profile.name, model: profile.model, version: 'existing-version', evidenceTypes: [], riskMetadata: {}
+    };
+    const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+    const key = ai.cacheKey('same-content', profile);
+    assert.equal(key, hash(payload));
+    const { riskPolicyVersion, ...previousPolicyPayload } = payload;
+    assert.notEqual(key, hash(previousPolicyPayload));
+    assert.notEqual(key, hash({ ...payload, promptSchemaVersion: 'sentiment-quality-context-v2' }));
+    assert.equal(profile.version, 'existing-version');
+  }
+});
+
+test('severity 非法或多选枚举 fail-closed，不按 negative 情感兜底', () => {
+  const ai = new AiAnalyzer(ENV);
+  const bodyFor = v => ({ choices: [{ message: { content: JSON.stringify([
+    { i: 0, s: 'negative', v, n: 0.9, c: 0.8 }
+  ]) } }] });
+  for (const value of [null, undefined, '', 'high', 'urgent,attention', ['urgent', 'attention'], 1]) {
+    assert.throws(() => ai.parseResponse(bodyFor(value), 1), /AI_ANALYSIS_INVALID_RESPONSE/);
+  }
+  for (const severity of ['urgent', 'attention', 'normal']) {
+    const [result] = ai.parseResponse(bodyFor(severity), 1, ai.profiles.light, [], [{ body: '全服宕机无法登录' }]);
+    assert.equal(result.severity, severity === 'urgent' ? 'urgent' : 'negative');
+    assert.equal(result.rawAnalysis.severity, severity);
+    assert.equal(result.sentiment, 'negative');
+  }
+  assert.equal(ai.cache.size, 0);
+  assert.equal(ai.callState.light.calls, 0);
+  assert.equal(ai.callState.deep.calls, 0);
 });

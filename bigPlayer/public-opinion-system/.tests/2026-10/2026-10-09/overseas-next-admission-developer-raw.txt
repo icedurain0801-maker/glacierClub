@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: new trusted response safely reuses old identity without re-marking historical raw
+ok 1 - new trusted response safely reuses old identity without re-marking historical raw
+  ---
+  duration_ms: 5.5754
+  type: 'test'
+  ...
+# Subtest: different historical site is preserved as historical observation
+ok 2 - different historical site is preserved as historical observation
+  ---
+  duration_ms: 0.5762
+  type: 'test'
+  ...
+# Subtest: fake and cross-instance proofs cannot admit reuse
+ok 3 - fake and cross-instance proofs cannot admit reuse
+  ---
+  duration_ms: 1.0689
+  type: 'test'
+  ...
+# Subtest: actual provider ID and board conflicts cannot mint proofs
+ok 4 - actual provider ID and board conflicts cannot mint proofs
+  ---
+  duration_ms: 0.5989
+  type: 'test'
+  ...
+# Subtest: existing board/version conflicts and substituted raw payload reject
+ok 5 - existing board/version conflicts and substituted raw payload reject
+  ---
+  duration_ms: 0.5371
+  type: 'test'
+  ...
+# Subtest: outside-window normal reuse fails closed
+ok 6 - outside-window normal reuse fails closed
+  ---
+  duration_ms: 1.2524
+  type: 'test'
+  ...
+# Subtest: canonical JOIN supplies missing region without querying credentials
+ok 7 - canonical JOIN supplies missing region without querying credentials
+  ---
+  duration_ms: 1.722
+  type: 'test'
+  ...
+# Subtest: non-run preserves default-account selection
+ok 8 - non-run preserves default-account selection
+  ---
+  duration_ms: 0.1962
+  type: 'test'
+  ...
+# Subtest: missing and conflicting JOIN identities fail closed
+ok 9 - missing and conflicting JOIN identities fail closed
+  ---
+  duration_ms: 2.0759
+  type: 'test'
+  ...
+# Subtest: unknown enum and supplied conflicting scope fail closed
+ok 10 - unknown enum and supplied conflicting scope fail closed
+  ---
+  duration_ms: 0.3413
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20247.2829

@@ -1,10 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { TapTapConnector, parseSourceConfig, momentText, taptapItem } = require('../src/connectors/taptapConnector');
 const { buildExternalConnectors } = require('../src/connectors/externalConnectors');
 
 function jsonResponse(payload) {
-  return { ok: true, status: 200, url: 'https://www.taptap.cn/webapiv2/x', json: async () => payload };
+  return {
+    ok: true,
+    status: 200,
+    url: 'https://www.taptap.cn/webapiv2/x',
+    headers: { get: name => String(name).toLowerCase() === 'content-type' ? 'application/json; charset=utf-8' : null },
+    text: async () => JSON.stringify(payload)
+  };
 }
 
 function moment(id, { title = '标题', summary = '正文内容', author = '用户A', authorId = 1, comments = 2, publishTime = 1787850406, reviewId = null, reviewText = '' } = {}) {
@@ -223,4 +230,117 @@ test('webapiv2 rejects API-level failure payloads', async () => {
     () => connector.listComments({ postId: 'm1' }),
     error => error.code === 'CONNECTOR_PAGE_FAILED' && error.cause?.code === 'TAPTAP_API_ERROR'
   );
+});
+
+test('webapiv2 persists only a redacted response contract for invalid JSON', async () => {
+  const body = '{"data":';
+  const connector = new TapTapConnector(ENV, {
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: name => String(name).toLowerCase() === 'content-type' ? 'application/json; charset=utf-8' : null },
+      text: async () => body
+    })
+  });
+  await assert.rejects(
+    () => connector.listOwnedContents({ source: { config: JSON.stringify({ groupIds: ['1'] }) }, cursor: JSON.stringify({ version: 1, accountIdx: 0, from: 280 }), limit: 10 }),
+    error => {
+      const contract = error.details?.responseContract;
+      assert.equal(error.code, 'CONNECTOR_PAGE_FAILED');
+      assert.equal(error.cause?.code, 'MALFORMED_RESPONSE');
+      assert.deepEqual(contract, {
+        status: 200,
+        contentType: 'application/json',
+        bodyBytes: Buffer.byteLength(body),
+        isHtml: false,
+        bodySha256: crypto.createHash('sha256').update(body).digest('hex')
+      });
+      assert.match(error.message, /response_contract/);
+      assert.doesNotMatch(error.message, /\{"data":/);
+      return true;
+    }
+  );
+});
+
+test('webapiv2 identifies an HTML error body without persisting its contents', async () => {
+  const body = '<!doctype html><html><body>request blocked: sensitive marker</body></html>';
+  let calls = 0;
+  const connector = new TapTapConnector(ENV, {
+    fetchImpl: async () => {
+      calls += 1;
+      return ({
+        ok: true,
+        status: 200,
+        headers: { get: name => String(name).toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null },
+        text: async () => body
+      });
+    }
+  });
+  connector.challengeRetryMs = 0;
+  await assert.rejects(
+    () => connector.listOwnedContents({ source: { config: JSON.stringify({ groupIds: ['1'] }) }, cursor: JSON.stringify({ version: 1, accountIdx: 0, from: 280 }), limit: 10 }),
+    error => {
+      assert.equal(error.details?.responseContract?.isHtml, true);
+      assert.equal(error.details?.responseContract?.contentType, 'text/html');
+      assert.equal(error.details?.responseContract?.bodyBytes, Buffer.byteLength(body));
+      assert.doesNotMatch(error.message, /sensitive marker/);
+      assert.equal(calls, 2);
+      return true;
+    }
+  );
+});
+
+test('webapiv2 uses browser request context and retries one HTML challenge once', async () => {
+  const requests = [];
+  const connector = new TapTapConnector({ ...ENV, TAPTAP_CHALLENGE_RETRY_MS: '0' }, {
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), options });
+      if (requests.length === 1) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: name => String(name).toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null },
+          text: async () => '<!doctype html><html><body>challenge marker</body></html>'
+        };
+      }
+      return jsonResponse({ data: { list: [{ moment: moment('recovered') }] } });
+    }
+  });
+  const page = await connector.listOwnedContents({
+    source: { config: JSON.stringify({ groupIds: ['337913'] }) },
+    cursor: JSON.stringify({ version: 1, accountIdx: 0, from: 280 }),
+    limit: 10
+  });
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].options.headers.referer, 'https://www.taptap.cn/');
+  assert.equal(requests[0].options.headers['accept-language'], 'zh-CN,zh;q=0.9');
+  assert.equal(page.items[0].externalId, 'recovered');
+  assert.equal(page.hasMore, false);
+});
+
+test('webapiv2 aborts an HTML challenge delay without sending a second request', async () => {
+  let calls = 0;
+  const controller = new AbortController();
+  const connector = new TapTapConnector({ ...ENV, TAPTAP_DELAY_MS: '0', TAPTAP_CHALLENGE_RETRY_MS: '5000' }, {
+    fetchImpl: async () => {
+      calls += 1;
+      controller.abort(new Error('lease deadline exceeded'));
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: name => String(name).toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null },
+        text: async () => '<html><body>challenge marker</body></html>'
+      };
+    }
+  });
+  await assert.rejects(
+    () => connector.listOwnedContents({
+      source: { config: JSON.stringify({ groupIds: ['337913'] }) },
+      cursor: JSON.stringify({ version: 1, accountIdx: 0, from: 280 }),
+      limit: 10,
+      signal: controller.signal
+    }),
+    error => error.code === 'CONNECTOR_PAGE_FAILED'
+  );
+  assert.equal(calls, 1);
 });

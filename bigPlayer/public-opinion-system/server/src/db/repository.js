@@ -1,12 +1,182 @@
+const { analysisPublishedFrom } = require('../services/analysisWindow');
 const mysql = require('mysql2/promise');
+const { qualityBodyLength, qualityBodyLengthSql } = require('../services/qualityBodyText');
+const ContentHandling = require('../services/contentHandling');
 const crypto = require('node:crypto');
+const { normalizeAnalysisResult, retainVerifiedUrgent } = require('../services/riskSeverityNormalizer');
+const { contentDisplayType, bigPlayerContentKindPredicate } = require('../services/contentDisplayType');
+const { normalizeFacebookPageUrl } = require('../services/sourceValidators');
+const { normalizeSiteUrls } = require('../services/bigplayerSiteConfig');
+const { aggregateParentStatus } = require('../services/bigplayerMultiSiteRuns');
+const { normalizeRiskFilters, severitiesForRiskMode } = require('../../../shared/riskModes');
+const { boardIdOf, boardRunIdentity } = require('../../../shared/bigPlayerBoard');
+const { bigPlayerBoardSchemaReady } = require('../../../shared/bigPlayerBoardSchema');
 
 const uuid = () => crypto.randomUUID();
+// Existing v8 rows retain the original AI explanation inside risk_context.
+// Recover it at read time without rewriting history or invoking AI again.
+const analysisReasonSql = alias => `COALESCE(${['$.rawAnalysis.reason', '$.rawAnalysis.originalRiskDecision.reason'].map(path =>
+  `CASE WHEN JSON_TYPE(JSON_EXTRACT(${alias}.risk_context,'${path}'))='STRING' THEN NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(${alias}.risk_context,'${path}'))),'') END`).join(',')},${alias}.analysis_reason) AS analysis_reason`;
+const sentimentScoreSql = alias => `CASE WHEN JSON_TYPE(JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.sentimentScore')) IN ('INTEGER','DOUBLE') THEN JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.sentimentScore') + 0 ELSE NULL END AS sentiment_score`;
+const OPTIONAL_SYNC_RUN_COLUMNS = ['community_id', 'board_id', 'board_name', 'run_scope', 'site_url_snapshot', 'last_request_at'];
+const optionalSyncRunColumn = (columns, column, alias = column) => columns.has(column) ? `r.${column} AS ${alias}` : `NULL AS ${alias}`;
+const syncRunProjection = columns => `r.id,r.account_id,${optionalSyncRunColumn(columns, 'community_id', 'run_community_id')},${optionalSyncRunColumn(columns, 'board_id')},${optionalSyncRunColumn(columns, 'board_name')},${optionalSyncRunColumn(columns, 'run_scope')},r.parent_run_id,r.parent_run_id AS parentRunId,r.site_id,r.site_id AS siteId,${optionalSyncRunColumn(columns, 'site_url_snapshot')},${optionalSyncRunColumn(columns, 'site_url_snapshot', 'siteUrl')},${optionalSyncRunColumn(columns, 'last_request_at')},${optionalSyncRunColumn(columns, 'last_request_at', 'lastRequestAt')},r.trigger_type,r.trigger_type AS triggerType,r.window_start,r.window_start AS windowStart,r.window_end,r.window_end AS windowEnd,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS run_role,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS runRole,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS has_scheduled_site_children,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS hasScheduledSiteChildren,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id) AS site_total,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope','partial','failed','cancelled','canceled')) AS site_terminal,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope')) AS site_succeeded,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('partial','failed','cancelled','canceled')) AS site_failed,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.comment_count AS advertised_comment_count,(SELECT COUNT(DISTINCT run_posts.content_id) FROM po_sync_run_contents run_posts WHERE run_posts.run_id=r.id AND run_posts.sync_scope='posts') AS post_count,(SELECT COUNT(DISTINCT run_comments.content_id) FROM po_sync_run_contents run_comments WHERE run_comments.run_id=r.id AND run_comments.sync_scope IN ('comments','replies')) AS actual_comment_body_count,(SELECT COUNT(DISTINCT run_replies.content_id) FROM po_sync_run_contents run_replies WHERE run_replies.run_id=r.id AND run_replies.sync_scope='replies') AS reply_count,r.error_code,r.error_message`;
+function repositoryError(code, message) { const error = new Error(message); error.code = code; return error; }
+function normalizedCheckDefinition(value) {
+  let normalized = String(value || '').replace(/`/g, '').replace(/\s+/g, '').toLowerCase();
+  const hasOuterPair = text => {
+    if (!text.startsWith('(') || !text.endsWith(')')) return false;
+    let depth = 0; let quote = null;
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      if (quote) { if (char === quote && text[index + 1] !== quote) quote = null; else if (char === quote) index += 1; continue; }
+      if (char === "'" || char === '"') { quote = char; continue; }
+      if (char === '(') depth += 1;
+      if (char === ')') depth -= 1;
+      if (depth === 0 && index < text.length - 1) return false;
+    }
+    return depth === 0;
+  };
+  while (hasOuterPair(normalized)) normalized = normalized.slice(1, -1);
+  return normalized;
+}
+function extractNamedCheck(createTableSql, constraintName) {
+  const marker = new RegExp(`\\bCONSTRAINT\\s+(?:\\\`${constraintName}\\\`|${constraintName})\\s+CHECK\\s*`, 'i').exec(String(createTableSql || ''));
+  if (!marker) return null;
+  const start = createTableSql.indexOf('(', marker.index + marker[0].length);
+  if (start < 0) return null;
+  let depth = 0; let quote = null;
+  for (let index = start; index < createTableSql.length; index += 1) {
+    const char = createTableSql[index];
+    if (quote) { if (char === quote && createTableSql[index + 1] !== quote) quote = null; else if (char === quote) index += 1; continue; }
+    if (char === "'" || char === '"' || char === '`') { quote = char; continue; }
+    if (char === '(') depth += 1;
+    if (char === ')' && --depth === 0) return createTableSql.slice(start + 1, index);
+  }
+  return null;
+}
 
 // 软删除过滤片段：config.deleted 为 true 的源不出现在列表，也不进调度/手动采集。
 // （表别名统一用 s；MySQL/MariaDB 下 JSON_EXTRACT 缺失键返回 NULL，存 true 时 = false 不成立故被过滤掉。）
 const NOT_DELETED = "(JSON_EXTRACT(s.config,'$.deleted') IS NULL OR JSON_EXTRACT(s.config,'$.deleted') = false)";
+const FACEBOOK_TARGET_CAPABILITIES = Object.freeze(['page', 'posts', 'comments', 'replies']);
 function parseConfig(raw) { return typeof raw === 'string' ? (() => { try { return JSON.parse(raw); } catch { return {}; } })() : (raw || {}); }
+const UTC_ISO_BOUNDARY = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const MAX_BOUNDED_BACKFILL_MS = 7 * 24 * 60 * 60 * 1000;
+function normalizeBoundedBackfillWindow(windowStart, windowEnd) {
+  const hasStart = windowStart != null && windowStart !== '';
+  const hasEnd = windowEnd != null && windowEnd !== '';
+  if (!hasStart && !hasEnd) return null;
+  if (!hasStart || !hasEnd || !UTC_ISO_BOUNDARY.test(String(windowStart)) || !UTC_ISO_BOUNDARY.test(String(windowEnd))) {
+    throw repositoryError('INVALID_INPUT', 'bounded backfill requires UTC ISO publishedFrom and publishedTo');
+  }
+  const startMs = Date.parse(windowStart); const endMs = Date.parse(windowEnd);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+    throw repositoryError('INVALID_INPUT', 'publishedFrom must be earlier than publishedTo');
+  }
+  if (endMs - startMs > MAX_BOUNDED_BACKFILL_MS) {
+    throw repositoryError('INVALID_INPUT', 'bounded backfill window must not exceed 7 days');
+  }
+  const toSql = value => new Date(value).toISOString().slice(0, 23).replace('T', ' ');
+  return { windowStart: toSql(startMs), windowEnd: toSql(endMs), startMs, endMs };
+}
+function databaseUtcTimestampMs(value) {
+  if (value instanceof Date) return value.getTime();
+  const text = String(value || '').trim();
+  if (!text) return NaN;
+  const utcText = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,3})?$/.test(text)
+    ? `${text.replace(' ', 'T')}Z`
+    : text;
+  return Date.parse(utcText);
+}
+function assertRecentBoundedBackfillWindow(boundedWindow, admissionAnchor) {
+  const anchorMs = databaseUtcTimestampMs(admissionAnchor);
+  if (!Number.isFinite(anchorMs)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED', 'database UTC admission time is unavailable');
+  if (boundedWindow.startMs < anchorMs - MAX_BOUNDED_BACKFILL_MS) {
+    throw repositoryError('INVALID_INPUT', 'publishedFrom must be within the last 7 days');
+  }
+  if (boundedWindow.endMs > anchorMs) {
+    throw repositoryError('INVALID_INPUT', 'publishedTo must not be in the future');
+  }
+}
+function boundedBackfillWindowFromAnchor(admissionAnchor, lookbackDays) {
+  const anchorMs = databaseUtcTimestampMs(admissionAnchor);
+  if (!Number.isFinite(anchorMs)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED', 'database UTC admission time is unavailable');
+  const durationMs = Number(lookbackDays) * 24 * 60 * 60 * 1000;
+  const toSql = value => new Date(value).toISOString().slice(0, 23).replace('T', ' ');
+  return { windowStart: toSql(anchorMs - durationMs), windowEnd: toSql(anchorMs), startMs: anchorMs - durationMs, endMs: anchorMs };
+}
+function effectiveBigPlayerWindow(admissionAnchor, lastSuccessfulCursor = null) {
+  const base = boundedBackfillWindowFromAnchor(admissionAnchor, 7);
+  const cursorMs = databaseUtcTimestampMs(lastSuccessfulCursor);
+  if (Number.isFinite(cursorMs) && cursorMs > base.startMs && cursorMs < base.endMs) {
+    base.windowStart = new Date(cursorMs).toISOString().slice(0, 23).replace('T', ' ');
+    base.startMs = cursorMs;
+  }
+  return base;
+}
+async function reconcileBigPlayerSourceSites(conn, sourceId, siteUrls) {
+  if (!Array.isArray(siteUrls)) return [];
+  const normalized = normalizeSiteUrls({ siteUrls }).siteUrls;
+  const [rows] = await conn.query('SELECT site_id, url, url_hash FROM po_source_sites WHERE source_id=? FOR UPDATE', [sourceId]);
+  const bySiteId = new Map((rows || []).map(row => [String(row.site_id), row]));
+  const byUrlHash = new Map((rows || []).map(row => [String(row.url_hash).toLowerCase(), row]));
+  for (const site of normalized) {
+    const urlHash = crypto.createHash('sha256').update(site.url).digest('hex');
+    const sameUrl = byUrlHash.get(urlHash);
+    if (sameUrl && String(sameUrl.site_id) !== String(site.siteId)) throw repositoryError('MULTISITE_SITE_ID_CONFLICT', 'saved BigPlayer URL is already bound to another siteId');
+    const sameId = bySiteId.get(String(site.siteId));
+    if (sameId && String(sameId.url_hash).toLowerCase() !== urlHash && byUrlHash.has(urlHash)) throw repositoryError('MULTISITE_SITE_URL_CONFLICT', 'saved BigPlayer siteId conflicts with another URL');
+  }
+  await conn.query('UPDATE po_source_sites SET enabled=0, updated_at=UTC_TIMESTAMP(3) WHERE source_id=?', [sourceId]);
+  for (const site of normalized) {
+    const urlHash = crypto.createHash('sha256').update(site.url).digest('hex');
+    await conn.query(`INSERT INTO po_source_sites (id,source_id,site_id,url,url_hash,enabled,auth_status,capabilities)
+      VALUES (?,?,?,?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE url=VALUES(url),url_hash=VALUES(url_hash),enabled=VALUES(enabled),updated_at=UTC_TIMESTAMP(3)`,
+    [uuid(), sourceId, site.siteId, site.url, urlHash, site.enabled === false ? 0 : 1, 'unknown', JSON.stringify({})]);
+  }
+  return normalized;
+}
+function boundedBackfillWindowResponse(run, fallback = null) {
+  const startMs = databaseUtcTimestampMs(run?.window_start);
+  const endMs = databaseUtcTimestampMs(run?.window_end);
+  if (Number.isFinite(startMs) && Number.isFinite(endMs)) return { publishedFrom: new Date(startMs).toISOString(), publishedTo: new Date(endMs).toISOString() };
+  return fallback ? { publishedFrom: new Date(fallback.startMs).toISOString(), publishedTo: new Date(fallback.endMs).toISOString() } : null;
+}
+function hasLegacyBigPlayerBackfill(...values) {
+  return values.some(value => {
+    const config = parseConfig(value);
+    return config.syncMode === 'backfill' || (config.historyStart != null && config.historyStart !== '');
+  });
+}
+function facebookTargetChanged(source, nextBaseUrl) {
+  if (source?.platform !== 'facebook' || nextBaseUrl === undefined) return false;
+  return normalizeFacebookPageUrl(parseConfig(source.config).baseUrl) !== normalizeFacebookPageUrl(nextBaseUrl);
+}
+async function invalidateFacebookTarget(conn, sourceId, account) {
+  if (!account) { const error = new Error('default account not found'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
+  // 005 schema keeps both auth_status columns at VARCHAR(20), so configured_unverified (21 chars)
+  // cannot be stored safely. unconfigured is the existing fail-closed equivalent; the Token row is preserved.
+  await stopFacebookCollection(conn, sourceId, 'FACEBOOK_TARGET_CHANGED', 'Facebook Page target changed');
+  await conn.query("UPDATE po_accounts SET platform_account_id=?, profile_url=NULL, auth_status='unconfigured', auth_expire_at=NULL, last_full_sync_at=NULL, last_incremental_sync_at=NULL, updated_at=NOW() WHERE id=?", [`pending:${account.id}`, account.id]);
+  await clearFacebookCapabilities(conn, sourceId);
+  await conn.query('DELETE cp FROM po_sync_checkpoints cp JOIN po_accounts a ON a.id=cp.account_id WHERE a.source_id=?', [sourceId]);
+}
+async function stopFacebookCollection(conn, sourceId, reasonCode, reasonMessage) {
+  await conn.query("UPDATE po_sources SET enabled=0, auth_status='unconfigured', auth_expire_at=NULL, collect_requested_at=NULL, updated_at=NOW() WHERE id=?", [sourceId]);
+  await conn.query("UPDATE po_sync_runs r JOIN po_accounts a ON a.id=r.account_id SET r.status='failed', r.error_code=?, r.error_message=?, r.finished_at=UTC_TIMESTAMP(3), r.lease_owner=NULL, r.lease_until=NULL, r.updated_at=UTC_TIMESTAMP(3) WHERE a.source_id=? AND r.status IN ('queued','running')", [reasonCode, reasonMessage, sourceId]);
+  await conn.query("UPDATE po_source_schedule_state SET next_scheduled_at=NULL, lease_run_id=NULL, lease_owner=NULL, lease_until=NULL, lease_epoch=lease_epoch+1, schedule_version=schedule_version+1, last_status='failed', last_reason_code=?, updated_at=UTC_TIMESTAMP(3) WHERE source_id=?", [reasonCode, sourceId]);
+}
+async function clearFacebookCapabilities(conn, sourceId) {
+  await conn.query(`DELETE FROM po_source_capabilities WHERE source_id=? AND capability IN (${FACEBOOK_TARGET_CAPABILITIES.map(() => '?').join(',')})`, [sourceId, ...FACEBOOK_TARGET_CAPABILITIES]);
+}
+async function invalidateFacebookCredential(conn, sourceId, account) {
+  if (!account) { const error = new Error('default account not found'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
+  await stopFacebookCollection(conn, sourceId, 'FACEBOOK_CREDENTIAL_CHANGED', 'Facebook Page credential changed');
+  await conn.query("UPDATE po_accounts SET auth_status='unconfigured', auth_expire_at=NULL, updated_at=NOW() WHERE id=?", [account.id]);
+  await clearFacebookCapabilities(conn, sourceId);
+}
 function comparableDate(value) {
   if (value == null || value === '') return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? String(value) : value.getTime();
@@ -24,6 +194,18 @@ function canonicalJson(value) {
 function comparableJson(value, fallback) { return JSON.stringify(canonicalJson(value == null ? fallback : value)); }
 function totalCommentCountSql(contentAlias, childAlias) {
   return `CASE WHEN ${contentAlias}.content_type='post' THEN GREATEST((SELECT COUNT(*) FROM po_contents ${childAlias} WHERE ${childAlias}.root_content_id=${contentAlias}.id AND ${childAlias}.content_type='comment' AND ${childAlias}.is_deleted=0), COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(${contentAlias}.engagement,'$.comments')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(${contentAlias}.engagement,'$.comment')) AS UNSIGNED), 0)) ELSE 0 END`;
+}
+const QUALITY_BOOLEAN_FIELDS = ['recommend_home', 'recommend_pin', 'recommend_feature', 'home_adopted', 'pin_adopted', 'feature_adopted'];
+const QUALITY_SCORE_THRESHOLD = 0.7;
+function normalizeQualityCandidate(row) {
+  if (!row) return row;
+  const normalized = { ...row, canReview: true };
+  for (const field of QUALITY_BOOLEAN_FIELDS) normalized[field] = row[field] === true || row[field] === 1 || row[field] === '1';
+  return normalized;
+}
+function normalizeAlertWithIndependentReviews(alert) {
+  if (!alert) return alert;
+  return { ...alert, independent_reviews: (Array.isArray(alert.independent_reviews) ? alert.independent_reviews : []).map(normalizeQualityCandidate) };
 }
 
 // active_window 形如 { days:[1..7 (1=周一,7=周日)], start:'HH:MM', end:'HH:MM' }；
@@ -48,15 +230,22 @@ function isWithinActiveWindow(activeWindow, now = new Date()) {
 class Repository {
   constructor(env = process.env) {
     this.advisoryLocks = new Map();
+    this.analysisFastClaim = env.AI_ANALYSIS_FAST_CLAIM === "1";
+    this.analysisClaimCover = env.AI_ANALYSIS_CLAIM_COVER === "1";
+    this.analysisOldEmptyUntil = new Map();
     this.syncUpsertMaxAttempts = Math.max(1, Number(env.SYNC_UPSERT_MAX_RETRIES || 4));
     this.syncUpsertRetryBaseMs = Math.max(0, Number(env.SYNC_UPSERT_RETRY_BASE_MS == null ? 80 : env.SYNC_UPSERT_RETRY_BASE_MS));
     this.syncUpsertLockWaitSeconds = Math.max(1, Number(env.SYNC_UPSERT_LOCK_WAIT_SECONDS || 30));
-    this.pool = mysql.createPool(env.DATABASE_URL || {
+    this.claimDeadlockMaxAttempts = Math.max(1, Number(env.CLAIM_DEADLOCK_MAX_RETRIES == null ? 3 : env.CLAIM_DEADLOCK_MAX_RETRIES));
+    this.claimDeadlockRetryBaseMs = Math.max(0, Number(env.CLAIM_DEADLOCK_RETRY_BASE_MS == null ? 500 : env.CLAIM_DEADLOCK_RETRY_BASE_MS));
+    this.pool = mysql.createPool({
+      ...(env.DATABASE_URL ? { uri: env.DATABASE_URL } : {
       host: env.DB_HOST || '127.0.0.1',
       port: Number(env.DB_PORT || 3306),
       user: env.DB_USER || 'root',
       password: env.DB_PASSWORD || '',
-      database: env.DB_NAME || 'public_opinion',
+      database: env.DB_NAME || 'public_opinion'
+      }),
       waitForConnections: true,
       connectionLimit: Number(env.DB_POOL_SIZE || 10),
       charset: 'utf8mb4_unicode_ci',
@@ -64,19 +253,53 @@ class Repository {
       dateStrings: true
     });
   }
-  async query(sql, params = []) { const [rows] = await this.pool.query(sql, params); return rows; }
+  async query(sql, params = []) {
+    let lastError = null;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        const [rows] = await this.pool.query(sql, params);
+        return rows;
+      } catch (error) {
+        lastError = error;
+        if (error.code === 'ER_LOCK_DEADLOCK' && attempt < 5) { await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1) + Math.floor(Math.random() * 200))); continue; }
+        throw error;
+      }
+    }
+    throw lastError;
+  }
+  async getSyncRunProjection() {
+    const columns = await this.query("SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='po_sync_runs' AND COLUMN_NAME IN (?,?,?,?,?,?)", OPTIONAL_SYNC_RUN_COLUMNS);
+    return syncRunProjection(new Set(columns.map(row => String(row.column_name).toLowerCase())));
+  }
   async health() { const rows = await this.query('SELECT 1 AS ok'); return rows[0]; }
-  async listGames({ regionCode } = {}) { const values = []; const where = regionCode ? 'WHERE region_code=?' : ''; if (regionCode) values.push(regionCode); return this.query(`SELECT * FROM po_games ${where} ORDER BY kind, name`, values); }
+  async listGames({ regionCode, externalId } = {}) { const values = []; const clauses = []; if (regionCode) { clauses.push('region_code=?'); values.push(regionCode); } if (externalId) { clauses.push('external_id=?'); values.push(String(externalId)); } const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''; return this.query(`SELECT * FROM po_games ${where} ORDER BY kind, name`, values); }
   async getGame(id) { return (await this.query('SELECT * FROM po_games WHERE id=?', [id]))[0] || null; }
-  async listCommunities({ gameId, regionCode, includeDisabled = true } = {}) {
+  async listCommunities({ gameId, regionCode, externalId, includeDisabled = true } = {}) {
     const values = []; const clauses = [];
     if (gameId) { clauses.push('c.game_id=?'); values.push(gameId); }
     if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); }
+    if (externalId) { clauses.push('c.external_id=?'); values.push(String(externalId)); }
     if (!includeDisabled) clauses.push("c.status='enabled'");
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     return this.query(`SELECT c.*, g.name AS game_name, g.region_code, COALESCE(source_stats.source_count,0) AS source_count, COALESCE(content_stats.content_count,0) AS content_count FROM po_communities c JOIN po_games g ON g.id=c.game_id LEFT JOIN (SELECT community_id, COUNT(*) AS source_count FROM po_sources WHERE (JSON_EXTRACT(config,'$.deleted') IS NULL OR JSON_EXTRACT(config,'$.deleted')=false) GROUP BY community_id) source_stats ON source_stats.community_id=c.id LEFT JOIN (SELECT community_id, COUNT(*) AS content_count FROM po_contents GROUP BY community_id) content_stats ON content_stats.community_id=c.id ${where} ORDER BY g.region_code, g.name, c.sort_order, c.name`, values);
   }
   async getCommunity(id) { return (await this.listCommunities({})).find(row => String(row.id) === String(id)) || null; }
+  async listSsoRolePermissions() {
+    return this.query('SELECT role_key,nav_key,community_id FROM po_sso_role_permissions ORDER BY role_key,nav_key,community_id');
+  }
+  async replaceSsoRolePermissions(roleKey, grants = []) {
+    const safeRole = String(roleKey || '').trim();
+    if (!/^[A-Za-z0-9_:-]{2,120}$/.test(safeRole)) { const error = new Error('角色标识格式无效'); error.code = 'INVALID_INPUT'; throw error; }
+    const rows = [...new Map((grants || []).map(item => [`${item.navKey}|${item.communityId}`, { navKey: String(item.navKey || ''), communityId: String(item.communityId || '') }])).values()];
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM po_sso_role_permissions WHERE role_key=?', [safeRole]);
+      for (const row of rows) await conn.query('INSERT INTO po_sso_role_permissions (role_key,nav_key,community_id) VALUES (?,?,?)', [safeRole,row.navKey,row.communityId]);
+      await conn.commit();
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+    return this.listSsoRolePermissions();
+  }
   async syncCommunityMirror(items = []) {
     const conn = await this.pool.getConnection();
     try {
@@ -89,22 +312,54 @@ class Repository {
         if (!game) { const error = new Error(`community game does not exist: ${item.gameId}`); error.code = 'COMMUNITY_PROVIDER_UNKNOWN_GAME'; throw error; }
         if (item.regionCode && item.regionCode !== game.region_code) { const error = new Error(`community region does not match game: ${item.id}`); error.code = 'COMMUNITY_PROVIDER_REGION_MISMATCH'; throw error; }
       }
-      for (const item of items) await conn.query("INSERT INTO po_communities (id, game_id, name, status, sort_order) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE game_id=VALUES(game_id), name=VALUES(name), status=VALUES(status), sort_order=VALUES(sort_order), updated_at=NOW()", [item.id, item.gameId, item.name, item.status, item.sortOrder]);
-      if (items.length) await conn.query(`UPDATE po_communities SET status='disabled', updated_at=NOW() WHERE id NOT IN (${items.map(() => '?').join(',')}) AND status<>'disabled'`, items.map(item => item.id));
-      else await conn.query("UPDATE po_communities SET status='disabled', updated_at=NOW() WHERE status<>'disabled'");
+      for (const item of items) await conn.query("INSERT INTO po_communities (id, game_id, name, status, sort_order, managed_by) VALUES (?,?,?,?,?,'community_provider') ON DUPLICATE KEY UPDATE game_id=VALUES(game_id), name=VALUES(name), status=VALUES(status), sort_order=VALUES(sort_order), managed_by='community_provider', updated_at=NOW()", [item.id, item.gameId, item.name, item.status, item.sortOrder]);
+      if (items.length) {
+        const regions = [...new Set(items.map(item => item.regionCode).filter(Boolean).concat(games.map(game => String(game.region_code || '').trim()).filter(Boolean)))];
+        if (regions.length > 1 && !items.every(item => item.regionCode == null || item.regionCode === regions[0])) { const error = new Error('community mirror requires a single region scope'); error.code = 'COMMUNITY_PROVIDER_REGION_REQUIRED'; throw error; }
+        const ids = items.map(item => item.id);
+        const mirrorRegion = regions[0];
+        if (mirrorRegion) await conn.query(`UPDATE po_communities c JOIN po_games g ON g.id=c.game_id SET c.status='disabled', c.updated_at=NOW() WHERE g.region_code=? AND c.managed_by='community_provider' AND c.id NOT IN (${ids.map(() => '?').join(',')}) AND c.status<>'disabled'`, [mirrorRegion, ...ids]);
+      }
+      // 空响应不改变本地目录；provider 也不得影响其他区域或非 provider-managed 社区。
+
       await conn.commit();
       return { synchronized: items.length };
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   }
   async getCommunityForGame(communityId, gameId, { enabledOnly = false } = {}) { const rows = await this.query(`SELECT c.*, g.name AS game_name, g.region_code FROM po_communities c JOIN po_games g ON g.id=c.game_id WHERE c.id=? AND c.game_id=?${enabledOnly ? " AND c.status='enabled'" : ''} LIMIT 1`, [communityId, gameId]); return rows[0] || null; }
-  async listSources(gameId, { regionCode, communityId, platform } = {}) { const values = []; const clauses = [NOT_DELETED]; if (gameId) { clauses.push('s.game_id=?'); values.push(gameId); } if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); } if (communityId) { clauses.push('s.community_id=?'); values.push(communityId); } if (platform) { clauses.push('s.platform=?'); values.push(platform); } return this.query(`SELECT s.*, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id LEFT JOIN po_communities c ON c.id=s.community_id WHERE ${clauses.join(' AND ')} ORDER BY s.updated_at ASC`, values); }
+  async resolveCommunityCanonical({ regionCode, communityId, gameId } = {}) {
+    if (!communityId) return { regionCode: regionCode || null, gameId: gameId || null, communityId: null, community: null };
+    const value = String(communityId).trim();
+    const rows = await this.query(`SELECT c.*, g.name AS game_name, g.region_code, g.external_id AS game_external_id FROM po_communities c JOIN po_games g ON g.id=c.game_id WHERE (c.id=? OR c.external_id=?) AND (? IS NULL OR g.region_code=?) LIMIT 2`, [value, value, regionCode || null, regionCode || null]);
+    if (rows.length !== 1) { const error = new Error('community does not resolve uniquely in region'); error.code = 'COMMUNITY_NOT_FOUND'; throw error; }
+    const community = rows[0];
+    if (gameId && String(gameId) !== String(community.game_id) && String(gameId) !== String(community.game_external_id)) { const error = new Error('game does not match community'); error.code = 'OWNERSHIP_MISMATCH'; throw error; }
+    return { regionCode: community.region_code, gameId: community.game_id, communityId: community.id, community };
+  }
+  async listSources(gameId, { sourceId, regionCode, communityId, platform } = {}) { const values = []; const clauses = [NOT_DELETED]; if (sourceId) { clauses.push('s.id=?'); values.push(sourceId); } if (gameId) { clauses.push('s.game_id=?'); values.push(gameId); } if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); } if (communityId) { clauses.push('s.community_id=?'); values.push(communityId); } if (platform) { clauses.push('s.platform=?'); values.push(platform); } return this.query(`SELECT s.*, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id LEFT JOIN po_communities c ON c.id=s.community_id WHERE ${clauses.join(' AND ')} ORDER BY s.updated_at ASC`, values); }
   async findSourceByIdentity({ gameId, platform, displayName, communityId } = {}) {
     const scope = communityId ? ' AND community_id=?' : '';
     const params = communityId ? [gameId, platform, displayName, communityId] : [gameId, platform, displayName];
     return (await this.query(`SELECT * FROM po_sources WHERE game_id=? AND platform=? AND display_name=?${scope} LIMIT 1`, params))[0] || null;
   }
   async listEnabledSources() { return this.query(`SELECT s.*, g.name AS game_name, g.region_code, g.enabled AS game_enabled, c.name AS community_name, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} ORDER BY s.updated_at ASC`); }
+  async getOverviewTrend({ regionCode, gameId, communityId, sourceId, platform, from, to } = {}) {
+    const values = []; const clauses = ['c.published_at IS NOT NULL', 'COALESCE(c.is_deleted,0)=0'];
+    for (const [value, clause] of [[regionCode, 'g.region_code=?'], [gameId, 'c.game_id=?'], [communityId, 'c.community_id=?'], [sourceId, 'c.source_id=?'], [platform, 's.platform=?'], [from, 'c.published_at >= ?'], [to, 'c.published_at < ?']]) {
+      if (value) { values.push(value); clauses.push(clause); }
+    }
+    return this.query(`SELECT DATE_FORMAT(DATE_ADD(c.published_at, INTERVAL 8 HOUR), '%Y-%m-%d') AS date,
+      CAST(SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS SIGNED) AS positive,
+      CAST(SUM(CASE WHEN a.sentiment='neutral' THEN 1 ELSE 0 END) AS SIGNED) AS neutral,
+      CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative,
+      CAST(SUM(CASE WHEN a.content_id IS NULL THEN 1 ELSE 0 END) AS SIGNED) AS unclassified,
+      CAST(COUNT(*) AS SIGNED) AS total
+      FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id
+      LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id WHERE ${clauses.join(' AND ')} GROUP BY date ORDER BY date ASC`, values);
+  }
+
   async getOverview({ regionCode, gameId, communityId, sourceId, platform, from, to } = {}) {
+    const contentFilters = { regionCode, gameId, communityId, sourceId, platform, publishedFrom: from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), publishedTo: to };
     const values = []; const clauses = [];
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
     if (gameId) { values.push(gameId); clauses.push('c.game_id=?'); }
@@ -114,42 +369,79 @@ class Repository {
     if (from) { values.push(from); clauses.push('c.published_at >= ?'); }
     if (to) { values.push(to); clauses.push('c.published_at < ?'); }
     clauses.push('c.published_at IS NOT NULL');
-    clauses.push("c.content_type='post'");
     if (!clauses.some(clause => clause.includes('c.is_deleted'))) clauses.push('COALESCE(c.is_deleted,0)=0');
     if (!from && !to) { values.push(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)); clauses.push('c.published_at >= ?'); }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const contentJoin = ' JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id';
-    const alertClauses = ["a.status NOT IN ('resolved','false_positive')"]; const alertValues = [];
+    const alertClauses = ["a.status IN ('pending','processing')", 'COALESCE(c.is_deleted,0)=0', 'c.published_at IS NOT NULL', "EXISTS (SELECT 1 FROM po_analyses current_analysis WHERE current_analysis.content_id=c.id AND current_analysis.sentiment IN ('neutral','negative') AND current_analysis.severity='urgent')"]; const alertValues = [];
     if (regionCode) { alertValues.push(regionCode); alertClauses.push('g.region_code=?'); }
-    if (gameId) { alertValues.push(gameId); alertClauses.push('a.game_id=?'); }
-    if (communityId) { alertValues.push(communityId); alertClauses.push('a.community_id=?'); }
+    if (gameId) { alertValues.push(gameId); alertClauses.push('c.game_id=?'); }
+    if (communityId) { alertValues.push(communityId); alertClauses.push('c.community_id=?'); }
     if (sourceId) { alertValues.push(sourceId); alertClauses.push('c.source_id=?'); }
     if (platform) { alertValues.push(platform); alertClauses.push('s.platform=?'); }
-    if (from) { alertValues.push(from); alertClauses.push('a.created_at >= ?'); }
-    if (to) { alertValues.push(to); alertClauses.push('a.created_at < ?'); }
-    if (!from && !to) { alertValues.push(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)); alertClauses.push('a.created_at >= ?'); }
-    const [metrics, sentiments, sources, alerts, trend, hotNegative] = await Promise.all([
+    if (from) { alertValues.push(from); alertClauses.push('c.published_at >= ?'); }
+    if (to) { alertValues.push(to); alertClauses.push('c.published_at < ?'); }
+    if (!from && !to) { alertValues.push(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)); alertClauses.push('c.published_at >= ?'); }
+    const [metrics, sentiments, sources, alerts, trend, hotNegative, hotAttention, contentStats, topics] = await Promise.all([
       // 性能：po_analyses 聚合必须 FORCE 覆盖索引（content_id, sentiment, severity），
       // 否则按唯一键逐行回表读 sentiment/severity，UUID 主键随机分布实测 ~2s；覆盖索引 ~100ms。
       // po_games/po_sources 均为 1-2 行小表，优化器以其驱动会导致 contents 全表扫描 + filesort，
       // STRAIGHT_JOIN 强制 c 驱动（与 listContents 同因；实测 sources 3.7s → 250ms）。
-      this.query(`SELECT COALESCE(COUNT(*),0) AS total, COALESCE(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END),0) AS negative, COALESCE(SUM(CASE WHEN a.severity='urgent' THEN 1 ELSE 0 END),0) AS urgent FROM po_contents c FORCE INDEX (po_contents_game_collected_idx) STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id ${where}`, values),
-      this.query(`SELECT COALESCE(a.sentiment,'unclassified') AS sentiment, COUNT(*) AS count FROM po_contents c FORCE INDEX (po_contents_game_collected_idx) STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id ${where} GROUP BY a.sentiment`, values),
-      this.query(`SELECT s.platform, COUNT(*) AS count FROM po_contents c FORCE INDEX (po_contents_source_collected_idx) STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id ${where} GROUP BY s.platform ORDER BY count DESC`, values),
-      this.query(`SELECT DISTINCT a.*, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_alerts a LEFT JOIN po_alert_contents ac ON ac.alert_id=a.id LEFT JOIN po_contents c ON c.id=ac.content_id LEFT JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities cm ON cm.id=a.community_id WHERE ${alertClauses.join(' AND ')} ORDER BY a.created_at DESC LIMIT 10`, alertValues),
+      // 性能：metrics/sentiment/topics 走 STRAIGHT_JOIN 强制 c 驱动；时间窗口过滤下
+      // FORCE INDEX 用 published_time 索引（实测 metrics 727ms→35ms、topics 770ms→20ms，
+      // sentiment 同构同步替换），原 game_collected 索引会退化为大范围扫描。
+      this.query(`SELECT COALESCE(COUNT(*),0) AS total, COALESCE(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END),0) AS negative FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id ${where}`, values),
+      this.query(`SELECT COALESCE(a.sentiment,'unclassified') AS sentiment, COUNT(*) AS count FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id ${where} GROUP BY a.sentiment`, values),
+      this.query(`SELECT s.platform, COUNT(*) AS count FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id ${where} GROUP BY s.platform ORDER BY count DESC`, values),
+      this.query(`SELECT DISTINCT a.*, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_alerts a JOIN po_alert_contents ac ON ac.alert_id=a.id JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${alertClauses.join(' AND ')} ORDER BY a.created_at DESC, a.id DESC`, alertValues),
       // 按当前概览时间窗口聚合情感趋势；计数 CAST 为整数便于前端比较。
-      this.query(`SELECT DATE_ADD(c.published_at, INTERVAL 8 HOUR) AS date, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative, CAST(SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS SIGNED) AS positive, CAST(SUM(CASE WHEN a.sentiment='neutral' THEN 1 ELSE 0 END) AS SIGNED) AS neutral, CAST(SUM(CASE WHEN a.content_id IS NULL THEN 1 ELSE 0 END) AS SIGNED) AS unclassified, CAST(COUNT(*) AS SIGNED) AS total FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id ${where || 'WHERE COALESCE(c.is_deleted,0)=0'} GROUP BY DATE_ADD(c.published_at, INTERVAL 8 HOUR) ORDER BY date ASC`, values),
-      // 负面热点 Top10（按互动量降序，供仪表盘热点榜；engagement 字段直接给前端展示互动数）
-      this.query(`SELECT c.id, c.game_id, c.community_id, c.title, c.body, c.source_url, c.author_name, c.source_id, c.published_at, s.platform, g.name AS game_name, g.region_code, cm.name AS community_name, a.sentiment, a.negative_score, a.severity, a.topics, a.matched_keywords, a.summary, (COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.like') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.comment') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.share') AS UNSIGNED),0)) AS engagement FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id JOIN po_analyses a ON a.content_id=c.id ${where ? `${where} AND` : 'WHERE'} a.sentiment='negative' ORDER BY engagement DESC, a.negative_score DESC LIMIT 10`, values)
+      // 性能：CASE 聚合 + 无索引排序时优化器计划退化，FORCE published_time +
+      // STRAIGHT_JOIN c 驱动实测 760ms→75ms。
+      this.query(`SELECT DATE_ADD(c.published_at, INTERVAL 8 HOUR) AS date, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative, CAST(SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS SIGNED) AS positive, CAST(SUM(CASE WHEN a.sentiment='neutral' THEN 1 ELSE 0 END) AS SIGNED) AS neutral, CAST(SUM(CASE WHEN a.content_id IS NULL THEN 1 ELSE 0 END) AS SIGNED) AS unclassified, CAST(COUNT(*) AS SIGNED) AS total FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id ${where || 'WHERE COALESCE(c.is_deleted,0)=0'} GROUP BY DATE_ADD(c.published_at, INTERVAL 8 HOUR) ORDER BY date ASC`, values),
+      // 负面内容 Top10（按发布时间倒序，混排帖子、动态和评论）。
+      // 性能：JSON engagement 计算 + ORDER BY 无索引可走，优化器以小表驱动全表扫描，
+      // FORCE published_time + STRAIGHT_JOIN 实测 1.6s→75ms。
+      this.listContents({ ...contentFilters, riskMode: 'negative', sort: 'published_desc', pageSize: 10 }),
+      // 关注级列表与卡片共享内容集合，不附加负面情感限制，按发布时间倒序。
+      this.listContents({ ...contentFilters, riskMode: 'attention', sort: 'published_desc', pageSize: 10 }),
+      this.getContentStats(contentFilters, { includeBreakdown: true }),
+      this.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(a.topics, CONCAT('$[', seq.seq, ']'))) AS topic, CAST(COUNT(*) AS SIGNED) AS count, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id STRAIGHT_JOIN po_analyses a ON a.content_id=c.id STRAIGHT_JOIN (SELECT 0 AS seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) seq ON seq.seq < JSON_LENGTH(a.topics) ${where} GROUP BY topic HAVING topic IS NOT NULL AND topic <> '' ORDER BY count DESC, topic ASC LIMIT 10`, values)
     ]);
-    return { metrics: metrics[0], sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, trend, hotNegative };
+    const hotFields = ['id', 'game_id', 'community_id', 'content_type', 'title', 'body', 'source_url', 'author_name', 'source_id', 'published_at', 'platform', 'game_name', 'region_code', 'community_name', 'community_status', 'sentiment', 'negative_score', 'severity', 'topics', 'matched_keywords', 'summary'];
+    const hotItems = rows => rows.map(row => ({ ...Object.fromEntries(hotFields.map(field => [field, row[field]])), display_type: contentDisplayType(row), engagement: Number(row.engagement_score ?? row.engagement) || 0 }));
+    const postCount = Number(contentStats.post) || 0;
+    const commentCount = Number(contentStats.comment) || 0;
+    // Analysis may be urgent before an alert event exists (e.g. deep analysis failed).
+    // Keep those contents visible without creating events or sending notifications on GET.
+    const urgentUnlinkedTotal = Number((await this.query(`SELECT COUNT(*) AS total FROM po_contents c JOIN po_analyses an ON an.content_id=c.id ${contentJoin} ${where} AND an.sentiment IN ('neutral','negative') AND an.severity='urgent' AND NOT EXISTS (SELECT 1 FROM po_alert_contents link WHERE link.content_id=c.id)`, values))[0]?.total) || 0;
+    let urgentUnlinkedContents = [];
+    if (urgentUnlinkedTotal) urgentUnlinkedContents = await this.query(`SELECT c.*, an.sentiment, an.negative_score, an.severity, an.summary, an.topics, an.matched_keywords, g.region_code, g.name AS game_name, s.platform FROM po_contents c JOIN po_analyses an ON an.content_id=c.id ${contentJoin} ${where} AND an.sentiment IN ('neutral','negative') AND an.severity='urgent' AND NOT EXISTS (SELECT 1 FROM po_alert_contents link WHERE link.content_id=c.id) ORDER BY c.published_at DESC, c.id DESC LIMIT 20`, values);
+    const urgentIds = [...new Set(alerts.filter(alert => alert.severity === 'urgent').map(alert => alert.id))];
+    const urgentAlertCount = urgentIds.length;
+    const urgentBreakdown = urgentIds.length ? (await this.query(`SELECT COUNT(DISTINCT CASE WHEN c.content_type='post' THEN c.id END) AS postCount, COUNT(DISTINCT CASE WHEN c.content_type='comment' THEN c.id END) AS commentCount FROM po_alert_contents ac JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE ac.alert_id IN (${urgentIds.map(() => '?').join(',')}) AND ${alertClauses.filter(clause => !clause.startsWith('a.') && clause !== "c.content_type='post'").join(' AND ')}`, [...urgentIds, ...alertValues]))[0] : {};
+    const breakdownMetrics = Object.fromEntries(['attentionPostCount', 'attentionCommentCount', 'negativePostCount', 'negativeCommentCount', 'urgentPostCount', 'urgentCommentCount'].map(key => [key, Number(contentStats[key]) || 0]));
+    breakdownMetrics.urgentAlertPostCount = Number(urgentBreakdown?.postCount) || 0;
+    breakdownMetrics.urgentAlertCommentCount = Number(urgentBreakdown?.commentCount) || 0;
+    return { metrics: { ...metrics[0], total: postCount + commentCount, postCount, commentCount, ...breakdownMetrics, negative: contentStats.negative, attention: contentStats.attention, urgent: contentStats.urgent, urgentAlertCount, activeAlertCount: alerts.length, urgentUnlinkedTotal }, sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, urgentUnlinkedContents, trend, hotNegative: hotItems(hotNegative), hotAttention: hotItems(hotAttention), topicDistribution: topics };
   }
-  async listContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20 } = {}) {
+  addRiskModeFilter(clauses, values, riskMode, alias = 'a') {
+    if (!riskMode) return;
+    const severities = severitiesForRiskMode(riskMode);
+    clauses.push(`${alias}.sentiment IN ('neutral','negative')`);
+    clauses.push(`${alias}.severity IN (${severities.map(() => '?').join(',')})`);
+    values.push(...severities);
+  }
+  async listContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, bigPlayerContentKind, riskMode, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, handlingStatus, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20, sort } = {}) {
+    ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));
     const values = []; const clauses = [];
+    this.addRiskModeFilter(clauses, values, riskMode, 'a');
+    ContentHandling.addHandlingStatusFilter(clauses, handlingStatus, 'a');
+    const kindPredicate = bigPlayerContentKindPredicate(bigPlayerContentKind);
+    if (kindPredicate) clauses.push(kindPredicate);
     if (!includeDeleted) clauses.push('c.is_deleted=0');
     if (postId) { values.push(postId); clauses.push('c.external_id=?'); }
     if (sentiment === 'unclassified') clauses.push('a.content_id IS NULL');
-    for (const [, value, sql] of [['contentId', contentId, 'c.id'], ['accountId', accountId, 'c.account_id'], ['gameId', gameId, 'c.game_id'], ['communityId', communityId, 'c.community_id'], ['sourceId', sourceId, 'c.source_id'], ['contentType', contentType, 'c.content_type'], ['sentiment', sentiment === 'unclassified' ? null : sentiment, 'a.sentiment'], ['severity', severity, 'a.severity'], ['analysisLevel', analysisLevel, 'a.analysis_level']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
+    for (const [, value, sql] of [['contentId', contentId, 'c.id'], ['accountId', accountId, 'c.account_id'], ['gameId', gameId, 'c.game_id'], ['communityId', communityId, 'c.community_id'], ['sourceId', sourceId, 'c.source_id'], ['contentType', contentType, 'c.content_type'], ['sentiment', sentiment === 'unclassified' ? null : sentiment, 'a.sentiment'], ['severity', riskMode ? null : severity, 'a.severity'], ['analysisLevel', analysisLevel, 'a.analysis_level']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
     if (platform) { values.push(platform); clauses.push('s.platform=?'); }
     if (publishedFrom) { values.push(publishedFrom); clauses.push('c.published_at>=?'); }
@@ -186,13 +478,16 @@ class Repository {
     // - severity/sentiment 稀疏值筛选：c 沿时间索引扫描需逐行回表 po_analyses 判断
     //   （urgent 124/3.7 万，实测 ~2s）。改为覆盖索引派生表先物化命中集合再按 c 主键
     //   JOIN + 限制排序，实测 ~50ms。
-    const rareAnalysisFilter = (severity === 'urgent' || severity === 'attention') && !statusFilterIds;
+    const rareAnalysisFilter = !riskMode && (severity === 'urgent' || severity === 'attention' || severity === 'negative') && !statusFilterIds;
     const smallStatusSet = statusFilterIds && statusFilterIds.length <= 1000;
     const cIndexHint = smallStatusSet || rareAnalysisFilter ? '' : 'FORCE INDEX (po_contents_published_time_idx)';
     const joinHint = smallStatusSet || rareAnalysisFilter ? 'JOIN' : 'STRAIGHT_JOIN';
     const severityJoin = rareAnalysisFilter ? ` JOIN (SELECT content_id FROM po_analyses FORCE INDEX (po_analyses_sentiment_cover_idx) WHERE severity=?) sf ON sf.content_id=c.id` : '';
     const base = `FROM po_contents c ${cIndexHint} ${severityJoin} ${joinHint} po_sources s ON s.id=c.source_id ${joinHint} po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id${needsJobs ? ` LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile=COALESCE(a.analysis_level,'light') AND j.analysis_version=COALESCE(a.analysis_version,?)` : ''}`;
-    const rows = await this.query(`SELECT c.*, s.platform, s.display_name AS source_name, a.sentiment, a.negative_score, a.confidence, a.quality_score, a.recommend_home, a.recommend_pin, a.recommend_feature, a.quality_reason, a.severity, a.topics, a.matched_keywords, a.summary, a.model_name, a.analysis_level, a.analysis_version, a.trigger_reason, a.analysis_reason, a.analyzed_at${needsJobs ? `, COALESCE(j.status,CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status, j.error_code AS analysis_error_code, j.error_message AS analysis_error_message` : `, CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END AS analysis_status`} ${base} ${where} ORDER BY c.published_at DESC, c.id DESC LIMIT ? OFFSET ?`, [...(rareAnalysisFilter ? [severity] : []), ...(needsJobs ? [lightVersion] : []), ...values, limit, offset]);
+    const hot = sort === 'engagement' || sort === 'published_desc';
+    const hotFields = hot ? ", g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status, (COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.like') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.comment') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.share') AS UNSIGNED),0)) AS engagement_score" : '';
+    const order = sort === 'engagement' ? 'engagement_score DESC, a.negative_score DESC' : 'c.published_at DESC, c.id DESC';
+    const rows = await this.query(`SELECT c.*, s.platform, s.display_name AS source_name, a.sentiment, a.negative_score, a.confidence, a.quality_score, a.recommend_home, a.recommend_pin, a.recommend_feature, a.quality_reason, a.severity, a.topics, a.matched_keywords, a.summary, a.model_name, a.analysis_level, a.analysis_version, a.trigger_reason, ${analysisReasonSql('a')}, ${sentimentScoreSql('a')}, a.analyzed_at${hotFields}${needsJobs ? `, COALESCE(j.status,CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status, j.error_code AS analysis_error_code, j.error_message AS analysis_error_message` : `, CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END AS analysis_status`} ${base}${hot ? ' LEFT JOIN po_communities cm ON cm.id=c.community_id' : ''} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, [...(rareAnalysisFilter ? [severity] : []), ...(needsJobs ? [lightVersion] : []), ...values, limit, offset]);
     if (rows.length) {
       const idPlaceholders = rows.map(() => '?').join(',');
       // 补查评论数：本地评论数与 engagement JSON 里的较大值（与原 totalCommentCountSql 口径一致）
@@ -204,6 +499,7 @@ class Repository {
       };
       for (const row of rows) {
         row.comment_count = row.content_type === 'post' ? Math.max(commentCount.get(row.id) || 0, engagementComments(row)) : 0;
+        row.display_type = contentDisplayType(row);
       }
       if (!needsJobs) {
         // 补查这页内容的 jobs 状态（pending/failed 等覆盖展示）
@@ -221,8 +517,13 @@ class Repository {
     }
     return rows;
   }
-  async countContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, publishedFrom, publishedTo, includeDeleted = false } = {}) {
+  async countContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, bigPlayerContentKind, riskMode, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, handlingStatus, publishedFrom, publishedTo, includeDeleted = false } = {}) {
+    ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));
     const values = []; const clauses = [];
+    this.addRiskModeFilter(clauses, values, riskMode, 'a');
+    ContentHandling.addHandlingStatusFilter(clauses, handlingStatus, 'a');
+    const kindPredicate = bigPlayerContentKindPredicate(bigPlayerContentKind);
+    if (kindPredicate) clauses.push(kindPredicate);
     const lightVersion = process.env.AI_ANALYSIS_LIGHT_VERSION || process.env.AI_ANALYSIS_VERSION || 'sentiment-v1';
     const jobStatuses = new Set(['pending', 'running', 'retryable', 'failed', 'completed']);
     const isUnclassified = analysisStatus === 'unclassified' || sentiment === 'unclassified';
@@ -232,7 +533,7 @@ class Repository {
       clauses.push("NOT EXISTS (SELECT 1 FROM po_analyses a WHERE a.content_id=c.id)");
       clauses.push(`NOT EXISTS (SELECT 1 FROM po_analysis_jobs j WHERE j.content_id=c.id AND j.analysis_profile='light' AND j.analysis_version='${lightVersion}')`);
     }
-    for (const [, value, sql] of [['contentId', contentId, 'c.id'], ['accountId', accountId, 'c.account_id'], ['gameId', gameId, 'c.game_id'], ['communityId', communityId, 'c.community_id'], ['sourceId', sourceId, 'c.source_id'], ['contentType', contentType, 'c.content_type'], ['sentiment', sentiment === 'unclassified' ? null : sentiment, 'a.sentiment'], ['severity', severity, 'a.severity'], ['analysisLevel', analysisLevel, 'a.analysis_level'], ['postId', postId, 'c.external_id']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
+    for (const [, value, sql] of [['contentId', contentId, 'c.id'], ['accountId', accountId, 'c.account_id'], ['gameId', gameId, 'c.game_id'], ['communityId', communityId, 'c.community_id'], ['sourceId', sourceId, 'c.source_id'], ['contentType', contentType, 'c.content_type'], ['sentiment', sentiment === 'unclassified' ? null : sentiment, 'a.sentiment'], ['severity', riskMode ? null : severity, 'a.severity'], ['analysisLevel', analysisLevel, 'a.analysis_level'], ['postId', postId, 'c.external_id']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
     if (platform) { values.push(platform); clauses.push('s.platform=?'); }
     if (publishedFrom) { values.push(publishedFrom); clauses.push('c.published_at>=?'); }
@@ -252,31 +553,111 @@ class Repository {
     // j join 仅为非具体状态值（需 COALESCE(j.status,...) 比较）保留；
     // unclassified 已改为双 NOT EXISTS，不再需要 join
     const needsJobsJoin = Boolean(analysisStatus) && !jobStatuses.has(analysisStatus) && !isUnclassified;
-    const needsAnalysis = needsJobsJoin || Boolean(sentiment && sentiment !== 'unclassified' || severity || analysisLevel);
+    const needsAnalysis = needsJobsJoin || Boolean(sentiment && sentiment !== 'unclassified' || severity || analysisLevel || handlingStatus);
     const analysisJoin = needsAnalysis ? ` LEFT JOIN po_analyses a ON a.content_id=c.id${needsJobsJoin ? " LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile='light' AND j.analysis_version='sentiment-v1'" : ''}` : '';
-    const rows = await this.query(`SELECT COUNT(*) AS total FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id${analysisJoin} ${where}`, values);
+    // 性能：无 game/community/platform/scope 过滤时 po_sources/po_games JOIN 毫无过滤作用，
+    // 却让优化器选错计划（实测无过滤 COUNT 26s）；单表 COUNT 实测 ~90ms。有过滤时保留原 join。
+    const needsScopeJoin = Boolean(regionCode || platform || gameId || communityId || contentId || sourceId || accountId || postId || statusFilterIds || bigPlayerContentKind);
+    const rows = await this.query(`SELECT COUNT(*) AS total FROM po_contents c${needsScopeJoin ? ` JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id` : ''}${analysisJoin} ${where}`, values);
     return Number(rows[0]?.total || 0);
   }
-  async getContentStats(filters = {}) {
+  async withContentHandling(items) { return ContentHandling.withContentHandling(this, items); }
+  async handleContents(input, scope) { return ContentHandling.handleContents(this, input, scope); }
+  async getContentStats(filters = {}, { includeBreakdown = false } = {}) {
+    const baseFilters = { ...filters };
+    delete baseFilters.riskMode;
+    delete baseFilters.severity;
+    delete baseFilters.sentiment;
     const dimensions = [
       ['post', { contentType: 'post' }],
       ['comment', { contentType: 'comment' }],
-      ['negative', { sentiment: 'negative' }],
-      ['attention', { severity: 'attention' }]
+      // Risk counters represent outstanding work; historical handling records
+      // exclude a content once, including repeated/batch handling submissions.
+      ['negative', { riskMode: 'negative', handlingStatus: 'pending' }],
+      ['attention', { riskMode: 'attention', handlingStatus: 'pending' }],
+      ['urgent', { riskMode: 'urgent', handlingStatus: 'pending' }]
     ];
-    const entries = await Promise.all(dimensions.map(async ([key, extra]) => [key, await this.countContents({ ...filters, ...extra })]));
+    if (includeBreakdown) {
+      for (const riskMode of ['attention', 'negative', 'urgent']) {
+        for (const contentType of ['post', 'comment']) {
+          dimensions.push([`${riskMode}${contentType === 'post' ? 'Post' : 'Comment'}Count`, { riskMode, contentType, handlingStatus: 'pending' }]);
+        }
+      }
+    }
+    const entries = await Promise.all(dimensions.map(async ([key, extra]) => [key, await this.countContents({ ...baseFilters, ...extra })]));
     return Object.fromEntries(entries.map(([key, value]) => [key, Number(value) || 0]));
   }
   async getContent(id) { return (await this.query('SELECT * FROM po_contents WHERE id=? LIMIT 1', [id]))[0] || null; }
+  async listAlertQualityCandidates(alertIds = [], scope = {}) {
+    const ids = [...new Set(alertIds.filter(Boolean).map(String))];
+    if (!ids.length) return [];
+    const values = [...ids]; const clauses = [`ac.alert_id IN (${ids.map(() => '?').join(',')})`];
+    for (const [value, sql] of [[scope.gameId, 'c.game_id'], [scope.communityId, 'c.community_id'], [scope.sourceId, 'c.source_id'], [scope.platform, 's.platform']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
+    if (scope.regionCode) { clauses.push('g.region_code=?'); values.push(scope.regionCode); }
+    const rows = await this.query(`SELECT ac.alert_id, q.id AS candidate_id, q.content_id, c.content_type, c.external_id, c.title, c.published_at, q.recommend_home, q.recommend_pin, q.recommend_feature, q.home_review_status, q.pin_review_status, q.feature_review_status, q.home_adopted, q.pin_adopted, q.feature_adopted, q.reviewer_id, q.review_note, q.reviewed_at FROM po_alert_contents ac JOIN po_quality_candidates q ON q.content_id=ac.content_id JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE ${clauses.join(' AND ')} ORDER BY ac.alert_id ASC, c.published_at ASC, c.id ASC, q.id ASC`, values);
+    return rows.map(row => normalizeQualityCandidate({
+      candidateId: row.candidate_id,
+      contentId: row.content_id,
+      contentType: row.content_type,
+      externalId: row.external_id,
+      title: row.title,
+      publishedAt: row.published_at,
+      recommend_home: row.recommend_home,
+      recommend_pin: row.recommend_pin,
+      recommend_feature: row.recommend_feature,
+      home_review_status: row.home_review_status,
+      pin_review_status: row.pin_review_status,
+      feature_review_status: row.feature_review_status,
+      home_adopted: row.home_adopted,
+      pin_adopted: row.pin_adopted,
+      feature_adopted: row.feature_adopted,
+      reviewer_id: row.reviewer_id,
+      review_note: row.review_note,
+      reviewed_at: row.reviewed_at,
+      alertId: row.alert_id
+    }));
+  }
+
+  async upsertWorkerHeartbeat(input = {}) {
+    const { workerId, buildSha = null, mode = 'enabled', scanStartedAt = null, scanFinishedAt = null, scanStatus = null, scanError = null, currentScan = null } = input;
+    if (!workerId) throw new TypeError('workerId is required');
+    await this.query(`INSERT INTO po_worker_heartbeats
+      (worker_id,build_sha,mode,last_seen_at,scan_started_at,scan_finished_at,scan_status,scan_error,current_scan)
+      VALUES (?, ?, ?, UTC_TIMESTAMP(3), ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE build_sha=VALUES(build_sha), mode=VALUES(mode), last_seen_at=UTC_TIMESTAMP(3),
+      scan_started_at=VALUES(scan_started_at), scan_finished_at=VALUES(scan_finished_at), scan_status=VALUES(scan_status),
+      scan_error=VALUES(scan_error), current_scan=VALUES(current_scan)`,
+      [workerId, buildSha, mode, scanStartedAt, scanFinishedAt, scanStatus, scanError, currentScan]);
+  }
+
+  async listWorkerAlerts(options = {}) {
+    const heartbeatTimeoutSeconds = Number(options.heartbeatTimeoutSeconds || 120);
+    const sourceTimeoutSeconds = Number(options.sourceTimeoutSeconds || 600);
+    return this.query(`SELECT worker_id,build_sha,mode,last_seen_at,scan_started_at,scan_finished_at,scan_status,scan_error,current_scan,
+      CASE WHEN last_seen_at < UTC_TIMESTAMP(3) - INTERVAL ? SECOND THEN 'HEARTBEAT_OVERDUE'
+           WHEN scan_started_at IS NOT NULL AND scan_finished_at IS NULL AND scan_started_at < UTC_TIMESTAMP(3) - INTERVAL ? SECOND THEN 'SCAN_OVERDUE'
+           ELSE NULL END AS alert_code FROM po_worker_heartbeats h
+      WHERE (last_seen_at < UTC_TIMESTAMP(3) - INTERVAL ? SECOND
+         OR (scan_started_at IS NOT NULL AND scan_finished_at IS NULL AND scan_started_at < UTC_TIMESTAMP(3) - INTERVAL ? SECOND))
+        AND (h.worker_id NOT REGEXP '^[0-9]+-[0-9a-fA-F-]{36}$'
+          OR NOT EXISTS (SELECT 1 FROM po_worker_heartbeats stable
+            WHERE stable.worker_id LIKE 'worker:%' AND stable.last_seen_at>=h.last_seen_at))`,
+      [heartbeatTimeoutSeconds, sourceTimeoutSeconds, heartbeatTimeoutSeconds, sourceTimeoutSeconds]);
+  }
   async listAlerts({ regionCode, gameId, communityId, sourceId, platform, status, severity, page = 1, pageSize = 20 } = {}) {
     const values = []; const clauses = [];
+    clauses.push("(a.severity<>'urgent' OR a.status NOT IN ('pending','processing') OR EXISTS (SELECT 1 FROM po_alert_contents live_link JOIN po_contents live_content ON live_content.id=live_link.content_id JOIN po_analyses live_analysis ON live_analysis.content_id=live_content.id WHERE live_link.alert_id=a.id AND live_content.id=co.id AND COALESCE(live_content.is_deleted,0)=0 AND live_analysis.sentiment IN ('neutral','negative') AND live_analysis.severity='urgent'))");
     for (const [value, sql] of [[gameId, 'a.game_id'], [communityId, 'a.community_id'], [sourceId, 'co.source_id'], [status, 'a.status'], [severity, 'a.severity']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
     if (platform) { values.push(platform); clauses.push('s.platform=?'); }
     const limit = Math.min(Math.max(Number(pageSize) || 20, 1), 100);
     const currentPage = Math.max(Number(page) || 1, 1);
     const offset = (currentPage - 1) * limit;
-    return this.query(`SELECT DISTINCT a.*, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_alerts a LEFT JOIN po_alert_contents acl ON acl.alert_id=a.id LEFT JOIN po_contents co ON co.id=acl.content_id LEFT JOIN po_sources s ON s.id=co.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities cm ON cm.id=a.community_id ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset]);
+    const alerts = await this.query(`SELECT DISTINCT a.*, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_alerts a LEFT JOIN po_alert_contents acl ON acl.alert_id=a.id LEFT JOIN po_contents co ON co.id=acl.content_id LEFT JOIN po_sources s ON s.id=co.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities cm ON cm.id=a.community_id ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset]);
+    const candidates = await this.listAlertQualityCandidates(alerts.map(alert => alert.id), { regionCode, gameId, communityId, sourceId, platform });
+    const byAlert = new Map(alerts.map(alert => [String(alert.id), []]));
+    for (const candidate of candidates) byAlert.get(String(candidate.alertId))?.push(candidate);
+    return alerts.map(alert => normalizeAlertWithIndependentReviews({ ...alert, independent_reviews: (byAlert.get(String(alert.id)) || []).map(({ alertId, ...candidate }) => candidate) }));
   }
   async getAlert(id, scope = {}) {
     const values = [id]; const clauses = ['a.id=?'];
@@ -285,11 +666,13 @@ class Repository {
     const alert = (await this.query(`SELECT DISTINCT a.* FROM po_alerts a LEFT JOIN po_alert_contents acl ON acl.alert_id=a.id LEFT JOIN po_contents co ON co.id=acl.content_id LEFT JOIN po_sources s ON s.id=co.source_id JOIN po_games g ON g.id=a.game_id WHERE ${clauses.join(' AND ')} LIMIT 1`, values))[0] || null;
     if (!alert) return null;
     const contentValues = [id]; const contentClauses = ['ac.alert_id=?'];
+    const activeUrgentAlert = alert.severity === 'urgent' && ['pending','processing'].includes(alert.status);
+    if (activeUrgentAlert) contentClauses.push("EXISTS (SELECT 1 FROM po_analyses current_analysis WHERE current_analysis.content_id=c.id AND current_analysis.sentiment IN ('neutral','negative') AND current_analysis.severity='urgent')", 'COALESCE(c.is_deleted,0)=0');
     for (const [value, sql] of [[scope.gameId, 'c.game_id'], [scope.communityId, 'c.community_id'], [scope.sourceId, 'c.source_id'], [scope.platform, 's.platform']]) if (value) { contentClauses.push(`${sql}=?`); contentValues.push(value); }
     if (scope.regionCode) { contentClauses.push('g.region_code=?'); contentValues.push(scope.regionCode); }
     let relatedContents = await this.query(`SELECT c.*, c.platform_author_id AS author_id FROM po_alert_contents ac JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE ${contentClauses.join(' AND ')} ORDER BY c.published_at ASC, c.id ASC`, contentValues);
     let relationStatus = relatedContents.length ? 'linked' : 'missing';
-    if (!relatedContents.length) {
+    if (!relatedContents.length && !activeUrgentAlert) {
       const detail = String(alert.trigger_detail || '');
       const sourceUrl = detail.match(/^链接：(.+)$/m)?.[1]?.trim();
       const excerpt = detail.match(/^摘录：(.+)$/m)?.[1]?.trim().replace(/…$/, '');
@@ -317,16 +700,10 @@ class Repository {
         await this.linkAlertContent(id, recovered[0].id);
       } else if (recovered.length > 1) relationStatus = 'ambiguous';
     }
-    const matchedIds = new Set(relatedContents.map(item => item.id));
-    const rootIds = [...new Set(relatedContents.map(item => item.root_content_id || item.id))];
+    // 告警原文只返回命中内容，不展开所属帖子及其他评论。
     const relatedThreads = [];
-    for (const rootId of rootIds) {
-      const rows = await this.query('SELECT c.*, c.platform_author_id AS author_id FROM po_contents c WHERE c.id=? OR c.root_content_id=? ORDER BY c.content_depth, c.published_at ASC, c.id ASC', [rootId, rootId]);
-      const root = rows.find(item => item.id === rootId);
-      if (!root) continue;
-      relatedThreads.push({ root, comments: rows.filter(item => item.id !== rootId), matched_content_ids: [...matchedIds].filter(contentId => contentId === rootId || rows.some(item => item.id === contentId)) });
-    }
-    return { ...alert, relation_status: relationStatus, related_contents: relatedContents, related_threads: relatedThreads };
+    const independentReviews = (await this.listAlertQualityCandidates([id], scope)).map(({ alertId, ...candidate }) => candidate);
+    return normalizeAlertWithIndependentReviews({ ...alert, relation_status: relationStatus, related_contents: relatedContents, related_threads: relatedThreads, independent_reviews: independentReviews });
   }
   async updateAlert(id, patch, scope = {}) {
     const current = await this.getAlert(id, scope);
@@ -336,13 +713,15 @@ class Repository {
   }
   async createRun(sourceId) { const id = uuid(); await this.query('INSERT INTO po_collection_runs (id, source_id, status) VALUES (?, ?, ?)', [id, sourceId, 'running']); return (await this.query('SELECT * FROM po_collection_runs WHERE id=?', [id]))[0]; }
   async finishRun(id, patch) { await this.query('UPDATE po_collection_runs SET status=?, finished_at=NOW(), discovered_count=?, stored_count=?, analyzed_count=?, alerted_count=?, error_code=?, error_message=? WHERE id=?', [patch.status, patch.discoveredCount || 0, patch.storedCount || 0, patch.analyzedCount || 0, patch.alertedCount || 0, patch.errorCode || null, patch.errorMessage || null, id]); }
-  // 回写源表「最近运行」状态：成功 → last_success_at=NOW()，last_error 清空；失败 → last_error 写错误信息。
+  async setRunBoardName(runId, boardName) { await this.query('UPDATE po_sync_runs SET board_name=? WHERE id=? AND board_id IS NOT NULL', [boardName, runId]); await this.query('UPDATE po_sync_runs parent JOIN po_sync_runs child ON child.parent_run_id=parent.id SET parent.board_name=? WHERE child.id=? AND parent.board_id=child.board_id AND parent.board_id IS NOT NULL', [boardName, runId]); }
+  // 回写源表「最近运行」状态：成功时间与调度判断统一使用数据库 UTC 时钟。
   // 这样采集源列表页的"最近运行"列才能显示真实时间，而不是永远 "-"。
   async markSourceRun(sourceId, patch) {
-    if (patch.status === 'success') await this.query('UPDATE po_sources SET last_success_at=NOW(), last_error=NULL WHERE id=?', [sourceId]);
+    if (patch.status === 'success') await this.query('UPDATE po_sources SET last_success_at=UTC_TIMESTAMP(3), last_error=NULL WHERE id=?', [sourceId]);
     else if (patch.status === 'failed') await this.query('UPDATE po_sources SET last_error=? WHERE id=?', [patch.errorMessage || patch.errorCode || 'unknown', sourceId]);
   }
   async insertContent(source, raw) {
+    const id = uuid();
     const media = JSON.stringify(Array.isArray(raw.media) ? raw.media : []);
     const rawPayload = raw.rawPayload == null ? null : JSON.stringify(raw.rawPayload);
     const result = await this.query('INSERT INTO po_contents (id, game_id, community_id, source_id, external_id, content_type, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE author_name=VALUES(author_name), title=VALUES(title), body=IF(CHAR_LENGTH(TRIM(VALUES(body))) > CHAR_LENGTH(TRIM(po_contents.body)), VALUES(body), po_contents.body), media=IF(JSON_LENGTH(VALUES(media)) > 0, VALUES(media), po_contents.media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=IF(VALUES(raw_payload) IS NOT NULL, VALUES(raw_payload), po_contents.raw_payload)', [id, source.game_id, source.community_id || null, source.id, raw.externalId, raw.contentType, raw.authorName, raw.title, raw.body, media, raw.publishedAt, raw.sourceUrl, JSON.stringify(raw.engagement || {}), raw.fingerprint, rawPayload]);
@@ -355,23 +734,132 @@ class Repository {
     // 改从 po_analysis_cache 查：cache 按 cache_key（fingerprint+profile+model+version 组合）存储，
     // light 和 deep 各自独立，不会被覆盖。
     return (await this.query(
-      "SELECT ac.severity, ac.analysis_profile, ac.sentiment, ac.summary, ac.reason FROM po_analysis_cache ac JOIN po_contents c ON c.fingerprint = ac.content_fingerprint WHERE c.id = ? AND ac.analysis_profile = 'light' ORDER BY ac.updated_at DESC LIMIT 1",
+      "SELECT ac.severity, ac.analysis_profile, ac.sentiment, ac.negative_score, ac.risk_context, ac.summary, ac.reason FROM po_analysis_cache ac JOIN po_contents c ON c.fingerprint = ac.content_fingerprint WHERE c.id = ? AND ac.analysis_profile = 'light' ORDER BY ac.updated_at DESC LIMIT 1",
       [contentId]
     ))[0] || null;
   }
-  async insertAnalysis(contentId, analysis) {
-    await this.query('INSERT INTO po_analyses (id, content_id, analysis_level, analysis_version, content_fingerprint, trigger_reason, analysis_reason, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, matched_keywords, summary, model_name, input_tokens, output_tokens, total_tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE analysis_level=VALUES(analysis_level), analysis_version=VALUES(analysis_version), content_fingerprint=VALUES(content_fingerprint), trigger_reason=VALUES(trigger_reason), analysis_reason=VALUES(analysis_reason), sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), matched_keywords=VALUES(matched_keywords), summary=VALUES(summary), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), analyzed_at=NOW()', [uuid(), contentId, analysis.analysisLevel || analysis.profile || 'light', analysis.analysisVersion || 'sentiment-v2', analysis.contentFingerprint || null, analysis.triggerReason || null, analysis.reason || null, analysis.sentiment || 'neutral', Number.isFinite(Number(analysis.negativeScore)) ? Number(analysis.negativeScore) : 0, analysis.confidence == null ? 0 : Number(analysis.confidence), analysis.qualityScore == null ? 0 : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.severity, JSON.stringify(analysis.topics || []), JSON.stringify(analysis.matchedKeywords || []), analysis.summary || '', analysis.modelName || null, Number(analysis.usage?.inputTokens || analysis.inputTokens || 0), Number(analysis.usage?.outputTokens || analysis.outputTokens || 0), Number(analysis.usage?.totalTokens || analysis.totalTokens || 0)]);
+  async writeAnalysisWithAudit(contentId, input, write) {
+    if (!input || !['positive', 'neutral', 'negative'].includes(input.sentiment)) {
+      throw repositoryError('ANALYSIS_RESULT_INVALID', 'a classified sentiment is required before persisting an analysis');
+    }
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      let content = {}; let previousAnalysis = null;
+      if (contentId) {
+        const [contents] = await conn.query('SELECT game_id,source_id,account_id,fingerprint,title,body FROM po_contents WHERE id=? FOR UPDATE', [contentId]);
+        content = contents[0] || {};
+        if (content.fingerprint && input.contentFingerprint && content.fingerprint !== input.contentFingerprint) {
+          throw repositoryError('ANALYSIS_CONTENT_CHANGED', 'analysis fingerprint no longer matches current content');
+        }
+        const [previous] = await conn.query('SELECT * FROM po_analyses WHERE content_id=? FOR UPDATE', [contentId]);
+        previousAnalysis = previous[0] || null;
+      }
+      const analysis = retainVerifiedUrgent(normalizeAnalysisResult(input, content), previousAnalysis, content);
+      await write(conn, analysis);
+      const riskContext = JSON.stringify({ gameComplaint: analysis.gameComplaint, gameComplaintEvidence: analysis.gameComplaintEvidence, gameExperienceRelated: analysis.gameExperienceRelated, originalSeverity: analysis.originalSeverity, rawAnalysis: analysis.rawAnalysis, riskPolicyVersion: analysis.riskPolicyVersion });
+      if (contentId) await conn.query('UPDATE po_analyses SET risk_context=? WHERE content_id=?', [riskContext, contentId]);
+      else await conn.query('UPDATE po_analysis_cache SET risk_context=? WHERE cache_key=?', [riskContext, input.cacheKey]);
+      const detail = {
+        contentId: contentId || null, cacheKey: input.cacheKey || null,
+        batchId: input.normalizationBatchId || input.runId || uuid(),
+        policyVersion: analysis.riskPolicyVersion,
+        profile: analysis.analysisLevel || analysis.profile || null,
+        analysisVersion: analysis.analysisVersion || analysis.version || null,
+        contentFingerprint: analysis.contentFingerprint || null, modelName: analysis.modelName || null,
+        originalSeverity: analysis.originalSeverity, finalSeverity: analysis.severity,
+        reasons: analysis.severityNormalizationReasons, rawAnalysis: analysis.rawAnalysis, previousAnalysis
+      };
+      await conn.query('INSERT INTO po_audit_events (id,game_id,source_id,account_id,actor_type,actor_id,event_type,outcome,detail) VALUES (?,?,?,?,?,?,?,?,?)',
+        [uuid(), content.game_id || null, content.source_id || null, content.account_id || null, 'system', null, contentId ? 'analysis_result_persisted' : 'analysis_cache_persisted', 'success', JSON.stringify(detail)]);
+      await conn.commit();
+      return analysis;
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
+  }
+  async insertAnalysis(contentId, input) {
+    return this.writeAnalysisWithAudit(contentId, input, async (conn, analysis) => {
+    await conn.query('INSERT INTO po_analyses (id, content_id, analysis_level, analysis_version, content_fingerprint, trigger_reason, analysis_reason, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, matched_keywords, summary, model_name, input_tokens, output_tokens, total_tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE analysis_level=VALUES(analysis_level), analysis_version=VALUES(analysis_version), content_fingerprint=VALUES(content_fingerprint), trigger_reason=VALUES(trigger_reason), analysis_reason=VALUES(analysis_reason), sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), matched_keywords=VALUES(matched_keywords), summary=VALUES(summary), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), analyzed_at=NOW()', [uuid(), contentId, analysis.analysisLevel || analysis.profile || 'light', analysis.analysisVersion || 'sentiment-v2', analysis.contentFingerprint || null, analysis.triggerReason || null, analysis.analysisReason || analysis.reason || null, analysis.sentiment || 'neutral', Number.isFinite(Number(analysis.negativeScore)) ? Number(analysis.negativeScore) : 0, analysis.confidence == null ? 0 : Number(analysis.confidence), analysis.qualityScore == null ? 0 : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.severity, JSON.stringify(analysis.topics || []), JSON.stringify(analysis.matchedKeywords || []), analysis.summary || '', analysis.modelName || null, Number(analysis.usage?.inputTokens || analysis.inputTokens || 0), Number(analysis.usage?.outputTokens || analysis.outputTokens || 0), Number(analysis.usage?.totalTokens || analysis.totalTokens || 0)]);
+    });
+  }
+  async reconcilePositiveRiskAlerts(contentId, analysis, { runId } = {}) {
+    if (analysis?.sentiment !== 'positive' || analysis?.severity !== 'normal') return { reconciled: false, alertIds: [] };
+    const normalizedContentId = String(contentId || '').trim();
+    const normalizedRunId = String(runId || '').trim();
+    if (!normalizedContentId || !normalizedRunId) throw repositoryError('INVALID_INPUT', 'contentId and runId are required for positive risk reconciliation');
+    const reasons = Array.isArray(analysis.severityNormalizationReasons) ? analysis.severityNormalizationReasons.map(String) : [];
+    const originalSeverity = String(analysis.originalSeverity || analysis.severity || 'normal');
+    const finalSeverity = String(analysis.severity);
+    const resolutionNote = `system: positive_normal_reconciliation; runId=${normalizedRunId}`.slice(0, 500);
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [contents] = await conn.query('SELECT game_id,source_id FROM po_contents WHERE id=? FOR UPDATE', [normalizedContentId]);
+      if (!contents.length) throw repositoryError('CONTENT_NOT_FOUND', 'content not found for positive risk reconciliation');
+      const [alerts] = await conn.query("SELECT a.id FROM po_alerts a JOIN po_alert_contents ac ON ac.alert_id=a.id WHERE ac.content_id=? AND a.status IN ('pending','processing') ORDER BY a.id FOR UPDATE", [normalizedContentId]);
+      const alertIds = alerts.map(row => row.id);
+      if (!alertIds.length) { await conn.commit(); return { reconciled: false, alertIds: [] }; }
+      const placeholders = alertIds.map(() => '?').join(',');
+      const [updated] = await conn.query(`UPDATE po_alerts SET status='false_positive', resolution_note=?, resolved_at=UTC_TIMESTAMP(3) WHERE id IN (${placeholders}) AND status IN ('pending','processing')`, [resolutionNote, ...alertIds]);
+      if (Number(updated.affectedRows) !== alertIds.length) throw repositoryError('POSITIVE_ALERT_RECONCILIATION_CONFLICT', 'positive risk alert state changed during reconciliation');
+      const detail = { contentId: normalizedContentId, alertIds, originalSeverity, finalSeverity, reasons, runId: normalizedRunId };
+      await conn.query('INSERT INTO po_audit_events (id, game_id, source_id, account_id, actor_type, actor_id, event_type, outcome, detail) VALUES (?,?,?,?,?,?,?,?,?)', [uuid(), contents[0].game_id || null, contents[0].source_id || null, null, 'system', null, 'positive_risk_alerts_reconciled', 'success', JSON.stringify(detail)]);
+      await conn.commit();
+      return { reconciled: true, alertIds, detail };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally { conn.release(); }
   }
   async enqueueAnalysisJob(contentId, { profile = 'light', version = 'sentiment-v2', contentFingerprint, triggerReason, matchedKeywords = [], force = false } = {}) {
     const id = uuid();
-    await this.query(`INSERT INTO po_analysis_jobs (id, content_id, analysis_profile, analysis_version, content_fingerprint, trigger_reason, matched_keywords, status) VALUES (?,?,?,?,?,?,?,'pending') ON DUPLICATE KEY UPDATE content_fingerprint=VALUES(content_fingerprint), trigger_reason=VALUES(trigger_reason), matched_keywords=VALUES(matched_keywords), status=IF(?,'pending',IF(status IN ('completed','running'),status,'pending')), attempts=IF(?,0,attempts), next_retry_at=IF(?,NULL,next_retry_at), error_code=IF(?,NULL,error_code), error_message=IF(?,NULL,error_message), updated_at=NOW()`, [id, contentId, profile, version, contentFingerprint, triggerReason || null, JSON.stringify(matchedKeywords || []), force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0]);
+    await this.query(`INSERT INTO po_analysis_jobs (id, content_id, analysis_profile, analysis_version, content_fingerprint, trigger_reason, matched_keywords, status) VALUES (?,?,?,?,?,?,?,'pending') ON DUPLICATE KEY UPDATE trigger_reason=VALUES(trigger_reason), matched_keywords=VALUES(matched_keywords), status=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),'pending',IF(status IN ('completed','running'),status,'pending')), attempts=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),0,attempts), next_retry_at=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,next_retry_at), error_code=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_code), error_message=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_message), lease_owner=IF(NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,lease_owner), lease_until=IF(NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,lease_until), content_fingerprint=VALUES(content_fingerprint), updated_at=NOW()`, [id, contentId, profile, version, contentFingerprint, triggerReason || null, JSON.stringify(matchedKeywords || []), force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0]);
     return (await this.query('SELECT * FROM po_analysis_jobs WHERE content_id=? AND analysis_profile=? AND analysis_version=?', [contentId, profile, version]))[0] || null;
   }
-  async claimAnalysisJobs({ profile, version, leaseOwner, leaseSeconds = 300, limit = 100, sourceId, accountId, gameId, communityId, publishedFrom, publishedTo, contentIds } = {}) {
+  async claimAnalysisJobs({ profile, version, leaseOwner, leaseSeconds = 300, limit = 100, sourceId, accountId, gameId, communityId, publishedFrom, publishedTo, businessDate, contentIds, allowDisabledSource = false } = {}) {
+    publishedFrom = analysisPublishedFrom(publishedFrom);
+    const gateConnection = this.advisoryLocks.get('po-analysis-consumer');
+    if (gateConnection) {
+      const [rows] = await gateConnection.query("SELECT IS_USED_LOCK('po-analysis-consumer')=CONNECTION_ID() AS owned");
+      if (Number(rows[0]?.owned) !== 1) throw Object.assign(new Error('analysis scope lock was lost'), { code: 'ANALYSIS_SCOPE_LEASE_LOST' });
+    }
+    if (allowDisabledSource) {
+      const exactIds = Array.isArray(contentIds) && contentIds.some(value => String(value || '').trim());
+      const ownerParts = String(leaseOwner || '').split(':');
+      const auditableOwner = ownerParts.length === 4 && ownerParts[0] === 'q1-daily' && /^\d+$/.test(ownerParts[1])
+        && ownerParts[2] === String(sourceId || '') && ownerParts[3] === String(businessDate || '') && /^\d{4}-\d{2}-\d{2}$/.test(ownerParts[3]);
+      if (!sourceId || !publishedFrom || !publishedTo || !businessDate || !exactIds || !auditableOwner) {
+        const error = new Error('disabled source analysis claim requires an auditable manual owner and exact scope');
+        error.code = 'ANALYSIS_CLAIM_SCOPE_REQUIRED';
+        throw error;
+      }
+    }
+    // P0 死锁修复：UPDATE…JOIN 抢占 claim 是多 worker 高频热点，即使 query() 内部有 5 次 200ms 级重试，
+    // 连续死锁时仍会穿透。这里参照 upsertContentPage 的指数退避模式，对整轮 claim（UPDATE+SELECT）再兜一层。
+    const maxAttempts = Math.max(1, this.claimDeadlockMaxAttempts);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this._claimAnalysisJobsOnce({ profile, version, leaseOwner, leaseSeconds, limit, sourceId, accountId, gameId, communityId, publishedFrom, publishedTo, businessDate, contentIds, allowDisabledSource });
+      } catch (error) {
+        const retryable = error?.code === 'ER_LOCK_DEADLOCK' || error?.code === 'ER_LOCK_WAIT_TIMEOUT';
+        if (!retryable || attempt + 1 >= maxAttempts) throw error;
+        const backoff = this.claimDeadlockRetryBaseMs * 2 ** attempt;
+        const jitter = backoff ? Math.floor(Math.random() * backoff) : 0;
+        await new Promise(resolve => setTimeout(resolve, backoff + jitter));
+      }
+    }
+  }
+  async _claimAnalysisJobsOnce({ profile, version, leaseOwner, leaseSeconds = 300, limit = 100, sourceId, accountId, gameId, communityId, publishedFrom, publishedTo, businessDate, contentIds, allowDisabledSource = false } = {}) {
     const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
     const claimOwner = `${leaseOwner || 'analysis'}:${uuid()}`;
     const params = [claimOwner, Number(leaseSeconds), profile, version];
     const clauses = ['c.is_deleted=0'];
+    if (!allowDisabledSource) {
+      // 全局 Worker 只能消费启用来源，并且不能在 manual 租约到期时接管其精确范围。
+      // manual 绕过只允许由上层通过完整 source/content/date scope 显式开启。
+      clauses.push('s.enabled=1');
+      clauses.push("(j.lease_owner IS NULL OR j.lease_owner NOT LIKE 'q1-daily:%:%:%:%')");
+    }
     for (const [value, sql] of [[sourceId, 'c.source_id'], [accountId, 'c.account_id'], [gameId, 'c.game_id'], [communityId, 'c.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); }
     if (publishedFrom) { clauses.push('c.published_at>=?'); params.push(publishedFrom); }
     if (publishedTo) { clauses.push('c.published_at<?'); params.push(publishedTo); }
@@ -381,21 +869,54 @@ class Repository {
       params.push(...ids);
     }
     params.push(safeLimit);
-    await this.query(`UPDATE po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=j.attempts+1, j.error_code=NULL, j.error_message=NULL WHERE j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND (j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW())) ORDER BY j.created_at ASC LIMIT ?`, params);
+    // Preserve the existing recent-first policy; queue metrics expose historical starvation.
+    const recencyOrder = "CASE WHEN j.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 0 ELSE 1 END, j.created_at ASC";
+    if (this.analysisFastClaim) {
+      // A non-locking candidate scan avoids broad UPDATE JOIN locks. Recheck every
+      // scope/state predicate in the ID-bounded UPDATE; racing consumers cannot
+      // steal an active lease or widen the manual source/content/date fence.
+      const eligible = "(j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW()))";
+      const selectCandidates = async (extra = '', limit = safeLimit, extraParams = []) => this.query(`SELECT ${this.analysisClaimCover ? "STRAIGHT_JOIN " : ""}j.id FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id WHERE j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND ${eligible}${extra} ORDER BY ${this.analysisClaimCover ? 'j.created_at ASC' : recencyOrder} LIMIT ?`, [...params.slice(2, -1), ...extraParams, limit]);
+      let candidates;
+      if (this.analysisClaimCover) {
+        // Split the existing recent-first ordering into two disjoint index ranges.
+        // A scoped/manual claim must always inspect both ranges immediately.
+        const [{ cutoff }] = await this.query('SELECT DATE_SUB(NOW(), INTERVAL 7 DAY) AS cutoff');
+        candidates = await selectCandidates(' AND j.created_at>=?', safeLimit, [cutoff]);
+        const cacheableOldScan = !sourceId && !accountId && !gameId && !communityId && !contentIds && !allowDisabledSource && !publishedTo;
+        const oldKey = JSON.stringify([profile, version, publishedFrom ? new Date(publishedFrom).toISOString().slice(0, 10) : 'all']);
+        if (candidates.length < safeLimit && (!cacheableOldScan || Date.now() >= (this.analysisOldEmptyUntil.get(oldKey) || 0))) {
+          const older = await selectCandidates(' AND j.created_at<?', safeLimit - candidates.length, [cutoff]);
+          candidates.push(...older);
+          if (cacheableOldScan) {
+            if (!older.length) this.analysisOldEmptyUntil.set(oldKey, Date.now() + 60000);
+            else this.analysisOldEmptyUntil.delete(oldKey);
+            if (this.analysisOldEmptyUntil.size > 10) this.analysisOldEmptyUntil.delete(this.analysisOldEmptyUntil.keys().next().value);
+          }
+        }
+      } else candidates = await selectCandidates();
+      if (!candidates.length) return [];
+      const ids = candidates.map(row => row.id);
+      await this.query(`UPDATE po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=IF(NOT(j.content_fingerprint<=>c.fingerprint),1,j.attempts+1), j.content_fingerprint=c.fingerprint, j.error_code=NULL, j.error_message=NULL WHERE j.id IN (${ids.map(() => '?').join(',')}) AND j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND ${eligible}`, [...params.slice(0, 2), ...ids, ...params.slice(2, -1)]);
+    } else {
+    await this.query(`UPDATE po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=j.attempts+1, j.error_code=NULL, j.error_message=NULL WHERE j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND (j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW())) ORDER BY ${recencyOrder} LIMIT ?`, params);
+    }
     return this.query("SELECT j.*, c.game_id, c.community_id, c.source_id, c.account_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.fingerprint, c.is_deleted, s.platform, g.name AS game_name, g.region_code, cm.name AS community_name FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE j.lease_owner=? AND j.status='running' AND j.analysis_profile=? AND j.analysis_version=? ORDER BY j.created_at ASC", [claimOwner, profile, version]);
   }
   async finishAnalysisJob(id, { leaseOwner, status = 'completed', errorCode, errorMessage, retryAt } = {}) { await this.query('UPDATE po_analysis_jobs SET status=?, error_code=?, error_message=?, next_retry_at=?, completed_at=CASE WHEN ?=\'completed\' THEN NOW() ELSE completed_at END, lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE id=? AND lease_owner=?', [status, errorCode || null, errorMessage ? String(errorMessage).slice(0, 500) : null, retryAt || null, status, id, leaseOwner]); }
   async getAnalysisCache(cacheKeys = []) { if (!cacheKeys.length) return []; return this.query(`SELECT * FROM po_analysis_cache WHERE cache_key IN (${cacheKeys.map(() => '?').join(',')})`, cacheKeys); }
-  async upsertAnalysisCache(entry) { await this.query('INSERT INTO po_analysis_cache (cache_key, content_fingerprint, analysis_profile, analysis_version, model_name, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, summary, needs_deep, reason, input_tokens, output_tokens, total_tokens, usage_estimated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), summary=VALUES(summary), needs_deep=VALUES(needs_deep), reason=VALUES(reason), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), usage_estimated=VALUES(usage_estimated), updated_at=NOW()', [entry.cacheKey, entry.contentFingerprint, entry.profile, entry.version, entry.modelName, entry.sentiment || 'neutral', Number.isFinite(Number(entry.negativeScore)) ? Number(entry.negativeScore) : 0, entry.confidence == null ? 0 : Number(entry.confidence), entry.qualityScore == null ? 0 : Number(entry.qualityScore), entry.recommendHome ? 1 : 0, entry.recommendPin ? 1 : 0, entry.recommendFeature ? 1 : 0, entry.qualityReason || null, entry.severity, JSON.stringify(entry.topics || []), entry.summary || '', entry.needsDeep ? 1 : 0, entry.reason || null, Number(entry.usage?.inputTokens || 0), Number(entry.usage?.outputTokens || 0), Number(entry.usage?.totalTokens || 0), entry.usage?.estimated ? 1 : 0]); }
+  async upsertAnalysisCache(input) { return this.writeAnalysisWithAudit(null, input, async (conn, entry) => { await conn.query('INSERT INTO po_analysis_cache (cache_key, content_fingerprint, analysis_profile, analysis_version, model_name, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, summary, needs_deep, reason, input_tokens, output_tokens, total_tokens, usage_estimated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), summary=VALUES(summary), needs_deep=VALUES(needs_deep), reason=VALUES(reason), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), usage_estimated=VALUES(usage_estimated), updated_at=NOW()', [entry.cacheKey, entry.contentFingerprint, entry.profile, entry.version, entry.modelName, entry.sentiment || 'neutral', Number.isFinite(Number(entry.negativeScore)) ? Number(entry.negativeScore) : 0, entry.confidence == null ? 0 : Number(entry.confidence), entry.qualityScore == null ? 0 : Number(entry.qualityScore), entry.recommendHome ? 1 : 0, entry.recommendPin ? 1 : 0, entry.recommendFeature ? 1 : 0, entry.qualityReason || null, entry.severity, JSON.stringify(entry.topics || []), entry.summary || '', entry.needsDeep ? 1 : 0, entry.reason || null, Number(entry.usage?.inputTokens || 0), Number(entry.usage?.outputTokens || 0), Number(entry.usage?.totalTokens || 0), entry.usage?.estimated ? 1 : 0]); }); }
   async upsertQualityCandidate(contentId, analysis = {}) {
     const recommended = Boolean(analysis.recommendHome || analysis.recommendPin || analysis.recommendFeature);
     const sentiment = String(analysis.sentiment || '').toLowerCase();
-    const bodyLength = String(analysis.body || '').trim().length;
     const qualityScore = analysis.qualityScore == null ? null : Number(analysis.qualityScore);
-    if (!recommended || sentiment === 'negative' || bodyLength < 50 || !Number.isFinite(qualityScore) || qualityScore < 0.8) {
+    if (!recommended || sentiment === 'negative' || !Number.isFinite(qualityScore) || qualityScore < QUALITY_SCORE_THRESHOLD) {
       await this.query('DELETE FROM po_quality_candidates WHERE content_id=?', [contentId]);
       return null;
     }
+    // Short text is excluded without destroying existing human review history.
+    const body = analysis.body ?? (await this.query('SELECT body FROM po_contents WHERE id=? LIMIT 1', [contentId]))[0]?.body;
+    if (qualityBodyLength(body) < 50) return null;
     await this.query(`INSERT INTO po_quality_candidates (id, content_id, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, analysis_version, model_name, content_fingerprint)
       VALUES (?,?,?,?,?,?,?,?,?,?)
       ON DUPLICATE KEY UPDATE quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), analysis_version=VALUES(analysis_version), model_name=VALUES(model_name), content_fingerprint=VALUES(content_fingerprint), updated_at=NOW()`,
@@ -403,11 +924,23 @@ class Repository {
     return (await this.query('SELECT * FROM po_quality_candidates WHERE content_id=? LIMIT 1', [contentId]))[0] || null;
   }
   async cleanupInvalidQualityCandidates() {
-    const result = await this.query(`DELETE q FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id LEFT JOIN po_analyses a ON a.content_id=c.id WHERE a.sentiment='negative' OR (q.recommend_home=0 AND q.recommend_pin=0 AND q.recommend_feature=0)`);
+    // 短正文保留审核历史但不展示；其余候选沿用情感、推荐和评分清理条件。
+    // 旧写法 LEFT JOIN po_analyses 后用 a.sentiment='negative' 判断，会把"分析记录不存在"（a.* 为 NULL）的行
+    // 一并误删 —— NULL<>'negative' 为 NULL，且推荐列只看候选表自身，导致满足条件但缺少分析行的记录被清理掉。
+    const result = await this.query(`
+      DELETE q FROM po_quality_candidates q
+      JOIN po_contents c ON c.id=q.content_id
+      LEFT JOIN po_analyses a ON a.content_id=c.id
+      WHERE ${qualityBodyLengthSql('c.body')} >= 50 AND NOT (
+        c.is_deleted=0
+        AND COALESCE(a.sentiment,'') <> 'negative'
+        AND (q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)
+        AND q.quality_score >= 0.7
+      )`);
     return Number(result.affectedRows || 0);
   }
   qualityContentFilter({ regionCode, gameId, communityId, sourceId, platform, recommendationType, reviewStatus, publishedFrom, publishedTo } = {}) {
-    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', 'CHAR_LENGTH(TRIM(COALESCE(c.body,\'\'))) >= 50', 'q.quality_score >= 0.8'];
+    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', `${qualityBodyLengthSql('c.body')} >= 50`, 'q.quality_score >= 0.7'];
     for (const [value, sql] of [[gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); }
     if (platform) { clauses.push('s.platform=?'); values.push(platform); }
@@ -420,13 +953,14 @@ class Repository {
   }
   async listQualityContents(filters = {}) {
     const { clauses, values } = this.qualityContentFilter(filters); const limit = Math.min(Math.max(Number(filters.pageSize) || 20, 1), 100); const page = Math.max(Number(filters.page) || 1, 1); const offset = (page - 1) * limit;
-    return this.query(`SELECT q.*, c.game_id, c.community_id, c.source_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, c.engagement, c.fingerprint, s.platform, s.display_name AS source_name, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${clauses.join(' AND ')} ORDER BY c.published_at DESC, q.quality_score DESC, q.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset]);
+    const rows = await this.query(`SELECT q.*, c.game_id, c.community_id, c.source_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, c.engagement, c.fingerprint, s.platform, s.display_name AS source_name, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${clauses.join(' AND ')} ORDER BY c.published_at DESC, q.quality_score DESC, q.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset]);
+    return rows.map(normalizeQualityCandidate);
   }
   async countQualityContents(filters = {}) { const { clauses, values } = this.qualityContentFilter(filters); const rows = await this.query(`SELECT COUNT(*) AS total FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id WHERE ${clauses.join(' AND ')}`, values); return Number(rows[0]?.total || 0); }
   async getQualityContent(id, scope = {}) {
     const { clauses, values } = this.qualityContentFilter(scope); clauses.unshift('q.id=?'); values.unshift(id);
     const rows = await this.query(`SELECT q.*, c.game_id, c.community_id, c.source_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, c.engagement, c.fingerprint, s.platform, s.display_name AS source_name, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, values);
-    return rows[0] || null;
+    return normalizeQualityCandidate(rows[0] || null);
   }
   async updateQualityCandidate(id, patch = {}, reviewerId = 'admin', scope = {}) {
     const current = await this.getQualityContent(id, scope);
@@ -440,6 +974,126 @@ class Repository {
     return result.affectedRows ? this.getQualityContent(id, scope) : null;
   }
   async addAiUsage({ profile, calls = 0, inputTokens = 0, outputTokens = 0, totalTokens = 0 } = {}) { await this.query('INSERT INTO po_ai_usage_daily (usage_date, profile, call_count, input_tokens, output_tokens, total_tokens) VALUES (UTC_DATE(),?,?,?,?,?) ON DUPLICATE KEY UPDATE call_count=call_count+VALUES(call_count), input_tokens=input_tokens+VALUES(input_tokens), output_tokens=output_tokens+VALUES(output_tokens), total_tokens=total_tokens+VALUES(total_tokens)', [profile, Number(calls), Number(inputTokens), Number(outputTokens), Number(totalTokens)]); return (await this.query('SELECT * FROM po_ai_usage_daily WHERE usage_date=UTC_DATE() AND profile=?', [profile]))[0]; }
+  async upsertContentTranslation(contentId, translation = {}) {
+    await this.query(`INSERT INTO po_content_translations (id, content_id, target_language, source_language, translated_title, translated_body, content_fingerprint, translation_version, model_name, input_tokens, output_tokens, total_tokens, translated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW())
+      ON DUPLICATE KEY UPDATE source_language=VALUES(source_language), translated_title=VALUES(translated_title), translated_body=VALUES(translated_body), content_fingerprint=VALUES(content_fingerprint), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), translated_at=NOW(), updated_at=NOW()`,
+    [uuid(), contentId, translation.targetLanguage || 'zh-CN', translation.sourceLanguage || null, translation.translatedTitle || null, translation.translatedBody || null, translation.contentFingerprint, translation.translationVersion || 'translation-v1', translation.modelName || null, Number(translation.usage?.inputTokens || 0), Number(translation.usage?.outputTokens || 0), Number(translation.usage?.totalTokens || 0)]);
+  }
+  async reserveTranslationCall(limit) {
+    if (!Number.isInteger(limit) || limit < 1) throw Object.assign(new Error('invalid translation daily limit'), { code: 'INVALID_TRANSLATION_LIMIT' });
+    await this.query('INSERT IGNORE INTO po_translation_call_budget (usage_date,call_count) VALUES (UTC_DATE(),0)');
+    const result = await this.query('UPDATE po_translation_call_budget SET call_count=call_count+1 WHERE usage_date=UTC_DATE() AND call_count<?', [limit]);
+    return Boolean(result.affectedRows);
+  }
+  async translationCallBudget() {
+    const [row] = await this.query('SELECT call_count FROM po_translation_call_budget WHERE usage_date=UTC_DATE()');
+    return Number(row?.call_count || 0);
+  }
+  async completeTranslationJob(id, { leaseOwner, translation = {} } = {}) {
+    const conn = await this.pool.getConnection();
+    let transactionStarted = false;
+    try {
+      await conn.beginTransaction(); transactionStarted = true;
+      const [rows] = await conn.query(`SELECT j.content_id, j.target_language, j.translation_version, j.content_fingerprint
+        FROM po_translation_jobs j JOIN po_contents c ON c.id=j.content_id
+        WHERE j.id=? AND j.lease_owner=? AND j.status='running' AND j.lease_until>NOW() AND j.content_fingerprint=c.fingerprint
+        FOR UPDATE`, [id, leaseOwner]);
+      const job = rows?.[0];
+      if (!job) { await conn.rollback(); transactionStarted = false; return false; }
+      await conn.query(`INSERT INTO po_content_translations (id, content_id, target_language, source_language, translated_title, translated_body, content_fingerprint, translation_version, model_name, input_tokens, output_tokens, total_tokens, translated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW())
+        ON DUPLICATE KEY UPDATE source_language=VALUES(source_language), translated_title=VALUES(translated_title), translated_body=VALUES(translated_body), content_fingerprint=VALUES(content_fingerprint), model_name=VALUES(model_name), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), translated_at=NOW(), updated_at=NOW()`,
+      [uuid(), job.content_id, job.target_language, translation.sourceLanguage || null, translation.translatedTitle || null, translation.translatedBody || null, job.content_fingerprint, job.translation_version, translation.modelName || null, Number(translation.usage?.inputTokens || 0), Number(translation.usage?.outputTokens || 0), Number(translation.usage?.totalTokens || 0)]);
+      const [result] = await conn.query("UPDATE po_translation_jobs SET status='completed', error_code=NULL, error_message=NULL, next_retry_at=NULL, completed_at=NOW(), lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE id=? AND lease_owner=? AND status='running'", [id, leaseOwner]);
+      if (!result?.affectedRows) { const error = new Error('translation job lease lost'); error.code = 'AI_TRANSLATION_LEASE_LOST'; throw error; }
+      await conn.commit(); transactionStarted = false;
+      return true;
+    } catch (error) {
+      if (transactionStarted) await conn.rollback();
+      throw error;
+    } finally { conn.release(); }
+  }
+  async enqueueTranslationJob(contentId, { targetLanguage = 'zh-CN', version = 'translation-v1', contentFingerprint, force = false } = {}) {
+    const id = uuid();
+    await this.query(`INSERT INTO po_translation_jobs (id, content_id, target_language, translation_version, content_fingerprint, status)
+      SELECT ?, c.id, ?, ?, c.fingerprint, 'pending' FROM po_contents c JOIN po_games g ON g.id=c.game_id
+      WHERE c.id=? AND c.is_deleted=0 AND g.region_code='overseas' AND (TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')
+      ON DUPLICATE KEY UPDATE status=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),'pending',IF(status IN ('completed','running'),status,'pending')), attempts=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),0,attempts), next_retry_at=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,next_retry_at), error_code=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_code), error_message=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_message), completed_at=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,completed_at), content_fingerprint=VALUES(content_fingerprint), updated_at=NOW()`,
+    [id, targetLanguage, version, contentId, ...Array(6).fill(force ? 1 : 0)]);
+    return (await this.query('SELECT * FROM po_translation_jobs WHERE content_id=? AND target_language=? AND translation_version=?', [contentId, targetLanguage, version]))[0] || null;
+  }
+  async enqueueMissingTranslations({ targetLanguage = 'zh-CN', version = 'translation-v1', limit = 100, contentIds, force = false } = {}) {
+    const values = [targetLanguage, version];
+    const clauses = ["g.region_code='overseas'", 'c.is_deleted=0', "COALESCE(j.error_code,'')<>'OVERSEAS_BOUNDED_VERIFICATION_HOLD'", "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", force ? "(j.id IS NULL OR j.status IN ('failed','retryable') OR j.content_fingerprint<>c.fingerprint)" : '(j.id IS NULL OR j.content_fingerprint<>c.fingerprint)'];
+    if (Array.isArray(contentIds) && contentIds.length) { const ids = [...new Set(contentIds.map(String).filter(Boolean))]; clauses.push(`c.id IN (${ids.map(() => '?').join(',')})`); values.push(...ids); }
+    values.push(Math.min(Math.max(Number(limit) || 100, 1), 500));
+    const rows = await this.query(`SELECT c.id, c.fingerprint FROM po_contents c JOIN po_games g ON g.id=c.game_id LEFT JOIN po_translation_jobs j ON j.content_id=c.id AND j.target_language=? AND j.translation_version=? WHERE ${clauses.join(' AND ')} ORDER BY c.collected_at ASC LIMIT ?`, values);
+    for (const row of rows) await this.enqueueTranslationJob(row.id, { targetLanguage, version, contentFingerprint: row.fingerprint, force });
+    return rows.length;
+  }
+  async claimTranslationJobs({ targetLanguage = 'zh-CN', version = 'translation-v1', leaseOwner, leaseSeconds = 300, limit = 20, jobId, jobIds, contentIds, newestFirst = false } = {}) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const claimOwner = `${leaseOwner || 'translation'}:${uuid()}`;
+    const normalizeIds = (value, name) => {
+      if (!Array.isArray(value)) {
+        const normalized = String(value == null ? '' : value).trim();
+        if (!normalized) {
+          const error = new Error(`${name} must be a non-empty array`);
+          error.code = 'INVALID_INPUT';
+          throw error;
+        }
+        return [normalized];
+      }
+      const normalized = [...new Set(value.map(item => String(item == null ? '' : item).trim()).filter(Boolean))];
+      if (!normalized.length) {
+        const error = new Error(`${name} must be a non-empty array`);
+        error.code = 'INVALID_INPUT';
+        throw error;
+      }
+      return normalized;
+    };
+    const filters = ["j.target_language=?", "j.translation_version=?", "g.region_code='overseas'", 'c.is_deleted=0', 'j.content_fingerprint=c.fingerprint', "COALESCE(j.error_code,'')<>'OVERSEAS_BOUNDED_VERIFICATION_HOLD'", "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", "(j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW()))"];
+    const filterParams = [targetLanguage, version];
+    if (jobId !== undefined && jobIds !== undefined) {
+      const error = new Error('jobId and jobIds are mutually exclusive');
+      error.code = 'INVALID_INPUT';
+      throw error;
+    }
+    if (jobId !== undefined || jobIds !== undefined) {
+      const ids = normalizeIds(jobId !== undefined ? jobId : jobIds, jobId !== undefined ? 'jobId' : 'jobIds');
+      filters.push(`j.id IN (${ids.map(() => '?').join(',')})`);
+      filterParams.push(...ids);
+    }
+    if (contentIds !== undefined) {
+      const ids = normalizeIds(contentIds, 'contentIds');
+      filters.push(`j.content_id IN (${ids.map(() => '?').join(',')})`);
+      filterParams.push(...ids);
+    }
+    await this.query(`UPDATE po_translation_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_games g ON g.id=c.game_id
+      SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=j.attempts+1, j.error_code=NULL, j.error_message=NULL
+      WHERE ${filters.join(' AND ')}
+      ORDER BY j.created_at ${newestFirst ? 'DESC' : 'ASC'}, j.id ${newestFirst ? 'DESC' : 'ASC'} LIMIT ?`, [claimOwner, Number(leaseSeconds), ...filterParams, safeLimit]);
+    return this.query(`SELECT j.*, c.title, c.body, c.fingerprint, c.content_type, c.game_id, c.community_id, c.source_id, s.platform, g.region_code
+      FROM po_translation_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id
+      WHERE j.lease_owner=? AND j.status='running' AND j.target_language=? AND j.translation_version=? ORDER BY j.created_at ASC`, [claimOwner, targetLanguage, version]);
+  }
+  async finishTranslationJob(id, { leaseOwner, status = 'completed', errorCode, errorMessage, retryAt, decrementAttempts = false } = {}) {
+    const result = await this.query("UPDATE po_translation_jobs SET status=?, error_code=?, error_message=?, next_retry_at=?, completed_at=CASE WHEN ?='completed' THEN NOW() ELSE completed_at END, attempts=CASE WHEN ? THEN GREATEST(attempts-1,0) ELSE attempts END, lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE id=? AND lease_owner=? AND status='running' AND lease_until>NOW()", [status, errorCode || null, errorMessage ? String(errorMessage).slice(0, 500) : null, retryAt || null, status, decrementAttempts ? 1 : 0, id, leaseOwner]);
+    return Boolean(result.affectedRows);
+  }
+  async getTranslationJob(id) {
+    const [job] = await this.query('SELECT id,status,next_retry_at,attempts FROM po_translation_jobs WHERE id=? LIMIT 1', [id]);
+    return job || null;
+  }
+  async countTranslationJobs({ targetLanguage = 'zh-CN', version = 'translation-v1' } = {}) {
+    const rows = await this.query("SELECT j.status, COUNT(*) AS count, MAX(j.updated_at) AS updated_at FROM po_translation_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_games g ON g.id=c.game_id WHERE j.target_language=? AND j.translation_version=? AND g.region_code='overseas' AND c.is_deleted=0 GROUP BY j.status", [targetLanguage, version]);
+    const result = { pending: 0, running: 0, retryable: 0, completed: 0, failed: 0, total: 0, completionRate: 0, updatedAt: null };
+    for (const row of rows) { if (Object.prototype.hasOwnProperty.call(result, row.status)) result[row.status] = Number(row.count || 0); if (row.updated_at && (!result.updatedAt || row.updated_at > result.updatedAt)) result.updatedAt = row.updated_at; }
+    result.total = result.pending + result.running + result.retryable + result.completed + result.failed;
+    result.completionRate = result.total ? Number((result.completed / result.total * 100).toFixed(1)) : 0;
+    return result;
+  }
   async enqueueAnalysisBatch({ contentIds = [], profile = 'light', version = 'sentiment-v2', triggerReason = 'q1_import' } = {}) {
     if (!Array.isArray(contentIds) || !contentIds.length) { const error = new Error('contentIds must be a non-empty array'); error.code = 'INVALID_INPUT'; throw error; }
     const uniqueIds = [...new Set(contentIds.map(value => String(value || '').trim()).filter(Boolean))];
@@ -457,6 +1111,7 @@ class Repository {
     return result;
   }
   async enqueueMissingAnalysis({ version = 'sentiment-v2', profile = 'light', limit = 100, accountId, regionCode, gameId, communityId, sourceId, contentType, publishedFrom, publishedTo, contentIds, force = false } = {}) {
+    publishedFrom = analysisPublishedFrom(publishedFrom);
     const values = [profile, version];
     const clauses = ['c.is_deleted=0', force ? "(j.id IS NULL OR j.status IN ('failed','retryable'))" : 'j.id IS NULL'];
     for (const [value, sql] of [[accountId, 'c.account_id'], [gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id'], [contentType, 'c.content_type']]) {
@@ -476,6 +1131,7 @@ class Repository {
     return rows.length;
   }
   async countAnalysisJobs({ profile, version, sourceId, accountId, gameId, communityId, contentIds, contentType, sentiment, severity, analysisStatus, analysisLevel, keyword, publishedFrom, publishedTo } = {}) {
+    publishedFrom = analysisPublishedFrom(publishedFrom);
     const clauses = ['j.analysis_profile=?', 'j.analysis_version=?', 'c.is_deleted=0'];
     const values = [profile, version];
     for (const [value, sql] of [[sourceId, 'c.source_id'], [accountId, 'c.account_id'], [gameId, 'c.game_id'], [communityId, 'c.community_id'], [contentType, 'c.content_type']]) {
@@ -483,8 +1139,8 @@ class Repository {
     }
     if (Array.isArray(contentIds)) {
       const ids = [...new Set(contentIds.map(value => String(value || '').trim()).filter(Boolean))];
-      if (!ids.length) return { pending: 0, running: 0, retryable: 0, completed: 0, failed: 0, total: 0, completionRate: 0, updatedAt: null };
-      clauses.push(`c.id IN (${ids.map(() => '?').join(',')})`); values.push(...ids);
+      if (!ids.length) clauses.push('1=0');
+      else { clauses.push(`c.id IN (${ids.map(() => '?').join(',')})`); values.push(...ids); }
     }
     if (sentiment) { clauses.push('a.sentiment=?'); values.push(sentiment); }
     if (severity) { clauses.push('a.severity=?'); values.push(severity); }
@@ -493,9 +1149,35 @@ class Repository {
     if (keyword) { clauses.push('(c.title LIKE ? OR c.body LIKE ? OR c.author_name LIKE ?)'); const value = `%${keyword}%`; values.push(value, value, value); }
     if (publishedFrom) { clauses.push('c.published_at>=?'); values.push(publishedFrom); }
     if (publishedTo) { clauses.push('c.published_at<?'); values.push(publishedTo); }
-    const rows = await this.query(`SELECT j.status, COUNT(*) AS count, MAX(j.updated_at) AS updated_at FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id LEFT JOIN po_analyses a ON a.content_id=c.id WHERE ${clauses.join(' AND ')} GROUP BY j.status`, values);
-    const result = { pending: 0, running: 0, retryable: 0, completed: 0, failed: 0, total: 0, completionRate: 0, updatedAt: null };
+    clauses.push("(j.status NOT IN ('pending','running','retryable') OR (s.enabled=1 AND (j.lease_owner IS NULL OR j.lease_owner NOT LIKE 'q1-daily:%:%:%:%') AND (j.status<>'retryable' OR j.next_retry_at IS NULL OR j.next_retry_at<=NOW())))");
+    const eligible = "(j.status IN ('pending','retryable') OR (j.status='running' AND j.lease_until<NOW()))";
+    const rows = await this.query(`SELECT j.status, COUNT(*) AS count, MAX(j.updated_at) AS updated_at, MIN(CASE WHEN ${eligible} THEN j.created_at END) AS oldest_created_at, MAX(CASE WHEN ${eligible} THEN TIMESTAMPDIFF(SECOND,j.created_at,NOW()) ELSE 0 END) AS oldest_wait_seconds, SUM(CASE WHEN j.status='running' AND j.lease_until<NOW() THEN 1 ELSE 0 END) AS reclaimable_running, SUM(CASE WHEN j.status='running' AND j.lease_until>=NOW() THEN 1 ELSE 0 END) AS running_active, SUM(CASE WHEN j.status='completed' AND j.completed_at>=DATE_SUB(NOW(),INTERVAL 5 MINUTE) THEN 1 ELSE 0 END) AS completed_last_5m FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id LEFT JOIN po_analyses a ON a.content_id=c.id AND a.analysis_level=j.analysis_profile AND a.analysis_version=j.analysis_version WHERE ${clauses.join(' AND ')} GROUP BY j.status`, values);
+    const result = { pending: 0, running: 0, retryable: 0, completed: 0, failed: 0, total: 0, completionRate: 0, updatedAt: null, queueDepth: 0, runningActive: 0, oldestWaitingAt: null, oldestWaitingSeconds: 0, completedLast5m: 0, throughputPerMinute: 0, historicalStarvation: false, orphanAnalysisJobs: 0, orphanOldestWaitingAt: null, orphanScope: 'global_profile_version' };
     for (const row of rows) { if (Object.prototype.hasOwnProperty.call(result, row.status)) result[row.status] = Number(row.count || 0); if (row.updated_at && (!result.updatedAt || row.updated_at > result.updatedAt)) result.updatedAt = row.updated_at; }
+    for (const row of rows) {
+      if (['pending', 'running', 'retryable'].includes(row.status)) {
+        if (row.oldest_created_at && (!result.oldestWaitingAt || row.oldest_created_at < result.oldestWaitingAt)) result.oldestWaitingAt = row.oldest_created_at;
+        result.oldestWaitingSeconds = Math.max(result.oldestWaitingSeconds, Number(row.oldest_wait_seconds || 0));
+      }
+      result.completedLast5m += Number(row.completed_last_5m || 0);
+      result.runningActive += Number(row.running_active || 0);
+      result.queueDepth += Number(row.reclaimable_running || 0);
+    }
+    result.queueDepth += result.pending + result.retryable;
+    result.throughputPerMinute = result.completedLast5m / 5;
+    result.historicalStarvation = result.oldestWaitingSeconds >= 7 * 86400;
+    const slaTarget = Number(process.env.AI_ANALYSIS_WAIT_SLA_SECONDS);
+    result.waitSlaSeconds = Number.isFinite(slaTarget) && slaTarget > 0 ? slaTarget : null;
+    result.waitSlaBreached = result.waitSlaSeconds === null ? null : result.oldestWaitingSeconds > result.waitSlaSeconds;
+    // Orphans have no content scope; expose the separate global profile/version alarm.
+    const [orphan] = await this.query("SELECT SUM(CASE WHEN j.analysis_profile=? AND j.analysis_version=? AND j.status IN ('pending','running','retryable') THEN 1 ELSE 0 END) AS count, MIN(CASE WHEN j.analysis_profile=? AND j.analysis_version=? AND j.status IN ('pending','running','retryable') THEN j.created_at END) AS oldest_created_at, SUM(CASE WHEN j.status IN ('pending','running','retryable') THEN 1 ELSE 0 END) AS all_active, COUNT(*) AS all_statuses FROM po_analysis_jobs j LEFT JOIN po_contents c ON c.id=j.content_id WHERE c.id IS NULL", [profile, version, profile, version]);
+    result.orphanAnalysisJobs = Number(orphan?.count || 0);
+    result.orphanOldestWaitingAt = orphan?.oldest_created_at || null;
+    result.orphanAnalysisJobsAllProfiles = Number(orphan?.all_active || 0);
+    result.orphanAnalysisJobsAllStatuses = Number(orphan?.all_statuses || 0);
+    const [constraint] = await this.query("SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='po_analysis_jobs' AND CONSTRAINT_NAME='po_analysis_jobs_content_fk'");
+    result.analysisContentDeleteRule = constraint?.DELETE_RULE || null;
+    result.analysisIntegrityAlarm = result.orphanAnalysisJobsAllStatuses > 0 || result.analysisContentDeleteRule !== 'CASCADE';
     result.total = result.pending + result.running + result.retryable + result.completed + result.failed;
     result.completionRate = result.total ? Number((result.completed / result.total * 100).toFixed(1)) : 0;
     return result;
@@ -538,9 +1220,9 @@ class Repository {
   }
 
   // ── 第一阶段：自有账号同步底座 ──
-  async createAccount({ gameId, sourceId, platform, platformAccountId, accountName, accountType = 'official', profileUrl, enabled = true, authStatus = 'unconfigured', authExpireAt, metadata = {} } = {}) {
+  async createAccount({ gameId, communityId, sourceId, platform, platformAccountId, accountName, accountType = 'official', profileUrl, enabled = true, authStatus = 'unconfigured', authExpireAt, metadata = {} } = {}) {
     const id = uuid();
-    await this.query('INSERT INTO po_accounts (id, game_id, source_id, platform, platform_account_id, account_name, account_type, profile_url, enabled, auth_status, auth_expire_at, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', [id, gameId, sourceId, platform, platformAccountId, accountName, accountType, profileUrl || null, enabled ? 1 : 0, authStatus, authExpireAt || null, JSON.stringify(metadata || {})]);
+    await this.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, profile_url, enabled, auth_status, auth_expire_at, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [id, gameId, communityId || null, sourceId, platform, platformAccountId, accountName, accountType, profileUrl || null, enabled ? 1 : 0, authStatus, authExpireAt || null, JSON.stringify(metadata || {})]);
     return this.getAccount(id);
   }
   async getAccount(id) { return (await this.query('SELECT * FROM po_accounts WHERE id=?', [id]))[0] || null; }
@@ -549,7 +1231,7 @@ class Repository {
     for (const [value, sql] of [[gameId, 'a.game_id'], [communityId, 'a.community_id'], [sourceId, 'a.source_id'], [platform, 'a.platform'], [authStatus, 'a.auth_status']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
     if (enabled != null) { values.push(enabled ? 1 : 0); clauses.push('a.enabled=?'); }
-    return this.query(`SELECT a.*, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status, s.display_name AS source_name FROM po_accounts a JOIN po_games g ON g.id=a.game_id JOIN po_sources s ON s.id=a.source_id LEFT JOIN po_communities c ON c.id=a.community_id ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY a.updated_at DESC`, values);
+    return this.query(`SELECT a.*, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status, s.display_name AS source_name FROM po_accounts a JOIN po_games g ON g.id=a.game_id JOIN po_sources s ON s.id=a.source_id LEFT JOIN po_communities c ON c.id=a.community_id ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY a.updated_at DESC, a.id ASC`, values);
   }
   async updateAccount(id, patch = {}) {
     const fields = { platform_account_id: patch.platformAccountId, account_name: patch.accountName, account_type: patch.accountType, profile_url: patch.profileUrl, enabled: patch.enabled == null ? undefined : (patch.enabled ? 1 : 0), auth_status: patch.authStatus, auth_expire_at: patch.authExpireAt, last_full_sync_at: patch.lastFullSyncAt, last_incremental_sync_at: patch.lastIncrementalSyncAt, masked_login_identifier: patch.maskedLoginIdentifier, metadata: patch.metadata == null ? undefined : JSON.stringify(patch.metadata) };
@@ -566,21 +1248,34 @@ class Repository {
     const rows = await this.query(`SELECT id, account_id, credential_type, status, expire_at, last_checked_at, failure_reason${secretColumns} FROM po_credentials WHERE account_id=?${credentialType ? ' AND credential_type=?' : ''} ORDER BY updated_at DESC LIMIT 1`, credentialType ? [accountId, credentialType] : [accountId]);
     return rows[0] || null;
   }
-  async upsertAccountCredential(accountId, { credentialType = 'api_token', secretCipher, secretRef, status = 'active', expireAt } = {}) {
-    await this.query(`INSERT INTO po_credentials
-      (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status, expire_at)
-      SELECT ?, a.id, a.source_id, ?, ?, ?, ?, ?
-      FROM po_accounts a
-      WHERE a.id=?
-      ON DUPLICATE KEY UPDATE
-        secret_cipher=COALESCE(VALUES(secret_cipher), secret_cipher),
-        secret_ref=COALESCE(VALUES(secret_ref), secret_ref),
-        status=COALESCE(VALUES(status), status),
-        expire_at=COALESCE(VALUES(expire_at), expire_at),
-        failure_reason=NULL,
-        last_checked_at=NOW(),
-        updated_at=NOW()`, [uuid(), credentialType, secretRef || '', secretCipher || null, status, expireAt || null, accountId]);
-    return this.getCredentialByAccount(accountId, credentialType);
+  async upsertAccountCredential(accountId, { credentialType = 'api_token', secretCipher, secretRef, status = 'active', expireAt, replaceExpireAt = false } = {}) {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [linkRows] = await conn.query('SELECT source_id FROM po_accounts WHERE id=?', [accountId]);
+      if (!linkRows[0]) { await conn.commit(); return null; }
+      const [sourceRows] = await conn.query('SELECT id, platform FROM po_sources WHERE id=? FOR UPDATE', [linkRows[0].source_id]);
+      const [accountRows] = await conn.query('SELECT * FROM po_accounts WHERE id=? AND source_id=? FOR UPDATE', [accountId, linkRows[0].source_id]);
+      const source = sourceRows[0] || null;
+      const account = accountRows[0] || null;
+      if (!source || !account) { await conn.commit(); return null; }
+      await conn.query(`INSERT INTO po_credentials
+        (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status, expire_at)
+        VALUES (?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE
+          secret_cipher=COALESCE(VALUES(secret_cipher), secret_cipher),
+          secret_ref=COALESCE(VALUES(secret_ref), secret_ref),
+          status=COALESCE(VALUES(status), status),
+          expire_at=${replaceExpireAt ? 'VALUES(expire_at)' : 'COALESCE(VALUES(expire_at), expire_at)'},
+          failure_reason=NULL,
+          last_checked_at=NOW(),
+          updated_at=NOW()`, [uuid(), account.id, account.source_id, credentialType, secretRef || '', secretCipher || null, status, expireAt || null]);
+      if (source.platform === 'facebook' && credentialType === 'api_token' && (secretCipher || secretRef)) await invalidateFacebookCredential(conn, account.source_id, account);
+      const [rows] = await conn.query('SELECT id, account_id, credential_type, status, expire_at, last_checked_at, failure_reason FROM po_credentials WHERE account_id=? AND credential_type=? ORDER BY updated_at DESC LIMIT 1', [accountId, credentialType]);
+      await conn.commit();
+      return rows[0] || null;
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
   }
   async clearAccountCredential(accountId, credentialType) {
     const result = await this.query('UPDATE po_credentials SET secret_cipher=NULL, secret_ref=NULL, status=\'unconfigured\', expire_at=NULL, failure_reason=NULL, last_checked_at=NULL, updated_at=NOW() WHERE account_id=? AND credential_type=?', [accountId, credentialType]);
@@ -609,16 +1304,51 @@ class Repository {
   async listSourceCapabilities(sourceId) { return this.query('SELECT * FROM po_source_capabilities WHERE source_id=? ORDER BY capability', [sourceId]); }
   async recordAuditEvent({ gameId, sourceId, accountId, actorType = 'system', actorId, eventType, outcome = 'success', detail = {} } = {}) { const id = uuid(); await this.query('INSERT INTO po_audit_events (id, game_id, source_id, account_id, actor_type, actor_id, event_type, outcome, detail) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId || null, sourceId || null, accountId || null, actorType, actorId || null, eventType, outcome, JSON.stringify(detail || {})]); return (await this.query('SELECT * FROM po_audit_events WHERE id=?', [id]))[0] || null; }
   async listAuditEvents({ accountId, sourceId, eventType, limit = 100 } = {}) { const values = []; const clauses = []; for (const [value, sql] of [[accountId, 'account_id'], [sourceId, 'source_id'], [eventType, 'event_type']]) if (value) { values.push(value); clauses.push(`${sql}=?`); } values.push(Number(limit)); return this.query(`SELECT * FROM po_audit_events ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT ?`, values); }
+  async recordBigPlayerCandidateObservation({ sourceId, runId, observation } = {}) {
+    if (!sourceId || !runId || !observation || typeof observation !== 'object') throw repositoryError('INVALID_INPUT', 'sourceId, runId and observation are required');
+    const count = value => Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : 0;
+    const candidate = value => value && typeof value === 'object' ? {
+      externalId: value.externalId == null ? null : String(value.externalId),
+      publishedAtUtc: value.publishedAtUtc == null ? null : String(value.publishedAtUtc)
+    } : null;
+    // Keep this allowlist narrow: audit data must never contain Q1 request URLs,
+    // headers, credential material, or content bodies.
+    const detail = {
+      sourceId: String(sourceId), runId: String(runId),
+      endpointKind: String(observation.endpointKind || ''), feedKey: String(observation.feedKey || ''),
+      candidateCount: count(observation.candidateCount), validCreateTimeCount: count(observation.validCreateTimeCount),
+      inWindowCreateTimeCount: count(observation.inWindowCreateTimeCount),
+      firstCandidate: candidate(observation.firstCandidate), lastCandidate: candidate(observation.lastCandidate),
+      httpStatus: Number.isSafeInteger(Number(observation.httpStatus)) ? Number(observation.httpStatus) : null
+    };
+    return this.recordAuditEvent({ sourceId, eventType: 'bigplayer_candidate_observed', detail });
+  }
 
-  async getSyncCheckpoint({ accountId, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '' }) { return (await this.query('SELECT * FROM po_sync_checkpoints WHERE account_id=? AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=?', [accountId, taskKind, taskKey, syncScope, rootPlatformContentId]))[0] || null; }
-  async claimSyncCheckpoint({ accountId, syncScope, rootPlatformContentId = '', syncMode = 'incremental', taskKind = 'sync', taskKey = '', leaseOwner, leaseSeconds = 300 }) {
+  async getSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '' }) {
+    const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
+    const params = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
+    return (await this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? ORDER BY (status='completed') DESC,(\`cursor\` IS NOT NULL) DESC,id LIMIT 1`, params))[0] || null;
+  }
+  async claimSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', syncMode = 'incremental', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '', leaseOwner, leaseSeconds = 300 }) {
     if (syncScope === 'replies') return null;
-    const id = uuid();
-    await this.query('INSERT IGNORE INTO po_sync_checkpoints (id, account_id, task_kind, task_key, sync_scope, root_platform_content_id, sync_mode, status) VALUES (?,?,?,?,?,?,?,\'idle\')', [id, accountId, taskKind, taskKey, syncScope, rootPlatformContentId, syncMode]);
-    const claimed = await this.query('UPDATE po_sync_checkpoints SET status=\'running\', lease_owner=?, lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), sync_mode=?, error_code=NULL, error_message=NULL WHERE account_id=? AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND (status IN (\'idle\',\'failed\',\'completed\') OR (status=\'running\' AND lease_until<NOW()))', [leaseOwner || null, Number(leaseSeconds), syncMode, accountId, taskKind, taskKey, syncScope, rootPlatformContentId]);
-    if (!claimed.affectedRows) return null;
-    const checkpoint = await this.getSyncCheckpoint({ accountId, taskKind, taskKey, syncScope, rootPlatformContentId });
-    return checkpoint && checkpoint.status === 'running' && checkpoint.lease_owner === (leaseOwner || null) ? checkpoint : null;
+    const conn = await this.pool.getConnection();
+    const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
+    const params = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
+    try {
+      await conn.beginTransaction();
+      // Nullable site_id cannot enforce uniqueness. Serialize creation per account
+      // and retain the completed/most-progressed canonical checkpoint without deleting legacy rows.
+      const [accounts] = await conn.query('SELECT id FROM po_accounts WHERE id=? FOR UPDATE', [accountId]);
+      if (!accounts.length) { await conn.commit(); return null; }
+      const [existing] = await conn.query(`SELECT id FROM po_sync_checkpoints WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? ORDER BY (status='completed') DESC,(\`cursor\` IS NOT NULL) DESC,id LIMIT 1 FOR UPDATE`, params);
+      const id = existing[0]?.id || uuid();
+      if (!existing.length) await conn.query("INSERT INTO po_sync_checkpoints (id,account_id,site_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end,sync_mode,status) VALUES (?,?,?,?,?,?,?,?,?,?,'idle')", [id, accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd, syncMode]);
+      const [claimed] = await conn.query("UPDATE po_sync_checkpoints SET status='running',lease_owner=?,lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),sync_mode=?,error_code=NULL,error_message=NULL WHERE id=? AND (status IN ('idle','failed','completed') OR (status='running' AND (lease_until IS NULL OR lease_until<UTC_TIMESTAMP(3))))", [leaseOwner || null, Number(leaseSeconds), syncMode, id]);
+      const [rows] = claimed.affectedRows ? await conn.query('SELECT * FROM po_sync_checkpoints WHERE id=?', [id]) : [[]];
+      await conn.commit();
+      return rows[0] || null;
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
   }
   async releaseSyncCheckpoint(id, patch = {}) {
     const ownership = patch.leaseOwner == null ? '' : ' AND lease_owner=?';
@@ -630,17 +1360,34 @@ class Repository {
     return (await this.query('SELECT * FROM po_sync_checkpoints WHERE id=?', [id]))[0] || null;
   }
   async pauseSyncCheckpoint(id, patch = {}) { return this.releaseSyncCheckpoint(id, { ...patch, status: 'paused' }); }
-  async resetSyncCheckpoint({ accountId, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '' }) { await this.query('UPDATE po_sync_checkpoints SET status=\'idle\', `cursor`=NULL, items_fetched=0, last_item_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL WHERE account_id=? AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=?', [accountId, taskKind, taskKey, syncScope, rootPlatformContentId]); return this.getSyncCheckpoint({ accountId, taskKind, taskKey, syncScope, rootPlatformContentId }); }
+  async resetSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '' }) {
+    const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
+    const identityParams = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
+    await this.query(`UPDATE po_sync_checkpoints SET status='idle', \`cursor\`=NULL, items_fetched=0, last_item_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=?`, identityParams);
+    return this.getSyncCheckpoint({ accountId, siteId, taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd });
+  }
   async getSyncStatus({ accountId, syncScope } = {}) {
     if (syncScope === 'replies') return [];
     return this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND sync_scope<>'replies'${syncScope ? ' AND sync_scope=?' : ''} ORDER BY sync_scope, root_platform_content_id`, syncScope ? [accountId, syncScope] : [accountId]);
+  }
+  async getSourceSyncStatusSummary({ accountId } = {}) {
+    const rows = await this.query("SELECT sync_scope,status,COUNT(*) AS checkpoint_count,COALESCE(SUM(items_fetched),0) AS items_fetched,MAX(last_item_at) AS last_item_at,MAX(error_code) AS error_code FROM po_sync_checkpoints WHERE account_id=? AND sync_scope<>'replies' GROUP BY sync_scope,status ORDER BY sync_scope,status", [accountId]);
+    // renderRows chooses the first nonempty error per scope in the original
+    // root_platform_content_id order, not the lexicographic maximum message.
+    // Ties in the legacy query were unspecified; id makes those deterministic.
+    const errors = await this.query(`SELECT sync_scope,error_message FROM (
+      SELECT sync_scope,error_message,ROW_NUMBER() OVER (PARTITION BY sync_scope ORDER BY root_platform_content_id,id) AS error_rank
+      FROM po_sync_checkpoints WHERE account_id=? AND sync_scope<>'replies' AND error_message IS NOT NULL AND error_message<>''
+    ) ordered_errors WHERE error_rank=1`, [accountId]);
+    const byScope = new Map(errors.map(row => [row.sync_scope, row.error_message]));
+    return rows.map(row => ({ ...row, error_message: byScope.get(row.sync_scope) || null }));
   }
   async listSyncParents(accountId, syncScope, { includeCompleted = false, includeFailed = false, publishedFrom = null, publishedTo = null, limit = 0 } = {}) {
     if (syncScope === 'comments') {
       const pendingStatuses = includeFailed ? "('idle','failed')" : "('idle')";
       const checkpointClause = includeCompleted
-        ? "(cp.id IS NULL OR cp.status<>'running' OR cp.lease_until IS NULL OR cp.lease_until<NOW())"
-        : `(cp.id IS NULL OR cp.status IN ${pendingStatuses} OR (cp.status='running' AND (cp.lease_until IS NULL OR cp.lease_until<NOW())))`;
+        ? "(cp.id IS NULL OR cp.status<>'running' OR cp.lease_until IS NULL OR cp.lease_until<UTC_TIMESTAMP(3))"
+        : `(cp.id IS NULL OR cp.status IN ${pendingStatuses} OR (cp.status='running' AND (cp.lease_until IS NULL OR cp.lease_until<UTC_TIMESTAMP(3))))`;
       const predicates = ['c.account_id=?', 'c.content_depth=0', 'c.is_deleted=0', checkpointClause];
       const params = [accountId];
       if (publishedFrom != null) { predicates.push('c.published_at>=?'); params.push(publishedFrom); }
@@ -651,23 +1398,71 @@ class Repository {
     }
     return [];
   }
-  async createSyncRun(accountId, { syncMode = 'incremental', status = 'running' } = {}) { const id = uuid(); await this.query('INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?,?,?,CASE WHEN ?=\'running\' THEN NOW() ELSE NULL END)', [id, accountId, status, syncMode, status]); return this.getSyncRun(id); }
+  async listDomesticBigPlayerCommentGaps({ limit = 100 } = {}) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 10000);
+    const declaredCommentCount = "COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0)";
+    const storedTopLevelCommentCount = "(SELECT COUNT(*) FROM po_contents cc WHERE cc.root_content_id=c.id AND cc.content_type='comment' AND cc.content_depth=1 AND cc.is_deleted=0)";
+    const checkpointIdentity = "cp_pending.account_id=c.account_id AND cp_pending.sync_scope='comments' AND cp_pending.task_kind='comments' AND cp_pending.task_key=c.external_id AND cp_pending.root_platform_content_id=c.external_id";
+    const pendingCheckpoint = `EXISTS (SELECT 1 FROM po_sync_checkpoints cp_pending WHERE ${checkpointIdentity} AND (cp_pending.status IN ('idle','failed') OR (cp_pending.status='running' AND (cp_pending.lease_until IS NULL OR cp_pending.lease_until<UTC_TIMESTAMP(3)))))`;
+    const activeCheckpoint = "EXISTS (SELECT 1 FROM po_sync_checkpoints cp_active WHERE cp_active.account_id=c.account_id AND cp_active.sync_scope='comments' AND cp_active.task_kind='comments' AND cp_active.task_key=c.external_id AND cp_active.root_platform_content_id=c.external_id AND cp_active.status='running' AND cp_active.lease_until>UTC_TIMESTAMP(3))";
+    return this.query(`SELECT c.source_id, c.account_id, c.external_id AS root_platform_content_id, c.external_id AS post_platform_id, ${declaredCommentCount} AS declared_comment_count, ${storedTopLevelCommentCount} AS stored_top_level_comment_count, (SELECT cp_status.status FROM po_sync_checkpoints cp_status WHERE cp_status.account_id=c.account_id AND cp_status.sync_scope='comments' AND cp_status.task_kind='comments' AND cp_status.task_key=c.external_id AND cp_status.root_platform_content_id=c.external_id ORDER BY cp_status.updated_at DESC, cp_status.id DESC LIMIT 1) AS checkpoint_status FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE s.platform=? AND g.region_code=? AND c.content_type='post' AND c.content_depth=0 AND c.is_deleted=0 AND NOT (${activeCheckpoint}) AND (${declaredCommentCount}>${storedTopLevelCommentCount} OR ${pendingCheckpoint}) ORDER BY c.published_at IS NULL, c.published_at DESC, c.id DESC LIMIT ?`, ['bigplayer_h5', 'domestic', safeLimit]);
+  }
+  async createSyncRun({ sourceId, accountId, syncMode = 'incremental', status = 'queued', triggerType } = {}) {
+    if (!sourceId || !accountId || triggerType !== 'legacy' || status !== 'queued') throw repositoryError('INVALID_INPUT', 'createSyncRun only accepts a complete queued legacy run identity');
+    return this.enqueueSyncRun({ sourceId, accountId, syncMode });
+  }
   async enqueueSyncRun({ sourceId, accountId, syncMode = 'incremental' } = {}) {
-    const active = await this.getLatestSyncRunForSource(sourceId, { accountId });
-    if (active && ['queued', 'running'].includes(active.status)) return active;
-    return this.createSyncRun(accountId, { syncMode, status: 'queued' });
+    if (!sourceId || !accountId) throw repositoryError('INVALID_INPUT', 'sourceId and accountId are required');
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [sourceRows] = await conn.query(`SELECT id FROM po_sources s WHERE id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
+      if (!sourceRows[0]) throw repositoryError('SOURCE_NOT_FOUND', 'source not found');
+      const [schedulerTableRows] = await conn.query("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state') AS scheduler_state_ready");
+      const schedulerStateReady = Number(schedulerTableRows?.[0]?.scheduler_state_ready) === 1;
+      if (schedulerStateReady) {
+        const [scheduleRows] = await conn.query('SELECT source_id, lease_until, (lease_until IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)) AS lease_active FROM po_source_schedule_state WHERE source_id=? FOR UPDATE', [sourceId]);
+        if (Number(scheduleRows[0]?.lease_active)) throw repositoryError('SOURCE_SCHEDULE_LEASE_ACTIVE', 'source scheduler lease is active');
+      }
+      const [accountRows] = await conn.query('SELECT id FROM po_accounts WHERE id=? AND source_id=? FOR UPDATE', [accountId, sourceId]);
+      if (!accountRows[0]) throw repositoryError('OWNERSHIP_MISMATCH', 'account does not belong to source');
+      const activeSql = schedulerStateReady
+        ? "SELECT * FROM po_sync_runs WHERE source_id=? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE"
+        : "SELECT r.* FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE a.source_id=? AND r.status IN ('queued','running') ORDER BY r.created_at DESC LIMIT 1 FOR UPDATE";
+      const [activeRows] = await conn.query(activeSql, [sourceId]);
+      if (activeRows[0]) { await conn.commit(); return activeRows[0]; }
+      const id = uuid();
+      if (schedulerStateReady) await conn.query("INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, started_at) VALUES (?,?,?,'legacy','queued',?,NULL,NULL)", [id, sourceId, accountId, syncMode]);
+      else await conn.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?,'queued',?,NULL)", [id, accountId, syncMode]);
+      const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [id]);
+      await conn.commit();
+      return runRows[0] || null;
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+  }
+  // Isolated candidate only: explicit immutable pending-marker receipt required.
+  async handoffOverseasManualMarker(input) {
+    return require('./overseasManualHandoff').handoffOverseasManualMarker(this, input);
+  }
+  async reconcileOverseasManualMarker(input) {
+    return require('./overseasManualHandoff').reconcileOverseasManualMarker(this, input);
   }
   async listRunnableSyncRuns({ limit = 100 } = {}) {
-    return this.query(`SELECT r.*, s.id AS source_id, s.game_id, s.community_id, s.platform, s.source_type, s.display_name, s.enabled, s.frequency_seconds, s.config, s.active_window, s.auth_status, s.auth_expire_at, s.collect_requested_at, s.last_success_at, g.name AS game_name, g.region_code, g.enabled AS game_enabled, c.name AS community_name, c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND (r.status='queued' OR (r.status='running' AND (r.lease_until IS NULL OR r.lease_until<NOW()))) ORDER BY CASE WHEN r.status='queued' THEN 0 ELSE 1 END, r.created_at ASC LIMIT ?`, [Math.min(Math.max(Number(limit) || 100, 1), 500)]);
+    return this.query(`SELECT r.*, s.id AS source_id, s.game_id, s.community_id, s.platform, s.source_type, s.display_name, s.enabled, s.frequency_seconds, s.config, s.active_window, s.auth_status, s.auth_expire_at, s.collect_requested_at, s.last_success_at, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND NOT EXISTS (SELECT 1 FROM po_sync_runs child WHERE child.parent_run_id=r.id) AND (r.next_retry_at IS NULL OR r.next_retry_at<=UTC_TIMESTAMP(3)) AND (r.status='queued' OR (r.status='running' AND (r.lease_until IS NULL OR r.lease_until<UTC_TIMESTAMP(3)))) ORDER BY CASE WHEN r.status='queued' THEN 0 ELSE 1 END, r.created_at ASC LIMIT ?`, [Math.min(Math.max(Number(limit) || 100, 1), 500)]);
   }
-  async getSyncRun(id, { accountId, sourceId, regionCode, gameId, communityId } = {}) {
+  async getSyncRun(id, { accountId, sourceId, regionCode, gameId, communityId, leaseOwner, status } = {}) {
+    const projection = await this.getSyncRunProjection();
     const params = [id]; const clauses = ['r.id=?'];
-    for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); }
+    for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id'], [leaseOwner, 'r.lease_owner'], [status, 'r.status']]) if (value != null) { clauses.push(`${sql}=?`); params.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); }
-    return (await this.query(`SELECT r.id,r.account_id,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.error_code,r.error_message,a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, params))[0] || null;
+    return (await this.query(`SELECT ${projection},a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, params))[0] || null;
   }
-  async getLatestSyncRunForSource(sourceId, { accountId } = {}) { const params = [sourceId]; const accountClause = accountId ? ' AND r.account_id=?' : ''; if (accountId) params.push(accountId); return (await this.query(`SELECT r.*, a.source_id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE a.source_id=?${accountClause} ORDER BY CASE WHEN r.status IN ('queued','running') THEN 0 ELSE 1 END, r.created_at DESC LIMIT 1`, params))[0] || null; }
+  async getLatestSyncRunForSource(sourceId, { accountId } = {}) {
+    const params = [sourceId]; const accountClause = accountId ? ' AND r.account_id=?' : ''; if (accountId) params.push(accountId);
+    const ids = await this.query(`SELECT r.id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE a.source_id=?${accountClause} ORDER BY CASE WHEN r.parent_run_id IS NULL AND EXISTS(SELECT 1 FROM po_sync_runs child_latest WHERE child_latest.parent_run_id=r.id) THEN 0 WHEN r.status IN ('queued','running') THEN 1 ELSE 2 END, r.created_at DESC LIMIT 1`, params);
+    return ids[0] ? this.getSyncRun(ids[0].id, { sourceId, accountId }) : null;
+  }
   async listSyncRuns({ accountId, sourceId, regionCode, gameId, communityId, platform, status, syncMode, startedFrom, startedTo, runId, page = 1, pageSize = 20 } = {}) {
+    const projection = await this.getSyncRunProjection();
     const values = []; const clauses = [];
     for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id'], [platform, 'a.platform'], [status, 'r.status'], [syncMode, 'r.sync_mode'], [runId, 'r.id']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); }
@@ -675,7 +1470,8 @@ class Repository {
     if (startedTo) { clauses.push('COALESCE(r.started_at,r.requested_at,r.created_at)<?'); values.push(startedTo); }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''; const base = `FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id ${where}`;
     const limit = Math.min(Math.max(Number(pageSize) || 20, 1), 100); const currentPage = Math.max(Number(page) || 1, 1); const offset = (currentPage - 1) * limit;
-    const [countRows, items] = await Promise.all([this.query(`SELECT COUNT(*) AS total ${base}`, values), this.query(`SELECT r.id,r.account_id,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.error_code,r.error_message,a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status ${base} ORDER BY r.created_at DESC,r.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset])]);
+    const pageBase = `FROM (SELECT r.id ${base} ORDER BY r.created_at DESC,r.id DESC LIMIT ? OFFSET ?) page_runs JOIN po_sync_runs r ON r.id=page_runs.id JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id`;
+    const [countRows, items] = await Promise.all([this.query(`SELECT COUNT(*) AS total ${base}`, values), this.query(`SELECT ${projection},a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status ${pageBase} ORDER BY r.created_at DESC,r.id DESC`, [...values, limit, offset])]);
     return { items, total: Number(countRows[0]?.total || 0), page: currentPage, pageSize: limit };
   }
   async getDeletePreview(runId) {
@@ -701,18 +1497,211 @@ class Repository {
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   }
   async claimSyncRun({ runId, accountId, leaseOwner, leaseSeconds = 300 } = {}) {
-    const params = [leaseOwner || null, Number(leaseSeconds)];
-    let where = "status='queued' OR (status='running' AND (lease_until IS NULL OR lease_until<NOW()))";
+    const maxAttempts = Math.max(1, this.claimDeadlockMaxAttempts);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this._claimSyncRunOnce({ runId, accountId, leaseOwner, leaseSeconds });
+      } catch (error) {
+        const retryable = error?.code === 'ER_LOCK_DEADLOCK' || error?.code === 'ER_LOCK_WAIT_TIMEOUT';
+        if (!retryable || attempt + 1 >= maxAttempts) throw error;
+        const backoff = this.claimDeadlockRetryBaseMs * 2 ** attempt;
+        const jitter = backoff ? Math.floor(Math.random() * backoff) : 0;
+        await new Promise(resolve => setTimeout(resolve, backoff + jitter));
+      }
+    }
+  }
+  async _claimSyncRunOnce({ runId, accountId, leaseOwner, leaseSeconds = 300 } = {}) {
+    const claimOwner = `${leaseOwner || 'sync'}:${uuid()}`;
+    const params = [claimOwner, Number(leaseSeconds)];
+    let where = "status='queued' OR (status='running' AND (lease_until IS NULL OR lease_until<UTC_TIMESTAMP(3)))";
     if (runId) { where = `id=? AND (${where})`; params.push(runId); }
     else if (accountId) { where = `account_id=? AND (${where}) ORDER BY created_at ASC LIMIT 1`; params.push(accountId); }
     else where = `(${where}) ORDER BY created_at ASC LIMIT 1`;
-    const result = await this.query(`UPDATE po_sync_runs SET status='running', started_at=COALESCE(started_at,NOW()), lease_owner=?, lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), updated_at=NOW() WHERE ${where}`, params);
+    const result = await this.query(`UPDATE po_sync_runs SET status='running', started_at=COALESCE(started_at,UTC_TIMESTAMP(3)), attempts=attempts+1, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), updated_at=UTC_TIMESTAMP(3) WHERE (next_retry_at IS NULL OR next_retry_at<=UTC_TIMESTAMP(3)) AND ${where}`, params);
     if (!result.affectedRows) return null;
-    if (runId) return this.getSyncRun(runId, { accountId });
-    return (await this.query('SELECT * FROM po_sync_runs WHERE lease_owner=? AND status=\'running\' ORDER BY updated_at DESC LIMIT 1', [leaseOwner || null]))[0] || null;
+    // 领取结果使用 r.*，既把 window_start/window_end 交给 Worker，又保持 pre-023
+    // getSyncRun 的兼容投影不引用新列。后续写入仍以精确 lease_owner fencing。
+    if (runId) {
+      const accountClause = accountId ? ' AND account_id=?' : '';
+      return (await this.query(`SELECT * FROM po_sync_runs WHERE id=?${accountClause} AND lease_owner=? AND status='running' LIMIT 1`, [runId, ...(accountId ? [accountId] : []), claimOwner]))[0] || null;
+    }
+    return (await this.query('SELECT * FROM po_sync_runs WHERE lease_owner=? AND status=\'running\' ORDER BY updated_at DESC LIMIT 1', [claimOwner]))[0] || null;
   }
-  async finishSyncRun(id, patch = {}) { const params = [patch.status || 'completed_full', patch.discoveredCount == null ? null : Number(patch.discoveredCount), patch.storedCount == null ? null : Number(patch.storedCount), patch.errorCode || null, patch.errorMessage || null, id]; let ownership = ''; if (patch.leaseOwner != null) { ownership = ' AND lease_owner=?'; params.push(patch.leaseOwner); } await this.query(`UPDATE po_sync_runs SET status=?, finished_at=NOW(), discovered_count=COALESCE(?,discovered_count), stored_count=COALESCE(?,stored_count), error_code=?, error_message=?, lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE id=?${ownership}`, params); return this.getSyncRun(id); }
-  async listSyncRunContents(runId, { accountId, sourceId, regionCode, gameId, communityId, syncScope = 'posts', after = 0, limit = 50 } = {}) { const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100); const params = [runId, syncScope, Number(after) || 0]; const clauses = ['rc.run_id=?', 'rc.sync_scope=?', 'rc.sequence_no>?']; for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); } if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); } params.push(safeLimit); return this.query(`SELECT rc.sequence_no, rc.change_type, rc.sync_scope, rc.fetched_at, c.id, c.external_id, c.content_type, c.community_id, c.platform_author_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0) AS comment_count FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id JOIN po_accounts a ON a.id=r.account_id JOIN po_games g ON g.id=a.game_id JOIN po_contents c ON c.id=rc.content_id AND c.account_id=a.id AND c.source_id=a.source_id AND c.game_id=a.game_id AND (c.community_id<=>a.community_id) WHERE ${clauses.join(' AND ')} ORDER BY rc.sequence_no ASC LIMIT ?`, params); }
+  async renewSyncRunLease(runId, owner, extension) {
+    const seconds = Math.max(1, Number(extension) || 1);
+    const epoch = arguments[3];
+    const result = await this.query("UPDATE po_sync_runs SET lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status IN ('running','pausing','cancelling') AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [seconds, runId, owner, epoch]);
+    return Boolean(result.affectedRows);
+  }
+  // Control requests never take over an in-flight lease. For running work they only
+  // persist a requested state; the worker that owns the exact lease settles it after
+  // its current page has committed the checkpoint.
+  async requestSyncRunControl(id, action) {
+    const transitions = {
+      pause: {
+        sql: "UPDATE po_sync_runs SET status=CASE WHEN status='queued' THEN 'paused' ELSE 'pausing' END, lease_owner=CASE WHEN status='queued' THEN NULL ELSE lease_owner END, lease_until=CASE WHEN status='queued' THEN NULL ELSE lease_until END, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND (status='queued' OR (status='running' AND lease_owner IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)))",
+        eventType: 'sync_run_pause_requested'
+      },
+      resume: {
+        sql: "UPDATE po_sync_runs SET status='queued', finished_at=NULL, next_retry_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status='paused'",
+        eventType: 'sync_run_resumed'
+      },
+      cancel: {
+        sql: "UPDATE po_sync_runs SET status=CASE WHEN status='running' THEN 'cancelling' ELSE 'cancelled' END, finished_at=CASE WHEN status='running' THEN finished_at ELSE UTC_TIMESTAMP(3) END, error_code=CASE WHEN status='running' THEN error_code ELSE 'SYNC_RUN_CANCELLED' END, error_message=CASE WHEN status='running' THEN error_message ELSE 'cancelled before worker claim' END, lease_owner=CASE WHEN status='running' THEN lease_owner ELSE NULL END, lease_until=CASE WHEN status='running' THEN lease_until ELSE NULL END, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND (status IN ('queued','paused','pausing') OR (status='running' AND lease_owner IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)))",
+        eventType: 'sync_run_cancel_requested'
+      }
+    };
+    const transition = transitions[action];
+    if (!transition) throw repositoryError('INVALID_INPUT', 'sync run control action is not supported');
+    const existing = await this.getSyncRun(id);
+    if (existing && Number(existing.hasScheduledSiteChildren || existing.has_scheduled_site_children) === 1) {
+      const allowedParentStates = { pause: new Set(['queued', 'running']), cancel: new Set(['queued', 'running', 'pausing', 'paused']), resume: new Set(['paused']) };
+      const conn = await this.pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [parentRows] = await conn.query('SELECT id,status FROM po_sync_runs WHERE id=? AND parent_run_id IS NULL FOR UPDATE', [id]);
+        const parent = parentRows[0];
+        if (!parent || !allowedParentStates[action].has(String(parent.status || '').toLowerCase())) { await conn.rollback(); return null; }
+        const [children] = await conn.query("SELECT id,status,lease_owner,lease_until,(lease_owner IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)) AS lease_active FROM po_sync_runs WHERE parent_run_id=? FOR UPDATE", [id]);
+        if (!children.length) { await conn.rollback(); return null; }
+        if (action === 'resume' && children.some(child => !['paused','completed','completed_full','completed_authorized_scope','partial','failed','cancelled','canceled'].includes(String(child.status || '').toLowerCase()))) {
+          await conn.rollback(); return null;
+        }
+        const resulting = [];
+        for (const child of children) {
+          const status = String(child.status || '').toLowerCase();
+          let target = status;
+          if (action === 'pause') {
+            if (status === 'queued') target = 'paused';
+            else if (status === 'running') target = Number(child.lease_active) ? 'pausing' : 'paused';
+          } else if (action === 'cancel') {
+            if (['queued','paused'].includes(status)) target = 'cancelled';
+            else if (['running','pausing'].includes(status)) target = Number(child.lease_active) ? 'cancelling' : 'cancelled';
+          } else if (status === 'paused') target = 'queued';
+          if (target !== status) {
+            const keepsLease = target === 'pausing' || target === 'cancelling';
+            await conn.query("UPDATE po_sync_runs SET status=?,finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END,error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END,error_message=CASE WHEN ?='cancelled' THEN 'cancelled before or after lease expiry' ELSE NULL END,lease_owner=CASE WHEN ? THEN lease_owner ELSE NULL END,lease_until=CASE WHEN ? THEN lease_until ELSE NULL END,next_retry_at=CASE WHEN ?='queued' THEN NULL ELSE next_retry_at END,updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=?", [target, target, target, target, keepsLease ? 1 : 0, keepsLease ? 1 : 0, target, child.id, status]);
+          }
+          resulting.push(target);
+        }
+        const targetStatus = action === 'resume' ? 'running'
+          : action === 'pause' ? (resulting.includes('pausing') ? 'pausing' : 'paused')
+            : (resulting.includes('cancelling') ? 'cancelling' : 'cancelled');
+        const [updated] = await conn.query("UPDATE po_sync_runs SET status=?,finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END,error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END,error_message=CASE WHEN ?='cancelled' THEN 'all site runs cancelled' ELSE NULL END,updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=?", [targetStatus, targetStatus, targetStatus, targetStatus, id, parent.status]);
+        if (!updated.affectedRows) { await conn.rollback(); return null; }
+        await conn.commit();
+      } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+      const controlled = await this.getSyncRun(id);
+      await this.recordAuditEvent({ gameId: controlled?.game_id, sourceId: controlled?.source_id, accountId: controlled?.account_id, eventType: transition.eventType, detail: { runId: id, action, status: controlled?.status, propagatedToChildren: true } });
+      return controlled;
+    }
+    const result = await this.query(transition.sql, [id]);
+    if (!result.affectedRows) return null;
+    const run = await this.getSyncRun(id);
+    await this.recordAuditEvent({ gameId: run?.game_id, sourceId: run?.source_id, accountId: run?.account_id, eventType: transition.eventType, detail: { runId: id, action, status: run?.status } });
+    return run;
+  }
+  async getSyncRunControl(id, { leaseOwner, leaseEpoch } = {}) {
+    if (!id || !leaseOwner || leaseEpoch == null) return null;
+    return (await this.query("SELECT id,status,lease_owner,lease_epoch FROM po_sync_runs WHERE id=? AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3) LIMIT 1", [id, leaseOwner, leaseEpoch]))[0] || null;
+  }
+  async markSyncRunRequest(id, { leaseOwner, leaseEpoch } = {}) {
+    if (!id || !leaseOwner || leaseEpoch == null) return false;
+    const result = await this.query("UPDATE po_sync_runs SET last_request_at=UTC_TIMESTAMP(3),updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status IN ('running','pausing','cancelling') AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [id, leaseOwner, leaseEpoch]);
+    return Boolean(result.affectedRows);
+  }
+  async settleSyncRunControl(id, { status, leaseOwner, leaseEpoch } = {}) {
+    const requested = status === 'paused' ? 'pausing' : status === 'cancelled' ? 'cancelling' : null;
+    if (!requested || !leaseOwner || leaseEpoch == null) throw repositoryError('INVALID_INPUT', 'invalid sync run control settlement');
+    const current = await this.getSyncRun(id);
+    if (!current?.parent_run_id && !current?.parentRunId) {
+      const result = await this.query("UPDATE po_sync_runs SET status=?, finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END, error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END, error_message=CASE WHEN ?='cancelled' THEN 'cancelled after current safe page' ELSE NULL END, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=? AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, status, status, status, id, requested, leaseOwner, leaseEpoch]);
+      if (!result.affectedRows) return null;
+      const run = await this.getSyncRun(id);
+      await this.recordAuditEvent({ gameId: run?.game_id, sourceId: run?.source_id, accountId: run?.account_id, eventType: status === 'paused' ? 'sync_run_paused' : 'sync_run_cancelled', detail: { runId: id, status } });
+      return run;
+    }
+    const conn = await this.pool.getConnection(); let settled = false;
+    try {
+      await conn.beginTransaction();
+      const [result] = await conn.query("UPDATE po_sync_runs SET status=?, finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END, error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE NULL END, error_message=CASE WHEN ?='cancelled' THEN 'cancelled after current safe page' ELSE NULL END, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=? AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, status, status, status, id, requested, leaseOwner, leaseEpoch]);
+      if (!result.affectedRows) { await conn.rollback(); return null; }
+      const [rows] = await conn.query('SELECT id,parent_run_id FROM po_sync_runs WHERE id=? FOR UPDATE', [id]);
+      const parentRunId = rows[0]?.parent_run_id;
+      if (parentRunId) {
+        const [siblings] = await conn.query('SELECT status FROM po_sync_runs WHERE parent_run_id=? FOR UPDATE', [parentRunId]);
+        const active = siblings.some(child => ['queued','running','pausing','cancelling'].includes(String(child.status || '').toLowerCase()));
+        if (!active) {
+          const parentRequested = status === 'paused' ? 'pausing' : 'cancelling';
+          await conn.query("UPDATE po_sync_runs SET status=?,finished_at=CASE WHEN ?='cancelled' THEN UTC_TIMESTAMP(3) ELSE NULL END,error_code=CASE WHEN ?='cancelled' THEN 'SYNC_RUN_CANCELLED' ELSE error_code END,error_message=CASE WHEN ?='cancelled' THEN 'all site runs cancelled' ELSE error_message END,updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=?", [status, status, status, status, parentRunId, parentRequested]);
+        }
+      }
+      await conn.commit(); settled = true;
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+    if (!settled) return null;
+    const run = await this.getSyncRun(id);
+    await this.recordAuditEvent({ gameId: run?.game_id, sourceId: run?.source_id, accountId: run?.account_id, eventType: status === 'paused' ? 'sync_run_paused' : 'sync_run_cancelled', detail: { runId: id, status } });
+    return run;
+  }
+  async finishSyncRun(id, patch = {}) {
+    const status = patch.status || 'completed_full';
+    const params = [status, patch.discoveredCount == null ? null : Number(patch.discoveredCount), patch.storedCount == null ? null : Number(patch.storedCount), patch.errorCode || null, patch.errorMessage || null, patch.nextRetryAt || null, id];
+    let ownership = '';
+    if (patch.leaseOwner != null) { ownership = ' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)'; params.push(patch.leaseOwner, patch.leaseEpoch); }
+    const result = await this.query(`UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=COALESCE(?,discovered_count), stored_count=COALESCE(?,stored_count), error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=?${ownership}`, params);
+    if (!result.affectedRows) return null;
+    return this.getSyncRun(id, { status });
+  }
+  async finishScheduledSiteRun(id, patch = {}) {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const status = patch.status || 'completed_full';
+      if (!['completed','completed_full','completed_authorized_scope','partial','failed'].includes(String(status).toLowerCase())) throw repositoryError('INVALID_INPUT', 'site run terminal status is not supported');
+      const [result] = await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=COALESCE(?,discovered_count), stored_count=COALESCE(?,stored_count), error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NOT NULL AND trigger_type='scheduled_site' AND status='running' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, patch.discoveredCount == null ? null : Number(patch.discoveredCount), patch.storedCount == null ? null : Number(patch.storedCount), patch.errorCode || null, patch.errorMessage || null, patch.nextRetryAt || null, id, patch.leaseOwner, patch.leaseEpoch]);
+      if (!result.affectedRows) { await conn.rollback(); return null; }
+      const [childRows] = await conn.query('SELECT parent_run_id,status FROM po_sync_runs WHERE id=? FOR UPDATE', [id]);
+      const parentRunId = childRows[0]?.parent_run_id;
+      const [siblings] = await conn.query('SELECT id,status,discovered_count,stored_count,fetched_count,inserted_count,changed_count,unchanged_count,comment_count,error_code,error_message FROM po_sync_runs WHERE parent_run_id=? FOR UPDATE', [parentRunId]);
+      const parentStatus = aggregateParentStatus(siblings || []);
+      let parent = null;
+      if (parentStatus !== 'running') {
+        const totals = (siblings || []).reduce((summary, child) => ({
+          discovered: summary.discovered + Math.max(0, Number(child.discovered_count) || 0),
+          stored: summary.stored + Math.max(0, Number(child.stored_count) || 0),
+          fetched: summary.fetched + Math.max(0, Number(child.fetched_count) || 0),
+          inserted: summary.inserted + Math.max(0, Number(child.inserted_count) || 0),
+          changed: summary.changed + Math.max(0, Number(child.changed_count) || 0),
+          unchanged: summary.unchanged + Math.max(0, Number(child.unchanged_count) || 0),
+          comments: summary.comments + Math.max(0, Number(child.comment_count) || 0)
+        }), { discovered: 0, stored: 0, fetched: 0, inserted: 0, changed: 0, unchanged: 0, comments: 0 });
+        const failedChildren = (siblings || []).filter(child => !['completed', 'completed_full', 'completed_authorized_scope'].includes(String(child.status || '').toLowerCase()));
+        const childErrors = failedChildren
+          .map(child => [child.error_code, child.error_message].filter(Boolean).join(': '))
+          .filter(Boolean);
+        const parentErrorCode = childErrors.length ? (parentStatus === 'partial' ? 'MULTISITE_PARTIAL_FAILURE' : 'MULTISITE_ALL_SITES_FAILED') : null;
+        const parentErrorMessage = childErrors.length ? childErrors.join('; ').slice(0, 1000) : null;
+        await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=?, stored_count=?, fetched_count=?, inserted_count=?, changed_count=?, unchanged_count=?, comment_count=?, error_code=?, error_message=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NULL AND status IN ('queued','running')", [parentStatus, totals.discovered, totals.stored, totals.fetched, totals.inserted, totals.changed, totals.unchanged, totals.comments, parentErrorCode, parentErrorMessage, parentRunId]);
+        const [parents] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [parentRunId]);
+        parent = parents[0] || null;
+      }
+      await conn.commit();
+      return { child: { id, status }, parent };
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+  }
+  // A provider cooldown is not a terminal result. Keep this exact run queued so its
+  // checkpoint can resume after the persisted UTC retry boundary.
+  async deferSyncRun(id, { errorCode, errorMessage, nextRetryAt, leaseOwner, leaseEpoch } = {}) {
+    if (!nextRetryAt) { const error = new Error('nextRetryAt is required when deferring a sync run'); error.code = 'SYNC_RUN_RETRY_AT_REQUIRED'; throw error; }
+    // Owner + epoch fence the update. Do not require an unexpired lease here:
+    // a provider cooldown can outlive the execution lease, and leaving the run
+    // in running would make it appear permanently stuck. A newer claimant has
+    // a newer epoch and still cannot be overwritten by this stale worker.
+    const result = await this.query("UPDATE po_sync_runs SET status='queued', finished_at=NULL, error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status='running' AND lease_owner=? AND lease_epoch=?", [errorCode || null, errorMessage || null, nextRetryAt, id, leaseOwner, leaseEpoch]);
+    if (!result.affectedRows) return null;
+    return this.getSyncRun(id, { status: 'queued' });
+  }
+  async listSyncRunContents(runId, { accountId, sourceId, regionCode, gameId, communityId, syncScope = 'posts', after = 0, limit = 50 } = {}) { const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100); const params = [runId, syncScope, Number(after) || 0]; const clauses = ['rc.run_id=?', 'rc.sync_scope=?', 'rc.sequence_no>?']; for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); } if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); } params.push(safeLimit); return this.query(`SELECT rc.sequence_no, rc.change_type, rc.sync_scope, rc.fetched_at, c.id, c.external_id, c.content_type, c.community_id, c.platform_author_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, (SELECT m.feed_key FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS feed_key, (SELECT m.page_kind FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS page_kind, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0) AS comment_count FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id JOIN po_accounts a ON a.id=r.account_id JOIN po_games g ON g.id=a.game_id JOIN po_contents c ON c.id=rc.content_id AND c.account_id=a.id AND c.source_id=a.source_id AND c.game_id=a.game_id AND (c.community_id<=>a.community_id) WHERE ${clauses.join(' AND ')} ORDER BY rc.sequence_no ASC LIMIT ?`, params); }
 
   async importContentBatch({ sourceId, accountId, items = [], feeds = [] } = {}) {
     const source = (await this.query('SELECT * FROM po_sources WHERE id=? LIMIT 1', [sourceId]))[0] || null;
@@ -770,6 +1759,43 @@ class Repository {
     return { ...totals, sourceId: source.id, accountId: account.id };
   }
 
+  async listOverseasBigPlayerCommentParents({ sourceId, accountId, gameId, communityId, siteId, boardId, afterId = '', limit = 200 }) {
+    if (!sourceId || !accountId || !gameId || !communityId || !siteId || !/^[1-9]\d*$/.test(String(boardId))
+      || !Number.isInteger(limit) || limit < 1 || limit > 1000) throw repositoryError('OVERSEAS_COMMENT_SCOPE_INVALID', 'invalid parent scope');
+    const sources = await this.query("SELECT s.id FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_accounts a ON a.source_id=s.id WHERE s.id=? AND a.id=? AND s.game_id=? AND s.community_id=? AND a.game_id=s.game_id AND a.community_id=s.community_id AND s.platform='bigplayer_h5' AND g.region_code='overseas' AND JSON_UNQUOTE(JSON_EXTRACT(s.config,'$.boardId'))=?", [sourceId, accountId, gameId, communityId, boardId]);
+    if (sources.length !== 1) throw repositoryError('OVERSEAS_COMMENT_SCOPE_INVALID', 'invalid parent scope');
+    const columns = await this.query("SELECT column_name FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='board_id'");
+    const runBoard = columns.length ? 'r.board_id' : 'NULL';
+    const rows = await this.query(`SELECT c.id,c.external_id,c.source_id,c.account_id,c.game_id,c.community_id,c.content_depth,c.is_deleted,
+      JSON_UNQUOTE(JSON_EXTRACT(c.raw_payload,'$.boardId')) AS raw_board_id,
+      JSON_UNQUOTE(JSON_EXTRACT(c.raw_payload,'$._lastNightScope.boardId')) AS legacy_board_id,
+      JSON_UNQUOTE(JSON_EXTRACT(c.raw_payload,'$._overseasScope.boardId')) AS overseas_board_id,
+      EXISTS(SELECT 1 FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id
+        WHERE rc.content_id=c.id AND rc.sync_scope='posts' AND r.source_id=? AND r.account_id=? AND r.site_id=?) AS site_proven,
+      EXISTS(SELECT 1 FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id
+        WHERE rc.content_id=c.id AND rc.sync_scope='posts' AND r.source_id=? AND r.account_id=? AND r.site_id=? AND ${runBoard}=?) AS board_proven,
+      EXISTS(SELECT 1 FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id
+        WHERE rc.content_id=c.id AND rc.sync_scope='posts' AND r.source_id=? AND r.account_id=? AND r.site_id=? AND ${runBoard} IS NOT NULL AND ${runBoard}<>?) AS board_conflict
+      FROM po_contents c WHERE c.source_id=? AND c.account_id=? AND c.game_id=? AND c.community_id=?
+        AND c.content_depth=0 AND c.is_deleted=0 AND c.id>? ORDER BY c.id LIMIT ?`,
+    [sourceId, accountId, siteId, sourceId, accountId, siteId, boardId, sourceId, accountId, siteId, boardId, sourceId, accountId, gameId, communityId, afterId, limit + 1]);
+    const scanned = rows.slice(0, limit);
+    const boardSafe = row => {
+      const markers = [row.raw_board_id, row.legacy_board_id, row.overseas_board_id].filter(value => value != null);
+      return !Number(row.board_conflict) && markers.every(value => String(value) === String(boardId))
+        && (Number(row.board_proven) || markers.length > 0);
+    };
+    const safe = scanned.filter(row => Number(row.site_proven) && boardSafe(row));
+    // Other proven sites are not gaps for this site; unassociated history is.
+    let gaps = 0;
+    for (const row of scanned.filter(row => !Number(row.site_proven))) {
+      const evidence = await this.query("SELECT 1 FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id WHERE rc.content_id=? AND rc.sync_scope='posts' AND r.source_id=? AND r.account_id=? AND r.site_id IS NOT NULL LIMIT 1", [row.id, sourceId, accountId]);
+      if (!evidence.length) gaps++;
+    }
+    gaps += scanned.filter(row => Number(row.site_proven) && !boardSafe(row)).length;
+    return { rows: safe.map(row => ({ ...row, site_id: siteId, board_id: String(boardId) })), scannedCount: scanned.length, hasMore: rows.length > limit,
+      nextCursor: scanned.at(-1)?.id || null, coverageGaps: gaps };
+  }
   async upsertContentPage(input = {}) {
     let committed;
     for (let attempt = 0; attempt < this.syncUpsertMaxAttempts; attempt += 1) {
@@ -788,43 +1814,75 @@ class Repository {
     const checkpoint = checkpointId ? (await this.query('SELECT * FROM po_sync_checkpoints WHERE id=?', [checkpointId]))[0] || null : null;
     return { ...committed, checkpoint };
   }
-  async _upsertContentPageAttempt({ account, syncRunId, syncScope, rootPlatformContentId = '', items = [], nextCursor = null, hasMore = false, syncMode = 'incremental', checkpointId, leaseOwner, leaseSeconds = 300, lastItemAt = null, feed = null } = {}) {
+  async _upsertContentPageAttempt({ account, source, syncRunId, syncScope, rootPlatformContentId = '', items = [], nextCursor = null, hasMore = false, syncMode = 'incremental', checkpointId, leaseOwner, leaseSeconds = 300, lastItemAt = null, feed = null } = {}) {
     const conn = await this.pool.getConnection(); const contents = []; let storedCount = 0; let transactionStarted = false;
     try {
       await conn.query('SET SESSION innodb_lock_wait_timeout=?', [this.syncUpsertLockWaitSeconds]);
-      if (syncRunId) {
-        const runRows = (await conn.query('SELECT r.id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE r.id=? AND r.account_id=? AND a.source_id=?', [syncRunId, account.id, account.source_id]))[0];
-        if (!runRows?.[0]) { const error = new Error('sync run does not belong to account/source'); error.code = 'SYNC_RUN_SCOPE_MISMATCH'; throw error; }
-      }
       await conn.beginTransaction(); transactionStarted = true;
+      if (syncRunId) {
+        const leaseRows = await conn.query("SELECT r.id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE r.id=? AND r.account_id=? AND a.source_id=? AND r.status IN ('running','pausing','cancelling') AND r.lease_owner=? AND r.lease_until>UTC_TIMESTAMP(3) FOR UPDATE", [syncRunId, account.id, account.source_id, leaseOwner || null]);
+        if (!leaseRows[0]?.[0]) { const error = new Error('sync run lease lost'); error.code = 'SYNC_RUN_LEASE_LOST'; throw error; }
+      }
       let fetchedCount = 0; let insertedCount = 0; let changedCount = 0; let unchangedCount = 0; let commentCount = 0;
-      const orderedItems = items.map((raw, index) => ({ raw, index })).sort((left, right) => String(left.raw.externalId || '').localeCompare(String(right.raw.externalId || '')) || left.index - right.index);
+      const overseas = source?.platform === 'bigplayer_h5' && source.region_code === 'overseas';
+      const orderedItems = items.map((raw, index) => ({ raw, index })).sort((left, right) =>
+        (overseas ? Number(left.raw.contentDepth || 0) - Number(right.raw.contentDepth || 0) : 0)
+        || String(left.raw.externalId || '').localeCompare(String(right.raw.externalId || '')) || left.index - right.index);
       for (const { raw, index: sourceIndex } of orderedItems) {
         const id = uuid();
-        const existingResult = await conn.query('SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, raw.externalId]);
+        const boardKey = raw.boardId || 'legacy';
+        const existingResult = raw.boardId
+          ? await conn.query('SELECT * FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1', [account.source_id, boardKey, raw.externalId])
+          : await conn.query('SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, raw.externalId]);
         const existingRows = Array.isArray(existingResult[0]) ? existingResult[0] : [];
         const existing = existingRows[0] && existingRows[0].external_id != null ? existingRows[0] : null;
+        if (overseas && existing && (existing.account_id !== account.id || existing.game_id !== account.game_id || existing.community_id !== account.community_id)) throw repositoryError('OVERSEAS_CONTENT_SCOPE_CONFLICT', 'existing content scope differs');
+        if (overseas && raw.recoveryContextAncestor && existing) {
+          contents[sourceIndex] = { content: existing, change: 'unchanged' };
+          continue;
+        }
         const rootExternalId = raw.rootPlatformContentId || (syncScope === 'posts' ? null : rootPlatformContentId);
         const parentExternalId = raw.platformParentId || (syncScope === 'comments' ? rootPlatformContentId : null);
-        const rootRow = rootExternalId ? (await conn.query('SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, rootExternalId]))[0]?.[0] : null;
-        const parentRow = parentExternalId ? (await conn.query('SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, parentExternalId]))[0]?.[0] : null;
-        const engagement = JSON.stringify(raw.engagement || {}); const media = JSON.stringify(Array.isArray(raw.media) ? raw.media : []); const rawPayload = raw.rawPayload == null ? null : JSON.stringify(raw.rawPayload);
-        const comparable = [raw.contentType || (syncScope === 'posts' ? 'post' : 'comment'), raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, raw.body || '', comparableDate(raw.publishedAt), raw.sourceUrl || '', comparableJson(raw.engagement, {}), comparableJson(raw.media, []), raw.fingerprint || null, comparableJson(raw.rawPayload, null)];
-        const previous = existing && [existing.content_type, existing.platform_author_id, existing.root_content_id, existing.parent_content_id, existing.platform_parent_id, Number(existing.content_depth || 0), Number(existing.is_deleted || 0), existing.author_name, existing.title, existing.body, comparableDate(existing.published_at), existing.source_url, comparableJson(existing.engagement, {}), comparableJson(existing.media, []), existing.fingerprint, comparableJson(existing.raw_payload, null)];
+        const rootSql = raw.boardId ? 'SELECT id FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1' : 'SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1';
+        const rootRow = rootExternalId ? (await conn.query(overseas ? rootSql.replace('SELECT id ', 'SELECT * ') : rootSql, raw.boardId ? [account.source_id, boardKey, rootExternalId] : [account.source_id, rootExternalId]))[0]?.[0] : null;
+        const parentRow = parentExternalId ? (await conn.query(overseas ? rootSql.replace('SELECT id ', 'SELECT * ') : rootSql, raw.boardId ? [account.source_id, boardKey, parentExternalId] : [account.source_id, parentExternalId]))[0]?.[0] : null;
+        if (overseas && syncScope === 'comments' && (!rootRow || !parentRow)) throw repositoryError('OVERSEAS_COMMENT_PARENT_MISSING', 'comment ancestry must exist');
+        if (overseas && syncScope === 'comments') {
+          const expectedBoard = String(raw.rawPayload?._overseasScope?.boardId || raw.boardId || '');
+          for (const row of [rootRow, parentRow]) {
+            const payload = parseJson(row.raw_payload, {});
+            const markers = [row.board_id, payload.boardId, payload._lastNightScope?.boardId, payload._overseasScope?.boardId].filter(value => value != null);
+            if (row.source_id !== account.source_id || row.account_id !== account.id || row.game_id !== account.game_id || row.community_id !== account.community_id
+              || !markers.length || markers.some(value => String(value) !== expectedBoard)) throw repositoryError('OVERSEAS_COMMENT_PARENT_SCOPE_CONFLICT', 'comment ancestry scope differs');
+          }
+          if (rootRow.content_depth !== 0 || (parentRow.id !== rootRow.id && parentRow.root_content_id !== rootRow.id)) throw repositoryError('OVERSEAS_COMMENT_PARENT_SCOPE_CONFLICT', 'comment ancestry graph differs');
+        }
+        const contentType = raw.contentType || (syncScope === 'posts' ? 'post' : 'comment');
+        const existingRawPayload = parseJson(existing?.raw_payload, null);
+        const incomingRawPayload = parseJson(raw.rawPayload, null);
+        const preserveEnrichedContent = contentType === 'post'
+          && existingRawPayload?._contentIntegrity?.status === 'detail_enriched'
+          && incomingRawPayload?._contentIntegrity?.status === 'summary_fallback';
+        const bodyValue = preserveEnrichedContent ? (existing.body ?? '') : (raw.body || '');
+        const mediaValue = preserveEnrichedContent ? parseJson(existing.media, []) : (Array.isArray(raw.media) ? raw.media : []);
+        const rawPayloadValue = preserveEnrichedContent ? existing.raw_payload : raw.rawPayload;
+        const engagement = JSON.stringify(raw.engagement || {}); const media = JSON.stringify(Array.isArray(mediaValue) ? mediaValue : []); const rawPayload = rawPayloadValue == null ? null : (preserveEnrichedContent && typeof rawPayloadValue === 'string' ? rawPayloadValue : JSON.stringify(rawPayloadValue));
+        const comparable = [raw.boardId || null, raw.boardName || null, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, comparableDate(raw.publishedAt), raw.sourceUrl || '', comparableJson(raw.engagement, {}), comparableJson(mediaValue, []), raw.fingerprint || null, comparableJson(rawPayloadValue, null)];
+        const previous = existing && [existing.board_id || null, existing.board_name || null, existing.content_type, existing.platform_author_id, existing.root_content_id, existing.parent_content_id, existing.platform_parent_id, Number(existing.content_depth || 0), Number(existing.is_deleted || 0), existing.author_name, existing.title, existing.body, comparableDate(existing.published_at), existing.source_url, comparableJson(existing.engagement, {}), comparableJson(existing.media, []), existing.fingerprint, comparableJson(existing.raw_payload, null)];
         const change = !existing ? 'inserted' : JSON.stringify(previous) === JSON.stringify(comparable) ? 'unchanged' : 'changed';
         if (account.community_id) {
-          await conn.query('INSERT INTO po_contents (id, game_id, community_id, source_id, account_id, external_id, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), community_id=VALUES(community_id), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.community_id, account.source_id, account.id, raw.externalId, raw.contentType || (syncScope === 'posts' ? 'post' : 'comment'), raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, raw.body || '', JSON.stringify(raw.media || []), raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
+          await conn.query('INSERT INTO po_contents (id, game_id, community_id, source_id, account_id, external_id, board_id, board_name, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), community_id=VALUES(community_id), board_id=VALUES(board_id), board_name=VALUES(board_name), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.community_id, account.source_id, account.id, raw.externalId, raw.boardId || null, raw.boardName || null, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, media, raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
         } else {
-          await conn.query('INSERT INTO po_contents (id, game_id, source_id, account_id, external_id, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.source_id, account.id, raw.externalId, raw.contentType || (syncScope === 'posts' ? 'post' : 'comment'), raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, raw.body || '', JSON.stringify(raw.media || []), raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
+          await conn.query('INSERT INTO po_contents (id, game_id, source_id, account_id, external_id, board_id, board_name, content_type, platform_author_id, root_content_id, parent_content_id, platform_parent_id, content_depth, is_deleted, author_name, title, body, media, published_at, source_url, engagement, fingerprint, raw_payload, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE account_id=VALUES(account_id), board_id=VALUES(board_id), board_name=VALUES(board_name), content_type=VALUES(content_type), platform_author_id=VALUES(platform_author_id), root_content_id=VALUES(root_content_id), parent_content_id=VALUES(parent_content_id), platform_parent_id=VALUES(platform_parent_id), content_depth=VALUES(content_depth), is_deleted=VALUES(is_deleted), author_name=VALUES(author_name), title=VALUES(title), body=VALUES(body), media=VALUES(media), published_at=VALUES(published_at), source_url=VALUES(source_url), engagement=VALUES(engagement), fingerprint=VALUES(fingerprint), raw_payload=VALUES(raw_payload), last_seen_at=NOW()', [id, account.game_id, account.source_id, account.id, raw.externalId, raw.boardId || null, raw.boardName || null, contentType, raw.platformAuthorId || null, rootRow?.id || null, parentRow?.id || null, parentExternalId || null, Number(raw.contentDepth || 0), raw.isDeleted ? 1 : 0, raw.authorName || null, raw.title || null, bodyValue, media, raw.publishedAt || null, raw.sourceUrl || '', engagement, raw.fingerprint || null, rawPayload]);
         }
-        if (change !== 'unchanged') storedCount += 1;
-        const row = (await conn.query('SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', [account.source_id, raw.externalId]))[0]?.[0];
+        if (change !== 'unchanged' && !(overseas && raw.recoveryContextAncestor)) storedCount += 1;
+        const row = (await conn.query(raw.boardId ? 'SELECT * FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1' : 'SELECT * FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1', raw.boardId ? [account.source_id, boardKey, raw.externalId] : [account.source_id, raw.externalId]))[0]?.[0];
         if (row) {
           contents[sourceIndex] = { content: row, change };
           if (feed?.feedKey && syncScope === 'posts') {
             await conn.query('INSERT INTO po_content_feed_memberships (id, account_id, content_id, feed_key, page_kind, section_id, feed_metadata) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE page_kind=VALUES(page_kind), section_id=VALUES(section_id), feed_metadata=VALUES(feed_metadata), last_seen_at=NOW()', [uuid(), account.id, row.id, String(feed.feedKey), feed.pageKind || null, feed.sectionId == null ? null : String(feed.sectionId), JSON.stringify(feed)]);
           }
-          if (syncRunId) {
+          if (syncRunId && !(overseas && raw.recoveryContextAncestor)) {
             const associationResult = await conn.query('INSERT IGNORE INTO po_sync_run_contents (run_id, content_id, change_type, sync_scope) VALUES (?,?,?,?)', [syncRunId, row.id, change, syncScope]);
             const association = Array.isArray(associationResult) ? associationResult[0] : associationResult;
             if (association?.affectedRows && syncScope === 'posts') {
@@ -838,12 +1896,12 @@ class Repository {
         }
       }
       if (syncRunId) {
-        const runUpdateResult = await conn.query('UPDATE po_sync_runs SET fetched_count=fetched_count+?, inserted_count=inserted_count+?, changed_count=changed_count+?, unchanged_count=unchanged_count+?, comment_count=comment_count+?, discovered_count=discovered_count+?, stored_count=stored_count+?, lease_until=CASE WHEN lease_owner=? THEN DATE_ADD(NOW(), INTERVAL ? SECOND) ELSE lease_until END, updated_at=NOW() WHERE id=? AND (? IS NULL OR lease_owner=?)', [fetchedCount, insertedCount, changedCount, unchangedCount, commentCount, fetchedCount, insertedCount + changedCount, leaseOwner || null, Number(leaseSeconds), syncRunId, leaseOwner || null, leaseOwner || null]);
+        const runUpdateResult = await conn.query('UPDATE po_sync_runs SET fetched_count=fetched_count+?, inserted_count=inserted_count+?, changed_count=changed_count+?, unchanged_count=unchanged_count+?, comment_count=comment_count+?, discovered_count=discovered_count+?, stored_count=stored_count+?, lease_until=CASE WHEN lease_owner=? THEN DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND) ELSE lease_until END, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND (? IS NULL OR lease_owner=?)', [fetchedCount, insertedCount, changedCount, unchangedCount, commentCount, fetchedCount, insertedCount + changedCount, leaseOwner || null, Number(leaseSeconds), syncRunId, leaseOwner || null, leaseOwner || null]);
         const runUpdate = Array.isArray(runUpdateResult) ? runUpdateResult[0] : runUpdateResult;
         if (!runUpdate?.affectedRows) { const error = new Error('sync run lease lost'); error.code = 'SYNC_RUN_LEASE_LOST'; throw error; }
       }
       if (checkpointId) {
-        const checkpointResult = await conn.query('UPDATE po_sync_checkpoints SET `cursor`=?, status=?, sync_mode=?, items_fetched=items_fetched+?, last_item_at=COALESCE(?,last_item_at), lease_owner=IF(?, lease_owner, NULL), lease_until=IF(?, DATE_ADD(NOW(), INTERVAL ? SECOND), NULL), error_code=NULL, error_message=NULL WHERE id=? AND lease_owner=? AND status=\'running\'', [nextCursor, hasMore ? 'running' : 'completed', syncMode, items.length, lastItemAt, hasMore ? 1 : 0, hasMore ? 1 : 0, Number(leaseSeconds), checkpointId, leaseOwner]);
+        const checkpointResult = await conn.query('UPDATE po_sync_checkpoints SET `cursor`=?, status=?, sync_mode=?, items_fetched=items_fetched+?, last_item_at=COALESCE(?,last_item_at), lease_owner=IF(?, lease_owner, NULL), lease_until=IF(?, DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), NULL), error_code=NULL, error_message=NULL WHERE id=? AND lease_owner=? AND status=\'running\'', [nextCursor, hasMore ? 'running' : 'completed', syncMode, items.length, lastItemAt, hasMore ? 1 : 0, hasMore ? 1 : 0, Number(leaseSeconds), checkpointId, leaseOwner]);
         const checkpointUpdate = Array.isArray(checkpointResult) ? checkpointResult[0] : checkpointResult;
         if (!checkpointUpdate?.affectedRows) { const error = new Error('sync checkpoint lease lost'); error.code = 'CHECKPOINT_LEASE_LOST'; throw error; }
       }
@@ -851,10 +1909,15 @@ class Repository {
     } catch (error) { if (transactionStarted) await conn.rollback(); throw error; } finally { conn.release(); }
     return { contents, storedCount };
   }
-  async listContentTree({ accountId, regionCode, gameId, communityId, sourceId, platform, rootContentId, contentType, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20 } = {}) {
+  async listContentTree({ accountId, regionCode, gameId, communityId, sourceId, platform, rootContentId, contentType, bigPlayerContentKind, riskMode, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, handlingStatus, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20 } = {}) {
+    ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));
     const values = []; const clauses = [];
+    this.addRiskModeFilter(clauses, values, riskMode, 'an');
+    ContentHandling.addHandlingStatusFilter(clauses, handlingStatus, 'an');
+    const kindPredicate = bigPlayerContentKindPredicate(bigPlayerContentKind);
+    if (kindPredicate) clauses.push(kindPredicate);
     const lightVersion = process.env.AI_ANALYSIS_LIGHT_VERSION || process.env.AI_ANALYSIS_VERSION || 'sentiment-v1';
-    for (const [value, sql] of [[accountId, 'c.account_id'], [gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id'], [contentType, 'c.content_type'], [severity, 'an.severity'], [analysisLevel, 'an.analysis_level'], [postId, 'c.external_id']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
+    for (const [value, sql] of [[accountId, 'c.account_id'], [gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id'], [contentType, 'c.content_type'], [riskMode ? null : severity, 'an.severity'], [analysisLevel, 'an.analysis_level'], [postId, 'c.external_id']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
     if (platform) { values.push(platform); clauses.push('s.platform=?'); }
     if (publishedFrom) { values.push(publishedFrom); clauses.push('c.published_at>=?'); }
@@ -869,11 +1932,20 @@ class Repository {
     const orderBy = contentType
       ? 'c.published_at IS NULL, c.published_at DESC, c.id DESC'
       : 'COALESCE(c.root_content_id,c.id), c.content_depth, c.published_at IS NULL, c.published_at DESC';
-    return this.query(`SELECT c.*, a.account_name, s.platform, s.display_name AS source_name,
+    const translationVersion = process.env.AI_TRANSLATION_VERSION || 'translation-v1';
+    return this.query(`SELECT c.*, a.account_name, s.platform, s.display_name AS source_name, g.region_code,
       an.sentiment, an.negative_score, an.confidence, an.quality_score, an.recommend_home, an.recommend_pin, an.recommend_feature, an.quality_reason, an.severity, an.topics, an.matched_keywords, an.summary,
-      an.model_name, an.analysis_level, an.analysis_version, an.trigger_reason, an.analysis_reason, an.analyzed_at,
+      an.model_name, an.analysis_level, an.analysis_version, an.trigger_reason, ${analysisReasonSql('an')}, ${sentimentScoreSql('an')}, an.analyzed_at,
       COALESCE(j.status,CASE WHEN an.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status,
       j.error_code AS analysis_error_code, j.error_message AS analysis_error_message,
+      CASE WHEN g.region_code='overseas' THEN COALESCE(tj.status,CASE WHEN tr.content_id IS NOT NULL AND tr.content_fingerprint=c.fingerprint THEN 'completed' ELSE 'not_requested' END) ELSE 'not_requested' END AS translation_status,
+      CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.target_language ELSE NULL END AS translation_target_language,
+      CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.source_language ELSE NULL END AS translation_source_language,
+      CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.translated_title ELSE NULL END AS translated_title,
+      CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.translated_body ELSE NULL END AS translated_body,
+      CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.translation_version ELSE NULL END AS translation_version,
+      CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.translated_at ELSE NULL END AS translated_at,
+      CASE WHEN g.region_code='overseas' THEN tj.error_code ELSE NULL END AS translation_error_code,
       CASE WHEN c.content_type='post' THEN (SELECT COUNT(*) FROM po_contents tc WHERE tc.root_content_id=c.id AND tc.content_type='comment' AND tc.content_depth=1 AND tc.is_deleted=0) ELSE 0 END AS top_level_comment_count,
       CASE WHEN c.content_type='post' THEN (SELECT COUNT(*) FROM po_contents rc WHERE rc.root_content_id=c.id AND rc.content_type='comment' AND rc.content_depth>1 AND rc.is_deleted=0) ELSE 0 END AS reply_count,
       ${totalCommentCountSql('c', 'ac')} AS comment_count,
@@ -881,16 +1953,37 @@ class Repository {
       FROM po_contents c LEFT JOIN po_accounts a ON a.id=c.account_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id
       LEFT JOIN po_analyses an ON an.content_id=c.id
       LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile=COALESCE(an.analysis_level,'light') AND j.analysis_version=COALESCE(an.analysis_version,?)
+      LEFT JOIN po_content_translations tr ON tr.content_id=c.id AND tr.target_language='zh-CN' AND tr.translation_version=? AND tr.content_fingerprint=c.fingerprint
+      LEFT JOIN po_translation_jobs tj ON tj.content_id=c.id AND tj.target_language='zh-CN' AND tj.translation_version=? AND tj.content_fingerprint=c.fingerprint
       ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-      ORDER BY ${orderBy} LIMIT ? OFFSET ?`, [lightVersion, ...values, limit, offset]);
+      ORDER BY ${orderBy} LIMIT ? OFFSET ?`, [lightVersion, translationVersion, translationVersion, ...values, limit, offset]).then(rows => rows.map(row => ({ ...row, display_type: contentDisplayType(row) })));
   }
   async getContentTree(rootContentId, options = {}) { return this.listContentTree({ ...options, rootContentId, page: 1, pageSize: options.pageSize || 1000 }); }
 
 
-  // 到期采集源：启用 + 距上次成功已过 frequency + 处于生效时段（active_window 在应用层判定）
+  // 到期采集源：启用 + 距最近成功或实际尝试已过 frequency + 处于生效时段（active_window 在应用层判定）。
+  // queued/running 任务由 runnable 队列负责，不能同时作为周期任务再次入队。
+  // 每日定时源（frequency_seconds=86400 且 config.scheduleTime='HH:mm' 北京时间）：到期判定用"上次成功 < 今日北京时间 scheduleTime <= 现在"。
   async listDueSources(now = new Date()) {
-    const rows = await this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND (s.last_success_at IS NULL OR s.last_success_at <= (NOW() - INTERVAL s.frequency_seconds SECOND)) ORDER BY s.last_success_at IS NOT NULL, s.last_success_at ASC`);
-    return rows.filter(row => isWithinActiveWindow(row.active_window, now));
+    const lastRunAt = 'COALESCE(GREATEST(s.last_success_at,run_state.last_attempt_at),s.last_success_at,run_state.last_attempt_at)';
+    const rows = await this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status, run_state.last_attempt_at FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id LEFT JOIN (SELECT a.source_id, MAX(CASE WHEN r.started_at IS NOT NULL THEN COALESCE(r.finished_at,r.started_at) ELSE NULL END) AS last_attempt_at, MAX(CASE WHEN r.status IN ('queued','running') THEN 1 ELSE 0 END) AS has_active_run FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id GROUP BY a.source_id) run_state ON run_state.source_id=s.id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} AND COALESCE(run_state.has_active_run,0)=0 AND (${lastRunAt} IS NULL OR ${lastRunAt} <= (UTC_TIMESTAMP(3) - INTERVAL s.frequency_seconds SECOND)) ORDER BY ${lastRunAt} IS NOT NULL, ${lastRunAt} ASC`);
+    return rows.filter(row => isWithinActiveWindow(row.active_window, now)).filter(row => this.isDailyScheduleDue(row, now));
+  }
+
+  // 每日定时判定：非每日源直接放行；每日源要求北京时间今日 scheduleTime 已到，且上次成功早于该时刻（未在今日该时刻后跑过）。
+  isDailyScheduleDue(source, now = new Date()) {
+    if (Number(source.frequency_seconds) !== 86400) return true;
+    const scheduleTime = parseConfig(source.config).scheduleTime;
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(scheduleTime || '').trim());
+    if (!match) return true; // 未配置时刻的每日源沿用 last_success_at+86400 语义
+    const [, hh, mm] = match;
+    const beijingNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const beijingToday = Date.UTC(beijingNow.getUTCFullYear(), beijingNow.getUTCMonth(), beijingNow.getUTCDate());
+    const todayScheduleUtc = beijingToday + (Number(hh) * 60 + Number(mm)) * 60 * 1000 - 8 * 60 * 60 * 1000;
+    if (now.getTime() < todayScheduleUtc) return false; // 今日时刻未到
+    const last = comparableDate(source.last_success_at);
+    if (last == null) return true; // 从未成功过，到点即抓
+    return last < todayScheduleUtc; // 今日该时刻之后已成功过则不再触发
   }
 
   // 凭据引用（只返回 secret_ref 键名与状态，绝不含明文）
@@ -923,21 +2016,31 @@ class Repository {
   async countWindowHits({ gameId, communityId, groupName, windowSeconds }) {
     const scope = communityId ? ' AND c.community_id=?' : '';
     const params = communityId ? [gameId, communityId, Number(windowSeconds), groupName] : [gameId, Number(windowSeconds), groupName];
-    const rows = await this.query(`SELECT COUNT(DISTINCT c.id) AS hits FROM po_contents c JOIN po_analyses a ON a.content_id=c.id WHERE c.game_id=?${scope} AND c.collected_at >= (NOW() - INTERVAL ? SECOND) AND JSON_CONTAINS(a.matched_keywords, JSON_QUOTE(?))`, params);
+    const rows = await this.query(`SELECT COUNT(DISTINCT c.id) AS hits FROM po_contents c JOIN po_analyses a ON a.content_id=c.id WHERE c.game_id=?${scope} AND c.collected_at >= (NOW() - INTERVAL ? SECOND) AND a.sentiment<>'positive' AND JSON_CONTAINS(a.matched_keywords, JSON_QUOTE(?))`, params);
     return Number(rows[0]?.hits || 0);
   }
 
   // 查找同游戏 + 同类型未闭环告警（去重防轰炸；cooldownSeconds 内的最近一条）
-  async findOpenAlert({ gameId, communityId, alertType, cooldownSeconds }) {
+  async findOpenAlert({ gameId, communityId, alertType, cooldownSeconds, contentId }) {
     const scope = communityId ? ' AND community_id=?' : '';
     const params = communityId ? [gameId, communityId, alertType, Number(cooldownSeconds || 0)] : [gameId, alertType, Number(cooldownSeconds || 0)];
-    const rows = await this.query(`SELECT * FROM po_alerts WHERE game_id=?${scope} AND alert_type=? AND status NOT IN ('resolved','false_positive') AND created_at >= (NOW() - INTERVAL ? SECOND) ORDER BY created_at DESC LIMIT 1`, params);
+    // 单条内容告警仅复用同一内容，历史混合告警不作为复用目标。
+    const contentScope = contentId ? ' AND EXISTS (SELECT 1 FROM po_alert_contents own WHERE own.alert_id=po_alerts.id AND own.content_id=?) AND NOT EXISTS (SELECT 1 FROM po_alert_contents other WHERE other.alert_id=po_alerts.id AND other.content_id<>?)' : '';
+    if (contentId) params.push(contentId, contentId);
+    const rows = await this.query(`SELECT * FROM po_alerts WHERE game_id=?${scope} AND alert_type=? AND status NOT IN ('resolved','false_positive') AND created_at >= (NOW() - INTERVAL ? SECOND)${contentScope} ORDER BY created_at DESC LIMIT 1`, params);
     return rows[0] || null;
   }
 
   // 创建告警 + 关联内容（单事务：告警主体 + 命中内容多对多）
   async insertAlert({ gameId, communityId, severity, alertType, title, triggerDetail, contentIds = [] }) {
-    const id = uuid(); const conn = await this.pool.getConnection();
+    const id = uuid();
+    if (typeof this.pool.getConnection !== 'function') {
+      if (communityId) await this.query('INSERT INTO po_alerts (id, game_id, community_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?,?)', [id, gameId, communityId, severity, alertType, title, triggerDetail]);
+      else await this.query('INSERT INTO po_alerts (id, game_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?)', [id, gameId, severity, alertType, title, triggerDetail]);
+      for (const contentId of [...new Set(contentIds.filter(Boolean))]) await this.query('INSERT IGNORE INTO po_alert_contents (alert_id, content_id) VALUES (?,?)', [id, contentId]);
+      return (await this.query('SELECT * FROM po_alerts WHERE id=?', [id]))[0];
+    }
+    const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
       if (communityId) await conn.query('INSERT INTO po_alerts (id, game_id, community_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?,?)', [id, gameId, communityId, severity, alertType, title, triggerDetail]);
@@ -957,65 +2060,288 @@ class Repository {
   // 手动采集入队（A5）：打「立即到期」标记 collect_requested_at=NOW()。
   // 不做同步阻塞采集；Worker 下个 tick 经 listManualDueSources 捞起并清标记。
   // 授权闸门在 Worker runSource 内仍生效（fail-closed，未授权不采集）。
-  async requestCollect(sourceId) { await this.query('UPDATE po_sources SET collect_requested_at=NOW() WHERE id=?', [sourceId]); }
-
-  // 用户主动开始同步：启用源、保存同步模式、写入手动队列必须原子完成，避免出现“已启用但未入队”。
-  async startSourceSync({ sourceId, accountId, metadata = {}, syncMode = 'incremental' } = {}) {
+  async requestCollect(sourceId) {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [sourceRows] = await conn.query(`SELECT s.id, s.enabled, c.status AS community_status, g.enabled AS game_enabled FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
-      const source = sourceRows[0];
-      if (!source) { const error = new Error('source not found'); error.code = 'SOURCE_NOT_FOUND'; throw error; }
-      if (source.community_status && source.community_status !== 'enabled') { const error = new Error('community is disabled'); error.code = 'COMMUNITY_DISABLED'; throw error; }
-      if (!source.game_enabled) { const error = new Error('game is disabled'); error.code = 'GAME_DISABLED'; throw error; }
-      const [accountRows] = await conn.query('SELECT id FROM po_accounts WHERE id=? AND source_id=? AND enabled=1 FOR UPDATE', [accountId, sourceId]);
-      if (!accountRows[0]) { const error = new Error('enabled default account is required'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
-      await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata || {}), accountId]);
-      await conn.query('UPDATE po_sources SET enabled=1, collect_requested_at=NOW(), updated_at=NOW() WHERE id=?', [sourceId]);
-      const [activeRuns] = await conn.query("SELECT * FROM po_sync_runs WHERE account_id=? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [accountId]);
-      let run = activeRuns[0];
-      const reused = Boolean(run);
-      if (!run) {
-        const runId = uuid();
-        await conn.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?, 'queued', ?, NULL)", [runId, accountId, syncMode]);
-        [run] = (await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [runId]))[0];
+      const [rows] = await conn.query(`SELECT s.id, s.platform, s.config, selected_account.metadata AS account_metadata
+        FROM po_sources s LEFT JOIN po_accounts selected_account ON selected_account.id=(
+          SELECT a.id FROM po_accounts a
+          WHERE a.source_id=s.id AND a.game_id=s.game_id AND a.platform=s.platform AND a.enabled=1
+          ORDER BY a.updated_at DESC, a.id ASC LIMIT 1
+        )
+        WHERE s.id=? FOR UPDATE`, [sourceId]);
+      const source = rows[0];
+      if (source?.platform === 'bigplayer_h5' && hasLegacyBigPlayerBackfill(source.config, source.account_metadata)) {
+        throw repositoryError('INVALID_INPUT', 'BigPlayer backfill requires a fixed source-level publishedFrom and publishedTo window');
+      }
+      let result = null;
+      if (source) {
+        const [updated] = await conn.query('UPDATE po_sources SET collect_requested_at=UTC_TIMESTAMP(3) WHERE id=?', [sourceId]);
+        result = updated;
       }
       await conn.commit();
-      return { enabled: true, previouslyEnabled: Boolean(source.enabled), reused, run };
+      return result;
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   }
 
-  // 授权范围全量回溯：重置全部断点并创建独立的新运行，旧运行保留审计记录。
-  async resetSourceSync({ sourceId, accountId, metadata = {}, syncMode = 'backfill' } = {}) {
+  async assertUnifiedSchedulerSchemaReady(conn) {
+    try {
+      const [rows] = await conn.query(`SELECT
+        EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_schema_migrations') AS migration_table_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND column_name='default_account_id' AND column_type='char(36)' AND is_nullable='YES') AS default_account_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND ((column_name='schedule_version' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO') OR (column_name='schedule_effective_at' AND column_type='datetime(3)' AND is_nullable='YES')))=2 AS source_schedule_columns_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_checkpoints' AND ((column_name='window_start' AND column_type='varchar(32)' AND is_nullable='NO') OR (column_name='window_end' AND column_type='varchar(32)' AND is_nullable='NO')))=2 AS checkpoint_window_columns_ready,
+        EXISTS(SELECT 1 FROM (SELECT index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='po_sync_checkpoints' AND index_name='po_sync_checkpoints_window_uk' GROUP BY index_name, non_unique) idx WHERE idx.non_unique=0 AND idx.columns_list='account_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end') AS checkpoint_legacy_window_index_ready,
+        EXISTS(SELECT 1 FROM (SELECT index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='po_sync_checkpoints' AND index_name='po_sync_checkpoints_site_window_uk' GROUP BY index_name, non_unique) idx WHERE idx.non_unique=0 AND idx.columns_list='account_id,site_id,task_kind,task_key,sync_scope,root_platform_content_id,window_start,window_end') AS checkpoint_site_window_index_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='source_id' AND column_type='char(36)' AND is_nullable='NO') AS run_source_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='trigger_type' AND column_type='varchar(32)' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='legacy') AS run_trigger_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='scheduled_at' AND column_type='datetime(3)' AND is_nullable='YES') AS run_schedule_column_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND ((column_name='window_start' AND column_type='datetime(3)' AND is_nullable='YES') OR (column_name='window_end' AND column_type='datetime(3)' AND is_nullable='YES')))=2 AS run_window_columns_ready,
+        EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name='lease_epoch' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='0') AS run_lease_epoch_ready,
+        EXISTS(SELECT 1 FROM (SELECT index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND index_name='po_sync_runs_source_schedule_uk' GROUP BY index_name, non_unique) idx WHERE idx.non_unique=0 AND idx.columns_list='source_id,scheduled_at') AS run_slot_ready,
+        EXISTS(SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='po_sync_runs' AND constraint_name='po_sync_runs_trigger_slot_chk' AND constraint_type='CHECK') AS run_trigger_constraint_ready,
+        EXISTS(SELECT 1 FROM information_schema.key_column_usage k JOIN information_schema.referential_constraints r ON r.constraint_schema=k.constraint_schema AND r.table_name=k.table_name AND r.constraint_name=k.constraint_name WHERE k.constraint_schema=DATABASE() AND k.table_name='po_sync_runs' AND k.constraint_name='po_sync_runs_source_fk' AND k.column_name='source_id' AND k.referenced_table_name='po_sources' AND k.referenced_column_name='id' AND r.delete_rule='RESTRICT') AS run_source_fk_ready,
+        EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state') AS schedule_state_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state' AND ((column_name='source_id' AND column_type='char(36)' AND is_nullable='NO') OR (column_name='schedule_version' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO') OR (column_name='effective_at' AND column_type='datetime(3)' AND is_nullable='NO') OR (column_name='lease_run_id' AND column_type='char(36)' AND is_nullable='YES') OR (column_name='lease_owner' AND column_type='varchar(160)' AND is_nullable='YES') OR (column_name='lease_epoch' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO') OR (column_name='lease_until' AND column_type='datetime(3)' AND is_nullable='YES')))=7 AS schedule_state_columns_ready,
+        EXISTS(SELECT 1 FROM information_schema.key_column_usage k JOIN information_schema.referential_constraints r ON r.constraint_schema=k.constraint_schema AND r.table_name=k.table_name AND r.constraint_name=k.constraint_name WHERE k.constraint_schema=DATABASE() AND k.table_name='po_source_schedule_state' AND k.constraint_name='po_source_schedule_state_source_fk' AND k.column_name='source_id' AND k.referenced_table_name='po_sources' AND k.referenced_column_name='id' AND r.delete_rule='CASCADE') AS schedule_state_fk_ready,
+        EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_worker_leases') AS worker_lease_table_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_worker_leases' AND ((column_name='lease_key' AND column_type='varchar(80)' AND is_nullable='NO') OR (column_name='owner_id' AND column_type='varchar(160)' AND is_nullable='YES') OR (column_name='epoch' AND column_type LIKE 'bigint%unsigned' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='0') OR (column_name='lease_until' AND column_type='datetime(3)' AND is_nullable='YES')))=4 AS worker_lease_columns_ready,
+        EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_worker_heartbeats') AS worker_heartbeat_table_ready,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_worker_heartbeats' AND ((column_name='worker_id' AND column_type='varchar(160)' AND is_nullable='NO') OR (column_name='build_sha' AND column_type='varchar(80)' AND is_nullable='YES') OR (column_name='mode' AND column_type='varchar(30)' AND is_nullable='NO' AND TRIM(BOTH CHAR(39) FROM COALESCE(column_default,''))='enabled') OR (column_name='last_seen_at' AND column_type='datetime(3)' AND is_nullable='NO') OR (column_name='scan_started_at' AND column_type='datetime(3)' AND is_nullable='YES') OR (column_name='scan_finished_at' AND column_type='datetime(3)' AND is_nullable='YES') OR (column_name='scan_status' AND column_type='varchar(30)' AND is_nullable='YES') OR (column_name='scan_error' AND column_type='varchar(500)' AND is_nullable='YES') OR (column_name='current_scan' AND column_type='varchar(255)' AND is_nullable='YES')))=9 AS worker_heartbeat_columns_ready`);
+      const readiness = rows[0] || {};
+      const { migration_table_ready: migrationTableReady, checkpoint_legacy_window_index_ready: legacyCheckpointIndexReady, checkpoint_site_window_index_ready: siteCheckpointIndexReady, ...baseReadiness } = readiness;
+      if (Number(migrationTableReady) !== 1) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'unified scheduler schema is not ready');
+      const [migrationRows] = await conn.query('SELECT version FROM po_schema_migrations WHERE version IN (?,?,?,?,?,?)', ['023_unified_source_scheduling.sql', '025_worker_scan_leases.sql', '026_scheduler_runtime_schema_reconciliation.sql', '027_bigplayer_multisite.sql', '028_bigplayer_scheduled_site_runs.sql', '029_bigplayer_site_run_evidence.sql']);
+      const appliedMigrations = new Set(migrationRows.map(row => row.version));
+      const multiSiteSchemaApplied = appliedMigrations.has('027_bigplayer_multisite.sql');
+      const checkpointIndexReady = multiSiteSchemaApplied ? siteCheckpointIndexReady : legacyCheckpointIndexReady;
+      if (Object.values({ ...baseReadiness, checkpointIndexReady }).some(value => Number(value) !== 1)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'unified scheduler schema is not ready');
+      const [createRows] = await conn.query('SHOW CREATE TABLE po_sync_runs');
+      const actualCheck = normalizedCheckDefinition(extractNamedCheck(createRows?.[0]?.['Create Table'], 'po_sync_runs_trigger_slot_chk'));
+      const expectedChecks = [
+        "(trigger_type IN ('legacy','manual') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)",
+        "trigger_type IN ('legacy','manual') AND scheduled_at IS NULL OR trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL",
+        "(trigger_type IN ('legacy','manual','scheduled_site') AND scheduled_at IS NULL) OR (trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL)",
+        "trigger_type IN ('legacy','manual','scheduled_site') AND scheduled_at IS NULL OR trigger_type IN ('scheduled','scheduled_catchup') AND scheduled_at IS NOT NULL"
+      ].map(normalizedCheckDefinition);
+      if (!expectedChecks.includes(actualCheck)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'sync run trigger constraint is not ready');
+      const requiredMigrations = new Set([
+        '023_unified_source_scheduling.sql',
+        '025_worker_scan_leases.sql',
+        '026_scheduler_runtime_schema_reconciliation.sql'
+      ]);
+      if (multiSiteSchemaApplied) requiredMigrations.add('028_bigplayer_scheduled_site_runs.sql');
+      if (multiSiteSchemaApplied) requiredMigrations.add('029_bigplayer_site_run_evidence.sql');
+      for (const row of appliedMigrations) requiredMigrations.delete(row);
+      if (requiredMigrations.size) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'required scheduler migrations are not applied');
+      if (!await bigPlayerBoardSchemaReady(conn)) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'BigPlayer board schema migration 030 is not ready');
+    } catch (error) {
+      if (error.code === 'UNIFIED_SCHEDULER_SCHEMA_NOT_READY') throw error;
+      const wrapped = repositoryError('UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED', 'failed to verify unified scheduler schema');
+      wrapped.cause = error;
+      throw wrapped;
+    }
+  }
+
+  async enqueueManualSourceSync({ sourceId, metadata = {}, syncMode = 'incremental', reset = false, windowStart = null, windowEnd = null, lookbackDays = null } = {}) {
+    if (!sourceId) throw repositoryError('INVALID_INPUT', 'sourceId is required');
+    const databaseAnchoredWindow = lookbackDays != null;
+    if (databaseAnchoredWindow && (Number(lookbackDays) !== 7 || windowStart != null || windowEnd != null || syncMode !== 'backfill' || reset)) {
+      throw repositoryError('INVALID_INPUT', 'database-anchored BigPlayer backfill requires lookbackDays=7 only');
+    }
+    let boundedWindow = normalizeBoundedBackfillWindow(windowStart, windowEnd);
+    if (boundedWindow && syncMode !== 'backfill') throw repositoryError('INVALID_INPUT', 'bounded window requires backfill mode');
+    if (boundedWindow && reset) throw repositoryError('INVALID_INPUT', 'bounded backfill must not reset checkpoints');
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [sourceRows] = await conn.query(`SELECT s.id, s.enabled, c.status AS community_status, g.enabled AS game_enabled FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
+      await this.assertUnifiedSchedulerSchemaReady(conn);
+      const [sourceRows] = await conn.query(`SELECT s.id, s.game_id, s.community_id, s.platform, s.enabled, s.auth_status, s.auth_expire_at, s.config,
+        s.default_account_id, g.enabled AS game_enabled, c.status AS community_status,
+        (s.auth_expire_at IS NOT NULL AND s.auth_expire_at<=UTC_TIMESTAMP(3)) AS source_auth_expired,
+        UTC_TIMESTAMP(3) AS admission_anchor
+        FROM po_sources s LEFT JOIN po_games g ON g.id=s.game_id LEFT JOIN po_communities c ON c.id=s.community_id
+        WHERE s.id=? AND ${NOT_DELETED} FOR UPDATE`, [sourceId]);
       const source = sourceRows[0];
-      if (!source) { const error = new Error('source not found'); error.code = 'SOURCE_NOT_FOUND'; throw error; }
-      if (source.community_status && source.community_status !== 'enabled') { const error = new Error('community is disabled'); error.code = 'COMMUNITY_DISABLED'; throw error; }
-      if (!source.game_enabled) { const error = new Error('game is disabled'); error.code = 'GAME_DISABLED'; throw error; }
-      const [accountRows] = await conn.query('SELECT id FROM po_accounts WHERE id=? AND source_id=? AND enabled=1 FOR UPDATE', [accountId, sourceId]);
-      if (!accountRows[0]) { const error = new Error('enabled default account is required'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
-      await conn.query("UPDATE po_sync_checkpoints SET status='idle', `cursor`=NULL, items_fetched=0, last_item_at=NULL, error_code=NULL, error_message=NULL, lease_owner=NULL, lease_until=NULL WHERE account_id=?", [accountId]);
-      await conn.query("UPDATE po_sync_runs SET status='cancelled', finished_at=NOW(), error_code='RESET_BY_USER', error_message='run superseded by authorized-scope reset', lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE account_id=? AND status IN ('queued','running')", [accountId]);
-      await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata || {}), accountId]);
-      await conn.query('UPDATE po_sources SET enabled=1, collect_requested_at=NOW(), updated_at=NOW() WHERE id=?', [sourceId]);
+      if (!source) throw repositoryError('SOURCE_NOT_FOUND', 'source not found');
+      // A multi-site BigPlayer run is a parent-only envelope.  The actual work is
+      // represented by child runs, each bound to one persisted site registry row.
+      // Do not derive child identities from the request body: configuration saves
+      // and migration 027 are the authority for the enabled set.
+      let multiSites = [];
+      if (source.platform === 'bigplayer_h5') {
+        if (!boardIdOf(source)) throw repositoryError('BOARD_ID_REQUIRED', 'BigPlayer source boardId is required');
+        const rawConfig = parseConfig(source.config);
+        if (Array.isArray(rawConfig.siteUrls) && rawConfig.siteUrls.length > 1) {
+          const configured = normalizeSiteUrls(rawConfig);
+          let siteRows;
+          try {
+            [siteRows] = await conn.query('SELECT site_id, url, enabled FROM po_source_sites WHERE source_id=? AND enabled=1 ORDER BY site_id FOR UPDATE', [source.id]);
+          } catch (error) {
+            if (error?.code === 'ER_NO_SUCH_TABLE') throw repositoryError('MULTISITE_SCHEMA_NOT_READY', 'BigPlayer multi-site schema migration is not applied');
+            throw error;
+          }
+          const byId = new Map((siteRows || []).map(site => [String(site.site_id), site]));
+          multiSites = configured.siteUrls.filter(site => site.enabled !== false).map(site => {
+            const persisted = byId.get(String(site.siteId));
+            if (!persisted || String(persisted.url) !== site.url) throw repositoryError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer site registry does not match saved configuration');
+            return { siteId: String(site.siteId), url: site.url };
+          });
+          if (!multiSites.length) throw repositoryError('MULTISITE_SITE_REGISTRY_MISMATCH', 'BigPlayer has no enabled persisted sites');
+        }
+      }
+      if (databaseAnchoredWindow) {
+        if (source.platform !== 'bigplayer_h5') throw repositoryError('INVALID_INPUT', 'lookbackDays is only supported for BigPlayer backfill');
+        boundedWindow = boundedBackfillWindowFromAnchor(source.admission_anchor, lookbackDays);
+      }
+      if (source.platform === 'bigplayer_h5' && syncMode === 'backfill' && !boundedWindow) throw repositoryError('INVALID_INPUT', 'BigPlayer backfill requires a bounded UTC window');
+      if (source.platform === 'bigplayer_h5' && boundedWindow) assertRecentBoundedBackfillWindow(boundedWindow, source.admission_anchor);
+      if (!source.enabled) throw repositoryError('SOURCE_DISABLED', 'source is disabled');
+      if (!source.game_enabled) throw repositoryError('GAME_DISABLED', 'game is disabled');
+      if (source.community_status !== 'enabled') throw repositoryError('COMMUNITY_DISABLED', 'community is disabled');
+      if (source.auth_status !== 'authorized') throw repositoryError('SOURCE_UNAUTHORIZED', 'source is not authorized');
+      if (Number(source.source_auth_expired)) throw repositoryError('SOURCE_AUTH_EXPIRED', 'source authorization is expired');
+      if (!source.default_account_id) throw repositoryError('ACCOUNT_NOT_FOUND', 'default account is not configured');
+
+      const [accountRows] = await conn.query(`SELECT a.*,
+        (a.auth_expire_at IS NOT NULL AND a.auth_expire_at<=UTC_TIMESTAMP(3)) AS account_auth_expired
+        FROM po_accounts a WHERE a.id=? FOR UPDATE`, [source.default_account_id]);
+      const account = accountRows[0];
+      if (!account) throw repositoryError('ACCOUNT_NOT_FOUND', 'default account not found');
+      if (String(account.source_id) !== String(source.id) || String(account.game_id) !== String(source.game_id)
+        || String(account.platform) !== String(source.platform) || String(account.community_id || '') !== String(source.community_id || '')) {
+        throw repositoryError('OWNERSHIP_MISMATCH', 'default account does not belong to source scope');
+      }
+      if (!account.enabled) throw repositoryError('ACCOUNT_DISABLED', 'default account is disabled');
+      if (account.auth_status !== 'authorized') throw repositoryError('ACCOUNT_UNAUTHORIZED', 'default account is not authorized');
+      if (Number(account.account_auth_expired)) throw repositoryError('ACCOUNT_AUTH_EXPIRED', 'default account authorization is expired');
+
+      const siteWindows = new Map();
+      if (source.platform === 'bigplayer_h5' && !boundedWindow && syncMode === 'incremental') {
+        if (multiSites.length) {
+          const placeholders = multiSites.map(() => '?').join(',');
+          const [cursorRows] = await conn.query(`SELECT site_id,MAX(last_item_at) AS last_successful_cursor
+            FROM po_sync_checkpoints WHERE account_id=? AND site_id IN (${placeholders})
+              AND status='completed' AND last_item_at IS NOT NULL AND task_key LIKE ? GROUP BY site_id`, [account.id, ...multiSites.map(site => site.siteId), `board:${boardIdOf(source)}:%`]);
+          const cursorBySite = new Map((cursorRows || []).map(row => [String(row.site_id), row.last_successful_cursor]));
+          for (const site of multiSites) siteWindows.set(site.siteId, effectiveBigPlayerWindow(source.admission_anchor, cursorBySite.get(site.siteId) || null));
+          boundedWindow = effectiveBigPlayerWindow(source.admission_anchor, null);
+        } else {
+          const [cursorRows] = await conn.query("SELECT MAX(last_item_at) AS last_successful_cursor FROM po_sync_checkpoints WHERE account_id=? AND site_id IS NULL AND status='completed' AND last_item_at IS NOT NULL AND task_key LIKE ?", [account.id, `board:${boardIdOf(source)}:%`]);
+          boundedWindow = effectiveBigPlayerWindow(source.admission_anchor, cursorRows[0]?.last_successful_cursor || null);
+        }
+      }
+
+      if (source.platform === 'bigplayer_h5') {
+        const [credentialRows] = await conn.query(`SELECT id, status, expire_at,
+          (expire_at IS NOT NULL AND expire_at<=UTC_TIMESTAMP(3)) AS credential_expired,
+          (secret_cipher IS NOT NULL AND OCTET_LENGTH(secret_cipher)>0) AS has_secret_cipher
+          FROM po_credentials WHERE source_id=? AND account_id=? AND credential_type='api_token'
+          ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id]);
+        const credential = credentialRows[0];
+        if (!credential) throw repositoryError('CREDENTIAL_NOT_FOUND', 'active api_token credential not found');
+        if (credential.status !== 'active') throw repositoryError('CREDENTIAL_INACTIVE', 'api_token credential is inactive');
+        if (Number(credential.credential_expired)) throw repositoryError('CREDENTIAL_EXPIRED', 'api_token credential is expired');
+        if (!Number(credential.has_secret_cipher)) throw repositoryError('CREDENTIAL_SECRET_MISSING', 'api_token credential secret is missing');
+      }
+
+      const [scheduleRows] = await conn.query('SELECT source_id, lease_owner, lease_until, (lease_until IS NOT NULL AND lease_until>UTC_TIMESTAMP(3)) AS lease_active FROM po_source_schedule_state WHERE source_id=? FOR UPDATE', [source.id]);
+      const scheduleState = scheduleRows[0];
+      if (!scheduleState) throw repositoryError('UNIFIED_SCHEDULER_SCHEMA_NOT_READY', 'source scheduler state is missing');
+      const [controlledRuns] = await conn.query("SELECT id FROM po_sync_runs WHERE source_id=? AND account_id=? AND parent_run_id IS NULL AND status IN ('pausing','paused','cancelling') ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [source.id, account.id]);
+      if (controlledRuns[0]) throw repositoryError('PREVIOUS_RUN_ACTIVE', 'a paused or cancelling sync run already owns this source');
+      if (!reset) {
+        const windowPredicate = databaseAnchoredWindow ? 'window_start IS NOT NULL AND window_end IS NOT NULL AND TIMESTAMPDIFF(MICROSECOND,window_start,window_end)=?' : boundedWindow ? 'window_start=? AND window_end=?' : 'window_start IS NULL AND window_end IS NULL';
+        const windowParams = databaseAnchoredWindow ? [MAX_BOUNDED_BACKFILL_MS * 1000] : boundedWindow ? [boundedWindow.windowStart, boundedWindow.windowEnd] : [];
+        const parentClause = multiSites.length ? ' AND parent_run_id IS NULL' : '';
+        const [manualRows] = await conn.query(`SELECT * FROM po_sync_runs WHERE source_id=? AND account_id=? AND trigger_type='manual'${parentClause} AND sync_mode=? AND ${windowPredicate} AND status IN ('queued','running','pausing','paused','cancelling') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id, syncMode, ...windowParams]);
+        if (manualRows[0]) {
+          const persistedWindow = boundedBackfillWindowResponse(manualRows[0], boundedWindow);
+          const persistedDuration = persistedWindow ? Date.parse(persistedWindow.publishedTo) - Date.parse(persistedWindow.publishedFrom) : NaN;
+          if (!databaseAnchoredWindow || persistedDuration === MAX_BOUNDED_BACKFILL_MS) {
+            await conn.commit();
+            return { enabled: true, previouslyEnabled: true, reset: false, reused: true, run: manualRows[0], window: persistedWindow };
+          }
+        }
+      }
+      const activeWindowPredicate = boundedWindow ? 'window_start=? AND window_end=?' : 'window_start IS NULL AND window_end IS NULL';
+      const activeWindowParams = boundedWindow ? [boundedWindow.windowStart, boundedWindow.windowEnd] : [];
+      const parentClause = multiSites.length ? ' AND parent_run_id IS NULL' : '';
+      const [activeRuns] = await conn.query(`SELECT id FROM po_sync_runs WHERE source_id=? AND account_id=?${parentClause} AND ${activeWindowPredicate} AND status IN ('queued','running','pausing','paused','cancelling') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [source.id, account.id, ...activeWindowParams]);
+      if (activeRuns[0]) throw repositoryError('PREVIOUS_RUN_ACTIVE', 'another sync run is active');
+      const [activeCheckpoints] = await conn.query(`SELECT cp.id FROM po_sync_checkpoints cp WHERE cp.account_id=? AND cp.window_start ${boundedWindow ? '=?' : 'IS NULL'} AND cp.window_end ${boundedWindow ? '=?' : 'IS NULL'} AND cp.status='running' AND (cp.lease_until IS NULL OR cp.lease_until>UTC_TIMESTAMP(3)) LIMIT 1 FOR UPDATE`, [account.id, ...activeWindowParams]);
+      if (activeCheckpoints[0]) throw repositoryError('SYNC_CHECKPOINT_ACTIVE', 'a sync checkpoint is active');
+      if (Number(scheduleState.lease_active)) throw repositoryError('SOURCE_SCHEDULE_LEASE_ACTIVE', 'source scheduler lease is active');
+
+      if (reset) {
+        await conn.query("UPDATE po_sync_checkpoints cp JOIN po_accounts a ON a.id=cp.account_id SET cp.status='idle', cp.`cursor`=NULL, cp.items_fetched=0, cp.last_item_at=NULL, cp.error_code=NULL, cp.error_message=NULL, cp.lease_owner=NULL, cp.lease_until=NULL WHERE a.source_id=?", [source.id]);
+      }
+      if (metadata && Object.keys(metadata).length) {
+        await conn.query('UPDATE po_accounts SET metadata=JSON_MERGE_PATCH(COALESCE(metadata,JSON_OBJECT()),?), updated_at=NOW() WHERE id=?', [JSON.stringify(metadata), account.id]);
+      }
       const runId = uuid();
-      await conn.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?, 'queued', ?, NULL)", [runId, accountId, syncMode]);
+      const boardId = source.platform === 'bigplayer_h5' ? boardIdOf(source) : null;
+      const identity = boardId ? boardRunIdentity({ sourceId: source.id, communityId: source.community_id, boardId, windowStart: boundedWindow?.windowStart, windowEnd: boundedWindow?.windowEnd }) : null;
+      const [runColumns] = await conn.query("SELECT column_name FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sync_runs' AND column_name IN ('community_id','board_id','run_scope','board_run_identity')");
+      const availableColumns = new Set(runColumns.map(row => row.column_name));
+      const optionalFields = ['community_id', 'board_id', 'run_scope', 'board_run_identity'].filter(name => availableColumns.has(name));
+      const appendFields = optionalFields.length ? ', ' + optionalFields.join(', ') : '';
+      const appendValues = optionalFields.map(() => ',?').join('');
+      const parentMetadata = { community_id: boardId ? source.community_id : null, board_id: boardId, run_scope: boardId ? 'collection' : null, board_run_identity: identity };
+      await conn.query(`INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at${appendFields}) VALUES (?,?,?,'manual','queued',?,NULL,?,?,NULL${appendValues})`, [runId, source.id, account.id, syncMode, boundedWindow?.windowStart || null, boundedWindow?.windowEnd || null, ...optionalFields.map(name => parentMetadata[name])]);
+      for (const site of multiSites) {
+        const childWindow = siteWindows.get(site.siteId) || boundedWindow;
+        const childIdentity = boardRunIdentity({ sourceId: source.id, communityId: source.community_id, boardId, scope: 'site', siteId: site.siteId, windowStart: childWindow?.windowStart, windowEnd: childWindow?.windowEnd });
+        const childMetadata = { community_id: source.community_id, board_id: boardId, run_scope: 'site', board_run_identity: childIdentity };
+        await conn.query(`INSERT INTO po_sync_runs (id, parent_run_id, site_id, site_url_snapshot, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at${appendFields}) VALUES (?,?,?,?,?,?,?,'queued',?,NULL,?,?,NULL${appendValues})`, [uuid(), runId, site.siteId, site.url, source.id, account.id, 'scheduled_site', syncMode, childWindow?.windowStart || null, childWindow?.windowEnd || null, ...optionalFields.map(name => childMetadata[name])]);
+      }
       const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [runId]);
       await conn.commit();
-      return { enabled: true, reset: true, reused: false, run: runRows[0] };
+      return { enabled: true, previouslyEnabled: true, reset, reused: false, run: runRows[0], window: boundedBackfillWindowResponse(runRows[0], boundedWindow) };
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+  }
+
+  async validateBoundedSourceBackfillWindow({ sourceId, publishedFrom, publishedTo } = {}) {
+    if (!sourceId) throw repositoryError('INVALID_INPUT', 'sourceId is required');
+    const boundedWindow = normalizeBoundedBackfillWindow(publishedFrom, publishedTo);
+    if (!boundedWindow) throw repositoryError('INVALID_INPUT', 'bounded backfill requires UTC ISO publishedFrom and publishedTo');
+    const rows = await this.query(`SELECT s.id, s.platform, UTC_TIMESTAMP(3) AS admission_anchor
+      FROM po_sources s WHERE s.id=? AND ${NOT_DELETED} LIMIT 1`, [sourceId]);
+    const source = rows[0];
+    if (!source) throw repositoryError('SOURCE_NOT_FOUND', 'source not found');
+    if (source.platform === 'bigplayer_h5') assertRecentBoundedBackfillWindow(boundedWindow, source.admission_anchor);
+    return {
+      publishedFrom: new Date(boundedWindow.startMs).toISOString(),
+      publishedTo: new Date(boundedWindow.endMs).toISOString()
+    };
+  }
+
+  // 精确手动同步只会为已启用、已授权来源的默认账号创建一条 manual run。
+  async startSourceSync({ sourceId, metadata = {}, syncMode = 'incremental' } = {}) {
+    return this.enqueueManualSourceSync({ sourceId, metadata, syncMode, reset: false });
+  }
+
+  async startBoundedSourceBackfill({ sourceId, publishedFrom, publishedTo } = {}) {
+    return this.enqueueManualSourceSync({ sourceId, syncMode: 'backfill', reset: false, windowStart: publishedFrom, windowEnd: publishedTo });
+  }
+
+  async startRecentSourceBackfill({ sourceId, lookbackDays } = {}) {
+    return this.enqueueManualSourceSync({ sourceId, syncMode: 'backfill', reset: false, lookbackDays });
+  }
+
+  // 全量回溯仅在同一准入事务通过后重置断点，不会取消活动任务或自动启用来源。
+  async resetSourceSync({ sourceId, metadata = {}, syncMode = 'backfill' } = {}) {
+    return this.enqueueManualSourceSync({ sourceId, metadata, syncMode, reset: true });
   }
 
   // 被手动请求采集的源（collect_requested_at 非空）；捞出后即由 Worker 清空标记。
-  async listManualDueSources() { return this.query(`SELECT s.*, g.name AS game_name, g.enabled AS game_enabled, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND s.collect_requested_at IS NOT NULL AND ${NOT_DELETED} ORDER BY s.collect_requested_at ASC`); }
+  async listManualDueSources() { return this.query(`SELECT s.*, g.name AS game_name, g.region_code, g.enabled AS game_enabled, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND s.collect_requested_at IS NOT NULL AND ${NOT_DELETED} ORDER BY s.collect_requested_at ASC`); }
   async clearManualRequest(sourceId) { await this.query('UPDATE po_sources SET collect_requested_at=NULL WHERE id=?', [sourceId]); }
 
-  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, postsApiUrl, commentsApiUrl, frequencySeconds = 3600, activeWindow, accountName, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
-    const config = { baseUrl: baseUrl || '', startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(board ? { board } : {}), ...(postsApiUrl ? { postsApiUrl } : {}), ...(commentsApiUrl ? { commentsApiUrl } : {}) };
+  async adoptLegacySourceWithAccount({ sourceId, accountId, sourceType = 'owned_community', displayName, baseUrl, siteUrls, startPaths, editionScope, board, boardId, postsApiUrl, commentsApiUrl, discordConfig, frequencySeconds = 21600, activeWindow, accountName, sourceEnabled = false, metadata = {}, credentialType = 'api_token', secretCipher } = {}) {
+    const normalizedSites = Array.isArray(siteUrls) ? normalizeSiteUrls({ siteUrls }) : null;
+    const config = { baseUrl: normalizedSites?.baseUrl || baseUrl || '', ...(normalizedSites ? { siteUrls: normalizedSites.siteUrls } : {}), startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(editionScope ? { editionScope } : {}), ...(board ? { board } : {}), ...(boardId ? { boardId } : {}), ...(postsApiUrl ? { postsApiUrl } : {}), ...(commentsApiUrl ? { commentsApiUrl } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}) };
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -1027,7 +2353,8 @@ class Repository {
       const currentConfig = parseConfig(source.config);
       const adoptable = account && String(account.platform_account_id || '').startsWith('legacy-source:') && !String(currentConfig.baseUrl || '').trim() && source.auth_status !== 'authorized';
       if (!adoptable) { const error = new Error('source already exists'); error.code = 'SOURCE_ALREADY_EXISTS'; throw error; }
-      await conn.query('UPDATE po_sources SET source_type=?, display_name=?, enabled=0, frequency_seconds=?, config=?, active_window=?, auth_status=\'unconfigured\', auth_expire_at=NULL, updated_at=NOW() WHERE id=?', [sourceType, displayName, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null, sourceId]);
+      await conn.query('UPDATE po_sources SET source_type=?, display_name=?, enabled=?, frequency_seconds=?, config=?, active_window=?, auth_status=\'unconfigured\', auth_expire_at=NULL, updated_at=NOW() WHERE id=?', [sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null, sourceId]);
+      if (normalizedSites) await reconcileBigPlayerSourceSites(conn, sourceId, normalizedSites.siteUrls);
       await conn.query('UPDATE po_accounts SET account_name=?, enabled=1, auth_status=\'unconfigured\', auth_expire_at=NULL, metadata=?, updated_at=NOW() WHERE id=?', [accountName || displayName, JSON.stringify(metadata || {}), accountId]);
       if (credentialType && secretCipher) await conn.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status) VALUES (?,?,?,?,?,?,\'active\') ON DUPLICATE KEY UPDATE secret_cipher=VALUES(secret_cipher), secret_ref=\'\', status=\'active\', failure_reason=NULL, last_checked_at=NOW(), updated_at=NOW()', [uuid(), accountId, sourceId, credentialType, '', secretCipher]);
       await conn.commit();
@@ -1036,56 +2363,119 @@ class Repository {
   }
 
   // 新增采集源与默认账号使用同一事务，避免 OAuth 源创建后没有可授权账号。
-  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, postsApiUrl, commentsApiUrl, accountIds, groupIds, frequencySeconds = 3600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
+  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, siteUrls, startPaths, editionScope, board, boardId, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 21600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
+    const normalizedSites = platform === 'bigplayer_h5' && Array.isArray(siteUrls) ? normalizeSiteUrls({ siteUrls }) : null;
     const config = {
-      baseUrl: baseUrl || '',
+      baseUrl: normalizedSites?.baseUrl || baseUrl || '',
+      ...(normalizedSites ? { siteUrls: normalizedSites.siteUrls } : {}),
       startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'],
+      ...(editionScope ? { editionScope } : {}),
       ...(board ? { board } : {}),
+      ...(boardId ? { boardId } : {}),
       ...(postsApiUrl ? { postsApiUrl } : {}),
       ...(commentsApiUrl ? { commentsApiUrl } : {}),
       ...(Array.isArray(accountIds) && accountIds.length ? { accountIds } : {}),
-      ...(Array.isArray(groupIds) && groupIds.length ? { groupIds } : {})
+      ...(Array.isArray(groupIds) && groupIds.length ? { groupIds } : {}),
+      ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}),
+      ...(scheduleTime ? { scheduleTime } : {})
     };
     const identity = platformAccountId || `pending:${accountId}`;
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
-      await conn.query('INSERT INTO po_sources (id, game_id, community_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?,?)', [sourceId, gameId, communityId, platform, sourceType, displayName, 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
+      const [schedulerSchemaRows] = await conn.query(`SELECT
+        ((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='po_sources' AND column_name IN ('default_account_id','schedule_version','schedule_effective_at'))=3
+          AND EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='po_source_schedule_state')) AS unified_scheduler_ready`);
+      const unifiedSchedulerReady = Number(schedulerSchemaRows?.[0]?.unified_scheduler_ready) === 1;
+      await conn.query('INSERT INTO po_sources (id, game_id, community_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?,?)', [sourceId, gameId, communityId, platform, sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds), JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
+      if (normalizedSites) await reconcileBigPlayerSourceSites(conn, sourceId, normalizedSites.siteUrls);
       if (maskedLoginIdentifier) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, masked_login_identifier, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, maskedLoginIdentifier, JSON.stringify(metadata || {})]);
       else if (communityId) await conn.query('INSERT INTO po_accounts (id, game_id, community_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, communityId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
       else await conn.query('INSERT INTO po_accounts (id, game_id, source_id, platform, platform_account_id, account_name, account_type, enabled, auth_status, metadata) VALUES (?,?,?,?,?,?,?,?,?,?)', [accountId, gameId, sourceId, platform, identity, accountName || displayName, accountType, accountEnabled ? 1 : 0, authStatus, JSON.stringify(metadata || {})]);
       if (credentialType && secretCipher) await conn.query('INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status) VALUES (?,?,?,?,?,?,?)', [uuid(), accountId, sourceId, credentialType, '', secretCipher, 'active']);
+      if (unifiedSchedulerReady) {
+        await conn.query('UPDATE po_sources SET default_account_id=?, schedule_effective_at=COALESCE(schedule_effective_at,UTC_TIMESTAMP(3)) WHERE id=?', [accountId, sourceId]);
+        await conn.query(`INSERT INTO po_source_schedule_state (source_id, schedule_version, effective_at)
+          SELECT id, schedule_version, schedule_effective_at FROM po_sources WHERE id=?
+          ON DUPLICATE KEY UPDATE schedule_version=VALUES(schedule_version), effective_at=VALUES(effective_at)`, [sourceId]);
+      }
       await conn.commit();
     } catch (error) { await conn.rollback(); throw error; }
     finally { conn.release(); }
     return { source: (await this.query('SELECT * FROM po_sources WHERE id=?', [sourceId]))[0] || null, account: await this.getAccount(accountId) };
   }
 
-  // 新增采集源：config 写 { baseUrl, startPaths, board }；enabled 默认 0（需配凭据+检测授权后才启用）。
-  async createSource({ gameId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, frequencySeconds = 3600, activeWindow } = {}) {
+  // 新增采集源：config 写 { baseUrl, startPaths, board }；默认启用，不创建立即同步任务。
+  async createSource({ gameId, platform, sourceType = 'owned_community', displayName, baseUrl, startPaths, board, frequencySeconds = 21600, activeWindow, sourceEnabled = true } = {}) {
     const id = uuid();
     const config = { baseUrl: baseUrl || '', startPaths: Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'], ...(board ? { board } : {}) };
-    await this.query('INSERT INTO po_sources (id, game_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId, platform, sourceType, displayName, 0, Number(frequencySeconds) || 3600, JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
+    await this.query('INSERT INTO po_sources (id, game_id, platform, source_type, display_name, enabled, frequency_seconds, config, active_window) VALUES (?,?,?,?,?,?,?,?,?)', [id, gameId, platform, sourceType, displayName, sourceEnabled ? 1 : 0, Number(frequencySeconds) || 21600, JSON.stringify(config), activeWindow ? JSON.stringify(activeWindow) : null]);
     return (await this.query('SELECT * FROM po_sources WHERE id=?', [id]))[0] || null;
   }
 
   // 软删除：config 合并 deleted:true，不物理删除；历史内容/分析/告警全部保留可追溯。
   async softDeleteSource(sourceId) {
-    const row = (await this.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0];
-    if (!row) return false;
-    const config = { ...parseConfig(row.config), deleted: true };
-    await this.query('UPDATE po_sources SET config=?, enabled=0, updated_at=NOW() WHERE id=?', [JSON.stringify(config), sourceId]);
-    return true;
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [rows] = await conn.query('SELECT config FROM po_sources WHERE id=? FOR UPDATE', [sourceId]);
+      const row = rows[0];
+      if (!row) { await conn.rollback(); return false; }
+      if (parseConfig(row.config).deleted === true) { await conn.commit(); return { deleted: true, alreadyDeleted: true }; }
+      const [running] = await conn.query("SELECT r.id FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id WHERE a.source_id=? AND r.status='running' LIMIT 1 FOR UPDATE", [sourceId]);
+      if (running[0]) throw repositoryError('SOURCE_RUN_ACTIVE', '采集源正在同步中，暂时不能删除');
+      const config = { ...parseConfig(row.config), deleted: true };
+      await conn.query('UPDATE po_sources SET config=?, enabled=0, collect_requested_at=NULL, default_account_id=NULL, updated_at=NOW() WHERE id=?', [JSON.stringify(config), sourceId]);
+      await conn.query("UPDATE po_sync_runs r JOIN po_accounts a ON a.id=r.account_id SET r.status='failed', r.error_code='SOURCE_DELETED', r.error_message='source deleted before execution', r.finished_at=UTC_TIMESTAMP(3), r.lease_owner=NULL, r.lease_until=NULL, r.updated_at=UTC_TIMESTAMP(3) WHERE a.source_id=? AND r.status='queued'", [sourceId]);
+      await conn.query('DELETE FROM po_sync_checkpoints WHERE account_id IN (SELECT id FROM po_accounts WHERE source_id=?)', [sourceId]);
+      await conn.query('DELETE FROM po_source_capabilities WHERE source_id=?', [sourceId]);
+      await conn.query('DELETE FROM po_credentials WHERE source_id=?', [sourceId]);
+      await conn.query("UPDATE po_accounts SET enabled=0, auth_status='unconfigured', auth_expire_at=NULL, metadata=JSON_MERGE_PATCH(COALESCE(metadata,JSON_OBJECT()),JSON_OBJECT('sourceDeleted',true)), updated_at=NOW() WHERE source_id=?", [sourceId]);
+      await conn.query('DELETE FROM po_source_schedule_state WHERE source_id=?', [sourceId]);
+      await conn.commit();
+      return { deleted: true, alreadyDeleted: false };
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
   }
 
   // 更新采集源可配置字段（启用开关、采集频率、生效时段、名称、config 内 baseUrl/startPaths）；只更新传入字段。
   async updateSource(sourceId, { enabled, frequencySeconds, activeWindow, displayName, baseUrl, startPaths } = {}) {
+    if (baseUrl !== undefined) {
+      const conn = await this.pool.getConnection(); let sourceFound = false;
+      try {
+        await conn.beginTransaction();
+        const [sourceRows] = await conn.query('SELECT * FROM po_sources WHERE id=? FOR UPDATE', [sourceId]);
+        const source = sourceRows[0];
+        if (!source) { await conn.commit(); return null; }
+        sourceFound = true;
+        const targetChanged = facebookTargetChanged(source, baseUrl);
+        let account = null;
+        if (targetChanged) {
+          const [accountRows] = await conn.query('SELECT * FROM po_accounts WHERE source_id=? AND enabled=1 ORDER BY updated_at DESC, id ASC LIMIT 1 FOR UPDATE', [sourceId]);
+          account = accountRows[0] || null;
+        }
+        const config = parseConfig(source.config);
+        config.baseUrl = baseUrl;
+        if (startPaths !== undefined) config.startPaths = Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'];
+        await conn.query('UPDATE po_sources SET enabled=COALESCE(?,enabled), frequency_seconds=COALESCE(?,frequency_seconds), active_window=COALESCE(?,active_window), display_name=COALESCE(?,display_name), config=?, updated_at=NOW() WHERE id=?', [
+          targetChanged ? 0 : (enabled == null ? null : (enabled ? 1 : 0)),
+          frequencySeconds == null ? null : Number(frequencySeconds),
+          activeWindow == null ? null : JSON.stringify(activeWindow),
+          displayName || null,
+          JSON.stringify(config),
+          sourceId
+        ]);
+        if (targetChanged) await invalidateFacebookTarget(conn, sourceId, account);
+        await conn.commit();
+      } catch (error) { await conn.rollback(); throw error; }
+      finally { conn.release(); }
+      return sourceFound ? (await this.query('SELECT * FROM po_sources WHERE id=?', [sourceId]))[0] || null : null;
+    }
     let configJson = null;
-    if (baseUrl !== undefined || startPaths !== undefined) {
+    if (startPaths !== undefined) {
       const row = (await this.query('SELECT config FROM po_sources WHERE id=?', [sourceId]))[0];
       if (!row) return null;
       const config = parseConfig(row.config);
-      if (baseUrl !== undefined) config.baseUrl = baseUrl;
       if (startPaths !== undefined) config.startPaths = Array.isArray(startPaths) && startPaths.length ? startPaths : ['/'];
       configJson = JSON.stringify(config);
     }
@@ -1108,25 +2498,32 @@ class Repository {
   }
 
   // H5 配置与账号元数据、凭据必须原子提交；凭据为空时保留已有凭据。
-  async updateSourceConfiguration(sourceId, { displayName, baseUrl, frequencySeconds, syncMode, historyStart, enabled, credential, credentialCipher, accountIds, groupIds } = {}) {
+  async updateSourceConfiguration(sourceId, { displayName, baseUrl, siteUrls, boardId, frequencySeconds, syncMode, historyStart, enabled, credential, credentialCipher, accountIds, groupIds, discordConfig, scheduleTime } = {}) {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
       const [sourceRows] = await conn.query('SELECT * FROM po_sources WHERE id=? FOR UPDATE', [sourceId]);
       const source = sourceRows[0];
       if (!source) { const error = new Error('source not found'); error.code = 'NOT_FOUND'; throw error; }
-      const [accountRows] = await conn.query('SELECT * FROM po_accounts WHERE source_id=? AND enabled=1 ORDER BY updated_at DESC LIMIT 1 FOR UPDATE', [sourceId]);
+      const [accountRows] = await conn.query('SELECT * FROM po_accounts WHERE source_id=? AND enabled=1 ORDER BY updated_at DESC, id ASC LIMIT 1 FOR UPDATE', [sourceId]);
       const account = accountRows[0];
       if (!account) { const error = new Error('default account not found'); error.code = 'ACCOUNT_NOT_FOUND'; throw error; }
-      const config = { ...parseConfig(source.config), baseUrl, syncMode, historyStart: historyStart || null, ...(Array.isArray(accountIds) ? { accountIds } : {}), ...(Array.isArray(groupIds) ? { groupIds } : {}) };
-      await conn.query('UPDATE po_sources SET display_name=?, enabled=?, frequency_seconds=?, config=?, updated_at=NOW() WHERE id=?', [displayName, enabled ? 1 : 0, Number(frequencySeconds), JSON.stringify(config), sourceId]);
-      const metadata = { ...parseConfig(account.metadata), syncMode, historyStart: historyStart || null };
+      // 基础配置省略同步策略时保留既有元数据，避免保存站点或频率误改历史回溯语义。
+      const sourceConfig = parseConfig(source.config); const accountMetadata = parseConfig(account.metadata);
+      const normalizedSites = source.platform === 'bigplayer_h5' && Array.isArray(siteUrls) ? normalizeSiteUrls({ siteUrls }) : null;
+      const nextConfig = { ...sourceConfig, ...(baseUrl === undefined && !normalizedSites ? {} : { baseUrl: normalizedSites?.baseUrl || baseUrl }), ...(normalizedSites ? { siteUrls: normalizedSites.siteUrls } : {}), ...(boardId === undefined ? {} : { boardId }), ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }), ...(Array.isArray(accountIds) ? { accountIds } : {}), ...(Array.isArray(groupIds) ? { groupIds } : {}), ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}), ...(scheduleTime === undefined ? {} : scheduleTime ? { scheduleTime } : { scheduleTime: null }) };
+      const targetChanged = facebookTargetChanged(source, baseUrl);
+      await conn.query('UPDATE po_sources SET display_name=?, enabled=?, frequency_seconds=?, config=?, updated_at=NOW() WHERE id=?', [displayName, targetChanged ? 0 : (enabled === undefined ? source.enabled : enabled ? 1 : 0), Number(frequencySeconds), JSON.stringify(nextConfig), sourceId]);
+      if (normalizedSites) await reconcileBigPlayerSourceSites(conn, sourceId, normalizedSites.siteUrls);
+      const metadata = { ...accountMetadata, ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }) };
       await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata), account.id]);
       if (credentialCipher) {
         await conn.query(`INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status)
           VALUES (?,?,?,?,?,?, 'active')
           ON DUPLICATE KEY UPDATE secret_cipher=VALUES(secret_cipher), secret_ref='', status='active', failure_reason=NULL, last_checked_at=NOW(), updated_at=NOW()`, [uuid(), account.id, sourceId, credential.credentialType, '', credentialCipher]);
       }
+      if (targetChanged) await invalidateFacebookTarget(conn, sourceId, account);
+      else if (source.platform === 'facebook' && credentialCipher) await invalidateFacebookCredential(conn, sourceId, account);
       await conn.commit();
     } catch (error) { await conn.rollback(); throw error; }
     finally { conn.release(); }
@@ -1178,4 +2575,4 @@ class Repository {
     return this.listKeywordRulesRaw(gameId, communityId, platform);
   }
 }
-module.exports = { Repository, uuid, isWithinActiveWindow };
+module.exports = { Repository, uuid, isWithinActiveWindow, normalizeQualityCandidate, normalizeAlertWithIndependentReviews, effectiveBigPlayerWindow };

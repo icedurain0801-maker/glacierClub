@@ -1,0 +1,24 @@
+<service>
+  <id>PublicOpinionTranslationWorker</id>
+  <name>PublicOpinionTranslationWorker</name>
+  <description>Public Opinion persistent translation queue consumer</description>
+  <executable>%NODE_EXE%</executable>
+  <arguments>"%APP_ROOT%\worker\src\translationWorker.js"</arguments>
+  <workingdirectory>%APP_ROOT%\worker</workingdirectory>
+  <env name="PUBLIC_OPINION_SERVICE_MODE" value="1" />
+  <env name="PUBLIC_OPINION_ENV_FILE" value="%PUBLIC_OPINION_ENV_FILE%" />
+  <env name="AI_TRANSLATION_JOB_BATCH_SIZE" value="5" />
+  <env name="AI_TRANSLATION_BACKFILL_BATCH_SIZE" value="1" />
+  <env name="TRANSLATION_PRIORITY_JOB_ID" value="451596e6-96e2-40b0-9d48-7cc66cbd224d" />
+  <env name="NODE_PATH" value="" />
+  <env name="NODE_OPTIONS" value="" />
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <serviceaccount><domain>NT AUTHORITY</domain><user>LocalService</user></serviceaccount>
+  <stoptimeout>60 sec</stoptimeout>
+  <logpath>%SERVICE_LOG_ROOT%\PublicOpinionTranslationWorker</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>14</keepFiles></log>
+</service>

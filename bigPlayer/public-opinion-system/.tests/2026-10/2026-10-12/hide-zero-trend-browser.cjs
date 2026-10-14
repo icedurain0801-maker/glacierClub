@@ -1,0 +1,21 @@
+'use strict';
+const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY='1';
+const live=process.argv.includes('--live'),root='C:/ProgramData/PublicOpinion/frontend3001/releases/release-20261012-hide-zero-unclassified-r1/public/admin/PublicOpinion';
+const out='C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/public-opinion-system/.tests/2026-10/2026-10-12';
+(async()=>{const browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});try{
+ const page=await browser.newPage({viewport:{width:1920,height:1080}}),errors=[],writes=[];page.on('pageerror',e=>errors.push(e.message));
+ if(!live)await page.route('**/admin/PublicOpinion/**',r=>{const rel=new URL(r.request().url()).pathname.split('/admin/PublicOpinion/')[1],file=path.join(root,rel);if(fs.existsSync(file)&&fs.statSync(file).isFile())return r.fulfill({path:file});return r.continue();});
+ await page.route('**/api/**',r=>{if(!['GET','HEAD'].includes(r.request().method())){writes.push(r.request().method());return r.abort();}return r.continue();});
+ await page.goto('https://lfy3001.dev.q1op.com/admin/PublicOpinion/index.html?regionCode=domestic&communityId=00000000-0000-0000-0000-000000000101&platform=bigplayer_h5&period=yesterday',{waitUntil:'networkidle',timeout:60000});
+ const render=async n=>page.evaluate(n=>renderTrend([{date:'2026-10-11',positive:11,neutral:6,negative:3,unclassified:n}]),n);
+ const summary=page.locator('#trend .emotion-summary .unclassified'),bars=page.locator('#trend .trend-bar-group.unclassified'),legend=page.locator('#trendUnclassifiedLegend');
+ await render(0);assert.equal(await summary.count(),0);assert.equal(await bars.count(),0);assert(await legend.isHidden());assert(!(await page.locator('#trend .trend-day-col').getAttribute('title')).includes('暂未分析'));
+ assert.equal(await page.locator('#trend .emotion-summary .positive strong').textContent(),'55.0%');
+ await render(3);assert.equal(await summary.locator('strong').textContent(),'3');assert.equal(await bars.count(),1);assert(await legend.isVisible());
+ await render(0);assert.equal(await summary.count(),0);assert(await legend.isHidden());
+ await page.evaluate(()=>renderTrend([{date:'2026-10-10',positive:1,unclassified:0},{date:'2026-10-11',positive:1,unclassified:2}]));assert.equal(await bars.count(),1);assert.equal(await summary.locator('strong').textContent(),'2');assert(await legend.isVisible());
+ await page.evaluate(()=>renderTrend([]));assert.equal(await summary.count(),0);assert(await legend.isHidden());
+ assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
+ const report={status:'PASS',live,checks:['zero hidden','nonzero shown','nonzero to zero reset','mixed days only nonzero bars','empty resets legend','classified rates unchanged'],errors,writes};fs.writeFileSync(out+'/hide-zero-trend-'+(live?'live':'candidate')+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+}finally{await browser.close();}})().catch(e=>{console.error(e.message);process.exitCode=1;});

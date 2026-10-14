@@ -1,0 +1,395 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+const { scheduleSources } = require('../src/sourceScheduler');
+
+const NOW = new Date('2026-01-01T19:01:00.000Z'); // Beijing 03:01
+
+function source(overrides = {}) {
+  return {
+    id: 'source-1',
+    game_id: 'game-1',
+    community_id: 'community-1',
+    region_code: 'domestic',
+    platform: 'bigplayer',
+    config: { boardId: '2' },
+    enabled: true,
+    game_enabled: true,
+    community_status: 'enabled',
+    auth_status: 'authorized',
+    auth_expire_at: null,
+    default_account_id: 'account-1',
+    frequency_seconds: 3600,
+    schedule_effective_at: '2025-12-31T18:00:01.000Z',
+    active_window: null,
+    ...overrides
+  };
+}
+
+function account(overrides = {}) {
+  return {
+    id: 'account-1',
+    source_id: 'source-1',
+    game_id: 'game-1',
+    community_id: 'community-1',
+    platform: 'bigplayer',
+    enabled: true,
+    auth_status: 'authorized',
+    auth_expire_at: null,
+    ...overrides
+  };
+}
+
+function deps(overrides = {}) {
+  const enqueued = [];
+  return {
+    accounts: [account()],
+    connectorCapabilities: {
+      bigplayer: { available: true, supportsScheduling: true },
+      discord: { available: true, supportsScheduling: true }
+    },
+    leaseAdapter: { async acquire() { return { acquired: true, leaseToken: 'lease-1' }; }, async release() {} },
+    enqueue: async intent => { enqueued.push(intent); return { created: true, runId: `run-${intent.sourceId}` }; },
+    enqueued,
+    ...overrides
+  };
+}
+
+test('schedules domestic BigPlayer and overseas Discord through the same decision path', async () => {
+  const inputs = deps({
+    accounts: [account(), account({ id: 'account-2', source_id: 'source-2', game_id: 'game-2', community_id: 'community-2', platform: 'discord' })]
+  });
+  const sources = [
+    source(),
+    source({ id: 'source-2', default_account_id: 'account-2', game_id: 'game-2', community_id: 'community-2', region_code: 'overseas', platform: 'discord' })
+  ];
+  const result = await scheduleSources({ sources, now: NOW, ...inputs });
+
+  assert.deepEqual(result.decisions.map(item => [item.sourceId, item.status]), [['source-1', 'enqueued'], ['source-2', 'enqueued']]);
+  assert.equal(inputs.enqueued.length, 2);
+  assert.ok(inputs.enqueued.every(item => item.scheduledAt === '2026-01-01T19:00:00.000Z'));
+});
+
+test('same platform keeps independent source leases and schedules both sources', async () => {
+  const acquired = [];
+  const inputs = deps({
+    accounts: [account(), account({ id: 'account-2', source_id: 'source-2' })],
+    leaseAdapter: { async acquire(intent) { acquired.push(intent.sourceId); return { acquired: true, leaseToken: `lease-${intent.sourceId}` }; }, async release() {} }
+  });
+  const result = await scheduleSources({
+    sources: [source(), source({ id: 'source-2', default_account_id: 'account-2' })],
+    now: NOW,
+    ...inputs
+  });
+  assert.deepEqual(acquired, ['source-1', 'source-2']);
+  assert.deepEqual(result.decisions.map(item => item.status), ['enqueued', 'enqueued']);
+  assert.deepEqual(inputs.enqueued.map(item => item.sourceId), ['source-1', 'source-2']);
+});
+
+test('BigPlayer, TapTap, and Discord each isolate leases by source rather than platform', async () => {
+  for (const [platform, region] of [['bigplayer_h5', 'domestic'], ['taptap', 'domestic'], ['discord', 'overseas']]) {
+    const acquired = [];
+    const first = source({ id: `${platform}-1`, platform, region_code: region, default_account_id: `${platform}-account-1` });
+    const second = source({ id: `${platform}-2`, platform, region_code: region, default_account_id: `${platform}-account-2` });
+    const inputs = deps({
+      accounts: [
+        account({ id: first.default_account_id, source_id: first.id, platform }),
+        account({ id: second.default_account_id, source_id: second.id, platform })
+      ],
+      connectorCapabilities: { [platform]: { available: true, supportsScheduling: true } },
+      leaseAdapter: { async acquire(intent) { acquired.push(intent.sourceId); return { acquired: true, leaseToken: `lease-${intent.sourceId}` }; }, async release() {} }
+    });
+    const result = await scheduleSources({ sources: [first, second], now: NOW, ...inputs });
+    assert.deepEqual(acquired, [first.id, second.id], platform);
+    assert.deepEqual(result.decisions.map(item => item.status), ['enqueued', 'enqueued'], platform);
+  }
+});
+
+test('admits Last Light BigPlayer after stale state recovery and advances its next slot', async () => {
+  const inputs = deps({
+    accounts: [account({ id: 'last-light-account', source_id: '081a16d2-5545-4afd-9c65-e04777e4540b', game_id: 'last-light-game', community_id: '00000000-0000-0000-0000-000000000102', platform: 'bigplayer_h5' })],
+    connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } }
+  });
+  const result = await scheduleSources({
+    sources: [source({ id: '081a16d2-5545-4afd-9c65-e04777e4540b', default_account_id: 'last-light-account', game_id: 'last-light-game', community_id: '00000000-0000-0000-0000-000000000102', region_code: 'overseas', platform: 'bigplayer_h5', schedule_effective_at: '2025-12-31T18:00:01.000Z' })],
+    now: NOW,
+    ...inputs
+  });
+  assert.equal(result.decisions[0].status, 'enqueued');
+  assert.equal(result.decisions[0].sourceId, '081a16d2-5545-4afd-9c65-e04777e4540b');
+  assert.equal(result.decisions[0].nextSlotAt, '2026-01-01T20:00:00.000Z');
+});
+
+test('second overseas BigPlayer source without config.boardId stops before atomic scheduling or run creation', async () => {
+  const sourceId = '8c690d6e-12ea-4ad3-b434-d941276c4906';
+  let atomicCalls = 0;
+  let enqueueCalls = 0;
+  const inputs = deps({
+    accounts: [account({ id: 'account-overseas-2', source_id: sourceId, game_id: 'game-overseas-2', community_id: 'community-overseas-2', platform: 'bigplayer_h5' })],
+    connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } },
+    leaseAdapter: {
+      async acquire() { atomicCalls += 1; throw new Error('atomic scheduling must not be reached'); },
+      async release() {}
+    },
+    async enqueue() { enqueueCalls += 1; throw new Error('parent/child enqueue must not be reached'); }
+  });
+  const result = await scheduleSources({
+    sources: [source({
+      id: sourceId,
+      default_account_id: 'account-overseas-2',
+      game_id: 'game-overseas-2',
+      community_id: 'community-overseas-2',
+      region_code: 'overseas',
+      platform: 'bigplayer_h5',
+      config: JSON.stringify({ siteUrls: [
+        { siteId: 'site-one', url: 'https://community.example.test/?gameId=one' },
+        { siteId: 'site-two', url: 'https://community.example.test/?gameId=two' }
+      ] })
+    })],
+    now: NOW,
+    ...inputs
+  });
+
+  assert.deepEqual(result.decisions.map(item => [item.sourceId, item.status, item.reasonCode]), [
+    [sourceId, 'rejected', 'BOARD_ID_REQUIRED']
+  ]);
+  assert.equal(atomicCalls, 0);
+  assert.equal(enqueueCalls, 0);
+  assert.equal(inputs.enqueued.length, 0);
+  assert.deepEqual(result.evidence.map(item => [item.status, item.reasonCode]), [
+    ['rejected', 'BOARD_ID_REQUIRED']
+  ]);
+});
+
+test('scheduled BigPlayer catchup covers previous Beijing midnight through actual execution', async () => {
+  const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+  const result = await scheduleSources({ sources: [source({ platform: 'bigplayer_h5' })], now: NOW, ...inputs });
+  const intent = inputs.enqueued[0];
+  assert.equal(result.decisions[0].status, 'enqueued');
+  assert.equal(Date.parse(intent.windowEndAt), NOW.getTime());
+  assert.equal(intent.windowStartAt, '2025-12-31T16:00:00.000Z');
+});
+
+test('all four domestic six-hour slots include today, with identical previous-midnight start', async () => {
+  for (const hour of [2, 8, 14, 20]) {
+    const now = new Date(`2026-10-12T${String(hour).padStart(2, '0')}:00:00+08:00`);
+    const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+    await scheduleSources({ sources: [source({ platform: 'bigplayer_h5', frequency_seconds: 21600 })], now, ...inputs });
+    assert.equal(inputs.enqueued[0].windowStartAt, '2026-10-10T16:00:00.000Z');
+    assert.equal(inputs.enqueued[0].windowEndAt, now.toISOString());
+    assert.equal(inputs.enqueued[0].scheduledAt, now.toISOString());
+  }
+});
+
+test('delayed BigPlayer execution across month boundary uses execution date rather than an older slot', async () => {
+  const now = new Date('2026-11-01T00:30:00+08:00');
+  const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+  await scheduleSources({ sources: [source({ platform: 'bigplayer_h5', frequency_seconds: 21600 })], now, ...inputs });
+  assert.equal(inputs.enqueued[0].windowStartAt, '2026-10-30T16:00:00.000Z');
+  assert.equal(inputs.enqueued[0].windowEndAt, now.toISOString());
+});
+
+test('scheduled BigPlayer catchup extends a natural-day window to the actual execution cutoff', async () => {
+  const now = new Date('2026-09-21T18:01:09.000Z'); // Beijing 9/22 02:01:09
+  const inputs = deps({ accounts: [account({ platform: 'bigplayer_h5' })], connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } } });
+  const result = await scheduleSources({ sources: [source({ platform: 'bigplayer_h5', frequency_seconds: 86400 })], now, ...inputs });
+  const intent = inputs.enqueued[0];
+  assert.equal(result.decisions[0].triggerType, 'scheduled_catchup');
+  assert.equal(intent.windowStartAt, '2026-09-20T16:00:00.000Z');
+  assert.equal(intent.windowEndAt, now.toISOString());
+});
+
+test('Discord and TapTap windows are not extended by the BigPlayer cutoff rule', async () => {
+  for (const platform of ['discord', 'taptap']) {
+    const now = new Date('2026-09-21T18:01:09.000Z');
+    const inputs = deps({
+      accounts: [account({ platform })],
+      connectorCapabilities: { [platform]: { available: true, supportsScheduling: true } }
+    });
+    await scheduleSources({ sources: [source({ platform, region_code: platform === 'discord' ? 'overseas' : 'domestic' })], now, ...inputs });
+    assert.notEqual(inputs.enqueued[0].windowEndAt, now.toISOString(), platform);
+  }
+});
+
+test('configured multi-site source stays parent-plus-children when only one site is enabled', async () => {
+  const inputs = deps({
+    accounts: [account({ platform: 'bigplayer_h5' })],
+    connectorCapabilities: { bigplayer_h5: { available: true, supportsScheduling: true } }
+  });
+  const configured = source({
+    platform: 'bigplayer_h5',
+    config: JSON.stringify({ boardId: '2', siteUrls: [
+      { siteId: 'enabled', url: 'https://club.q1.com/?gameId=1', enabled: true },
+      { siteId: 'disabled', url: 'https://club.q1.com/?gameId=2', enabled: false }
+    ] })
+  });
+  await scheduleSources({ sources: [configured], now: NOW, ...inputs });
+  assert.equal(inputs.enqueued[0].multiSite, true);
+});
+
+test('non-BigPlayer scheduled sources keep their connector-defined window', async () => {
+  const inputs = deps({ accounts: [account({ platform: 'discord' })] });
+  const result = await scheduleSources({ sources: [source({ platform: 'discord' })], now: NOW, ...inputs });
+  assert.equal(result.decisions[0].status, 'enqueued');
+  assert.equal(inputs.enqueued[0].windowStartAt, null);
+  assert.equal(inputs.enqueued[0].windowEndAt, null);
+});
+
+test('returns stable enablement and region rejection reasons', async () => {
+  const inputs = deps();
+  const sources = [
+    source({ id: 'disabled-source', enabled: false }),
+    source({ id: 'disabled-game', game_enabled: false }),
+    source({ id: 'disabled-community', community_status: 'disabled' }),
+    source({ id: 'invalid-region', region_code: 'unknown' })
+  ];
+  const result = await scheduleSources({ sources, now: NOW, ...inputs });
+  assert.deepEqual(result.decisions.map(item => item.reasonCode), [
+    'SOURCE_DISABLED', 'GAME_DISABLED', 'COMMUNITY_DISABLED', 'INVALID_REGION'
+  ]);
+  assert.equal(inputs.enqueued.length, 0);
+});
+
+test('rejects missing, mismatched, unauthorized and expired default accounts', async () => {
+  const sources = [
+    source({ id: 'missing', default_account_id: null }),
+    source({ id: 'mismatch', default_account_id: 'mismatch-account' }),
+    source({ id: 'unauthorized', default_account_id: 'unauthorized-account' }),
+    source({ id: 'expired', default_account_id: 'expired-account' })
+  ];
+  const inputs = deps({ accounts: [
+    account({ id: 'mismatch-account', source_id: 'other' }),
+    account({ id: 'unauthorized-account', source_id: 'unauthorized', auth_status: 'unconfigured' }),
+    account({ id: 'expired-account', source_id: 'expired', auth_expire_at: '2026-01-01T19:00:00.000Z' })
+  ] });
+  const result = await scheduleSources({ sources, now: NOW, ...inputs });
+  assert.deepEqual(result.decisions.map(item => item.reasonCode), [
+    'ACCOUNT_NOT_FOUND', 'OWNERSHIP_MISMATCH', 'ACCOUNT_UNAUTHORIZED', 'ACCOUNT_AUTH_EXPIRED'
+  ]);
+});
+
+test('rejects unauthorized sources and unavailable connector capability', async () => {
+  const sources = [
+    source({ id: 'source-auth', auth_status: 'expired', default_account_id: 'account-auth' }),
+    source({ id: 'source-missing-connector', platform: 'facebook', default_account_id: 'account-facebook' }),
+    source({ id: 'source-no-capability', platform: 'x', default_account_id: 'account-x' })
+  ];
+  const inputs = deps({
+    accounts: [
+      account({ id: 'account-auth', source_id: 'source-auth' }),
+      account({ id: 'account-facebook', source_id: 'source-missing-connector', platform: 'facebook' }),
+      account({ id: 'account-x', source_id: 'source-no-capability', platform: 'x' })
+    ],
+    connectorCapabilities: { bigplayer: { available: true, supportsScheduling: true }, x: { available: true, supportsScheduling: false } }
+  });
+  const result = await scheduleSources({ sources, now: NOW, ...inputs });
+  assert.deepEqual(result.decisions.map(item => item.reasonCode), [
+    'SOURCE_UNAUTHORIZED', 'CONNECTOR_NOT_FOUND', 'CONNECTOR_CAPABILITY_UNAVAILABLE'
+  ]);
+});
+
+test('active_window is evaluated in Beijing time, including cross-midnight windows', async () => {
+  const inputs = deps();
+  const closed = await scheduleSources({ sources: [source({ active_window: { days: [4], start: '04:00', end: '05:00' } })], now: NOW, ...inputs });
+  assert.equal(closed.decisions[0].reasonCode, 'OUTSIDE_ACTIVE_WINDOW');
+
+  const open = await scheduleSources({ sources: [source({ active_window: { days: [4], start: '22:00', end: '04:00' } })], now: NOW, ...deps() });
+  assert.equal(open.decisions[0].status, 'enqueued');
+});
+
+test('malformed active_window objects and JSON fail closed', async () => {
+  const malformed = [
+    '',
+    {},
+    { timezone: 'Asia/Shanghai' },
+    '[1,2,3]',
+    '{invalid-json',
+    { days: 'not-an-array' },
+    '{"days":[0],"start":"02:00","end":"03:00"}',
+    { days: [1, 8], start: '02:00', end: '03:00' },
+    { start: '25:00', end: '03:00' },
+    { start: '02:00' }
+  ];
+  for (const active_window of malformed) {
+    const result = await scheduleSources({ sources: [source({ active_window })], now: NOW, ...deps() });
+    assert.equal(result.decisions[0].reasonCode, 'INVALID_ACTIVE_WINDOW');
+  }
+});
+
+test('rejects an authorized source whose authorization has expired', async () => {
+  const result = await scheduleSources({
+    sources: [source({ auth_expire_at: '2026-01-01T19:00:00.000Z' })],
+    now: NOW,
+    ...deps()
+  });
+  assert.equal(result.decisions[0].reasonCode, 'SOURCE_AUTH_EXPIRED');
+});
+
+test('active source lease prevents concurrent enqueue', async () => {
+  const inputs = deps({ leaseAdapter: { async acquire() { return { acquired: false }; }, async release() {} } });
+  const result = await scheduleSources({ sources: [source()], now: NOW, ...inputs });
+  assert.equal(result.decisions[0].reasonCode, 'PREVIOUS_RUN_ACTIVE');
+  assert.equal(inputs.enqueued.length, 0);
+});
+
+test('enqueue failure is isolated and later sources still run', async () => {
+  const calls = [];
+  const released = [];
+  const inputs = deps({
+    accounts: [account(), account({ id: 'account-2', source_id: 'source-2', game_id: 'game-2', community_id: 'community-2', platform: 'discord' })],
+    enqueue: async intent => {
+      calls.push(intent.sourceId);
+      if (intent.sourceId === 'source-1') throw new Error('queue unavailable');
+      return { created: true, runId: 'run-2' };
+    },
+    leaseAdapter: {
+      async acquire(intent) { return { acquired: true, leaseToken: `lease-${intent.sourceId}` }; },
+      async release(intent) { released.push(intent.sourceId); }
+    }
+  });
+  const result = await scheduleSources({
+    sources: [source(), source({ id: 'source-2', default_account_id: 'account-2', game_id: 'game-2', community_id: 'community-2', region_code: 'overseas', platform: 'discord' })],
+    now: NOW,
+    ...inputs
+  });
+  assert.deepEqual(calls, ['source-1', 'source-2']);
+  assert.deepEqual(result.decisions.map(item => item.reasonCode), ['ENQUEUE_FAILED', null]);
+  assert.deepEqual(released, ['source-1']);
+});
+
+test('lease acquisition failure is isolated and later sources still run', async () => {
+  const enqueued = [];
+  const inputs = deps({
+    accounts: [account(), account({ id: 'account-2', source_id: 'source-2', game_id: 'game-2', community_id: 'community-2', platform: 'discord' })],
+    leaseAdapter: {
+      async acquire(intent) {
+        if (intent.sourceId === 'source-1') throw new Error('lease backend unavailable');
+        return { acquired: true, leaseToken: 'lease-2' };
+      },
+      async release() {}
+    },
+    enqueue: async intent => { enqueued.push(intent.sourceId); return { created: true, runId: 'run-2' }; }
+  });
+  const result = await scheduleSources({
+    sources: [source(), source({ id: 'source-2', default_account_id: 'account-2', game_id: 'game-2', community_id: 'community-2', region_code: 'overseas', platform: 'discord' })],
+    now: NOW,
+    ...inputs
+  });
+  assert.deepEqual(result.decisions.map(item => item.reasonCode), ['LEASE_FAILED', null]);
+  assert.deepEqual(enqueued, ['source-2']);
+});
+
+test('uses source+slot idempotency and preserves manual/legacy evidence', async () => {
+  const existingEvidence = [
+    { sourceId: 'source-1', triggerType: 'manual', scheduledAt: null },
+    { sourceId: 'source-1', triggerType: 'legacy', scheduledAt: null }
+  ];
+  const inputs = deps({ enqueue: async intent => ({ created: false, existingRunId: 'scheduled-existing', idempotencyKey: intent.idempotencyKey }) });
+  const result = await scheduleSources({ sources: [source()], now: NOW, existingEvidence, ...inputs });
+
+  assert.equal(result.decisions[0].reasonCode, 'SLOT_ALREADY_EXISTS');
+  assert.equal(result.decisions[0].idempotencyKey, 'source-1:2026-01-01T19:00:00.000Z');
+  assert.equal(result.evidence.length, 3);
+  assert.deepEqual(result.evidence.slice(0, 2), existingEvidence);
+  assert.equal(result.evidence[2].triggerType, 'scheduled_catchup');
+});

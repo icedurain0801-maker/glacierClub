@@ -1,0 +1,322 @@
+TAP version 13
+# Subtest: model output and memory cache enforce risk policy and preserve raw quality result
+ok 1 - model output and memory cache enforce risk policy and preserve raw quality result
+  ---
+  duration_ms: 6.9463
+  type: 'test'
+  ...
+# Subtest: neutral consultation and neutral concrete problem have separate progressive levels
+ok 2 - neutral consultation and neutral concrete problem have separate progressive levels
+  ---
+  duration_ms: 3.6273
+  type: 'test'
+  ...
+# Subtest: low score semantic complaint requires an evidence excerpt from this content
+ok 3 - low score semantic complaint requires an evidence excerpt from this content
+  ---
+  duration_ms: 0.6336
+  type: 'test'
+  ...
+# Subtest: Anthropic Messages 协议使用专用路径、请求头和响应解析
+ok 4 - Anthropic Messages 协议使用专用路径、请求头和响应解析
+  ---
+  duration_ms: 1.3076
+  type: 'test'
+  ...
+# Subtest: 未配置时 fail-closed 抛错
+ok 5 - 未配置时 fail-closed 抛错
+  ---
+  duration_ms: 0.7381
+  type: 'test'
+  ...
+# Subtest: 批量分析返回等长同序结果
+ok 6 - 批量分析返回等长同序结果
+  ---
+  duration_ms: 1.8007
+  type: 'test'
+  ...
+# Subtest: 质量推荐字段按新版 schema 解析
+ok 7 - 质量推荐字段按新版 schema 解析
+  ---
+  duration_ms: 0.925
+  type: 'test'
+  ...
+# Subtest: 旧响应缺少质量字段时默认不推荐且不影响风险解析
+ok 8 - 旧响应缺少质量字段时默认不推荐且不影响风险解析
+  ---
+  duration_ms: 0.4295
+  type: 'test'
+  ...
+# Subtest: 相同内容命中缓存不重复调用
+ok 9 - 相同内容命中缓存不重复调用
+  ---
+  duration_ms: 0.6442
+  type: 'test'
+  ...
+# Subtest: 超过 batchSize 拆多次请求
+ok 10 - 超过 batchSize 拆多次请求
+  ---
+  duration_ms: 1.4798
+  type: 'test'
+  ...
+# Subtest: 正文按 maxChars 截断后进入 prompt
+ok 11 - 正文按 maxChars 截断后进入 prompt
+  ---
+  duration_ms: 0.6713
+  type: 'test'
+  ...
+# Subtest: 非法响应 fail-closed
+ok 12 - 非法响应 fail-closed
+  ---
+  duration_ms: 0.4478
+  type: 'test'
+  ...
+# Subtest: 模型返回 fenced JSON 时仍能解析
+ok 13 - 模型返回 fenced JSON 时仍能解析
+  ---
+  duration_ms: 0.3171
+  type: 'test'
+  ...
+# Subtest: 4xx 不重试直接失败
+ok 14 - 4xx 不重试直接失败
+  ---
+  duration_ms: 0.2829
+  type: 'test'
+  ...
+# Subtest: 单日调用上限闸门
+ok 15 - 单日调用上限闸门
+  ---
+  duration_ms: 0.5561
+  type: 'test'
+  ...
+# Subtest: profile 配置覆盖旧环境变量且请求使用选中模型与限制
+ok 16 - profile 配置覆盖旧环境变量且请求使用选中模型与限制
+  ---
+  duration_ms: 0.3205
+  type: 'test'
+  ...
+# Subtest: 旧环境变量兼容且 analyzeBatch 默认 light
+ok 17 - 旧环境变量兼容且 analyzeBatch 默认 light
+  ---
+  duration_ms: 0.2607
+  type: 'test'
+  ...
+# Subtest: 缓存按 profile、model、version 隔离并在同批去重
+ok 18 - 缓存按 profile、model、version 隔离并在同批去重
+  ---
+  duration_ms: 0.4907
+  type: 'test'
+  ...
+# Subtest: 缓存按区域、游戏、社区和平台上下文隔离
+ok 19 - 缓存按区域、游戏、社区和平台上下文隔离
+  ---
+  duration_ms: 0.3445
+  type: 'test'
+  ...
+# Subtest: 分析提示词包含区域、游戏、社区和平台上下文
+ok 20 - 分析提示词包含区域、游戏、社区和平台上下文
+  ---
+  duration_ms: 0.1221
+  type: 'test'
+  ...
+# Subtest: light and deep prompts request a concise observable plain-language reason
+ok 21 - light and deep prompts request a concise observable plain-language reason
+  ---
+  duration_ms: 0.1284
+  type: 'test'
+  ...
+# Subtest: 严格响应要求 confidence/needsDeep/reason
+ok 22 - 严格响应要求 confidence/needsDeep/reason
+  ---
+  duration_ms: 0.3537
+  type: 'test'
+  ...
+# Subtest: 返回真实 usage 元数据并按结果分摊
+ok 23 - 返回真实 usage 元数据并按结果分摊
+  ---
+  duration_ms: 0.4105
+  type: 'test'
+  ...
+# Subtest: 缺少 provider usage 时返回估算元数据
+ok 24 - 缺少 provider usage 时返回估算元数据
+  ---
+  duration_ms: 0.2487
+  type: 'test'
+  ...
+# Subtest: selected profile/model 校验
+ok 25 - selected profile/model 校验
+  ---
+  duration_ms: 0.228
+  type: 'test'
+  ...
+# Subtest: profile 调用上限独立
+ok 26 - profile 调用上限独立
+  ---
+  duration_ms: 0.4617
+  type: 'test'
+  ...
+# Subtest: truncate/fingerprint 工具
+ok 27 - truncate/fingerprint 工具
+  ---
+  duration_ms: 0.1147
+  type: 'test'
+  ...
+# Subtest: light/deep use the same progressive policy with strict threshold
+ok 28 - light/deep use the same progressive policy with strict threshold
+  ---
+  duration_ms: 0.3159
+  type: 'test'
+  ...
+# Subtest: severity 新提示词 schema 使旧缓存失效但不改变历史 analysisVersion
+ok 29 - severity 新提示词 schema 使旧缓存失效但不改变历史 analysisVersion
+  ---
+  duration_ms: 0.2592
+  type: 'test'
+  ...
+# Subtest: severity 非法或多选枚举 fail-closed，不按 negative 情感兜底
+ok 30 - severity 非法或多选枚举 fail-closed，不按 negative 情感兜底
+  ---
+  duration_ms: 0.5899
+  type: 'test'
+  ...
+# Subtest: immediate 口径达 urgent 单条直报并推钉钉
+ok 31 - immediate 口径达 urgent 单条直报并推钉钉
+  ---
+  duration_ms: 4.6792
+  type: 'test'
+  ...
+# Subtest: immediate 但未达 urgent 不报
+ok 32 - immediate 但未达 urgent 不报
+  ---
+  duration_ms: 0.2923
+  type: 'test'
+  ...
+# Subtest: AI 严重度可将规则 attention 升级为 urgent 触发 immediate
+ok 33 - AI 严重度可将规则 attention 升级为 urgent 触发 immediate
+  ---
+  duration_ms: 0.4521
+  type: 'test'
+  ...
+# Subtest: positive normal content never creates links or notifications even with urgent immediate keywords
+ok 34 - positive normal content never creates links or notifications even with urgent immediate keywords
+  ---
+  duration_ms: 0.2537
+  type: 'test'
+  ...
+# Subtest: positive conflicting raw severity is blocked before any alert or notification
+ok 35 - positive conflicting raw severity is blocked before any alert or notification
+  ---
+  duration_ms: 0.4379
+  type: 'test'
+  ...
+# Subtest: keyword aggregate cannot bypass AI severity even when its threshold is reached
+ok 36 - keyword aggregate cannot bypass AI severity even when its threshold is reached
+  ---
+  duration_ms: 0.3298
+  type: 'test'
+  ...
+# Subtest: 冷却期内复用已存在告警，只追加内容不新建
+ok 37 - 冷却期内复用已存在告警，只追加内容不新建
+  ---
+  duration_ms: 0.4132
+  type: 'test'
+  ...
+# Subtest: 告警聚合、去重和恢复严格按 community 隔离
+ok 38 - 告警聚合、去重和恢复严格按 community 隔离
+  ---
+  duration_ms: 0.8042
+  type: 'test'
+  ...
+# Subtest: 钉钉推送失败回写 failed 但仍落库
+ok 39 - 钉钉推送失败回写 failed 但仍落库
+  ---
+  duration_ms: 0.623
+  type: 'test'
+  ...
+# Subtest: 钉钉未配置回写 not_sent
+ok 40 - 钉钉未配置回写 not_sent
+  ---
+  duration_ms: 0.5537
+  type: 'test'
+  ...
+# Subtest: buildExcerpt 截断
+ok 41 - buildExcerpt 截断
+  ---
+  duration_ms: 0.2067
+  type: 'test'
+  ...
+# Subtest: semantic complaints bypass both thresholds while an explicit consultation does not
+ok 42 - semantic complaints bypass both thresholds while an explicit consultation does not
+  ---
+  duration_ms: 1.3044
+  type: 'test'
+  ...
+# Subtest: legacy missing semantic flag does not upgrade a bare bug consultation
+ok 43 - legacy missing semantic flag does not upgrade a bare bug consultation
+  ---
+  duration_ms: 2.5469
+  type: 'test'
+  ...
+# Subtest: repeated normalization retains the raw result, quality fields and clean explanation
+ok 44 - repeated normalization retains the raw result, quality fields and clean explanation
+  ---
+  duration_ms: 0.7907
+  type: 'test'
+  ...
+# Subtest: negative content always stays at least attention
+ok 45 - negative content always stays at least attention
+  ---
+  duration_ms: 0.2064
+  type: 'test'
+  ...
+# Subtest: game issue samples 919167 and 919098 enter negative pending
+ok 46 - game issue samples 919167 and 919098 enter negative pending
+  ---
+  duration_ms: 0.2182
+  type: 'test'
+  ...
+# Subtest: negative score upgrade is strict above 0.50 without a confidence gate
+ok 47 - negative score upgrade is strict above 0.50 without a confidence gate
+  ---
+  duration_ms: 0.1906
+  type: 'test'
+  ...
+# Subtest: positive content is forced normal even when it contains game issue words
+ok 48 - positive content is forced normal even when it contains game issue words
+  ---
+  duration_ms: 0.1705
+  type: 'test'
+  ...
+# Subtest: unrelated neutral content does not keep a conflicting model risk and does not inherit parent risk
+ok 49 - unrelated neutral content does not keep a conflicting model risk and does not inherit parent risk
+  ---
+  duration_ms: 0.1239
+  type: 'test'
+  ...
+# Subtest: invalid severity is audited for every sentiment while sentiment rules remain deterministic
+ok 50 - invalid severity is audited for every sentiment while sentiment rules remain deterministic
+  ---
+  duration_ms: 0.4069
+  type: 'test'
+  ...
+# Subtest: analysis reason truncates the base before a complete audit suffix
+ok 51 - analysis reason truncates the base before a complete audit suffix
+  ---
+  duration_ms: 0.4156
+  type: 'test'
+  ...
+# Subtest: progressive severity requires a qualifying issue before the AI serious decision
+ok 52 - progressive severity requires a qualifying issue before the AI serious decision
+  ---
+  duration_ms: 0.3605
+  type: 'test'
+  ...
+1..52
+# tests 52
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 358.8208

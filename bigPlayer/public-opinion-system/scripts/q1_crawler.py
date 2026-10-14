@@ -34,6 +34,7 @@
 """
 
 import argparse
+import ipaddress
 import json
 import os
 import subprocess
@@ -46,6 +47,33 @@ from urllib import request, parse, error
 BEIJING = timezone(timedelta(hours=8))
 
 # 与 bigPlayerH5Connector.js 完全一致的接口路径。
+DEFAULT_ALLOWED_HOSTS = ("club.q1.com", "club-en.q1.com")
+
+
+def validate_q1_url(url, allowed_hosts, context="base-url"):
+    """Require an exact approved HTTPS origin with no explicit nonstandard port."""
+    parsed = parse.urlparse(url)
+    try:
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError as exc:
+        raise CrawlError(f"{context} 端口非法") from exc
+    if parsed.scheme != "https" or not parsed.netloc or not host:
+        raise CrawlError(f"{context} 必须是 https 且包含 host")
+    if port not in (None, 443):
+        raise CrawlError(f"{context} 仅允许 HTTPS 标准端口")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None and (address.is_private or address.is_loopback or address.is_link_local
+                                or address.is_reserved or address.is_multicast or address.is_unspecified):
+        raise CrawlError(f"{context} 不允许私网或保留 IP")
+    if host.lower() not in allowed_hosts:
+        raise CrawlError(f"host {host} 不在白名单 {sorted(allowed_hosts)}")
+    return parsed
+
+
 EP_USER_CONTEXT = "/api/club/v1/auth/user/context"
 EP_BOARD = "/api/club/v2/auth/board"
 EP_MERGED = "/api/club/v1/auth/post/model/merged-list"
@@ -76,13 +104,12 @@ def emit_error(error, failure_phase="collection"):
 # --------------------------------------------------------------------------- #
 class Q1Client:
     def __init__(self, base_url, token, allowed_hosts, timeout=15, delay_ms=500):
-        parsed = parse.urlparse(base_url)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            raise CrawlError("base-url 必须是 http(s) 且包含 host")
+        self.allowed_hosts = frozenset(str(host).strip().lower() for host in allowed_hosts if str(host).strip())
+        if not self.allowed_hosts:
+            raise CrawlError("白名单 host 不能为空")
+        parsed = validate_q1_url(base_url, self.allowed_hosts)
         self.base = parsed
-        self.host = parsed.hostname or ""
-        if self.host not in allowed_hosts:
-            raise CrawlError(f"host {self.host} 不在白名单 {allowed_hosts}")
+        self.host = parsed.hostname.lower()
         # env / gameId / gameVersion / lang 由 base-url 的 query 携带（与 q1Context 一致）。
         q = dict(parse.parse_qsl(parsed.query))
         self.game_id = q.get("gameId", "")
@@ -93,7 +120,6 @@ class Q1Client:
         if not self.game_id or not self.game_version or not self.env:
             raise CrawlError("base-url 必须包含 env、gameId、gameVersion 查询参数")
         self.token = token
-        self.allowed_hosts = allowed_hosts
         self.timeout = timeout
         self.delay = max(0, delay_ms) / 1000.0
 
@@ -123,9 +149,10 @@ class Q1Client:
         )
         try:
             with request.urlopen(req, timeout=self.timeout) as resp:
-                final_host = parse.urlparse(resp.geturl()).hostname or ""
-                if final_host and final_host not in self.allowed_hosts:
-                    raise CrawlError(f"{capability}: 重定向到白名单外 host {final_host}")
+                try:
+                    validate_q1_url(resp.geturl(), self.allowed_hosts, context=f"{capability}: 重定向")
+                except CrawlError as exc:
+                    raise CrawlError(str(exc)) from None
                 body = resp.read()
         except error.HTTPError as exc:
             code = {
@@ -846,8 +873,9 @@ def main(argv=None):
                     help="社区完整地址，须含 env/gameId/gameVersion/lang 查询参数（--source-id/--account-id 时自动读取，可省）")
     ap.add_argument("--token", default=os.environ.get("Q1_API_TOKEN", ""),
                     help="授权 Bearer token（建议用环境变量 Q1_API_TOKEN，不要写进命令历史）")
-    ap.add_argument("--allowed-hosts", default=os.environ.get("Q1_ALLOWED_HOSTS", "club.q1.com"),
-                    help="逗号分隔的白名单 host")
+    ap.add_argument("--allowed-hosts", default=os.environ.get("Q1_ALLOWED_HOSTS", ",".join(DEFAULT_ALLOWED_HOSTS)),
+                     help="逗号分隔的白名单 host")
+
     ap.add_argument("--yesterday", action="store_true", help="只抓昨天（北京时间自然日）发布的内容")
     ap.add_argument("--since", help="自定义窗口起点 ISO 时间（含），默认按北京时间")
     ap.add_argument("--until", help="自定义窗口终点 ISO 时间（不含）")
@@ -914,10 +942,11 @@ def main(argv=None):
         log(f"      共 {len(feeds)} 个 feed")
 
         log("[3/4] 分页抓取帖子…")
-        posts, post_seen, truncated, shard_count = [], set(), [], 0
+        posts, post_seen, truncated, raw_post_count, shard_count = [], set(), [], 0, 0
         for feed in feeds:
             feed_posts, count = fetch_feed_shards(client, feed, since, until, args.page_size, args.max_post_pages, log, truncated)
-            shard_count = max(shard_count, count)
+            raw_post_count += len(feed_posts)
+            shard_count += count
             for p in feed_posts:
                 if p["externalId"] not in post_seen:
                     post_seen.add(p["externalId"])
@@ -944,10 +973,12 @@ def main(argv=None):
         "publishedTo": until.astimezone(timezone.utc).isoformat() if until else None,
         "feeds": len(feeds),
         "shards": shard_count,
-        "rawPosts": len(posts),
+        "rawPosts": raw_post_count,
+        "uniquePosts": len(posts),
         "posts": len(posts),
         "comments": len([c for c in comments if c["contentDepth"] == 1]),
         "replies": len([c for c in comments if c["contentDepth"] == 2]),
+        "uniqueCommentsReplies": len(comments),
         "truncatedFeeds": truncated,
     }
 

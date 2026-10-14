@@ -1,0 +1,378 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const Status = require('./source-status');
+const SyncProgress = require('./source-sync-progress');
+
+test('authLabel exposes stable Chinese labels for verification states', () => {
+  assert.equal(Status.authLabel('awaiting_manual_verification'), '待人工验证');
+  assert.equal(Status.authLabel('pending_verification'), '待验证');
+  assert.equal(Status.authLabel('authorized'), '已授权');
+});
+
+test('H5 token sources do not require login validation workspace', () => {
+  const source = { platform: 'bigplayer_h5' };
+  assert.equal(Status.needsLoginValidation(source, 'token'), false);
+  assert.equal(Status.needsLoginValidation(source, 'account_password'), true);
+});
+
+test('social login sources still require login validation', () => {
+  assert.equal(Status.needsLoginValidation({ platform: 'douyin' }, 'token'), true);
+  assert.equal(Status.needsLoginValidation({ platform: 'xiaohongshu' }, 'account_password'), true);
+});
+
+test('H5 credential summary reads account-level credential flags', () => {
+  const meta = Status.h5CredentialMeta({
+    account: {
+      hasToken: true,
+      hasAccountPassword: true,
+      maskedAccount: 'pl****er'
+    }
+  });
+  assert.deepEqual(meta, {
+    hasCredential: true,
+    hasToken: true,
+    hasPassword: true,
+    account: 'pl****er'
+  });
+});
+test('explicit credential state accepts safe boolean aliases without inspecting masks', () => {
+  for (const field of ['hasCredential', 'has_credential', 'credentialConfigured', 'credential_configured']) {
+    assert.equal(Status.explicitCredentialState({ account: { [field]: true } }), true, field);
+    assert.equal(Status.explicitCredentialState({ [field]: false }), false, field);
+  }
+  assert.equal(Status.explicitCredentialState({ account: { credentialMask: '•' } }), undefined);
+  assert.equal(Status.explicitCredentialState({ account: { credentialMask: '*' } }), undefined);
+});
+
+test('H5 credential summary recognizes all safe configured flags without plaintext', () => {
+  for (const field of ['credential_configured', 'credentialConfigured', 'hasToken', 'has_token']) {
+    const source = { platform: 'bigplayer_h5', account: { [field]: true } };
+    assert.equal(Status.h5CredentialMeta(source).hasToken || Boolean(source.account[field]), true, field);
+  }
+});
+test('H5 credential update accepts one password and omits confirmation-password dependency', () => {
+  assert.deepEqual(Status.validateH5CredentialUpdate({ account: 'player', password: 'secret' }), {
+    credential: { credentialType: 'account_password', account: 'player', password: 'secret' }
+  });
+  assert.deepEqual(Status.validateH5CredentialUpdate({ account: 'player', password: 'secret', confirmPassword: 'wrong' }), {
+    credential: { credentialType: 'account_password', account: 'player', password: 'secret' }
+  });
+  assert.equal(Status.validateH5CredentialUpdate({ account: 'player', password: '' }).error, '账号密码需同时填写');
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function loadSourcesHarness(fetch) {
+  const elements = new Map();
+  const element = selector => {
+    if (!elements.has(selector)) elements.set(selector, {
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      options: [],
+      classList: { _values: new Set(), add(...values) { values.forEach(value => this._values.add(value)); }, remove(...values) { values.forEach(value => this._values.delete(value)); }, contains(value) { return this._values.has(value); } },
+      addEventListener() {},
+      querySelectorAll() { return []; },
+      closest() { return null; }
+    });
+    return elements.get(selector);
+  };
+  element('#platformFilter').value = '';
+  element('#statusFilter').value = '';
+  const testApi = {};
+  const context = {
+    __PUBLIC_OPINION_TEST__: testApi,
+    console,
+    URL: class TestURL extends URL { constructor(input, base = 'http://127.0.0.1') { super(input, base); } },
+    URLSearchParams,
+    AbortController,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    fetch,
+    confirm: () => false,
+    addEventListener() {},
+    history: { replaceState() {} },
+    location: { pathname: '/admin/PublicOpinion/sources.html', search: '' },
+    document: {
+      querySelector: element,
+      querySelectorAll: () => [],
+      addEventListener() {},
+      head: { appendChild() {} }
+    },
+    SourceStatus: Status,
+    SourceSyncProgress: {
+      isTerminal: SyncProgress.isTerminal,
+      sequenceOf: () => 0,
+      createController: () => ({ state: {}, snapshot: () => ({ run: {}, items: [], visibleLimit: 0 }), stop() {}, open() {} })
+    },
+    PublicOpinionScope: {
+      platforms: [{ value: 'bigplayer_h5', label: 'BigPlayer社区' }, { value: 'taptap', label: 'TapTap' }],
+      platformsForRegion: () => [{ value: 'bigplayer_h5', label: 'BigPlayer社区' }, { value: 'taptap', label: 'TapTap' }],
+      init: () => new Promise(() => {})
+    }
+  };
+  context.window = context;
+  context.globalThis = context;
+  vm.runInNewContext(fs.readFileSync(require.resolve('./sources.js'), 'utf8'), context, { filename: 'sources.js' });
+  return { api: testApi, elements };
+}
+
+test('基础配置保存不再携带启用开关或历史回溯字段', () => {
+  const sourceText = fs.readFileSync(require.resolve('./sources.js'), 'utf8');
+  assert.match(sourceText, /const patch = \{ displayName: \$\('#cfgName'\)\.value\.trim\(\), frequencySeconds: Number\(\$\('#cfgFreq'\)\.value\) \}/);
+  assert.doesNotMatch(sourceText, /if \(!taptap\) patch\.frequencySeconds/);
+  assert.doesNotMatch(sourceText, /const selectedMode = \$\('#cfgSyncMode'\)/);
+  assert.doesNotMatch(sourceText, /const patch = \{ displayName:.*enabled: \$\('#cfgEnabled'\)\.checked/);
+});
+
+test('详情抽屉请求具备单击去重与超时兜底', () => {
+  const sourceText = fs.readFileSync(require.resolve('./sources.js'), 'utf8');
+  assert.match(sourceText, /DETAIL_REQUEST_TIMEOUT_MS = 8000/);
+  assert.match(sourceText, /controller\.abort\(\)/);
+  assert.match(sourceText, /state\.activeSourceId === sourceId && \$\('#drawerMask'\)\?\.classList\.contains\('open'\)/);
+  assert.match(sourceText, /详情加载超时，请稍后重试/);
+  assert.match(sourceText, /drawer-loading-body.*100dvh.*align-items:center;justify-content:center/);
+});
+
+test('详情请求超时后主动中止并返回明确错误', async () => {
+  let calls = 0;
+  const { api } = loadSourcesHarness((_url, options = {}) => new Promise((_resolve, reject) => {
+    calls += 1;
+    options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+  }));
+  await assert.rejects(api.fetchSourceDetail('slow-source', 5), error => error.code === 'DETAIL_LOAD_TIMEOUT' && /详情加载超时/.test(error.message));
+  assert.equal(calls, 1);
+});
+
+test('TapTap 仅展示网页地址和统一采集频率，并按社区填充默认 URL', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const superWorld = { platform: 'taptap', community_name: '超能世界国服版', display_name: 'TapTap001', config: {} };
+  const other = { platform: 'taptap', community_name: '其他社区', display_name: 'TapTap002', config: {} };
+  const panel = api.platformPanel(superWorld);
+  assert.equal(api.taptapDefaultUrl(superWorld), 'https://www.taptap.cn/app/239580/topic?os=android');
+  assert.equal(api.taptapDefaultUrl(other), '');
+  assert.match(panel, /id="cfgBaseUrl"/);
+  assert.doesNotMatch(panel, /cfgAccountId|cfgFreq|cfgScheduleTime/);
+  const fields = api.commonFields(superWorld, false);
+  assert.match(fields, /id="cfgFreq"/);
+  assert.doesNotMatch(fields, /cfgAccountId|cfgScheduleTime/);
+});
+
+test('TapTap 验证列对标准值和展示别名均保留只读工作区', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  for (const platform of ['taptap', 'TapTap', 'tap_tap']) {
+    const panel = api.validationPanel({ platform, auth_status: 'authorized', base_url: 'https://www.taptap.cn/app/239580/topic' });
+    assert.match(panel, /TapTap 采集验证工作区/, platform);
+    assert.match(panel, /暂无进行中的验证挑战/, platform);
+    assert.match(panel, /不会自动发起授权或同步/, platform);
+    assert.doesNotMatch(panel, /Token 授权无需登录会话验证/, platform);
+  }
+});
+
+test('TapTap 已取消同步显示终态并保留取消原因', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const progress = api.syncProgressState({ status: 'cancelled', run: {
+    status: 'cancelled', fetched_count: 0, discovered_count: 0,
+    error_code: 'SYNC_RUN_CANCELLED', error_message: 'cancelled before worker claim'
+  } });
+  assert.equal(api.syncStatusLabel('cancelled'), '已取消');
+  assert.deepEqual({ ...progress }, {
+    label: '已取消', detail: 'cancelled before worker claim', percent: 0,
+    indeterminate: false, fetched: 0, total: 0
+  });
+});
+
+test('BigPlayer H5 站点配置使用独立 URL 行，不再渲染 textarea', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const panel = api.platformPanel({ platform: 'bigplayer_h5', config: { siteUrls: ['https://A.example.com/', 'https://b.example.com/path'] } });
+  assert.doesNotMatch(panel, /<textarea|cfgSiteUrls/);
+  assert.match(panel, /id="cfgSiteUrlList"/);
+  assert.match(panel, /data-site-url type="url"/);
+  assert.match(panel, /data-remove-site-url/);
+  assert.match(panel, /id="btnAddSiteUrl"/);
+});
+
+test('BigPlayer H5 URL 行规范化、逐行校验并保留首项作为 baseUrl', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const valid = api.validateSiteUrlRows(['https://A.example.com/', 'https://b.example.com/path']);
+  assert.deepEqual(Array.from(valid.urls), ['https://a.example.com/', 'https://b.example.com/path']);
+  assert.equal(api.sourceSiteUrls({ config: { siteUrls: valid.urls } })[0], 'https://a.example.com/');
+
+  const invalid = api.validateSiteUrlRows(['', 'https://a.example.com/', 'https://A.example.com/']);
+  assert.equal(invalid.error, '请检查站点地址');
+  assert.equal(invalid.errors[0], '请输入站点地址');
+  assert.equal(invalid.errors[1], '');
+  assert.equal(invalid.errors[2], '站点地址不能重复');
+});
+
+test('BigPlayer H5 URL 行模板保留单行删除保护', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  assert.match(api.siteUrlRowsMarkup(['https://a.example.com/']), /data-remove-site-url[^>]*disabled/);
+  const multiple = api.siteUrlRowsMarkup(['https://a.example.com/', 'https://b.example.com/']);
+  assert.equal((multiple.match(/data-remove-site-url/g) || []).length, 2);
+  assert.doesNotMatch(multiple, /data-remove-site-url[^>]*disabled/);
+});
+
+test('BigPlayer H5 账密表单只展示一次密码输入', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  api.state.h5AuthMode = 'account_password';
+  const panel = api.platformPanel({ platform: 'bigplayer_h5', config: { siteUrls: ['https://a.example.com/'] }, account: { hasAccountPassword: false } });
+  assert.match(panel, /id="cfgH5Password"/);
+  assert.doesNotMatch(panel, /cfgH5PasswordConfirm|确认密码/);
+});
+
+test('所有采集源频率仅提供三档、默认 6 小时并正确回显', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  const optionValues = html => [...html.matchAll(/<option value="(\d+)"/g)].map(match => Number(match[1]));
+  const cases = [
+    [{ platform: 'taptap', community_name: '超能世界国服版' }, 21600],
+    [{ platform: 'bigplayer_h5', community_name: 'Last Night', frequency_seconds: 3600 }, 3600]
+  ];
+  for (const [source, selected] of cases) {
+    const html = api.frequencySelect(source);
+    assert.deepEqual(optionValues(html), [3600, 21600, 86400]);
+    assert.match(html, new RegExp(`<option value="${selected}" selected>`));
+  }
+  const facebookForm = api.facebookForm({ platform: 'facebook', community_name: 'Last Night', frequency_seconds: 86400, canManage: true }, false);
+  const facebookFrequency = facebookForm.match(/<select class="input" id="cfgFreq"[^>]*>([\s\S]*?)<\/select>/)?.[1] || '';
+  assert.deepEqual(optionValues(facebookFrequency), [3600, 21600, 86400]);
+  assert.match(facebookFrequency, /<option value="86400" selected>1 天<\/option>/);
+  assert.equal(api.normalizedFrequency(900), 21600);
+  assert.equal(api.normalizedFrequency(43200), 21600);
+  const sourceText = fs.readFileSync(require.resolve('./sources.js'), 'utf8');
+  assert.match(sourceText, /SOURCE_FREQUENCIES\.find\(\(\[value\]\) => value === frequency\)\?\.\[1\] \|\| `\$\{frequency\} 秒`/);
+});
+
+test('列表启用开关仅提交来源 enabled 字段', async () => {
+  const requests = [];
+  const { api } = loadSourcesHarness(async (url, options = {}) => {
+    requests.push({ url, method: options.method, body: options.body });
+    return { ok: true, status: 200, text: async () => JSON.stringify({ data: { id: 'toggle-source', enabled: false } }) };
+  });
+  const source = { id: 'toggle-source', platform: 'bigplayer_h5', enabled: true, display_name: '切换源', config: {}, account: {} };
+  api.state.sources = [source];
+  api.state.sourcesLoading = false;
+  api.state.scope = { query: () => new URLSearchParams() };
+
+  await api.toggleSource(source, { checked: false, disabled: false });
+
+  assert.deepEqual(requests, [{ url: '/api/public-opinion/sources/toggle-source', method: 'PATCH', body: JSON.stringify({ enabled: false }) }]);
+  assert.equal(api.state.sources[0].enabled, false);
+});
+test('sources response parser accepts arrays and wrapped item collections', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  assert.deepEqual(Array.from(api.sourceItems([{ id: 'array' }]), item => item.id), ['array']);
+  assert.deepEqual(Array.from(api.sourceItems({ data: [{ id: 'data' }] }), item => item.id), ['data']);
+  assert.deepEqual(Array.from(api.sourceItems({ items: [{ id: 'items' }] }), item => item.id), ['items']);
+  assert.deepEqual(Array.from(api.sourceItems({ data: { items: [{ id: 'nested' }] } }), item => item.id), ['nested']);
+});
+
+test('Last Night detection refresh stays locked while TapTap coexists', async () => {
+  const requests = [];
+  const { api, elements } = loadSourcesHarness(async (url, options = {}) => {
+    const parsed = new URL(url, 'http://127.0.0.1');
+    requests.push({ pathname: parsed.pathname, params: Object.fromEntries(parsed.searchParams), method: options.method || 'GET' });
+    if (parsed.pathname.endsWith('/last-night-source/check-auth')) return { ok: true, status: 200, text: async () => JSON.stringify({ data: { authStatus: 'authorized' } }) };
+    return { ok: true, status: 200, text: async () => JSON.stringify({ data: [
+      { id: 'taptap-source', game_id: 'last-night-game', community_id: 'last-night-community', region_code: 'overseas', platform: 'taptap', display_name: 'TapTap untouched' },
+      { id: 'last-night-source', game_id: 'last-night-game', community_id: 'last-night-community', region_code: 'overseas', platform: 'bigplayer_h5', display_name: 'Last Night refreshed' }
+    ] }) };
+  });
+  const lastNight = { id: 'last-night-source', game_id: 'last-night-game', community_id: 'last-night-community', region_code: 'overseas', platform: 'bigplayer_h5', display_name: 'Last Night old' };
+  const taptap = { id: 'taptap-source', game_id: 'last-night-game', community_id: 'last-night-community', region_code: 'overseas', platform: 'taptap', display_name: 'TapTap original' };
+  api.state.sources = [lastNight, taptap];
+  api.state.sourcesLoading = false;
+  api.state.gamesLoading = false;
+  api.state.activeSourceId = lastNight.id;
+  api.state.scope = { query: () => new URLSearchParams({ regionCode: 'overseas', gameId: 'last-night-game', communityId: 'last-night-community', platform: 'bigplayer_h5' }) };
+  elements.set('#cfgName', { value: lastNight.display_name });
+  elements.set('#cfgFreq', { value: '21600' });
+
+  await api.runSourceAction(lastNight, 'check-auth', '授权检测完成', {}, { keepOpen: true });
+
+  assert.deepEqual(requests[1].params, {
+    sourceId: 'last-night-source',
+    regionCode: 'overseas',
+    communityId: 'last-night-community',
+    platform: 'bigplayer_h5'
+  });
+  assert.equal(api.state.sources[0].display_name, 'Last Night refreshed');
+  assert.equal(api.state.sources[1].display_name, 'TapTap original');
+  assert.equal(api.state.activeSourceId, 'last-night-source');
+});
+
+test('exact refresh keeps URL sourceId when active source state is temporarily absent', () => {
+  const { api } = loadSourcesHarness(async () => { throw new Error('unused'); });
+  api.state.scope = { query: () => new URLSearchParams({ regionCode: 'overseas', gameId: 'last-night-game', communityId: 'last-night-community', platform: 'bigplayer_h5' }) };
+  api.state.activeSourceId = '';
+  const params = api.exactSourceParams({ game_id: 'last-night-game', community_id: 'last-night-community', region_code: 'overseas', platform: 'bigplayer_h5' });
+  assert.equal(params.get('sourceId'), null);
+  api.state.activeSourceId = 'last-night-source';
+  assert.equal(api.exactSourceParams(null).get('sourceId'), 'last-night-source');
+});
+
+test('stale sources response cannot replace the latest scope result', async () => {
+  const first = deferred();
+  const second = deferred();
+  let call = 0;
+  const { api } = loadSourcesHarness(async () => {
+    const pending = call++ === 0 ? first : second;
+    const body = await pending.promise;
+    return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+  });
+  let platform = 'bigplayer_h5';
+  api.state.scope = { available: () => true, query: () => new URLSearchParams({ regionCode: 'overseas', gameId: 'last-night', communityId: 'en', platform }) };
+
+  const olderLoad = api.loadSources();
+  platform = 'taptap';
+  const latestLoad = api.loadSources();
+  second.resolve({ data: [{ id: 'tap', platform: 'taptap' }] });
+  await latestLoad;
+  first.resolve({ data: [{ id: 'overseas', platform: 'bigplayer_h5' }] });
+  await olderLoad;
+
+  assert.deepEqual(Array.from(api.state.sources, source => source.id), ['tap']);
+  assert.equal(api.state.sourcesLoading, false);
+});
+
+test('管理首击立即打开加载态，详情慢响应回填且失败显示重试入口', async () => {
+  const detail = deferred();
+  let calls = 0;
+  const { api, elements } = loadSourcesHarness(async () => {
+    calls += 1;
+    if (calls === 1) {
+      const body = await detail.promise;
+      return { ok: true, status: 200, text: async () => JSON.stringify({ data: body }) };
+    }
+    throw new Error('detail unavailable');
+  });
+  const source = { id: 'slow-source', platform: 'bigplayer_h5', display_name: '慢详情源', enabled: true, config: { baseUrl: 'https://club.q1.com' }, account: {} };
+  const failedSource = { id: 'failed-source', platform: 'bigplayer_h5', display_name: '失败详情源', enabled: true, config: { baseUrl: 'https://club.q1.com' }, account: {} };
+  api.state.sources = [source, failedSource];
+
+  const opening = api.openDrawer(source.id);
+  assert.equal(elements.get('#drawerMask').classList.contains('open'), true);
+  assert.match(elements.get('#drawerContent').innerHTML, /正在加载采集源详情/);
+  const duplicate = api.openDrawer(source.id);
+  assert.equal(await duplicate, undefined);
+  detail.resolve(source);
+  await opening;
+  assert.equal(calls, 1);
+  assert.match(elements.get('#drawerContent').innerHTML, /慢详情源/);
+
+  await api.openDrawer(failedSource.id);
+  assert.equal(calls, 2);
+  assert.match(elements.get('#drawerContent').innerHTML, /详情加载失败：/);
+  assert.match(elements.get('#drawerContent').innerHTML, /btnRetryDrawer/);
+  elements.get('#btnRetryDrawer').onclick();
+  assert.equal(calls, 3);
+  assert.match(elements.get('#drawerContent').innerHTML, /正在加载采集源详情/);
+});

@@ -1,0 +1,9 @@
+# Domestic comment v4 repeated lock-timeout QA
+
+Status: PASS_PRIOR_27_PAGES_34_COMMENTS / 926820_NO_GO / FURTHER_TARGETS_STOPPED
+
+The manager's v4 report `graph-v4-comments-926820-page1-execution.json` is `FAILED_GRAPH`: `phase=store_comment_page`, `storePhase=comment_upsert`, `operation=6`, `errorCode=ER_LOCK_WAIT_TIMEOUT`. This narrows the failing operation to comment upsert in the guarded transaction, not to provider authentication or AI enqueue. It does not identify the lock holder or root cause. Post `926822` and remaining targets were not run.
+
+Independent SELECT-only `v047_domestic_comment_batch_readonly_qa.js` verified the exact `926820:root:0` checkpoint remained `idle`, `items_fetched=0`, `cursor=NULL`, no lease, and zero in-window comments under the target post. No partial commit was observed. It also reconciled 27 successful reports and 34 comments with the expected source/account/community, parent/root/depth, original UTC time, provider raw ID, source URL, matching light AI-job fingerprints, and completed lease-free task checkpoints. The historical v3 `926802` timeout remains in the evidence set but was recovered by its sole separately verified retry; the new v4 `926820` failure is unresolved.
+
+NO_GO for further comment/reply execution, including 926820 retry and 926822, until development diagnoses the concrete `comment_upsert` contention with contemporaneous lock/transaction evidence and returns a new frozen candidate plus replay safety proof for independent QA. Do not reset/delete data, widen scope, change shared Worker/algorithm or infer a lock cause from an empty later wait snapshot. The 116 home posts passed independent DB/raw/AI-queue QA, but home pagination exhaustion, nonhome feeds, all comments/replies, final AI completion and scheduler outcome remain pending. No release GO.

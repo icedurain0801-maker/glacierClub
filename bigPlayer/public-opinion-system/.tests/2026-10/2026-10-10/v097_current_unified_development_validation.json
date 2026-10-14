@@ -1,0 +1,109 @@
+{
+  "status": "PASS_DEVELOPMENT_ISOLATED_CURRENT_UNIFIED",
+  "candidateManifestSha256": "2c545b245303aa7e726123ddbf6a52ffcd7df5e4f4539194f29ba9852380d6cc",
+  "verifiedFiles": 2053,
+  "productionTouched": false,
+  "externalNetwork": false,
+  "port": 57051,
+  "serverId": 20261097,
+  "checks": [
+    "fresh_owned_no_defaults_loopback_instance"
+  ],
+  "cases": [
+    {
+      "id": 1,
+      "name": "composed_v097_actual_API_producer_to_v078_actual_analysis_worker",
+      "status": "PASS",
+      "startedAt": "2026-10-10T10:23:02.410Z",
+      "evidence": {
+        "actualAPIStatus": 202,
+        "currentNodeAdapterCalls": 1,
+        "actualAnalysisWorker": true,
+        "fakeAnalysisCalls": 1,
+        "notifications": 0,
+        "jobResultCacheCommitted": true,
+        "loginClientIdentityPreserved": true
+      },
+      "finishedAt": "2026-10-10T10:23:02.634Z"
+    },
+    {
+      "id": 2,
+      "name": "composed_v097_API_translation_producer_to_v078_actual_translation_worker",
+      "status": "PASS",
+      "startedAt": "2026-10-10T10:23:02.634Z",
+      "evidence": {
+        "actualAPIRepositoryProducer": true,
+        "actualTranslationWorker": true,
+        "fakeTranslationCalls": 1,
+        "jobAndTranslationCommitted": true
+      },
+      "finishedAt": "2026-10-10T10:23:02.825Z"
+    },
+    {
+      "id": 3,
+      "name": "latest_auth_persistence_expiry_and_source_binding_with_real_SQL",
+      "status": "PASS",
+      "startedAt": "2026-10-10T10:23:02.861Z",
+      "evidence": {
+        "realEncryptedPersistence": true,
+        "oldExpiryCleared": true,
+        "sourceBindingRejected": true,
+        "expiredResultRejected": true,
+        "secretsOmitted": true
+      },
+      "finishedAt": "2026-10-10T10:23:02.886Z"
+    },
+    {
+      "id": 4,
+      "name": "latest_connector_probe_reuses_token_and_refreshes_once_with_fake_network",
+      "status": "PASS",
+      "startedAt": "2026-10-10T10:23:02.886Z",
+      "evidence": {
+        "fakeNetwork": true,
+        "loginCalls": 2,
+        "refreshCalls": 1,
+        "persistCalls": 2,
+        "postAndCommentProbesAvailable": true
+      },
+      "finishedAt": "2026-10-10T10:23:02.893Z"
+    },
+    {
+      "id": 5,
+      "name": "current_body_page_transaction_captures_intent_and_failure_rolls_back",
+      "status": "PASS",
+      "startedAt": "2026-10-10T10:23:02.893Z",
+      "evidence": {
+        "actualAPIRepositoryPageWriter": true,
+        "bodyAndIntentCommittedTogether": true,
+        "failedIntentRestoredBody": true,
+        "failedIntentRows": 0
+      },
+      "finishedAt": "2026-10-10T10:23:02.935Z"
+    },
+    {
+      "id": 6,
+      "name": "latest_sync_status_scope_and_capability_handler_preserved",
+      "status": "PASS",
+      "startedAt": "2026-10-10T10:23:02.935Z",
+      "evidence": {
+        "latestCorrectScope200": true,
+        "wrongScope404": true,
+        "unsupported400": true,
+        "healthCalls": 0,
+        "detectorCalls": 1,
+        "untestedCommentsPreserved": true
+      },
+      "finishedAt": "2026-10-10T10:23:02.936Z"
+    }
+  ],
+  "candidateHashesAfter": "unchanged",
+  "identityBeforeShutdown": true,
+  "serverStopped": true,
+  "portReleased": true,
+  "requireCacheVerifiedFiles": 404,
+  "resultPath": "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\project manage\\.temp\\risk-normalization-20261010\\current-v097-validation\\run-dXcutg\\result.json",
+  "resultSha256": "06879738fbca42a811bd38623fd92f6d8640ddb3749b10ee92a02c5340e4396e",
+  "independentQA": "PENDING",
+  "productionCutover": "BLOCKED",
+  "scheduledRecovery": "NOT_VERIFIED"
+}

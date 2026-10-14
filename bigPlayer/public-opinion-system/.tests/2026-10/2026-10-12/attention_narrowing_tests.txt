@@ -1,0 +1,436 @@
+TAP version 13
+# Subtest: model output and memory cache enforce risk policy and preserve raw quality result
+ok 1 - model output and memory cache enforce risk policy and preserve raw quality result
+  ---
+  duration_ms: 10.9075
+  type: 'test'
+  ...
+# Subtest: neutral consultation and neutral concrete problem have separate progressive levels
+ok 2 - neutral consultation and neutral concrete problem have separate progressive levels
+  ---
+  duration_ms: 2.2543
+  type: 'test'
+  ...
+# Subtest: low score semantic complaint requires an evidence excerpt from this content
+ok 3 - low score semantic complaint requires an evidence excerpt from this content
+  ---
+  duration_ms: 1.5317
+  type: 'test'
+  ...
+# Subtest: Anthropic Messages 协议使用专用路径、请求头和响应解析
+ok 4 - Anthropic Messages 协议使用专用路径、请求头和响应解析
+  ---
+  duration_ms: 1.476
+  type: 'test'
+  ...
+# Subtest: 未配置时 fail-closed 抛错
+ok 5 - 未配置时 fail-closed 抛错
+  ---
+  duration_ms: 0.5433
+  type: 'test'
+  ...
+# Subtest: 批量分析返回等长同序结果
+ok 6 - 批量分析返回等长同序结果
+  ---
+  duration_ms: 1.0642
+  type: 'test'
+  ...
+# Subtest: 质量推荐字段按新版 schema 解析
+ok 7 - 质量推荐字段按新版 schema 解析
+  ---
+  duration_ms: 0.7569
+  type: 'test'
+  ...
+# Subtest: 旧响应缺少质量字段时默认不推荐且不影响风险解析
+ok 8 - 旧响应缺少质量字段时默认不推荐且不影响风险解析
+  ---
+  duration_ms: 0.7528
+  type: 'test'
+  ...
+# Subtest: 相同内容命中缓存不重复调用
+ok 9 - 相同内容命中缓存不重复调用
+  ---
+  duration_ms: 0.8823
+  type: 'test'
+  ...
+# Subtest: 超过 batchSize 拆多次请求
+ok 10 - 超过 batchSize 拆多次请求
+  ---
+  duration_ms: 1.6433
+  type: 'test'
+  ...
+# Subtest: 正文按 maxChars 截断后进入 prompt
+ok 11 - 正文按 maxChars 截断后进入 prompt
+  ---
+  duration_ms: 0.8866
+  type: 'test'
+  ...
+# Subtest: 非法响应 fail-closed
+ok 12 - 非法响应 fail-closed
+  ---
+  duration_ms: 0.5716
+  type: 'test'
+  ...
+# Subtest: 模型返回 fenced JSON 时仍能解析
+ok 13 - 模型返回 fenced JSON 时仍能解析
+  ---
+  duration_ms: 0.6066
+  type: 'test'
+  ...
+# Subtest: 4xx 不重试直接失败
+ok 14 - 4xx 不重试直接失败
+  ---
+  duration_ms: 0.4217
+  type: 'test'
+  ...
+# Subtest: 单日调用上限闸门
+ok 15 - 单日调用上限闸门
+  ---
+  duration_ms: 1.6481
+  type: 'test'
+  ...
+# Subtest: profile 配置覆盖旧环境变量且请求使用选中模型与限制
+ok 16 - profile 配置覆盖旧环境变量且请求使用选中模型与限制
+  ---
+  duration_ms: 0.5988
+  type: 'test'
+  ...
+# Subtest: 旧环境变量兼容且 analyzeBatch 默认 light
+ok 17 - 旧环境变量兼容且 analyzeBatch 默认 light
+  ---
+  duration_ms: 0.5082
+  type: 'test'
+  ...
+# Subtest: 缓存按 profile、model、version 隔离并在同批去重
+ok 18 - 缓存按 profile、model、version 隔离并在同批去重
+  ---
+  duration_ms: 1.4956
+  type: 'test'
+  ...
+# Subtest: 缓存按区域、游戏、社区和平台上下文隔离
+ok 19 - 缓存按区域、游戏、社区和平台上下文隔离
+  ---
+  duration_ms: 0.8966
+  type: 'test'
+  ...
+# Subtest: 分析提示词包含区域、游戏、社区和平台上下文
+ok 20 - 分析提示词包含区域、游戏、社区和平台上下文
+  ---
+  duration_ms: 0.1468
+  type: 'test'
+  ...
+# Subtest: light and deep prompts request a concise observable plain-language reason
+ok 21 - light and deep prompts request a concise observable plain-language reason
+  ---
+  duration_ms: 0.1734
+  type: 'test'
+  ...
+# Subtest: 严格响应要求 confidence/needsDeep/reason
+ok 22 - 严格响应要求 confidence/needsDeep/reason
+  ---
+  duration_ms: 0.5955
+  type: 'test'
+  ...
+# Subtest: 返回真实 usage 元数据并按结果分摊
+ok 23 - 返回真实 usage 元数据并按结果分摊
+  ---
+  duration_ms: 1.4179
+  type: 'test'
+  ...
+# Subtest: 缺少 provider usage 时返回估算元数据
+ok 24 - 缺少 provider usage 时返回估算元数据
+  ---
+  duration_ms: 0.5461
+  type: 'test'
+  ...
+# Subtest: selected profile/model 校验
+ok 25 - selected profile/model 校验
+  ---
+  duration_ms: 0.2915
+  type: 'test'
+  ...
+# Subtest: profile 调用上限独立
+ok 26 - profile 调用上限独立
+  ---
+  duration_ms: 0.999
+  type: 'test'
+  ...
+# Subtest: truncate/fingerprint 工具
+ok 27 - truncate/fingerprint 工具
+  ---
+  duration_ms: 0.0973
+  type: 'test'
+  ...
+# Subtest: light/deep use the same serial gates and prohibit score-only escalation
+ok 28 - light/deep use the same serial gates and prohibit score-only escalation
+  ---
+  duration_ms: 0.1432
+  type: 'test'
+  ...
+# Subtest: severity 新提示词 schema 使旧缓存失效但不改变历史 analysisVersion
+ok 29 - severity 新提示词 schema 使旧缓存失效但不改变历史 analysisVersion
+  ---
+  duration_ms: 0.2487
+  type: 'test'
+  ...
+# Subtest: severity 非法或多选枚举 fail-closed，不按 negative 情感兜底
+ok 30 - severity 非法或多选枚举 fail-closed，不按 negative 情感兜底
+  ---
+  duration_ms: 1.2507
+  type: 'test'
+  ...
+# Subtest: neutral consultations stay normal even when legacy AI labels game experience related
+ok 31 - neutral consultations stay normal even when legacy AI labels game experience related
+  ---
+  duration_ms: 5.6954
+  type: 'test'
+  ...
+# Subtest: narrowing attention preserves verified urgent results from the previous policy
+ok 32 - narrowing attention preserves verified urgent results from the previous policy
+  ---
+  duration_ms: 2.0456
+  type: 'test'
+  ...
+# Subtest: a model cannot turn ordinary question objects into factual complaints
+ok 33 - a model cannot turn ordinary question objects into factual complaints
+  ---
+  duration_ms: 0.4035
+  type: 'test'
+  ...
+# Subtest: real complaints and failures in questions remain in the risk queue
+ok 34 - real complaints and failures in questions remain in the risk queue
+  ---
+  duration_ms: 1.9054
+  type: 'test'
+  ...
+# Subtest: 99% negative emotion and refund intentions cannot bypass GATE1
+ok 35 - 99% negative emotion and refund intentions cannot bypass GATE1
+  ---
+  duration_ms: 3.3445
+  type: 'test'
+  ...
+# Subtest: luck whitelist runs after exceptions, which still require a verifiable claim
+ok 36 - luck whitelist runs after exceptions, which still require a verifiable claim
+  ---
+  duration_ms: 1.259
+  type: 'test'
+  ...
+# Subtest: plain consultation about money does not become urgent
+ok 37 - plain consultation about money does not become urgent
+  ---
+  duration_ms: 0.2021
+  type: 'test'
+  ...
+# Subtest: single incidental crash is attention, reproducible boss crash is negative
+ok 38 - single incidental crash is attention, reproducible boss crash is negative
+  ---
+  duration_ms: 0.7992
+  type: 'test'
+  ...
+# Subtest: fabricated issue object and evidence fail GATE1
+ok 39 - fabricated issue object and evidence fail GATE1
+  ---
+  duration_ms: 0.364
+  type: 'test'
+  ...
+# Subtest: observable source facts repair a missing issue summary or model emotion label
+ok 40 - observable source facts repair a missing issue summary or model emotion label
+  ---
+  duration_ms: 0.4636
+  type: 'test'
+  ...
+# Subtest: hypothetical or resolved clauses cannot prove a live problem
+ok 41 - hypothetical or resolved clauses cannot prove a live problem
+  ---
+  duration_ms: 0.1308
+  type: 'test'
+  ...
+# Subtest: R1 compliance allegation requires its original quote
+ok 42 - R1 compliance allegation requires its original quote
+  ---
+  duration_ms: 0.2201
+  type: 'test'
+  ...
+# Subtest: minor controversy requires both payment and complaint evidence
+ok 43 - minor controversy requires both payment and complaint evidence
+  ---
+  duration_ms: 0.4355
+  type: 'test'
+  ...
+# Subtest: a real external complaint is urgent, a complaint-process question is not
+ok 44 - a real external complaint is urgent, a complaint-process question is not
+  ---
+  duration_ms: 0.4191
+  type: 'test'
+  ...
+# Subtest: R5 financial bug needs an observable reproduction path
+ok 45 - R5 financial bug needs an observable reproduction path
+  ---
+  duration_ms: 0.288
+  type: 'test'
+  ...
+# Subtest: R6 account theft and R7 sustained outage are urgent
+ok 46 - R6 account theft and R7 sustained outage are urgent
+  ---
+  duration_ms: 0.7449
+  type: 'test'
+  ...
+# Subtest: organized action needs a concrete action quote
+ok 47 - organized action needs a concrete action quote
+  ---
+  duration_ms: 0.2025
+  type: 'test'
+  ...
+# Subtest: R9/R10/R11 do not invent missing cross-platform and cluster metadata
+ok 48 - R9/R10/R11 do not invent missing cross-platform and cluster metadata
+  ---
+  duration_ms: 0.2205
+  type: 'test'
+  ...
+# Subtest: R12/R3 require readable samples, not an uninspected screenshot reference
+ok 49 - R12/R3 require readable samples, not an uninspected screenshot reference
+  ---
+  duration_ms: 0.3225
+  type: 'test'
+  ...
+# Subtest: R13 accepts supplied readable ticket proof only
+ok 50 - R13 accepts supplied readable ticket proof only
+  ---
+  duration_ms: 0.2016
+  type: 'test'
+  ...
+# Subtest: U3/U4/U5 require verified metadata and cannot upgrade pure emotion
+ok 51 - U3/U4/U5 require verified metadata and cannot upgrade pure emotion
+  ---
+  duration_ms: 0.2301
+  type: 'test'
+  ...
+# Subtest: confidence below 0.6 downgrades L2 once, not a verified L3
+ok 52 - confidence below 0.6 downgrades L2 once, not a verified L3
+  ---
+  duration_ms: 0.7052
+  type: 'test'
+  ...
+# Subtest: D1 verified misreading creates clarification; model guesses cannot silently downgrade
+ok 53 - D1 verified misreading creates clarification; model guesses cannot silently downgrade
+  ---
+  duration_ms: 0.115
+  type: 'test'
+  ...
+# Subtest: L0 normal is retained with the original quote; duplicate guesses are not filtered
+ok 54 - L0 normal is retained with the original quote; duplicate guesses are not filtered
+  ---
+  duration_ms: 0.1303
+  type: 'test'
+  ...
+# Subtest: L0 reasons are rebuilt from real text even when the model omits its quote
+ok 55 - L0 reasons are rebuilt from real text even when the model omits its quote
+  ---
+  duration_ms: 0.1936
+  type: 'test'
+  ...
+# Subtest: positive sharing without a problem does not enter the attention queue
+ok 56 - positive sharing without a problem does not enter the attention queue
+  ---
+  duration_ms: 0.1384
+  type: 'test'
+  ...
+# Subtest: observable bug and red-dot faults cannot be filtered as generic noise
+ok 57 - observable bug and red-dot faults cannot be filtered as generic noise
+  ---
+  duration_ms: 0.1478
+  type: 'test'
+  ...
+# Subtest: persistence retains verifiable evidence and explicit current body wins over old source
+ok 58 - persistence retains verifiable evidence and explicit current body wins over old source
+  ---
+  duration_ms: 0.4186
+  type: 'test'
+  ...
+# Subtest: later same-content analysis cannot silently downgrade a verified v8 urgent result
+ok 59 - later same-content analysis cannot silently downgrade a verified v8 urgent result
+  ---
+  duration_ms: 0.5244
+  type: 'test'
+  ...
+# Subtest: real local HTTP AI response applies serial gates, parses quality and rejects missing risk
+ok 60 - real local HTTP AI response applies serial gates, parses quality and rejects missing risk
+  ---
+  duration_ms: 77.7887
+  type: 'test'
+  ...
+# Subtest: semantic complaints bypass both thresholds while an explicit consultation does not
+ok 61 - semantic complaints bypass both thresholds while an explicit consultation does not
+  ---
+  duration_ms: 7.289
+  type: 'test'
+  ...
+# Subtest: legacy missing semantic flag does not upgrade a bare bug consultation
+ok 62 - legacy missing semantic flag does not upgrade a bare bug consultation
+  ---
+  duration_ms: 5.3419
+  type: 'test'
+  ...
+# Subtest: repeated normalization retains the raw result, quality fields and clean explanation
+ok 63 - repeated normalization retains the raw result, quality fields and clean explanation
+  ---
+  duration_ms: 1.2099
+  type: 'test'
+  ...
+# Subtest: negative content always stays at least attention
+ok 64 - negative content always stays at least attention
+  ---
+  duration_ms: 1.1183
+  type: 'test'
+  ...
+# Subtest: game issue samples 919167 and 919098 enter negative pending
+ok 65 - game issue samples 919167 and 919098 enter negative pending
+  ---
+  duration_ms: 0.5938
+  type: 'test'
+  ...
+# Subtest: negative score alone never bypasses the verifiable-issue gate
+ok 66 - negative score alone never bypasses the verifiable-issue gate
+  ---
+  duration_ms: 0.4618
+  type: 'test'
+  ...
+# Subtest: positive content is forced normal even when it contains game issue words
+ok 67 - positive content is forced normal even when it contains game issue words
+  ---
+  duration_ms: 0.3054
+  type: 'test'
+  ...
+# Subtest: unrelated neutral content does not keep a conflicting model risk and does not inherit parent risk
+ok 68 - unrelated neutral content does not keep a conflicting model risk and does not inherit parent risk
+  ---
+  duration_ms: 0.2753
+  type: 'test'
+  ...
+# Subtest: invalid severity is audited for every sentiment while sentiment rules remain deterministic
+ok 69 - invalid severity is audited for every sentiment while sentiment rules remain deterministic
+  ---
+  duration_ms: 0.5526
+  type: 'test'
+  ...
+# Subtest: analysis reason truncates the base before a complete audit suffix
+ok 70 - analysis reason truncates the base before a complete audit suffix
+  ---
+  duration_ms: 0.5159
+  type: 'test'
+  ...
+# Subtest: progressive severity requires a qualifying issue before the AI serious decision
+ok 71 - progressive severity requires a qualifying issue before the AI serious decision
+  ---
+  duration_ms: 0.5349
+  type: 'test'
+  ...
+1..71
+# tests 71
+# suites 0
+# pass 71
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1896.0118

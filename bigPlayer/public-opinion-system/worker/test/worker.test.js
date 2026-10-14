@@ -1,11 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runSource, runOnce, checkAuthorization, syncStage, createCommitLane, enqueueDailyAnalysis, normalizePlatformItem, processDownstream, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, SEVERITY_RANK, buildDeps } = require('../src/worker');
+const { runSource, runOnce, checkAuthorization, syncStage, createCommitLane, createTaskScheduler, createLeaseGuard, enqueueDailyAnalysis, normalizePlatformItem, processDownstream, processAnalysisBacklog, shouldDeepAnalyze, effectiveAnalysisForAlert, normalizePersistedAnalysis, SEVERITY_RANK, buildDeps, safeErrorMessage, rateLimitRetry } = require('../src/worker');
 const { BigPlayerH5Connector } = require('../../server/src/connectors/bigPlayerH5Connector');
+const { ConnectorPageError } = require('../../server/src/connectors/baseConnector');
+const { AlertEngine } = require('../../server/src/pipeline/alertEngine');
 
 // 全注入依赖，避免真实 DB/网络。repo 记录关键落库调用。
 function makeRepo(over = {}) {
-  const state = { runs: [], analyses: [], sourceAuth: [], finished: [], sourceRuns: [] };
+  const state = { runs: [], analyses: [], sourceAuth: [], finished: [], sourceRuns: [], syncFinished: [] };
   return {
     state,
     async createRun(sourceId) { const run = { id: `run-${state.runs.length}`, sourceId }; state.runs.push(run); return run; },
@@ -21,7 +23,135 @@ function makeRepo(over = {}) {
 const okConnector = (items) => ({ async healthCheck() { return { platform: 'p', configured: true }; }, async collect() { return items; } });
 const unauthConnector = () => ({ async healthCheck() { return { platform: 'p', configured: false, reason: 'credentials required' }; }, async collect() { throw new Error('should not collect'); } });
 const raw = (id, title, body) => ({ externalId: id, title, body, authorName: 'u', fingerprint: `fp-${id}`, sourceUrl: `https://x/${id}` });
-const source = { id: 's1', account_id: 'a1', game_id: 'g1', community_id: 'c1', region_code: 'domestic', platform: 'bigplayer_h5', display_name: '大玩家', game_name: '冰川游戏', community_name: '国服版' };
+const source = { id: 's1', account_id: 'a1', game_id: 'g1', community_id: 'c1', region_code: 'domestic', platform: 'bigplayer_h5', display_name: '大玩家', game_name: '冰川游戏', community_name: '国服版', config: { boardId: '2' } };
+
+test('safeErrorMessage preserves nested connector cause code without exposing credentials', () => {
+  const httpError = new ConnectorPageError('discord', 'comments', 2, Object.assign(new Error('Discord API request failed with status 403'), { code: 'PERMISSION_DENIED' }));
+  assert.equal(safeErrorMessage(httpError), 'discord comments page 2 failed [cause:PERMISSION_DENIED]');
+  const networkError = new ConnectorPageError('discord', 'authorization', 1, new Error('fetch failed: token=secret-value'));
+  assert.match(safeErrorMessage(networkError), /^discord authorization page 1 failed \[cause:fetch failed: token=\[redacted\]/);
+  assert.doesNotMatch(safeErrorMessage(networkError), /secret-value/);
+});
+
+test('Discord rate limit persists next eligible evidence and keeps the last safe checkpoint cursor', async () => {
+  const checkpointCursor = JSON.stringify({ version: 1, channelIndex: 0, before: '1524340652974800997' });
+  const releases = []; const deferred = [];
+  const discordSource = { ...source, id: 'discord-rate-source', platform: 'discord', region_code: 'overseas' };
+  const account = { id: 'discord-rate-account', source_id: discordSource.id, game_id: discordSource.game_id, metadata: {} };
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return account; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'discord-rate-run', sync_mode: 'backfill', trigger_type: 'manual', attempts: 1, lease_owner: 'discord-worker:claim', lease_epoch: 2 }; },
+    async deferSyncRun(id, patch) { deferred.push({ id, ...patch }); return { id, status: 'queued' }; },
+    async claimSyncCheckpoint() { return { id: 'discord-rate-checkpoint', cursor: checkpointCursor }; },
+    async releaseSyncCheckpoint(id, patch) { releases.push({ id, ...patch }); },
+    async listSyncParents() { return []; }
+  });
+  const cause = Object.assign(new Error('Discord API request failed with status 429'), { code: 'RATE_LIMITED', details: { retryAfterMs: 12_500 } });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    hasSourceCapability() { return false; },
+    async listOwnedContents(input) {
+      assert.equal(input.cursor, checkpointCursor);
+      const error = new ConnectorPageError('discord', 'owned_content', 2, cause);
+      error.retryAfterMs = 12_500;
+      throw error;
+    }
+  };
+  await runSource({ repo, connectors: { discord: connector }, credentialContext: { async load() { return { apiToken: 'hidden' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'discord-worker', leaseSeconds: 60, pageBudget: 1, pageSize: 100 }, discordSource, { id: 'discord-rate-run', account_id: account.id, sync_mode: 'backfill' });
+
+  assert.equal(releases.at(-1).cursor, checkpointCursor);
+  assert.equal(releases.at(-1).errorCode, 'RATE_LIMITED');
+  assert.equal(deferred.at(-1).errorCode, 'RATE_LIMITED');
+  assert.match(deferred.at(-1).errorMessage, /retry_after_ms:12500/);
+  assert.match(deferred.at(-1).errorMessage, /next_eligible_at:/);
+  const delay = new Date(deferred.at(-1).nextRetryAt).getTime() - Date.now();
+  assert.ok(delay > 10_000 && delay <= 12_500);
+});
+
+test('Discord comments 429 stops later comments and reply dispatch for the same run', async () => {
+  const releases = []; const deferred = []; const commentCalls = [];
+  const discordSource = { ...source, id: 'discord-comment-rate-source', platform: 'discord', region_code: 'overseas' };
+  const account = { id: 'discord-comment-rate-account', source_id: discordSource.id, game_id: discordSource.game_id, metadata: {} };
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return account; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'discord-comment-rate-run', sync_mode: 'backfill', attempts: 1, lease_owner: 'discord-worker:claim', lease_epoch: 2 }; },
+    async deferSyncRun(id, patch) { deferred.push({ id, ...patch }); return { id, status: 'queued' }; },
+    async claimSyncCheckpoint(input) { return { id: `discord-comment-cp-${input.taskKey}`, cursor: input.taskKey === 'owned' ? null : `safe-${input.taskKey}` }; },
+    async releaseSyncCheckpoint(id, patch) { releases.push({ id, ...patch }); },
+    async upsertContentPage(input) {
+      return { contents: input.items.map(item => ({ content: { id: `content-${item.externalId}`, content_type: input.syncScope === 'posts' ? 'post' : 'comment' }, change: 'inserted' })), storedCount: input.items.length };
+    },
+    async listSyncParents() { return []; }
+  });
+  const cause = Object.assign(new Error('Discord API request failed with status 429'), { code: 'RATE_LIMITED', details: { retryAfterMs: 5_000 } });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    hasSourceCapability(scope) { return scope === 'comments'; },
+    async listOwnedContents() {
+      return {
+        items: [raw('discord-post-1', 'one', 'body'), raw('discord-post-2', 'two', 'body')].map(item => ({ ...item, publishedAt: '2026-09-18T00:00:00Z' })),
+        nextCursor: null, hasMore: false, capability: 'authorized_scope'
+      };
+    },
+    async listComments(input) {
+      commentCalls.push(input.postId);
+      const error = new ConnectorPageError('discord', 'comments', 1, cause);
+      error.retryAfterMs = 5_000;
+      throw error;
+    }
+  };
+  await runSource({ repo, connectors: { discord: connector }, credentialContext: { async load() { return { apiToken: 'hidden' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'discord-worker', leaseSeconds: 60, pageBudget: 1, pageSize: 100 }, discordSource, { id: 'discord-comment-rate-run', account_id: account.id, sync_mode: 'backfill' });
+
+  assert.deepEqual(commentCalls, ['discord-post-1']);
+  assert.equal(releases.at(-1).cursor, 'safe-discord-post-1');
+  assert.equal(releases.at(-1).errorCode, 'RATE_LIMITED');
+  assert.equal(deferred.at(-1).errorCode, 'RATE_LIMITED');
+  assert.ok(deferred.at(-1).nextRetryAt);
+});
+
+test('rate limit retry uses bounded provider delay and bounded exponential fallback', () => {
+  const now = Date.parse('2026-09-18T05:00:00.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 0 }, { attempts: 1 }, now).nextRetryAt, '2026-09-18T05:00:01.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 99 * 60 * 60 * 1000 }, { attempts: 1 }, now).nextRetryAt, '2026-09-18T06:00:00.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED' }, { attempts: 3 }, now).nextRetryAt, '2026-09-18T05:04:00.000Z');
+  const terminal = rateLimitRetry({ code: 'RATE_LIMITED' }, { attempts: 99 }, now);
+  assert.equal(terminal.nextRetryAt, null);
+  assert.equal(terminal.terminal, true);
+  assert.equal(terminal.errorCode, 'RATE_LIMITED_MAX_ATTEMPTS');
+  assert.equal(rateLimitRetry({ code: 'MALFORMED_RESPONSE' }, { attempts: 99 }, now).nextRetryAt, null);
+});
+
+test('Discord rate limit retries through attempt four and becomes terminal at five', () => {
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 1000 }, { attempts: 4 }).terminal, false);
+  const atFive = rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 1000 }, { attempts: 5 });
+  assert.equal(atFive.nextRetryAt, null);
+  assert.equal(atFive.errorCode, 'RATE_LIMITED_MAX_ATTEMPTS');
+  assert.equal(rateLimitRetry({ code: 'OTHER' }, { attempts: 99 }).terminal, undefined);
+});
+
+test('Discord attempt five closes the run terminally and is not requeued', async () => {
+  const finished = [], deferred = [];
+  const discordSource = { ...source, id: 'discord-terminal-source', platform: 'discord', region_code: 'overseas' };
+  const account = { id: 'discord-terminal-account', source_id: discordSource.id, game_id: discordSource.game_id, metadata: {} };
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return account; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'discord-terminal-run', sync_mode: 'backfill', trigger_type: 'manual', attempts: 5, lease_owner: 'discord-worker:claim', lease_epoch: 2 }; },
+    async deferSyncRun(id, patch) { deferred.push({ id, ...patch }); return { id, status: 'queued' }; },
+    async finishSyncRun(id, patch) { finished.push({ id, ...patch }); return { id, status: patch.status }; },
+    async claimSyncCheckpoint() { return { id: 'discord-terminal-checkpoint', cursor: null }; },
+    async releaseSyncCheckpoint() {}, async listSyncParents() { return []; }
+  });
+  const cause = Object.assign(new Error('Discord API request failed with status 429'), { code: 'RATE_LIMITED', details: { retryAfterMs: 1000 } });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, hasSourceCapability() { return false; }, async listOwnedContents() { throw new ConnectorPageError('discord', 'owned_content', 1, cause); } };
+  await runSource({ repo, connectors: { discord: connector }, credentialContext: { async load() { return { apiToken: 'hidden' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'discord-worker', leaseSeconds: 60, pageBudget: 1, pageSize: 100 }, discordSource, { id: 'discord-terminal-run', account_id: account.id, sync_mode: 'backfill' });
+  assert.equal(deferred.length, 0);
+  assert.equal(finished.at(-1).status, 'failed');
+  assert.equal(finished.at(-1).errorCode, 'RATE_LIMITED_MAX_ATTEMPTS');
+  assert.equal(finished.at(-1).nextRetryAt, null);
+});
 
 test('buildDeps wires the production H5 connector to the auth refresh coordinator', () => {
   const deps = buildDeps();
@@ -85,12 +215,27 @@ test('shouldDeepAnalyze is pure and combines keyword and light risk signals', ()
   assert.equal(shouldDeepAnalyze({ needsDeep: true }), true);
 });
 
+test('persisted analysis keeps original severity and normalization reasons', () => {
+  const normalized = normalizePersistedAnalysis({ sentiment: 'positive', severity: 'urgent', reason: '已解决闪退问题' }, { title: '闪退修复公告', body: '更新后体验正常' });
+  assert.equal(normalized.severity, 'normal');
+  assert.equal(normalized.originalSeverity, 'urgent');
+  assert.deepEqual(normalized.severityNormalizationReasons, ['positive_forced_normal']);
+  assert.equal(normalized.analysisReason, '已解决闪退问题');
+  assert.equal(normalized.rawAnalysis.severity, 'urgent');
+});
+
+test('positive deep result cannot inherit urgent severity from an earlier negative light result', () => {
+  const result = effectiveAnalysisForAlert({ sentiment: 'positive', severity: 'normal', qualityScore: 0.92, recommendHome: true }, { sentiment: 'negative', severity: 'urgent' });
+  assert.equal(result.severity, 'normal');
+  assert.equal(result.recommendHome, true);
+});
+
 test('persistent downstream enqueues every changed item, caches light, escalates selective deep, and alerts matched/unmatched urgent separately', async () => {
   const calls = { enqueue: [], claim: [], finish: [], cache: [], analyses: [], rules: 0, ai: [], ruleAlerts: 0, urgentAlerts: 0 };
   const jobs = {
     light: [
       { id: 'j1', content_id: 'c1', title: '普通', body: '普通', fingerprint: 'fp1', trigger_reason: 'all_content', matched_keywords: '[]', attempts: 1 },
-      { id: 'j2', content_id: 'c2', title: '命中', body: '崩溃', fingerprint: 'fp2', trigger_reason: 'keyword_match', matched_keywords: '["闪退组"]', attempts: 1 }
+      { id: 'j2', content_id: 'c2', title: '命中', body: '游戏一直崩溃，导致无法参加活动', fingerprint: 'fp2', trigger_reason: 'keyword_match', matched_keywords: '["闪退组"]', attempts: 1 }
     ],
     deep: []
   };
@@ -108,27 +253,30 @@ test('persistent downstream enqueues every changed item, caches light, escalates
   const entries = [{ content: { id: 'c1' }, raw: { title: '普通', body: '普通', fingerprint: 'fp1' }, change: 'inserted' }, { content: { id: 'c2' }, raw: { title: '命中', body: '崩溃', fingerprint: 'fp2' }, change: 'changed' }, { content: { id: 'c3', is_deleted: true }, raw: { title: '删除', body: '崩溃', fingerprint: 'fp3' }, change: 'inserted' }];
   const result = await processDownstream({ repo, ai, alertEngine, leaseOwner: 'w1', leaseSeconds: 10 }, source, entries);
   assert.equal(result.analyzed, 2);
-  assert.equal(calls.enqueue.length, 4);
-  assert.equal(calls.enqueue.filter(call => call.input.profile === 'deep').length, 2);
+  assert.equal(calls.enqueue.length, 3);
+  assert.equal(calls.enqueue.filter(call => call.input.profile === 'deep').length, 1);
   assert.equal(calls.urgentAlerts, 0, '升级 deep 的 light 结果不应提前告警');
   assert.equal(calls.ruleAlerts, 0, '升级 deep 的关键词结果应等待最终 deep 结果');
   assert.equal(calls.cache.length, 2);
   assert.equal(calls.finish.length, 2);
   assert.deepEqual(calls.analyses.map(call => call.analysis.triggerReason), ['all_content', 'keyword_match']);
   assert.deepEqual(calls.analyses.map(call => call.analysis.reason), ['内容使用中性陈述，但风险等级需要继续确认。', '内容明确提到崩溃，表达了对游戏稳定性的不满。']);
-  assert.deepEqual(calls.enqueue.filter(call => call.input.profile === 'deep').map(call => call.input.triggerReason), ['light_escalation', 'keyword_match']);
+  assert.deepEqual(calls.analyses.map(call => call.analysis.severity), ['normal', 'negative']);
+  assert.deepEqual(calls.analyses[1].analysis.severityNormalizationReasons, ['game_issue_upgrade']);
+  assert.equal(calls.analyses[1].analysis.originalSeverity, 'attention');
+  assert.deepEqual(calls.enqueue.filter(call => call.input.profile === 'deep').map(call => call.input.triggerReason), ['keyword_match']);
   assert.deepEqual(calls.claim.map(call => ({ sourceId: call.sourceId, gameId: call.gameId, communityId: call.communityId })), [
     { sourceId: 's1', gameId: 'g1', communityId: 'c1' },
     { sourceId: 's1', gameId: 'g1', communityId: 'c1' }
   ]);
 });
 
-test('effectiveAnalysisForAlert takes highest severity between light and deep', () => {
+test('effectiveAnalysisForAlert uses the final deep classification', () => {
   const deepNormal = { severity: 'normal', summary: 'deep', analysisLevel: 'deep' };
   const lightUrgent = { severity: 'urgent' };
   const effective = effectiveAnalysisForAlert(deepNormal, lightUrgent);
-  assert.equal(effective.severity, 'urgent', 'light urgent should override deep normal');
-  assert.equal(effective._lightSeverity, 'urgent');
+  assert.equal(effective.severity, 'normal', 'final deep classification is authoritative');
+  assert.equal(effective._lightSeverity, undefined);
   assert.equal(effective.summary, 'deep', 'deep detail preserved');
   assert.equal(effective.analysisLevel, 'deep', 'deep level preserved');
 });
@@ -140,7 +288,7 @@ test('effectiveAnalysisForAlert keeps deep severity when deep is higher or equal
   assert.equal(effectiveAnalysisForAlert({ severity: 'normal' }, { severity: 'normal' }).severity, 'normal');
 });
 
-test('deep downgrade from light urgent still triggers ai_urgent alert', async () => {
+test('deep downgrade from light urgent suppresses ai_urgent alert', async () => {
   const calls = { urgentAlerts: 0, getLight: 0 };
   const lightJob = { id: 'jL', content_id: 'cD', game_id: 'g1', community_id: 'c1', title: '抽卡黑幕', body: '千抽无SSR', fingerprint: 'fpD', trigger_reason: 'all_content', matched_keywords: '[]', attempts: 1 };
   const deepJob = { id: 'jD', content_id: 'cD', game_id: 'g1', community_id: 'c1', title: '抽卡黑幕', body: '千抽无SSR', fingerprint: 'fpD', trigger_reason: 'light_escalation', matched_keywords: '[]', attempts: 1 };
@@ -178,7 +326,7 @@ test('deep downgrade from light urgent still triggers ai_urgent alert', async ()
   };
   const entries = [{ content: { id: 'cD' }, raw: { title: '抽卡黑幕', body: '千抽无SSR', fingerprint: 'fpD' }, change: 'inserted' }];
   const result = await processDownstream({ repo, ai, alertEngine, leaseOwner: 'w1', leaseSeconds: 10 }, source, entries);
-  assert.equal(calls.urgentAlerts, 1, 'deep downgrade from light urgent must still trigger ai_urgent alert');
+  assert.equal(calls.urgentAlerts, 0, 'final deep downgrade suppresses stale light alert');
   assert.equal(calls.getLight, 1, 'getLightAnalysis should be called for light_escalation deep job');
 });
 
@@ -198,7 +346,7 @@ test('deep without light_escalation trigger does not query light analysis', asyn
   const ai = {
     profiles: { light: { version: 'l1', model: 'lm' }, deep: { version: 'd1', model: 'dm' } },
     selectProfile(profile) { return { name: profile, ...this.profiles[profile] }; },
-    async analyzeBatch() { return [{ sentiment: 'negative', severity: 'urgent', confidence: 0.9, needsDeep: false }]; }
+    async analyzeBatch() { return [{ sentiment: 'negative', severity: 'urgent', negativeScore: 0.8, confidence: 0.9, needsDeep: false }]; }
   };
   const alertEngine = { async process() { return []; }, async processAiUrgent() { calls.urgentAlerts += 1; return [{ reused: false }]; } };
   await processDownstream({ repo, ai, alertEngine, leaseOwner: 'w1', leaseSeconds: 10 }, source, []);
@@ -235,8 +383,8 @@ test('cached analysis keeps its model reason without calling AI', async () => {
 test('quality candidates are created only after deep analysis and include recommendation fields', async () => {
   const candidates = [];
   const jobs = {
-    light: [{ id: 'j-light-quality', content_id: 'c-quality', game_id: 'g1', community_id: 'c1', title: '攻略', body: '完整攻略', fingerprint: 'fp-quality', trigger_reason: 'all_content', matched_keywords: '[]', attempts: 1 }],
-    deep: [{ id: 'j-deep-quality', content_id: 'c-quality', game_id: 'g1', community_id: 'c1', title: '攻略', body: '完整攻略', fingerprint: 'fp-quality', trigger_reason: 'light_escalation', matched_keywords: '[]', attempts: 1 }]
+    light: [{ id: 'j-light-quality', content_id: 'c-quality', game_id: 'g1', community_id: 'c1', title: '攻略', body: '这是一段足够长、结构完整、包含明确问题背景、影响范围、复现步骤和解决建议的优质社区内容，用于验证优质内容分析候选的真实筛选条件。', fingerprint: 'fp-quality', trigger_reason: 'all_content', matched_keywords: '[]', attempts: 1 }],
+    deep: [{ id: 'j-deep-quality', content_id: 'c-quality', game_id: 'g1', community_id: 'c1', title: '攻略', body: '这是一段足够长、结构完整、包含明确问题背景、影响范围、复现步骤和解决建议的优质社区内容，用于验证优质内容分析候选的真实筛选条件。', fingerprint: 'fp-quality', trigger_reason: 'light_escalation', matched_keywords: '[]', attempts: 1 }]
   };
   const repo = {
     async loadKeywordRules() { return []; },
@@ -259,7 +407,7 @@ test('quality candidates are created only after deep analysis and include recomm
         : { sentiment: 'positive', severity: 'normal', confidence: 0.95, needsDeep: false, qualityScore: 0.93, recommendHome: true, recommendPin: false, recommendFeature: true, qualityReason: '内容完整、时效性强且具备长期参考价值。', analysisVersion: 'd1', modelName: 'dm' });
     }
   };
-  await processDownstream({ repo, ai, alertEngine: {}, leaseOwner: 'w1' }, source, [{ content: { id: 'c-quality' }, raw: { title: '攻略', body: '完整攻略', fingerprint: 'fp-quality' }, change: 'inserted' }]);
+  await processDownstream({ repo, ai, alertEngine: {}, leaseOwner: 'w1' }, source, [{ content: { id: 'c-quality' }, raw: { title: '攻略', body: '这是一段足够长、结构完整、包含明确问题背景、影响范围、复现步骤和解决建议的优质社区内容，用于验证优质内容分析候选的真实筛选条件。', fingerprint: 'fp-quality' }, change: 'inserted' }]);
   assert.equal(candidates.length, 1, 'light must not create a quality candidate');
   assert.equal(candidates[0].contentId, 'c-quality');
   assert.deepEqual(candidates[0].analysis, {
@@ -283,7 +431,7 @@ test('cached deep quality analysis creates the same candidate without calling AI
     async claimAnalysisJobs({ profile }) {
       if (profile !== 'deep' || deepClaimed) return [];
       deepClaimed = true;
-      return [{ id: 'j-cached-deep', content_id: 'c-cached-deep', game_id: 'g1', community_id: 'c1', title: '攻略', body: '完整攻略', fingerprint: 'fp-cached-deep', content_fingerprint: 'fp-cached-deep', trigger_reason: 'version_backfill', matched_keywords: '[]', attempts: 1 }];
+      return [{ id: 'j-cached-deep', content_id: 'c-cached-deep', game_id: 'g1', community_id: 'c1', title: '攻略', body: '这是一段足够长、结构完整、包含明确问题背景、影响范围、复现步骤和解决建议的优质社区内容，用于验证优质内容分析候选的真实筛选条件。', fingerprint: 'fp-cached-deep', content_fingerprint: 'fp-cached-deep', trigger_reason: 'version_backfill', matched_keywords: '[]', attempts: 1 }];
     },
     async getAnalysisCache(keys) { return keys.length ? [{ cache_key: 'deep-cache-key', analysis_profile: 'deep', analysis_version: 'd1', model_name: 'dm', sentiment: 'positive', severity: 'normal', confidence: 0.95, negative_score: 0, needs_deep: 0, topics: '[]', quality_score: 0.88, recommend_home: 0, recommend_pin: 1, recommend_feature: 0, quality_reason: '分区相关性强，适合在栏目内置顶。' }] : []; },
     async insertAnalysis() {},
@@ -299,7 +447,8 @@ test('cached deep quality analysis creates the same candidate without calling AI
   };
   await processAnalysisBacklog({ repo, ai, alertEngine: {}, leaseOwner: 'w1' });
   assert.equal(aiCalls, 0);
-  assert.deepEqual(candidates, [{ contentId: 'c-cached-deep', analysis: { sentiment: 'positive', qualityScore: 0.88, recommendHome: false, recommendPin: true, recommendFeature: false, qualityReason: '分区相关性强，适合在栏目内置顶。', analysisVersion: 'd1', modelName: 'dm', contentFingerprint: 'fp-cached-deep' } }]);
+      const { body, ...expectedAnalysis } = candidates[0].analysis;
+      assert.deepEqual({ ...expectedAnalysis, contentFingerprint: 'fp-cached-deep' }, { sentiment: 'positive', qualityScore: 0.88, recommendHome: false, recommendPin: true, recommendFeature: false, qualityReason: '分区相关性强，适合在栏目内置顶。', analysisVersion: 'd1', modelName: 'dm', contentFingerprint: 'fp-cached-deep' });
 });
 
 test('persistent analysis failure marks retryable and does not discard existing light analysis', async () => {
@@ -311,6 +460,50 @@ test('persistent analysis failure marks retryable and does not discard existing 
   assert.equal(result.analyzed, 0);
   assert.equal(finished[0].input.status, 'retryable');
 });
+test('regular worker reconciles positive normal risk-keyword content without creating or notifying an alert', async () => {
+  const order = []; const notificationCalls = [];
+  const repo = {
+    async loadKeywordRules() { return [{ keyword: '崩溃', group_name: '风险攻略词', severity: 'urgent', trigger_mode: 'immediate', enabled: 1 }]; },
+    async insertAnalysis(contentId, analysis) { order.push('insert'); assert.equal(contentId, 'c-guide'); assert.equal(analysis.sentiment, 'positive'); assert.equal(analysis.severity, 'normal'); },
+    async reconcilePositiveRiskAlerts(contentId, analysis, options) { order.push('reconcile'); assert.equal(contentId, 'c-guide'); assert.equal(analysis.severity, 'normal'); assert.equal(options.runId, 'run-guide'); },
+    async findOpenAlert() { throw new Error('positive gate must run first'); }, async insertAlert() { throw new Error('positive gate must run first'); }, async linkAlertContent() { throw new Error('positive gate must run first'); }
+  };
+  const ai = { async analyzeBatch() { return [{ sentiment: 'positive', severity: 'attention', confidence: 0.95, reason: '攻略已验证' }]; } };
+  const alertEngine = new AlertEngine(repo, { enabled: true, webhook: 'https://invalid', async notify(value) { notificationCalls.push(value); } }, {});
+  const result = await processDownstream({ repo, ai, alertEngine }, source, [{ content: { id: 'c-guide', game_id: 'g1', community_id: 'c1' }, raw: { title: '崩溃流派攻略', body: '终于通关', fingerprint: 'fp-guide' }, change: 'inserted' }], { runId: 'run-guide' });
+  assert.deepEqual(result, { analyzed: 1, alerted: 0 });
+  assert.deepEqual(order, ['insert', 'reconcile']);
+  assert.equal(notificationCalls.length, 0);
+});
+test('persistent worker reconciles after persistence and retries without alerting when reconciliation fails', async () => {
+  const order = []; const finished = []; let alertCalls = 0;
+  let claimCount = 0;
+  const repo = {
+    async loadKeywordRules() { return []; }, async enqueueAnalysisJob() {},
+    async claimAnalysisJobs({ profile }) { if (profile !== 'light' || claimCount++) return []; return [{ id: 'j-positive', content_id: 'c-positive', title: '活动完成', body: '终于完成目标', fingerprint: 'fp-positive', attempts: 1, matched_keywords: '[]' }]; },
+    async getAnalysisCache() { return []; }, async insertAnalysis() { order.push('insert'); },
+    async reconcilePositiveRiskAlerts(contentId, analysis, options) { order.push('reconcile'); assert.equal(contentId, 'c-positive'); assert.equal(analysis.sentiment, 'positive'); assert.equal(analysis.severity, 'normal'); assert.equal(options.runId, 'run-worker'); throw Object.assign(new Error('reconcile failed'), { code: 'DATABASE_ERROR' }); },
+    async finishAnalysisJob(id, input) { finished.push({ id, input }); }
+  };
+  const ai = { profiles: { light: { version: 'l1', model: 'lm' }, deep: { version: 'd1', model: 'dm' } }, selectProfile(profile) { return { name: profile, ...this.profiles[profile] }; }, async analyzeBatch() { return [{ sentiment: 'positive', severity: 'attention', confidence: 0.9, needsDeep: false }]; } };
+  const result = await processDownstream({ repo, ai, alertEngine: { async process() { alertCalls += 1; return []; } }, leaseOwner: 'w1', analysisRetryBaseMs: 1 }, source, [{ content: { id: 'c-positive' }, raw: { title: '活动完成', body: '终于完成目标', fingerprint: 'fp-positive' }, change: 'inserted' }], { runId: 'run-worker' });
+  assert.equal(result.analyzed, 0);
+  assert.deepEqual(order, ['insert', 'reconcile']);
+  assert.equal(alertCalls, 0);
+  assert.equal(finished[0].input.status, 'retryable');
+  assert.equal(finished[0].input.errorCode, 'DATABASE_ERROR');
+});
+test('persistent analysis failure stores a redacted stable error summary', async () => {
+  const finished = []; const secret = 'analysis-token-secret'; const repo = {
+    async loadKeywordRules() { return []; }, async enqueueAnalysisJob() {}, async claimAnalysisJobs() { return [{ id: 'j-safe', content_id: 'c-safe', title: 'x', body: 'x', fingerprint: 'fp', attempts: 1, matched_keywords: '[]' }]; }, async getAnalysisCache() { return []; }, async finishAnalysisJob(id, input) { finished.push({ id, input }); }, async insertAnalysis() { const error = new Error(`Authorization: Bearer ${secret} https://example.invalid/?token=${secret}`); error.code = 'ANALYSIS_PROVIDER_FAILED'; throw error; }
+  };
+  const ai = { profiles: { light: { version: 'l1', model: 'lm' }, deep: { version: 'd1', model: 'dm' } }, selectProfile(profile) { return { name: profile, ...this.profiles[profile] }; }, async analyzeBatch() { return [{ sentiment: 'neutral', severity: 'normal', confidence: 1, needsDeep: false }]; } };
+  await processDownstream({ repo, ai, alertEngine: { async process() { return []; } }, leaseOwner: 'w1', analysisRetryBaseMs: 1 }, source, [{ content: { id: 'c-safe' }, raw: { title: 'x', body: 'x', fingerprint: 'fp' }, change: 'inserted' }]);
+  assert.equal(finished[0].input.errorCode, 'ANALYSIS_PROVIDER_FAILED');
+  assert.doesNotMatch(finished[0].input.errorMessage, new RegExp(secret));
+  assert.match(finished[0].input.errorMessage, /\[redacted\]/);
+});
+
 test('global analysis backlog resolves keyword rules for each claimed community', async () => {
   const ruleScopes = [];
   let lightClaimed = false;
@@ -324,26 +517,12 @@ test('global analysis backlog resolves keyword rules for each claimed community'
         { id: 'j2', content_id: 'ct2', game_id: 'g2', community_id: 'c2', region_code: 'overseas', platform: 'reddit', title: '海外', body: '退款', fingerprint: 'fp2', attempts: 1, matched_keywords: '[]' }
       ];
     },
-    async loadKeywordRules(gameId, platform, communityId) {
-      ruleScopes.push({ gameId, platform, communityId });
-      return [];
-    },
-    async getAnalysisCache() { return []; },
-    async insertAnalysis() {},
-    async upsertAnalysisCache() {},
-    async finishAnalysisJob() {}
+    async loadKeywordRules(gameId, platform, communityId) { ruleScopes.push({ gameId, platform, communityId }); return []; },
+    async getAnalysisCache() { return []; }, async insertAnalysis() {}, async upsertAnalysisCache() {}, async finishAnalysisJob() {}
   };
-  const ai = {
-    configured() { return true; },
-    profiles: { light: { version: 'l1', model: 'lm' }, deep: { version: 'd1', model: 'dm' } },
-    selectProfile(profile) { return { name: profile, ...this.profiles[profile] }; },
-    async analyzeBatch(items) { return items.map(() => ({ sentiment: 'neutral', severity: 'normal', confidence: 1, needsDeep: false })); }
-  };
+  const ai = { configured() { return true; }, profiles: { light: { version: 'l1', model: 'lm' }, deep: { version: 'd1', model: 'dm' } }, selectProfile(profile) { return { name: profile, ...this.profiles[profile] }; }, async analyzeBatch(items) { return items.map(() => ({ sentiment: 'neutral', severity: 'normal', confidence: 1, needsDeep: false })); } };
   await processAnalysisBacklog({ repo, ai, alertEngine: {}, leaseOwner: 'w1' });
-  assert.deepEqual(ruleScopes, [
-    { gameId: 'g1', platform: 'q1', communityId: 'c1' },
-    { gameId: 'g2', platform: 'reddit', communityId: 'c2' }
-  ]);
+  assert.deepEqual(ruleScopes, [{ gameId: 'g1', platform: 'q1', communityId: 'c1' }, { gameId: 'g2', platform: 'reddit', communityId: 'c2' }]);
 });
 
 test('comment normalization keeps root, direct parent, and explicit depth metadata', () => {
@@ -477,6 +656,133 @@ test('runPagedSource schedules one comments checkpoint per post and never reply 
   assert.equal(claims.some(item => item.syncScope === 'replies'), false);
 });
 
+test('Facebook reply stage uses the comment checkpoint domain and dedicated task identity', async () => {
+  const claims = []; const commits = []; const calls = [];
+  const repo = {
+    async claimSyncCheckpoint(input) { claims.push(input); return { id: 'cp-facebook-reply', cursor: 'after-1' }; },
+    async upsertContentPage(input) { commits.push(input); return { contents: input.items.map(item => ({ content: { id: `db-${item.externalId}` }, change: 'inserted' })), storedCount: input.items.length }; },
+    async releaseSyncCheckpoint() {}
+  };
+  const connector = {
+    async listReplies(input) {
+      calls.push(input);
+      return { items: [{ externalId: 'r1', body: 'reply', publishedAt: '2026-09-10T00:00:00Z' }], nextCursor: null, hasMore: false, capability: 'full' };
+    }
+  };
+  const result = await syncStage({ repo, leaseOwner: 'facebook-worker', leaseSeconds: 60, pageBudget: 1, pageSize: 10 }, {
+    source: { ...source, platform: 'facebook' }, account: { id: 'facebook-account' }, connector,
+    scope: 'comments', rootPlatformContentId: 'post-1', postPlatformId: 'post-1', commentId: 'comment-1',
+    syncMode: 'incremental', taskKind: 'facebook_reply', taskKey: 'reply:comment-1'
+  });
+  assert.equal(result.completed, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].cursor, 'after-1');
+  assert.deepEqual({ syncScope: claims[0].syncScope, taskKind: claims[0].taskKind, taskKey: claims[0].taskKey, rootPlatformContentId: claims[0].rootPlatformContentId }, {
+    syncScope: 'comments', taskKind: 'facebook_reply', taskKey: 'reply:comment-1', rootPlatformContentId: 'post-1'
+  });
+  assert.equal(commits[0].items[0].rootPlatformContentId, 'post-1');
+  assert.equal(commits[0].items[0].platformParentId, 'comment-1');
+  assert.equal(commits[0].items[0].contentDepth, 2);
+});
+
+test('Facebook worker runs posts, comments and replies through independent checkpoints and enqueues every change', async () => {
+  const claims = []; const commits = []; const enqueued = []; const finished = []; const sourceRuns = [];
+  const facebookSource = { ...source, id: 'facebook-source', account_id: 'facebook-account', platform: 'facebook', region_code: 'overseas', enabled: 1 };
+  const account = { id: 'facebook-account', source_id: facebookSource.id, game_id: facebookSource.game_id, platform: 'facebook', metadata: {} };
+  const repo = {
+    async getDefaultAccount() { return account; },
+    async updateAccount() {}, async updateSourceAuth() {},
+    async createSyncRun() { return { id: 'facebook-sync-run', status: 'running' }; },
+    async createRun() { return { id: 'facebook-collection-run' }; },
+    async claimSyncCheckpoint(input) { claims.push(input); return { id: `cp-${claims.length}`, cursor: null }; },
+    async upsertContentPage(input) {
+      commits.push(input);
+      return { contents: input.items.map(item => ({ content: { id: `db-${item.externalId}`, content_type: item.contentType, fingerprint: item.fingerprint }, change: 'inserted' })), storedCount: input.items.length };
+    },
+    async releaseSyncCheckpoint() {}, async listSyncParents() { return []; }, async loadKeywordRules() { return []; },
+    async enqueueAnalysisJob(contentId, input) { enqueued.push({ contentId, input }); }, async claimAnalysisJobs() { return []; }, async finishAnalysisJob() {},
+    async finishSyncRun(id, patch) { finished.push({ id, ...patch }); return patch; },
+    async finishRun() {}, async markSourceRun(id, patch) { sourceRuns.push({ id, ...patch }); }
+  };
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    hasSourceCapability(capability) { return ['posts', 'comments', 'replies'].includes(capability); },
+    async listPosts() { return { items: [{ externalId: 'post-1', body: 'post', publishedAt: '2026-09-10T00:00:00Z' }], nextCursor: null, hasMore: false, capability: 'full' }; },
+    async listComments() { return { items: [{ externalId: 'comment-1', body: 'comment', publishedAt: '2026-09-10T00:01:00Z' }], nextCursor: null, hasMore: false, capability: 'full', replyTargets: [{ postId: 'post-1', commentId: 'comment-1' }] }; },
+    async listReplies() { return { items: [{ externalId: 'reply-1', body: 'reply', publishedAt: '2026-09-10T00:02:00Z' }], nextCursor: null, hasMore: false, capability: 'full' }; }
+  };
+  await runSource({ repo, connectors: { facebook: connector }, credentialContext: { async load() { return { apiToken: 'not-exposed' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'facebook-worker', leaseSeconds: 60, pageBudget: 2, pageSize: 10 }, facebookSource);
+  assert.deepEqual(claims.map(item => [item.syncScope, item.taskKind, item.taskKey, item.rootPlatformContentId]), [
+    ['posts', 'owned_content', 'owned', ''],
+    ['comments', 'comments', 'post-1', 'post-1'],
+    ['comments', 'facebook_reply', 'reply:comment-1', 'post-1']
+  ]);
+  assert.deepEqual(commits.map(item => item.items.map(entry => entry.externalId)), [['post-1'], ['comment-1'], ['reply-1']]);
+  assert.deepEqual(enqueued.map(item => item.contentId), ['db-post-1', 'db-comment-1', 'db-reply-1']);
+  assert.equal(finished.at(-1).status, 'completed_full');
+  assert.equal(sourceRuns.at(-1).status, 'success');
+});
+
+test('Facebook page failure keeps the last committed cursor and returns a stable failed run', async () => {
+  const releases = [];
+  const repo = {
+    async claimSyncCheckpoint() { return { id: 'cp-facebook-page', cursor: 'after-safe-page' }; },
+    async releaseSyncCheckpoint(id, patch) { releases.push({ id, ...patch }); }
+  };
+  const connector = { async listPosts() { const error = new Error('safe provider failure'); error.code = 'FACEBOOK_RATE_LIMITED'; throw error; } };
+  await assert.rejects(() => syncStage({ repo, leaseOwner: 'facebook-worker', leaseSeconds: 60, pageBudget: 1, pageSize: 10 }, {
+    source: { ...source, platform: 'facebook' }, account: { id: 'facebook-account' }, connector,
+    scope: 'posts', syncMode: 'incremental', taskKind: 'owned_content', taskKey: 'owned'
+  }), error => error.code === 'FACEBOOK_RATE_LIMITED');
+  assert.equal(releases[0].cursor, 'after-safe-page');
+  assert.equal(releases[0].status, 'failed');
+  assert.equal(releases[0].errorCode, 'FACEBOOK_RATE_LIMITED');
+});
+
+test('Facebook posts failure after one committed page finishes partial at the last safe cursor', async () => {
+  const finished = []; const releases = []; let calls = 0;
+  const facebookSource = { ...source, id: 'facebook-partial-source', platform: 'facebook', region_code: 'overseas', enabled: 1 };
+  const account = { id: 'facebook-partial-account', source_id: facebookSource.id, game_id: facebookSource.game_id, platform: 'facebook', metadata: {} };
+  const repo = {
+    async getDefaultAccount() { return account; }, async updateAccount() {}, async updateSourceAuth() {},
+    async createSyncRun() { return { id: 'facebook-partial-run' }; }, async createRun() { return { id: 'facebook-partial-collection' }; },
+    async claimSyncCheckpoint() { return { id: 'facebook-partial-checkpoint', cursor: null }; },
+    async upsertContentPage(input) { return { contents: input.items.map(item => ({ content: { id: `db-${item.externalId}`, content_type: item.contentType }, change: 'inserted' })), storedCount: input.items.length }; },
+    async releaseSyncCheckpoint(id, patch) { releases.push({ id, ...patch }); }, async loadKeywordRules() { return []; },
+    async enqueueAnalysisJob() {}, async claimAnalysisJobs() { return []; }, async finishAnalysisJob() {},
+    async finishSyncRun(id, patch) { finished.push({ id, ...patch }); return patch; }, async finishRun() {}, async markSourceRun() {}
+  };
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    async listPosts() {
+      calls += 1;
+      if (calls === 1) return { items: [{ externalId: 'post-safe', body: 'safe', publishedAt: '2026-09-10T00:00:00Z' }], nextCursor: 'after-safe', hasMore: true, capability: 'full' };
+      const error = new Error('rate limited'); error.code = 'FACEBOOK_RATE_LIMITED'; throw error;
+    }
+  };
+  await runSource({ repo, connectors: { facebook: connector }, credentialContext: { async load() { return { apiToken: 'hidden' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'facebook-worker', leaseSeconds: 60, pageBudget: 2, pageSize: 10 }, facebookSource);
+  assert.equal(finished.at(-1).status, 'partial');
+  assert.equal(finished.at(-1).errorCode, 'FACEBOOK_RATE_LIMITED');
+  assert.equal(releases.at(-1).cursor, 'after-safe');
+});
+
+test('Facebook posts failure before any committed page remains failed', async () => {
+  const finished = [];
+  const facebookSource = { ...source, id: 'facebook-failed-source', platform: 'facebook', region_code: 'overseas', enabled: 1 };
+  const account = { id: 'facebook-failed-account', source_id: facebookSource.id, game_id: facebookSource.game_id, platform: 'facebook', metadata: {} };
+  const repo = {
+    async getDefaultAccount() { return account; }, async updateAccount() {}, async updateSourceAuth() {},
+    async createSyncRun() { return { id: 'facebook-failed-run' }; }, async createRun() { return { id: 'facebook-failed-collection' }; },
+    async claimSyncCheckpoint() { return { id: 'facebook-failed-checkpoint', cursor: null }; }, async releaseSyncCheckpoint() {},
+    async upsertContentPage() { throw new Error('must not commit first failed page'); },
+    async finishSyncRun(id, patch) { finished.push({ id, ...patch }); return patch; }, async finishRun() {}, async markSourceRun() {}
+  };
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listPosts() { const error = new Error('unavailable'); error.code = 'FACEBOOK_API_UNAVAILABLE'; throw error; } };
+  await runSource({ repo, connectors: { facebook: connector }, credentialContext: { async load() { return { apiToken: 'hidden' }; } }, ai: {}, alertEngine: {}, leaseOwner: 'facebook-worker', leaseSeconds: 60, pageBudget: 2, pageSize: 10 }, facebookSource);
+  assert.equal(finished.at(-1).status, 'failed');
+  assert.equal(finished.at(-1).errorCode, 'FACEBOOK_API_UNAVAILABLE');
+});
+
 test('Q1 dynamically schedules every discovered feed with an independent checkpoint and safe default concurrency', async () => {
   const claims = []; const feedCalls = []; let activeFeedCalls = 0; let maxActiveFeedCalls = 0;
   const repo = makeRepo();
@@ -513,7 +819,7 @@ test('Q1 dynamically schedules every discovered feed with an independent checkpo
   }
   assert.deepEqual(feedCalls.map(call => call.feed.feedKey).sort(), feeds.map(feed => feed.feedKey).sort());
   assert.equal(maxActiveFeedCalls, 1);
-  assert.deepEqual(claims.filter(item => item.taskKind === 'q1_feed').map(item => item.taskKey), feeds.map(feed => feed.feedKey));
+  assert.deepEqual(claims.filter(item => item.taskKind === 'q1_feed').map(item => item.taskKey), feeds.map(feed => `board:2:${feed.feedKey}`));
 });
 
 test('daily Q1 overlaps feed fetches, serializes commits, and starts comments before all feeds finish', async () => {
@@ -573,6 +879,69 @@ test('daily Q1 multipage feed does not finish partial', async () => {
   assert.deepEqual(requestedCursors, [null, 'page-2']);
   assert.equal(finished.at(-1).status, 'completed_authorized_scope');
   assert.equal(finished.at(-1).errorCode, null);
+});
+
+test('daily Q1 passes exact window identity and resumes only the same date', async () => {
+  const checkpoints = new Map(); const requested = []; const claims = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {}, async createSyncRun() { return { id: `sr-${claims.length}` }; }, async finishSyncRun() {},
+    async claimSyncCheckpoint(input) { claims.push(input); const key = `${input.taskKind}|${input.taskKey}|${input.windowStart}|${input.windowEnd}`; if (!checkpoints.has(key)) checkpoints.set(key, { id: `cp-${checkpoints.size + 1}`, cursor: null }); return checkpoints.get(key); },
+    async upsertContentPage(input) { const checkpoint = [...checkpoints.values()].find(row => row.id === input.checkpointId); checkpoint.cursor = input.nextCursor; return { contents: [], storedCount: 0 }; },
+    async releaseSyncCheckpoint() {}, async loadKeywordRules() { return []; }, async enqueueAnalysisJob() {}
+  });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, hasSourceCapability() { return false; }, async discoverFeeds() { return [{ feedKey: 'home' }]; }, async listFeedContents(input) { requested.push(input.cursor); return { items: [], nextCursor: requested.length === 1 ? 'page-2' : null, hasMore: requested.length === 1 }; } };
+  const run = window => runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'w', leaseSeconds: 10, pageBudget: 1, pageSize: 10, collectionWindow: { dailyBounded: true, ...window } }, source);
+  const sep5 = { publishedFrom: new Date('2026-09-04T16:00:00Z'), publishedTo: new Date('2026-09-05T16:00:00Z') };
+  await run(sep5);
+  await run(sep5);
+  await run({ publishedFrom: new Date('2026-09-05T16:00:00Z'), publishedTo: new Date('2026-09-06T16:00:00Z') });
+  assert.deepEqual(requested.slice(0, 3), [null, 'page-2', null]);
+  assert.equal(requested.at(-1), null);
+  assert.equal(claims[0].windowStart, '2026-09-04T16:00:00.000Z');
+  assert.equal(claims[0].windowEnd, '2026-09-05T16:00:00.000Z');
+  assert.equal(claims.at(-1).windowStart, '2026-09-05T16:00:00.000Z');
+});
+
+test('bounded Q1 segment persists the ceiling cursor before failing partial', async () => {
+  let checkpointCursor = null; const releases = []; const calls = [];
+  const repo = {
+    async claimSyncCheckpoint() { return { id: 'cp-segment', cursor: checkpointCursor }; },
+    async upsertContentPage(input) { checkpointCursor = input.nextCursor; return { contents: [], storedCount: 0 }; },
+    async releaseSyncCheckpoint(id, patch) { checkpointCursor = patch.cursor; releases.push({ id, ...patch }); }
+  };
+  const connector = {
+    async listFeedContents(input) {
+      calls.push({ cursor: input.cursor, segmentId: input.segmentId });
+      return {
+        items: [],
+        nextCursor: `cursor-${input.segmentId}`,
+        hasMore: true,
+        raw: { paginationDiagnostics: { incomplete: true, code: 'provider_pagination_budget_exhausted' } }
+      };
+    }
+  };
+  const stage = syncRunId => syncStage({ repo, leaseOwner: 'w1', leaseSeconds: 60, pageBudget: 1, pageSize: 50, collectionWindow: { dailyBounded: true, publishedFrom: new Date('2026-09-10T00:00:00Z'), publishedTo: new Date('2026-09-11T00:00:00Z') } }, {
+    source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'backfill', syncRunId, taskKind: 'q1_feed', taskKey: 'home', feed: { feedKey: 'home' }
+  });
+  await assert.rejects(() => stage('run-1'), error => error.code === 'COLLECTION_BOUNDARY_INCOMPLETE');
+  await assert.rejects(() => stage('run-2'), error => error.code === 'COLLECTION_BOUNDARY_INCOMPLETE');
+  assert.deepEqual(calls, [{ cursor: null, segmentId: 'run-1' }, { cursor: 'cursor-run-1', segmentId: 'run-2' }]);
+  assert.equal(releases[0].cursor, 'cursor-run-1');
+  assert.equal(releases[1].cursor, 'cursor-run-2');
+});
+
+test('daily required feed claim conflict cannot false-complete an empty authorized scope', async () => {
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {}, async createSyncRun() { return { id: 'sr-skipped' }; }, async finishSyncRun(id, patch) { repo.state.syncFinished.push({ id, ...patch }); },
+    async claimSyncCheckpoint() { return null; }, async upsertContentPage() { throw new Error('must not persist without checkpoint claim'); }, async loadKeywordRules() { return []; }, async listSyncParents() { return []; }
+  });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, hasSourceCapability() { return false; }, async discoverFeeds() { return [{ feedKey: 'home' }]; }, async listFeedContents() { throw new Error('must not fetch without checkpoint claim'); } };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'w', leaseSeconds: 10, pageBudget: 1, pageSize: 10, collectionWindow: { dailyBounded: true, publishedFrom: new Date('2026-09-04T16:00:00Z'), publishedTo: new Date('2026-09-05T16:00:00Z') } }, source);
+  assert.equal(repo.state.syncFinished.at(-1).status, 'partial');
+  assert.equal(repo.state.syncFinished.at(-1).errorCode, 'PARTIAL_SYNC');
+  assert.equal(repo.state.finished.at(-1).status, 'partial');
 });
 
 test('daily failure drains and closes the commit lane before finishing the sync run', async () => {
@@ -693,7 +1062,7 @@ test('Q1 reply targets schedule comment-domain checkpoints with real comment IDs
   assert.equal(calls.length, 2);
   assert.equal(calls[0].commentId, null);
   assert.equal(calls[1].commentId, 'c1');
-  assert.equal(claims.find(item => item.taskKind === 'q1_reply').taskKey, 'reply:c1:0');
+  assert.equal(claims.find(item => item.taskKind === 'q1_reply').taskKey, 'board:2:reply:c1:0');
   assert.equal(claims.some(item => item.syncScope === 'replies'), false);
 });
 
@@ -724,24 +1093,26 @@ test('未命中关键词的内容不送 AI（token 护栏）', async () => {
   assert.equal(repo.state.finished.at(-1).status, 'success');
 });
 
-test('命中关键词的内容进入 AI 与告警，matched_keywords 用组名', async () => {
+test('命中关键词的内容只入队，采集不调用AI与告警', async () => {
   const repo = makeRepo({ rules: [{ keyword: '崩溃', group_name: '闪退组', severity: 'urgent', trigger_mode: 'immediate', window_seconds: 600, threshold_count: 1 }] });
   const connectors = { bigplayer_h5: okConnector([raw('1', '游戏崩溃', '进不去'), raw('2', '正常内容', '好玩')]) };
+  const queued = [];
+  repo.enqueueAnalysisJob = async (id, input) => queued.push({ id, ...input });
   const ai = { calls: 0, lastBatch: null, async analyzeBatch(items) { this.calls += 1; this.lastBatch = items; return items.map(() => ({ sentiment: 'negative', severity: 'urgent', negativeScore: 0.9, topics: ['闪退'], summary: '崩溃' })); } };
   const alertCalls = [];
   const alertEngine = { async process(a) { alertCalls.push(a); return [{ reused: false, alertId: 'al-1' }]; } };
   await runSource({ repo, connectors, ai, alertEngine }, source);
-  assert.equal(ai.calls, 1);
-  assert.equal(ai.lastBatch.length, 1); // 只有命中的 1 条进 AI
-  assert.equal(repo.state.analyses.length, 1);
-  assert.deepEqual(repo.state.analyses[0].matchedKeywords, ['闪退组']);
-  assert.equal(repo.state.analyses[0].triggerReason, 'keyword_match');
-  assert.equal(alertCalls.length, 1);
+  assert.equal(ai.calls, 0);
+  assert.equal(queued.length, 2);
+  assert.equal(repo.state.analyses.length, 0);
+  assert.deepEqual(queued[0].matchedKeywords, ['闪退组']);
+  assert.equal(queued[0].triggerReason, 'keyword_match');
+  assert.equal(alertCalls.length, 0);
   const fin = repo.state.finished.at(-1);
   assert.equal(fin.status, 'success');
   assert.equal(fin.storedCount, 2);
-  assert.equal(fin.analyzedCount, 1);
-  assert.equal(fin.alertedCount, 1);
+  assert.equal(fin.analyzedCount, 0);
+  assert.equal(fin.alertedCount, 0);
 });
 
 test('缺少连接器时 CONNECTOR_NOT_FOUND', async () => {
@@ -755,6 +1126,8 @@ test('runOnce 优先处理手动请求并清空标记', async () => {
   const cleared = [];
   const repo = makeRepo();
   repo.listManualDueSources = async () => [manualSource];
+  const queued = [];
+  repo.enqueueAnalysisJob = async (id, input) => queued.push({ id, ...input });
   repo.clearManualRequest = async id => cleared.push(id);
   repo.listDueSources = async () => [];
   const connectors = { bigplayer_h5: okConnector([raw('m1', '游戏崩溃', '进不去')]) };
@@ -765,7 +1138,8 @@ test('runOnce 优先处理手动请求并清空标记', async () => {
   assert.deepEqual(cleared, ['s-manual']); // 标记被清空
   assert.equal(result.manual, 1);
   assert.equal(result.scanned, 0);
-  assert.equal(repo.state.analyses.length, 1); // 手动源实际跑了 pipeline
+  assert.equal(repo.state.analyses.length, 0); // Analysis is consumed independently.
+  assert.equal(queued.length, 1);
 });
 
 test('runOnce 停用的手动源只清标记不采集', async () => {
@@ -801,7 +1175,80 @@ test('分页根阶段优先 listOwnedContents，并传递 metadata 同步边界'
   assert.equal(calls[0].historyStart, '2026-08-01T00:00:00Z');
   assert.equal(calls[0].updatedSince, '2026-08-09T00:00:00Z');
   assert.equal(claims[0].taskKind, 'owned_content');
-  assert.equal(claims[0].taskKey, 'owned');
+  assert.equal(claims[0].taskKey, 'board:2:owned');
+});
+
+test('TapTap 增量 owned_content 在页预算耗尽后从 checkpoint 游标续跑且不重复新增', async () => {
+  const connectorCalls = []; const releases = []; const persistedIds = new Set();
+  let checkpointCursor = null;
+  const repo = {
+    async claimSyncCheckpoint() { return { id: 'cp-taptap', cursor: checkpointCursor }; },
+    async upsertContentPage(input) {
+      const contents = input.items.map(item => {
+        const change = persistedIds.has(item.externalId) ? 'unchanged' : 'inserted';
+        persistedIds.add(item.externalId);
+        return { content: { id: item.externalId }, change };
+      });
+      return { contents, storedCount: contents.filter(item => item.change !== 'unchanged').length };
+    },
+    async releaseSyncCheckpoint(id, patch) { assert.equal(id, 'cp-taptap'); releases.push(patch); checkpointCursor = patch.cursor; }
+  };
+  const connector = {
+    async listOwnedContents(input) {
+      connectorCalls.push(input.cursor);
+      const from = input.cursor ? JSON.parse(input.cursor).from : 0;
+      return {
+        items: Array.from({ length: 10 }, (_, index) => raw(`taptap-${from + index}`, `标题-${from + index}`, '正文')),
+        nextCursor: JSON.stringify({ version: 1, accountIdx: 0, from: from + 10 }),
+        hasMore: true
+      };
+    }
+  };
+  const stage = () => syncStage({ repo, leaseOwner: 'w1', leaseSeconds: 60, pageBudget: 20, pageSize: 50 }, {
+    source: { ...source, platform: 'taptap' }, account: { id: 'a1' }, connector,
+    scope: 'posts', syncMode: 'incremental', taskKind: 'owned_content', taskKey: 'owned'
+  });
+
+  const firstRun = await stage();
+  assert.equal(firstRun.completed, false);
+  assert.deepEqual(JSON.parse(checkpointCursor), { version: 1, accountIdx: 0, from: 200 });
+  assert.equal(firstRun.stored, 200);
+  const secondRun = await stage();
+  assert.deepEqual(connectorCalls.slice(20, 21).map(cursor => JSON.parse(cursor)), [{ version: 1, accountIdx: 0, from: 200 }]);
+  assert.equal(secondRun.stored, 200);
+  assert.equal(persistedIds.size, 400);
+  assert.deepEqual(releases.map(item => JSON.parse(item.cursor)), [{ version: 1, accountIdx: 0, from: 200 }, { version: 1, accountIdx: 0, from: 400 }]);
+});
+
+test('TapTap 游标续跑不影响回填、其他平台和评论游标', async () => {
+  const cases = [
+    { name: 'TapTap incremental owned_content', platform: 'taptap', scope: 'posts', syncMode: 'incremental', taskKind: 'owned_content', expectedCursor: 'deep-page' },
+    { name: 'TapTap backfill owned_content', platform: 'taptap', scope: 'posts', syncMode: 'backfill', taskKind: 'owned_content', expectedCursor: 'deep-page' },
+    { name: 'other platform incremental owned_content', platform: 'xiaohongshu', scope: 'posts', syncMode: 'incremental', taskKind: 'owned_content', expectedCursor: 'deep-page' },
+    { name: 'TapTap incremental comments', platform: 'taptap', scope: 'comments', syncMode: 'incremental', taskKind: 'comments', expectedCursor: 'deep-page' }
+  ];
+
+  for (const item of cases) {
+    const calls = [];
+    const repo = {
+      async claimSyncCheckpoint() { return { id: `cp-${item.name}`, cursor: 'deep-page' }; },
+      async upsertContentPage() { return { contents: [], storedCount: 0 }; },
+      async releaseSyncCheckpoint() {}
+    };
+    const connector = {
+      async listOwnedContents(input) { calls.push(input); return { items: [], nextCursor: null, hasMore: false }; },
+      async listComments(input) { calls.push(input); return { items: [], nextCursor: null, hasMore: false }; }
+    };
+
+    await syncStage({ repo, leaseOwner: 'w1', leaseSeconds: 60, pageBudget: 1, pageSize: 10 }, {
+      source: { ...source, platform: item.platform }, account: { id: 'a1' }, connector,
+      scope: item.scope, rootPlatformContentId: item.scope === 'comments' ? 'post-1' : '',
+      syncMode: item.syncMode, taskKind: item.taskKind
+    });
+
+    assert.equal(calls.length, 1, item.name);
+    assert.equal(calls[0].cursor, item.expectedCursor, item.name);
+  }
 });
 
 test('关键词搜索为每条有效规则建立独立 taskKind/taskKey stage', async () => {
@@ -873,6 +1320,48 @@ test('不支持的子阶段记为 partial 而不是空数据成功', async () =>
   assert.equal(repo.state.finished.at(-1).status, 'partial');
 });
 
+test('Q1 ceiling feed is skipped while a healthy feed still accumulates and leaves the run partial', async () => {
+  const repo = makeRepo();
+  const calls = { claims: [], pages: 0, stored: 0 };
+  Object.assign(repo, {
+    async claimSyncRun() { return { id: 'sr-boundary', sync_mode: 'backfill', lease_owner: 'w:claimed', lease_epoch: 1 }; },
+    async finishSyncRun(id, patch) { repo.state.syncFinished = { id, ...patch }; },
+    async getDefaultAccount() { return { id: 'a1', source_id: 's1', game_id: 'g1', metadata: {} }; },
+    async getSyncCheckpoint(input) {
+      if (input.taskKey === 'board:2:ceiling-feed') return { status: 'failed', error_code: 'COLLECTION_BOUNDARY_INCOMPLETE', error_message: 'bounded collection segment incomplete: provider_offset_ceiling', cursor: JSON.stringify({ offsetId: 10000 }) };
+      return null;
+    },
+    async claimSyncCheckpoint(input) { calls.claims.push(input.taskKey); return { id: `cp-${input.taskKey}`, cursor: null }; },
+    async upsertContentPage(input) { calls.stored += input.items.length; return { contents: input.items.map(item => ({ id: `c-${item.externalId}`, content_type: 'post', published_at: item.publishedAt })), storedCount: input.items.length }; },
+    async releaseSyncCheckpoint() {},
+    async loadKeywordRules() { return []; }
+  });
+  const feeds = [
+    { feedKey: 'ceiling-feed', boardId: '2', pageKind: 'home', endpointKind: 'merged', sectionId: '0' },
+    { feedKey: 'healthy-feed', boardId: '2', pageKind: 'home', endpointKind: 'merged', sectionId: '1' }
+  ];
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    async discoverFeeds() { return feeds; },
+    async listFeedContents({ feed }) {
+      assert.equal(feed.feedKey, 'healthy-feed');
+      calls.pages += 1;
+      return { items: [{ externalId: 'healthy-1', title: 'healthy', body: 'body', authorName: 'u', fingerprint: 'fp-healthy', sourceUrl: 'https://x/healthy-1', publishedAt: '2026-09-10T12:00:00Z' }], nextCursor: null, hasMore: false, capability: 'authorized_scope', raw: { paginationDiagnostics: {} } };
+    }
+  };
+  const deps = { repo, leaseOwner: 'w', leaseSeconds: 10, pageBudget: 1, pageSize: 10, credentialContext: { async load() { return { apiToken: 'token' }; } }, collectionWindow: { dailyBounded: true, publishedFrom: '2026-09-10T00:00:00Z', publishedTo: '2026-09-11T00:00:00Z' } };
+  const ceiling = await syncStage(deps, { source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'backfill', taskKind: 'q1_feed', taskKey: 'ceiling-feed', feed: feeds[0] });
+  const healthy = await syncStage(deps, { source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'backfill', taskKind: 'q1_feed', taskKey: 'healthy-feed', feed: feeds[1] });
+  assert.deepEqual(calls.claims, ['board:2:healthy-feed']);
+  assert.equal(calls.pages, 1);
+  assert.equal(calls.stored, 1);
+  assert.equal(ceiling.skipped, true);
+  assert.equal(ceiling.boundaryIncomplete, 'provider_offset_ceiling');
+  assert.equal(healthy.discovered, 1);
+  assert.equal(healthy.stored, 1);
+  assert.equal(Boolean(ceiling.boundaryIncomplete), true, 'recordStageResult must keep the enclosing source partial');
+});
+
 test('人工验证使 run 和 source 明确进入待验证状态', async () => {
   const repo = makeRepo();
   Object.assign(repo, {
@@ -888,13 +1377,100 @@ test('人工验证使 run 和 source 明确进入待验证状态', async () => {
   assert.match(repo.state.sourceRuns.at(-1).errorMessage, /awaiting_manual_verification/);
 });
 
+test('runSource stops collection when the sync run lease is lost', async () => {
+  const repo = makeRepo(); let collected = 0; let renewed = 0;
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async enqueueSyncRun() { return { id: 'sr-1', sync_mode: 'incremental' }; },
+    async claimSyncRun() { return { id: 'sr-1', sync_mode: 'incremental', window_start: '2026-09-14 00:00:00.000', window_end: '2026-09-21 00:00:00.000' }; },
+    async renewSyncRunLease() { renewed += 1; return false; },
+    async finishSyncRun(id, patch) { repo.state.syncFinished = { id, ...patch }; },
+    async claimSyncCheckpoint() { return { id: 'cp1', cursor: null }; },
+    async upsertContentPage() { throw new Error('must not persist after lease loss'); },
+    async releaseSyncCheckpoint() {}, async listSyncParents() { return []; }
+  });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents() { collected += 1; await new Promise(resolve => setTimeout(resolve, 20)); return { items: [], nextCursor: null, hasMore: false }; } };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'owner-1', leaseSeconds: 1, leaseHeartbeatMs: 1, pageBudget: 1, pageSize: 10 }, source, { id: 'sr-1', account_id: 'a1', sync_mode: 'incremental' });
+  assert.ok(renewed > 0);
+  assert.equal(collected, 0);
+  assert.equal(repo.state.syncFinished.errorCode, 'SYNC_RUN_LEASE_LOST');
+  assert.equal(repo.state.finished.length, 1);
+  assert.equal(repo.state.sourceRuns.length, 1);
+  assert.equal(repo.state.syncFinished.status, 'failed');
+  assert.equal(repo.state.finished[0].status, 'failed');
+  assert.equal(repo.state.sourceRuns[0].status, 'failed');
+});
+
+test('claimed paged run records a non-lease connector failure exactly once', async () => {
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async enqueueSyncRun() { return { id: 'sr-fail', sync_mode: 'incremental' }; },
+    async claimSyncRun() { return { id: 'sr-fail', sync_mode: 'incremental' }; },
+    async finishSyncRun(id, patch) { repo.state.syncFinished.push({ id, ...patch }); },
+    async finishRun(id, patch) { repo.state.finished = (repo.state.finished || []).concat({ id, ...patch }); },
+    async markSourceRun(sourceId, patch) { repo.state.sourceRuns = (repo.state.sourceRuns || []).concat({ sourceId, ...patch }); },
+    async upsertContentPage() { throw new Error('must not persist after connector failure'); },
+    async claimSyncCheckpoint() { return { id: 'cp1', cursor: null }; }, async releaseSyncCheckpoint() {}, async listSyncParents() { return []; }
+  });
+  const connector = { async healthCheck() { return { configured: true }; }, async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents() { const error = new Error('broken page'); error.code = 'CONNECTOR_BROKEN'; throw error; }, async listPosts() { const error = new Error('broken page'); error.code = 'CONNECTOR_BROKEN'; throw error; }, async collect() { const error = new Error('broken page'); error.code = 'CONNECTOR_BROKEN'; throw error; } };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'owner-1', leaseSeconds: 30, pageBudget: 1, pageSize: 10 }, source);
+  assert.equal(repo.state.syncFinished.length, 1);
+  assert.equal(repo.state.finished.length, 1);
+  assert.equal(repo.state.sourceRuns.length, 1);
+  assert.equal(repo.state.syncFinished[0].status, 'failed');
+  assert.equal(repo.state.syncFinished[0].errorCode, 'CONNECTOR_BROKEN');
+  assert.equal(repo.state.finished[0].status, 'failed');
+  assert.equal(repo.state.finished[0].errorCode, 'CONNECTOR_BROKEN');
+  assert.equal(repo.state.sourceRuns[0].status, 'failed');
+  assert.equal(repo.state.sourceRuns[0].errorCode, 'CONNECTOR_BROKEN');
+});
+
+test('stale sync-run owner does not finish collection run or mark source run', async () => {
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async enqueueSyncRun() { return { id: 'sr-stale', sync_mode: 'incremental' }; },
+    async claimSyncRun() { return { id: 'sr-stale', sync_mode: 'incremental' }; },
+    async finishSyncRun() { return null; },
+    async claimSyncCheckpoint() { return { id: 'cp1', cursor: null }; },
+    async upsertContentPage() { return { contents: [], storedCount: 0 }; }, async releaseSyncCheckpoint() {}, async listSyncParents() { return []; }
+  });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents() { return { items: [], nextCursor: null, hasMore: false }; } };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'stale-owner', leaseSeconds: 30, pageBudget: 1, pageSize: 10 }, source);
+  assert.equal(repo.state.finished.length, 0);
+  assert.equal(repo.state.sourceRuns.length, 0);
+});
+
+test('sync page checks a propagated lease guard after connector completion before persisting', async () => {
+  let checks = 0; let persisted = 0;
+  const guard = { check() { checks += 1; if (checks === 2) { const error = new Error('lost'); error.code = 'SYNC_RUN_LEASE_LOST'; throw error; } } };
+  const repo = { async claimSyncCheckpoint() { return { id: 'cp1', cursor: null }; }, async upsertContentPage() { persisted += 1; return { contents: [], storedCount: 0 }; }, async releaseSyncCheckpoint() {} };
+  const connector = { async listOwnedContents() { return { items: [], nextCursor: null, hasMore: false }; } };
+  await assert.rejects(
+    () => syncStage({ repo, leaseGuard: guard, leaseOwner: 'owner-1', leaseSeconds: 30, pageBudget: 1, pageSize: 10 }, { source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'incremental' }),
+    error => error.code === 'SYNC_RUN_LEASE_LOST'
+  );
+  assert.equal(persisted, 0);
+});
+
+test('lease guard uses a monotonic deadline and stops renewing after loss', async () => {
+  let now = 0; let renewals = 0;
+  const guard = createLeaseGuard({ repo: { async renewSyncRunLease() { renewals += 1; return true; } }, leaseOwner: 'owner-1', leaseSeconds: 1, leaseHeartbeatMs: 100000, monotonicNow: () => now }, { id: 'sr-1' });
+  now = 1001;
+  assert.throws(() => guard.check(), error => error.code === 'SYNC_RUN_LEASE_LOST');
+  await guard.start();
+  await guard.stop();
+  assert.equal(renewals, 0);
+});
+
 test('precreated sync run is claimed once without enqueueing a duplicate', async () => {
   const calls = { enqueue: 0, claim: 0, pages: [] };
   const repo = makeRepo();
   Object.assign(repo, {
     async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
     async enqueueSyncRun() { calls.enqueue += 1; return { id: 'unexpected' }; },
-    async claimSyncRun(input) { calls.claim += 1; assert.deepEqual(input, { runId: 'sr-queued', leaseOwner: 'worker-1', leaseSeconds: 30 }); return { id: 'sr-queued', sync_mode: 'incremental' }; },
+    async claimSyncRun(input) { calls.claim += 1; assert.deepEqual(input, { runId: 'sr-queued', leaseOwner: 'worker-1', leaseSeconds: 30 }); return { id: 'sr-queued', sync_mode: 'incremental', window_start: '2026-09-14 00:00:00.000', window_end: '2026-09-21 00:00:00.000' }; },
     async finishSyncRun(id, patch) { repo.state.syncFinished = { id, ...patch }; },
     async claimSyncCheckpoint() { return { id: 'cp1', cursor: null }; },
     async upsertContentPage(input) { calls.pages.push(input); return { contents: [], storedCount: 0 }; },
@@ -972,10 +1548,176 @@ test('runOnce prefers queued run while clearing compatible manual marker and ded
   assert.equal(claimed.length, 1);
   assert.equal(claimed[0].runId, 'sr-queued');
   assert.equal(repo.state.runs.length, 1);
-  assert.deepEqual(result, { queued: 1, manual: 1, scanned: 1 });
 });
 
-test('scheduled paged source enqueues then claims and finishes the same run', async () => {
+test('runOnce executes every runnable scheduled_site child and only marks the source after the parent aggregates', async () => {
+  const connectorSites = []; const sourceRuns = []; let terminalChildren = 0;
+  const multiSource = { ...source, config: { ...source.config, baseUrl: 'https://club.q1.com/?gameId=first', siteUrls: [{ siteId: 'first', url: 'https://club.q1.com/?gameId=first' }, { siteId: 'second', url: 'https://club.q1.com/?gameId=second' }] } };
+  const child = (id, siteId) => ({ id, source_id: source.id, account_id: 'a1', parent_run_id: 'parent-1', site_id: siteId, site_url_snapshot: `https://club.q1.com/?gameId=${siteId}`, trigger_type: 'scheduled_site', sync_mode: 'incremental', window_start: '2026-09-14 00:00:00.000', window_end: '2026-09-21 00:00:00.000', source: multiSource });
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async listRunnableSyncRuns() { return [child('child-1', 'first'), child('child-2', 'second')]; },
+    async listManualDueSources() { return []; }, async listDueSources() { return []; },
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async claimSyncRun({ runId }) { return [child('child-1', 'first'), child('child-2', 'second')].find(run => run.id === runId); },
+    async claimSyncCheckpoint() { return { id: 'cp', cursor: null }; }, async releaseSyncCheckpoint() {},
+    async upsertContentPage(input) { return { contents: input.items.map(item => ({ content: { id: item.externalId }, change: 'inserted' })), storedCount: input.items.length }; },
+    async finishScheduledSiteRun(id) { terminalChildren += 1; return { child: { id }, parent: terminalChildren === 2 ? { id: 'parent-1', status: 'partial' } : null }; },
+    async markSourceRun(id, patch) { sourceRuns.push({ id, ...patch }); }, async listSyncParents() { return []; }
+  });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents(input) { connectorSites.push(input.source.siteId); return { items: [], nextCursor: null, hasMore: false }; } };
+  const result = await runOnce({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'worker-child', leaseSeconds: 30, pageBudget: 1, pageSize: 10, sourceConcurrency: 2 });
+  assert.equal(result.queued, 2);
+  assert.deepEqual(connectorSites.sort(), ['first', 'second']);
+  assert.deepEqual(sourceRuns, [{ id: source.id, status: 'partial', errorCode: null, errorMessage: null }]);
+});
+
+test('createTaskScheduler stops queued work and rejects new scheduling', async () => {
+  const scheduler = createTaskScheduler(1); let started = 0;
+  scheduler.add(async () => { started += 1; await new Promise(() => {}); });
+  scheduler.add(async () => { started += 1; });
+  await new Promise(resolve => setImmediate(resolve));
+  scheduler.stop();
+  assert.equal(scheduler.stats().queued, 0);
+  assert.equal(scheduler.stats().active, 1);
+  assert.equal(scheduler.add(async () => {}), false);
+  assert.equal(started, 1);
+});
+
+test('createTaskScheduler bounds shutdown without falsifying active work', async () => {
+  const scheduler = createTaskScheduler(1);
+  scheduler.add(async () => new Promise(() => {}));
+  await new Promise(resolve => setImmediate(resolve));
+  scheduler.stop();
+  const startedAt = Date.now();
+  await scheduler.idle(10);
+  assert.ok(Date.now() - startedAt < 100);
+  assert.equal(scheduler.stats().active, 1);
+});
+
+test('daily Q1 discovery has a default deadline and receives cancellation', async () => {
+  const repo = makeRepo(); let discoverySignal = null;
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async enqueueSyncRun() { return { id: 'sr-discovery-timeout', sync_mode: 'incremental' }; },
+    async claimSyncRun() { return { id: 'sr-discovery-timeout', sync_mode: 'incremental' }; },
+    async finishSyncRun(id, patch) { repo.state.syncFinished.push({ id, ...patch }); },
+    async upsertContentPage() { throw new Error('must not persist'); }
+  });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    async discoverFeeds({ signal }) { discoverySignal = signal; return new Promise(() => {}); },
+    async listFeedContents() { throw new Error('must not fetch'); }
+  };
+  const startedAt = Date.now();
+  await assert.rejects(
+    () => runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'daily-default-deadline', leaseSeconds: 30, pageBudget: 1, pageSize: 10, pageTimeoutMs: 15, dailyRunTimeoutMs: 30, collectionWindow: { dailyBounded: true } }, source),
+    error => error.code === 'DAILY_RUN_TIMEOUT'
+  );
+  assert.ok(Date.now() - startedAt < 200);
+  assert.ok(discoverySignal);
+  assert.equal(discoverySignal.aborted, true);
+  assert.equal(repo.state.syncFinished.at(-1).status, 'partial');
+  assert.equal(repo.state.syncFinished.at(-1).errorCode, 'DAILY_RUN_TIMEOUT');
+});
+
+test('daily Q1 terminal page timeout is not rescheduled', async () => {
+  const repo = makeRepo(); let feedCalls = 0;
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async enqueueSyncRun() { return { id: 'sr-page-timeout', sync_mode: 'incremental' }; },
+    async claimSyncRun() { return { id: 'sr-page-timeout', sync_mode: 'incremental' }; },
+    async finishSyncRun(id, patch) { repo.state.syncFinished.push({ id, ...patch }); },
+    async claimSyncCheckpoint() { return { id: 'cp-page-timeout', cursor: null }; }, async upsertContentPage() { throw new Error('must not persist'); }, async releaseSyncCheckpoint() {}, async loadKeywordRules() { return []; }
+  });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; }, hasSourceCapability() { return false; },
+    async discoverFeeds() { return [{ feedKey: 'timeout-feed' }]; },
+    async listFeedContents() { feedCalls += 1; return new Promise(() => {}); }
+  };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'page-timeout', leaseSeconds: 30, pageBudget: 1, pageSize: 10, pageTimeoutMs: 10, collectionWindow: { dailyBounded: true }, deadlineAt: Date.now() + 200 }, source);
+  assert.equal(feedCalls, 1);
+  assert.equal(repo.state.syncFinished.at(-1).status, 'partial');
+  assert.match(repo.state.syncFinished.at(-1).errorMessage, /SYNC_PAGE_TIMEOUT/);
+});
+
+test('runSource returns after lease loss while a daily scheduler task ignores abort', async () => {
+  const repo = makeRepo();
+  const lifecycle = { finishSyncRun: [], finishRun: [], markSourceRun: [], renewals: 0 };
+  // The connector task must already be in flight before the lease is lost, otherwise the run would
+  // abort during leaseGuard.start() and never exercise the "ignores abort" path under test.
+  let markFeedInFlight;
+  const feedInFlight = new Promise(resolve => { markFeedInFlight = resolve; });
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; },
+    async updateAccount() {},
+    async enqueueSyncRun() { return { id: 'sr-lease-loss', sync_mode: 'incremental' }; },
+    async claimSyncRun() { return { id: 'sr-lease-loss', sync_mode: 'incremental' }; },
+    async renewSyncRunLease() {
+      lifecycle.renewals += 1;
+      if (lifecycle.renewals === 1) return true;
+      await feedInFlight;
+      return false;
+    },
+    async finishSyncRun(id, patch) { lifecycle.finishSyncRun.push({ id, ...patch }); },
+    async finishRun(id, patch) { lifecycle.finishRun.push({ id, ...patch }); },
+    async markSourceRun(sourceId, patch) { lifecycle.markSourceRun.push({ sourceId, ...patch }); },
+    async claimSyncCheckpoint() { return { id: 'cp-lease-loss', cursor: null }; },
+    async upsertContentPage() { throw new Error('must not persist after lease loss'); },
+    async releaseSyncCheckpoint() {},
+    async loadKeywordRules() { return []; }
+  });
+  let feedCalls = 0;
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    async discoverFeeds() { return [{ feedKey: 'lease-loss-feed' }]; },
+    async listFeedContents() {
+      feedCalls += 1;
+      markFeedInFlight();
+      // Deliberately ignores the abort signal and never settles.
+      return new Promise(() => {});
+    }
+  };
+  const unhandled = [];
+  const onUnhandled = reason => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    const result = await Promise.race([
+      runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: { configured() { return false; } }, alertEngine: {}, leaseOwner: 'owner-lease-loss', leaseSeconds: 1, leaseHeartbeatMs: 10, pageBudget: 1, pageSize: 10, pageTimeoutMs: 5000, collectionWindow: { dailyBounded: true } }, source),
+      new Promise((resolve, reject) => setTimeout(() => reject(new Error('runSource did not return after lease loss')), 250))
+    ]);
+    assert.equal(result, undefined);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(feedCalls, 1);
+    assert.ok(lifecycle.renewals >= 2);
+    assert.equal(lifecycle.finishSyncRun.length, 1);
+    assert.equal(lifecycle.finishRun.length, 1);
+    assert.equal(lifecycle.markSourceRun.length, 1);
+    assert.equal(lifecycle.finishSyncRun[0].status, 'failed');
+    assert.equal(lifecycle.finishRun[0].status, 'failed');
+    assert.equal(lifecycle.markSourceRun[0].status, 'failed');
+    assert.equal(lifecycle.finishSyncRun[0].errorCode, 'SYNC_RUN_LEASE_LOST');
+    const renewalsAfterReturn = lifecycle.renewals;
+    await new Promise(resolve => setTimeout(resolve, 25));
+    assert.equal(lifecycle.renewals, renewalsAfterReturn);
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});
+
+test('lease loss aborts cancellable work and stops heartbeat timer', async () => {
+  let renewals = 0;
+  const guard = createLeaseGuard({ repo: { async renewSyncRunLease() { renewals += 1; return false; } }, leaseOwner: 'owner', leaseSeconds: 1, leaseHeartbeatMs: 10 }, { id: 'sr-loss' });
+  let stopped = 0; guard.onStop(() => { stopped += 1; });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(renewals, 1); assert.equal(guard.signal.aborted, true); assert.equal(stopped, 1);
+  await guard.stop(); const count = renewals;
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(renewals, count);
+});
+
+test('legacy no-slot paged source enqueues then claims and finishes the same run', async () => {
   const lifecycle = [];
   const repo = makeRepo();
   Object.assign(repo, {
@@ -988,8 +1730,205 @@ test('scheduled paged source enqueues then claims and finishes the same run', as
   const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents() { return { items: [], nextCursor: null, hasMore: false }; } };
   await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'worker-4', leaseSeconds: 45, pageBudget: 1, pageSize: 10 }, source);
   assert.deepEqual(lifecycle.map(item => item[0]), ['enqueue', 'claim', 'finish']);
-  assert.deepEqual(lifecycle[0][1], { sourceId: 's1', accountId: 'a1', syncMode: 'backfill' });
+  assert.deepEqual(lifecycle[0][1], { sourceId: 's1', accountId: 'a1', syncMode: 'backfill', triggerType: 'legacy' });
   assert.equal(lifecycle[1][1].runId, 'sr-new');
   assert.equal(lifecycle[2][1].id, 'sr-new');
   assert.equal(lifecycle[2][1].leaseOwner, 'worker-4');
+});
+
+test('BigPlayer multi-site child run resolves its own URL and keeps checkpoints site-scoped', async () => {
+  const connectorSources = []; const checkpointClaims = [];
+  const childSource = {
+    ...source,
+    config: {
+      ...source.config,
+      baseUrl: 'https://club.q1.com/?gameId=first&gameVersion=1',
+      siteUrls: [
+        { siteId: 'first', url: 'https://club.q1.com/?gameId=first&gameVersion=1' },
+        { siteId: 'second', url: 'https://club.q1.com/?gameId=second&gameVersion=2' }
+      ]
+    }
+  };
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: {} }; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'child-second', parent_run_id: 'parent-1', site_id: 'second', site_url_snapshot: 'https://club.q1.com/?gameId=second&gameVersion=2', trigger_type: 'scheduled_site', sync_mode: 'incremental', lease_owner: 'worker-child', lease_epoch: 1, window_start: '2026-09-14 00:00:00.000', window_end: '2026-09-21 00:00:00.000' }; },
+    async finishSyncRun() {}, async claimSyncCheckpoint(input) { checkpointClaims.push(input); return { id: 'cp-second', cursor: null }; },
+    async releaseSyncCheckpoint() {}, async upsertContentPage(input) { return { contents: input.items.map(item => ({ content: { id: item.externalId }, change: 'inserted' })), storedCount: input.items.length }; }, async listSyncParents() { return []; }
+  });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    async listOwnedContents(input) { connectorSources.push(input.source); return { items: [raw('second-post', 'second', 'body')], nextCursor: null, hasMore: false }; }
+  };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'worker-child', leaseSeconds: 45, pageBudget: 1, pageSize: 10 }, childSource, { id: 'child-second' });
+  assert.equal(connectorSources.length, 1);
+  assert.equal(connectorSources[0].siteId, 'second');
+  assert.equal(connectorSources[0].config.baseUrl, 'https://club.q1.com/?gameId=second&gameVersion=2');
+  assert.equal(checkpointClaims.length, 1);
+  assert.equal(checkpointClaims[0].siteId, 'second');
+});
+
+test('BigPlayer multi-site child run fails closed when its saved site is unavailable', async () => {
+  const finished = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async claimSyncRun() { return { id: 'child-missing', site_id: 'missing', sync_mode: 'incremental', lease_owner: 'worker-child', lease_epoch: 1, window_start: '2026-09-14 00:00:00.000', window_end: '2026-09-21 00:00:00.000' }; },
+    async finishSyncRun(id, patch) { finished.push({ id, ...patch }); }
+  });
+  await runSource({ repo, connectors: { bigplayer_h5: { async listOwnedContents() { throw new Error('must not collect'); } } }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'worker-child', leaseSeconds: 45, pageBudget: 1, pageSize: 10 }, { ...source, config: { baseUrl: 'https://club.q1.com/', siteUrls: [{ siteId: 'first', url: 'https://club.q1.com/' }] } }, { id: 'child-missing' });
+  assert.equal(finished.length, 1);
+  assert.equal(finished[0].errorCode, 'MULTISITE_SITE_CONTEXT_NOT_FOUND');
+});
+
+test('BigPlayer candidate observation requires the exact enabled source and run, and audit failure does not interrupt collection', async () => {
+  const observed = []; const connectorInputs = [];
+  const repo = {
+    async claimSyncCheckpoint() { return { id: 'cp-observation', cursor: null }; },
+    async upsertContentPage(input) { return { contents: input.items.map(item => ({ content: { id: item.externalId }, change: 'inserted' })), storedCount: input.items.length }; },
+    async releaseSyncCheckpoint() {},
+    async recordBigPlayerCandidateObservation(input) { observed.push(input); throw Object.assign(new Error('audit unavailable'), { code: 'DATABASE_ERROR' }); }
+  };
+  const connector = {
+    async listFeedContents(input) {
+      connectorInputs.push(input.captureCandidateObservation);
+      return { items: [raw('candidate-post', 'title', 'body')], nextCursor: null, hasMore: false, raw: { candidateObservation: { endpointKind: 'merged', feedKey: 'home', candidateCount: 1, validCreateTimeCount: 1, inWindowCreateTimeCount: 1, firstCandidate: { externalId: 'candidate-post', publishedAtUtc: '2026-09-20T00:00:00.000Z' }, lastCandidate: { externalId: 'candidate-post', publishedAtUtc: '2026-09-20T00:00:00.000Z' }, httpStatus: 200 } } };
+    }
+  };
+  const run = async config => syncStage({ repo, leaseOwner: 'w1', leaseSeconds: 60, pageBudget: 1, pageSize: 20, bigPlayerCandidateObservation: config }, { source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'incremental', syncRunId: 'run-observation', taskKind: 'q1_feed', taskKey: 'home', feed: { feedKey: 'home' } });
+  await run({ enabled: true, sourceId: 'other-source', runId: 'run-observation' });
+  await run({ enabled: true, sourceId: source.id, runId: 'run-observation' });
+  assert.deepEqual(connectorInputs, [false, true]);
+  assert.equal(observed.length, 1);
+  assert.deepEqual(observed[0], { sourceId: source.id, runId: 'run-observation', observation: { endpointKind: 'merged', feedKey: 'home', candidateCount: 1, validCreateTimeCount: 1, inWindowCreateTimeCount: 1, firstCandidate: { externalId: 'candidate-post', publishedAtUtc: '2026-09-20T00:00:00.000Z' }, lastCandidate: { externalId: 'candidate-post', publishedAtUtc: '2026-09-20T00:00:00.000Z' }, httpStatus: 200 } });
+});
+
+test('sync run pause settles after the current committed page and preserves its checkpoint cursor', async () => {
+  const releases = []; let settled = 0; let scheduledStop = 0;
+  const repo = {
+    async claimSyncCheckpoint() { return { id: 'cp-pause', cursor: 'before' }; },
+    async upsertContentPage() { return { contents: [], storedCount: 0 }; },
+    async getSyncRunControl() { return { id: 'sr-pause', status: 'pausing' }; },
+    async settleSyncRunControl(input, patch) { settled += 1; assert.equal(input, 'sr-pause'); assert.deepEqual(patch, { status: 'paused', leaseOwner: 'owner-1', leaseEpoch: 7 }); return { id: 'sr-pause', status: 'paused' }; },
+    async releaseSyncCheckpoint(id, patch) { releases.push({ id, patch }); }
+  };
+  const connector = { async listOwnedContents() { return { items: [], nextCursor: 'after', hasMore: true }; } };
+  await assert.rejects(
+    () => syncStage({ repo, leaseOwner: 'owner-1', leaseSeconds: 30, pageBudget: 2, pageSize: 10, syncRunLeaseEpoch: 7, leaseGuard: { check() {}, stopScheduling(error) { scheduledStop += 1; assert.equal(error.code, 'SYNC_RUN_PAUSED'); } } }, { source, account: { id: 'a1' }, connector, scope: 'posts', syncMode: 'incremental', syncRunId: 'sr-pause' }),
+    error => error.code === 'SYNC_RUN_PAUSED'
+  );
+  assert.equal(settled, 1);
+  assert.equal(scheduledStop, 1);
+  assert.deepEqual(releases, [{ id: 'cp-pause', patch: { status: 'idle', cursor: 'after', itemsFetched: 0, errorCode: null, errorMessage: null, taskKind: 'owned_content', taskKey: 'board:2:owned', leaseOwner: 'owner-1' } }]);
+});
+
+test('precreated bounded run ignores legacy historyStart while supplying its fixed window to Q1 feeds', async () => {
+  const feedCalls = []; const checkpointClaims = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: { historyStart: '2026-08-11T18:02:00.000Z' } }; }, async updateAccount() {},
+    async claimSyncRun() { return { id: 'sr-window', sync_mode: 'backfill', trigger_type: 'manual', window_start: '2026-09-04 08:30:00.000', window_end: '2026-09-11 08:30:00.000' }; },
+    async finishSyncRun() {},
+    async claimSyncCheckpoint(input) { checkpointClaims.push(input); return { id: 'cp-window', cursor: null }; },
+    async upsertContentPage() { return { contents: [], storedCount: 0 }; },
+    async releaseSyncCheckpoint() {}, async loadKeywordRules() { return []; }, async enqueueAnalysisJob() {}
+  });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    hasSourceCapability() { return false; },
+    async discoverFeeds() { return [{ feedKey: 'home' }]; },
+    async listFeedContents(input) { feedCalls.push(input); return { items: [], nextCursor: null, hasMore: false }; }
+  };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: { configured() { return true; }, selectProfile() { return { version: 'l1' }; } }, alertEngine: {}, leaseOwner: 'window-worker', leaseSeconds: 30, pageBudget: 1, pageSize: 10 }, source, { id: 'sr-window', account_id: 'a1', sync_mode: 'backfill' });
+  assert.equal(feedCalls.length, 1);
+  assert.equal(new Date(feedCalls[0].publishedFrom).toISOString(), '2026-09-04T08:30:00.000Z');
+  assert.equal(new Date(feedCalls[0].publishedTo).toISOString(), '2026-09-11T08:30:00.000Z');
+  assert.equal(feedCalls[0].dailyBounded, true);
+  assert.equal(feedCalls[0].historyStart, null);
+  const q1Claim = checkpointClaims.find(item => item.taskKind === 'q1_feed');
+  assert.equal(q1Claim.windowStart, '2026-09-04T08:30:00.000Z');
+  assert.equal(q1Claim.windowEnd, '2026-09-11T08:30:00.000Z');
+});
+
+test('precreated run with an invalid bounded window fails closed before connector collection', async () => {
+  let collected = 0; let accountLookups = 0;
+  const terminal = { status: 'running', leaseOwner: 'window-worker:claim', leaseUntil: '2026-09-11T09:00:00.000Z' };
+  const finished = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { accountLookups += 1; throw new Error('account lookup must not run before window validation'); },
+    async claimSyncRun() { return { id: 'sr-invalid-window', sync_mode: 'backfill', lease_owner: 'window-worker:claim', window_start: '2026-09-04 08:30:00.000', window_end: null }; },
+    async finishSyncRun(id, patch) {
+      finished.push({ id, ...patch });
+      terminal.status = patch.status;
+      terminal.errorCode = patch.errorCode;
+      terminal.leaseOwner = null;
+      terminal.leaseUntil = null;
+      return { id, status: patch.status };
+    }
+  });
+  const connector = { async listOwnedContents() { collected += 1; return { items: [], nextCursor: null, hasMore: false }; } };
+  await assert.rejects(
+    () => runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: {}, leaseOwner: 'window-worker', leaseSeconds: 30 }, source, { id: 'sr-invalid-window' }),
+    error => error.code === 'SYNC_RUN_WINDOW_INVALID'
+  );
+  assert.equal(collected, 0);
+  assert.equal(accountLookups, 0);
+  assert.deepEqual(finished.map(({ id, status, errorCode, leaseOwner }) => ({ id, status, errorCode, leaseOwner })), [{
+    id: 'sr-invalid-window',
+    status: 'failed',
+    errorCode: 'SYNC_RUN_WINDOW_INVALID',
+    leaseOwner: 'window-worker:claim'
+  }]);
+  assert.deepEqual(terminal, { status: 'failed', errorCode: 'SYNC_RUN_WINDOW_INVALID', leaseOwner: null, leaseUntil: null });
+});
+
+test('legacy no-slot paged source fallback creates a run with source identity and legacy trigger', async () => {
+  const created = [];
+  const repo = makeRepo();
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', metadata: { syncMode: 'incremental' } }; }, async updateAccount() {},
+    async createSyncRun(input) { created.push(input); return { id: 'sr-fallback', sync_mode: input.syncMode }; },
+    async claimSyncRun(input) { return { id: input.runId, sync_mode: 'incremental' }; },
+    async finishSyncRun() {},
+    async claimSyncCheckpoint() { return { id: 'cp1', cursor: null }; }, async upsertContentPage() { return { contents: [], storedCount: 0 }; }, async releaseSyncCheckpoint() {}, async listSyncParents() { return []; }
+  });
+  const connector = { async installationHealth() { return { installed: true, configured: true }; }, async listOwnedContents() { return { items: [], nextCursor: null, hasMore: false }; } };
+
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: {}, alertEngine: {}, leaseOwner: 'worker-fallback', leaseSeconds: 45, pageBudget: 1, pageSize: 10 }, source);
+
+  assert.deepEqual(created, [{ sourceId: 's1', accountId: 'a1', syncMode: 'incremental', triggerType: 'legacy' }]);
+});
+
+test('paged run fences every write with the claimed lease owner, not the base owner', async () => {
+  const repo = makeRepo();
+  // The repository persists `${leaseOwner}:${uuid}`; every later write is fenced against that value.
+  const claimOwner = 'worker-5:claim-uuid';
+  const seen = { upsert: [], checkpoint: [], renew: [], finish: [], release: [] };
+  const fence = owner => { if (owner !== claimOwner) { const e = new Error('sync run lease lost'); e.code = 'SYNC_RUN_LEASE_LOST'; throw e; } };
+  Object.assign(repo, {
+    async getDefaultAccount() { return { id: 'a1', source_id: 's1', metadata: {} }; },
+    async updateAccount() {}, async updateSourceAuth() {}, async listSyncParents() { return []; },
+    async enqueueSyncRun() { return { id: 'sr-1', sync_mode: 'incremental' }; },
+    // Mirrors the real claim: returns the row carrying the persisted per-claim owner.
+    async claimSyncRun() { return { id: 'sr-1', sync_mode: 'incremental', lease_owner: claimOwner }; },
+    async renewSyncRunLease(id, owner) { seen.renew.push(owner); return owner === claimOwner; },
+    async claimSyncCheckpoint({ leaseOwner }) { seen.checkpoint.push(leaseOwner); return { id: 'cp1', cursor: null }; },
+    async releaseSyncCheckpoint(id, patch) { seen.release.push(patch.leaseOwner); },
+    async upsertContentPage({ items = [], leaseOwner }) {
+      seen.upsert.push(leaseOwner); fence(leaseOwner);
+      return { contents: items.map(i => ({ content: { id: `c-${i.externalId}` }, change: 'changed' })), storedCount: items.length };
+    },
+    async finishSyncRun(id, patch) { seen.finish.push(patch.leaseOwner); fence(patch.leaseOwner); return { id, status: patch.status }; }
+  });
+  const connector = {
+    async installationHealth() { return { installed: true, configured: true }; },
+    async listOwnedContents() { return { items: [{ externalId: 'p1', title: 't', body: 'b', authorName: 'u', sourceUrl: 'https://x/p1' }], nextCursor: null, hasMore: false }; }
+  };
+  await runSource({ repo, connectors: { bigplayer_h5: connector }, credentialContext: { async load() { return {}; } }, ai: { configured() { return false; } }, alertEngine: {}, leaseOwner: 'worker-5', leaseSeconds: 30, leaseHeartbeatMs: 0, pageBudget: 1, pageSize: 10, pageTimeoutMs: 5000 }, source);
+
+  assert.deepEqual(seen.upsert, [claimOwner]);
+  assert.deepEqual(seen.checkpoint, [claimOwner]);
+  assert.deepEqual(seen.finish, [claimOwner]);
+  for (const owner of seen.renew) assert.equal(owner, claimOwner);
+  assert.equal(repo.state.sourceRuns.filter(r => r.status === 'failed').length, 0);
 });

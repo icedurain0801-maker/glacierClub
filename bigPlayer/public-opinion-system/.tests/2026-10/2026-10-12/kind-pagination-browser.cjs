@@ -1,0 +1,22 @@
+'use strict';
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
+process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY='1';
+const out='C:/Users/Administrator/AppData/Roaming/Code/User/project manage/bigPlayer/public-opinion-system/.tests/2026-10/2026-10-12';
+(async()=>{const browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});try{
+ const page=await browser.newPage({viewport:{width:1920,height:1080}}),errors=[],writes=[],checks=[];
+ page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/**',r=>{if(!['GET','HEAD'].includes(r.request().method())){writes.push(r.request().method());return r.abort();}return r.continue();});
+ const q=new URLSearchParams({regionCode:'domestic',communityId:'00000000-0000-0000-0000-000000000101',platform:'bigplayer_h5',contentType:'post',publishedFrom:'2026-10-11T00:00:00+08:00',publishedTo:'2026-10-12T00:00:00+08:00'});
+ const url='https://lfy3001.dev.q1op.com/admin/PublicOpinion/content.html?'+q;
+ const responseFor=predicate=>page.waitForResponse(r=>{const u=new URL(r.url());return u.pathname==='/api/public-opinion/contents'&&r.request().method()==='GET'&&predicate(u.searchParams);},{timeout:60000});
+ const validate=async(promise,total,type)=>{const r=await promise;assert.equal(r.status(),200);const j=await r.json();assert.equal(j.meta.total,total);if(type)assert(j.data.every(x=>x.display_type===type));await page.waitForFunction(n=>document.querySelectorAll('#tableContent tbody tr').length===n&&document.querySelectorAll('#tableContent .type-pill').length===n,j.data.length);const labels=await page.locator('#tableContent .type-pill').allTextContents();assert.deepEqual(labels,j.data.map(x=>({post:'帖子',dynamic:'动态',comment:'评论'})[x.display_type]));checks.push({query:new URL(r.url()).search,total:j.meta.total,rows:j.data.length});return j;};
+ let p=responseFor(s=>!s.has('bigPlayerContentKind'));await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});await validate(p,148);
+ p=responseFor(s=>s.get('bigPlayerContentKind')==='post'&&!s.has('postId'));await page.locator('#bigPlayerContentKindFilter').selectOption('post');const posts=await validate(p,6,'post');assert.equal(posts.data.length,6);assert(posts.data.some(x=>x.external_id==='927402'));assert.match(await page.locator('#pageHint').textContent(),/1 \/ 1.*6 条/);assert(await page.locator('#nextPage').isDisabled());await page.screenshot({path:out+'/kind-posts-first-page-live.png',timeout:15000});
+ p=responseFor(s=>s.get('bigPlayerContentKind')==='post'&&s.get('postId')==='927402');await page.locator('#postIdFilter').fill('927402');await page.locator('#postIdFilter').press('Enter');const single=await validate(p,1,'post');assert.equal(single.data[0].external_id,'927402');
+ p=responseFor(s=>s.get('bigPlayerContentKind')==='post'&&!s.has('postId'));await page.locator('#postIdFilter').fill('');await page.locator('#postIdFilter').press('Enter');await validate(p,6,'post');
+ p=responseFor(s=>s.get('bigPlayerContentKind')==='dynamic'&&s.get('page')==='1');await page.locator('#bigPlayerContentKindFilter').selectOption('dynamic');const first=await validate(p,142,'dynamic');
+ p=responseFor(s=>s.get('bigPlayerContentKind')==='dynamic'&&s.get('page')==='2');await page.locator('#nextPage').click();const second=await validate(p,142,'dynamic');assert(second.data.every(x=>!first.data.some(y=>y.id===x.id)));
+ p=responseFor(s=>s.get('bigPlayerContentKind')==='post'&&s.get('page')==='1');await page.locator('#bigPlayerContentKindFilter').selectOption('post');await validate(p,6,'post');
+ p=responseFor(s=>!s.has('bigPlayerContentKind')&&s.get('contentType')==='post');await page.locator('#bigPlayerContentKindFilter').selectOption('');await validate(p,148);
+ p=responseFor(s=>!s.has('bigPlayerContentKind')&&s.get('contentType')==='comment');await page.locator('[data-content-mode="comment"]').click();await validate(p,303,'comment');assert(await page.locator('#bigPlayerContentKindFilter').isHidden());
+ assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);fs.writeFileSync(out+'/kind-pagination-live.json',JSON.stringify({status:'PASS',checks,errors,writes},null,2));console.log(JSON.stringify({status:'PASS',checks,errors,writes}));
+}finally{await browser.close();}})().catch(e=>{console.error(e.message);process.exitCode=1;});

@@ -1,0 +1,42 @@
+{
+  "approvedRunId": "d987cf0e-9842-478e-bfbb-0a98f41f08a5",
+  "phase": "preflight",
+  "status": "FAIL_STOPPED_BEFORE_WRITE",
+  "errorCode": "FRONTEND_3000_EVIDENCE_UNAVAILABLE",
+  "scope": {
+    "externalIds": ["919167", "6826813", "920120"],
+    "baselineExternalId": "919098",
+    "profile": "deep",
+    "model": "gpt-5.6-luna",
+    "analysisVersion": "sentiment-v1",
+    "maxProviderCalls": 3
+  },
+  "database": {
+    "readable": true,
+    "sampleIdentityVerified": true,
+    "deepCachePresent": false,
+    "jobStates": {
+      "919167": "pending",
+      "6826813": "missing",
+      "920120": "pending"
+    }
+  },
+  "api": {
+    "url": "http://127.0.0.1:4320/health",
+    "status": 200
+  },
+  "frontend3000": {
+    "url": "http://127.0.0.1:3000/health",
+    "status": "unavailable",
+    "error": "connection refused"
+  },
+  "sideEffects": {
+    "dbWrites": 0,
+    "providerCalls": 0,
+    "notificationAttempts": 0,
+    "port3001Accesses": 0
+  },
+  "promptHash": null,
+  "rawProviderEvidence": [],
+  "decision": "The mandatory DB/API/3000 pre-run evidence gate is incomplete; fail closed before enqueue or provider invocation."
+}

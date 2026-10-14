@@ -1,0 +1,150 @@
+TAP version 13
+# Subtest: scheduled evidence is immutable and cannot have manual shape
+ok 1 - scheduled evidence is immutable and cannot have manual shape
+  ---
+  duration_ms: 6.2446
+  type: 'test'
+  ...
+# Subtest: exact parent/child/version/window/site rejects drift
+ok 2 - exact parent/child/version/window/site rejects drift
+  ---
+  duration_ms: 1.4556
+  type: 'test'
+  ...
+# Subtest: unknown fields/noncanonical slot/self-parent reject and slot affects identity
+ok 3 - unknown fields/noncanonical slot/self-parent reject and slot affects identity
+  ---
+  duration_ms: 0.6908
+  type: 'test'
+  ...
+# Subtest: scheduled batch has deterministic closed parent/site identities and order-independent digest
+ok 4 - scheduled batch has deterministic closed parent/site identities and order-independent digest
+  ---
+  duration_ms: 9.5267
+  type: 'test'
+  ...
+# Subtest: cross-source/version/config/parent scopes and invented run ids reject
+ok 5 - cross-source/version/config/parent scopes and invented run ids reject
+  ---
+  duration_ms: 1.8983
+  type: 'test'
+  ...
+# Subtest: duplicate sites/URLs, unknown fields and invalid parent/window/slot fail closed
+ok 6 - duplicate sites/URLs, unknown fields and invalid parent/window/slot fail closed
+  ---
+  duration_ms: 0.9002
+  type: 'test'
+  ...
+# Subtest: scheduled child cursor shape may narrow start but never expand parent scope
+ok 7 - scheduled child cursor shape may narrow start but never expand parent scope
+  ---
+  duration_ms: 0.3078
+  type: 'test'
+  ...
+# Subtest: isolated target is repo-bound and every check only queries exact identity
+ok 8 - isolated target is repo-bound and every check only queries exact identity
+  ---
+  duration_ms: 14.3212
+  type: 'test'
+  ...
+# Subtest: 3306, wrong server/schema/datadir/PID path all reject before any mutation
+ok 9 - 3306, wrong server/schema/datadir/PID path all reject before any mutation
+  ---
+  duration_ms: 9.8506
+  type: 'test'
+  ...
+# Subtest: changed owned PID rejects before requesting any SQL
+ok 10 - changed owned PID rejects before requesting any SQL
+  ---
+  duration_ms: 7.8488
+  type: 'test'
+  ...
+# Subtest: complete column inventory never grants scheduled activation
+ok 11 - complete column inventory never grants scheduled activation
+  ---
+  duration_ms: 0.6586
+  type: 'test'
+  ...
+# Subtest: missing columns and unknown inventory fail closed
+ok 12 - missing columns and unknown inventory fail closed
+  ---
+  duration_ms: 0.3367
+  type: 'test'
+  ...
+# Subtest: inspector cannot be copied or used with a different repository
+ok 13 - inspector cannot be copied or used with a different repository
+  ---
+  duration_ms: 0.1724
+  type: 'test'
+  ...
+# Subtest: anchor uses fixed DB clock, Shanghai schedule slot and existing seven-day window
+ok 14 - anchor uses fixed DB clock, Shanghai schedule slot and existing seven-day window
+  ---
+  duration_ms: 1.8879
+  type: 'test'
+  ...
+# Subtest: copied or cross-repository anchor is not trusted
+ok 15 - copied or cross-repository anchor is not trusted
+  ---
+  duration_ms: 0.4159
+  type: 'test'
+  ...
+# Subtest: mismatched version, frequency or persisted due slot refuses read-only preparation
+ok 16 - mismatched version, frequency or persisted due slot refuses read-only preparation
+  ---
+  duration_ms: 0.6305
+  type: 'test'
+  ...
+# Subtest: completed site cursor only narrows start within the trusted parent window
+ok 17 - completed site cursor only narrows start within the trusted parent window
+  ---
+  duration_ms: 0.8786
+  type: 'test'
+  ...
+# Subtest: run coalesces and pause stops admission synchronously while scan cleanup is joined
+ok 18 - run coalesces and pause stops admission synchronously while scan cleanup is joined
+  ---
+  duration_ms: 0.838
+  type: 'test'
+  ...
+# Subtest: failed scan still waits separate admitted cleanup ticket
+ok 19 - failed scan still waits separate admitted cleanup ticket
+  ---
+  duration_ms: 0.538
+  type: 'test'
+  ...
+# Subtest: admission stop or any quiescence failure blocks close without closing pool
+ok 20 - admission stop or any quiescence failure blocks close without closing pool
+  ---
+  duration_ms: 1.0575
+  type: 'test'
+  ...
+# Subtest: rollback keeps stopped for unknown/pending/old-release incompatible evidence
+ok 21 - rollback keeps stopped for unknown/pending/old-release incompatible evidence
+  ---
+  duration_ms: 0.7441
+  type: 'test'
+  ...
+# Subtest: close waits readonly assessment, denies new assessment and never restarts
+ok 22 - close waits readonly assessment, denies new assessment and never restarts
+  ---
+  duration_ms: 0.8439
+  type: 'test'
+  ...
+# Subtest: original non-target scheduler reference preserved, no activation permission
+ok 23 - original non-target scheduler reference preserved, no activation permission
+  ---
+  duration_ms: 0.2886
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 124.7216
+
+OFFLINE_GUARD_DENIALS:{}
