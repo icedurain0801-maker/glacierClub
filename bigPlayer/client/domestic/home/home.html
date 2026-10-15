@@ -602,12 +602,12 @@
     border: 8px solid transparent;
   }
   .tutorial-tooltip.arrow-top::before {
-    top: -14px; left: 20px;
+    top: -14px; left: var(--tutorial-arrow-left, 20px);
     border-bottom-color: #fff;
     border-top: none;
   }
   .tutorial-tooltip.arrow-bottom::before {
-    bottom: -14px; left: 20px;
+    bottom: -14px; left: var(--tutorial-arrow-left, 20px);
     border-top-color: #fff;
     border-bottom: none;
   }
@@ -675,6 +675,20 @@
   .variant-switcher button:not(.active):hover {
     color: var(--on-surface);
   }
+  /* ── 首页模式切换（普通 / 功能栏） ── */
+  body[data-home-mode="function-bar"] { --hero-h: 188px; }
+  .function-mode-bar { display: none; padding: 5px 18px 18px; gap: 20px; align-items: flex-start; position: relative; z-index: 1; }
+  .function-mode-entry { width: 46px; border: 0; padding: 0; background: transparent; color: #fff; cursor: pointer; text-align: center; font: 600 10px/1.3 Inter, "Microsoft YaHei", sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,.55); }
+  .function-mode-entry__avatar { display: grid; place-items: center; width: 36px; height: 36px; margin: 0 auto 4px; overflow: hidden; border: 1.5px solid rgba(255,255,255,.9); border-radius: 50%; box-shadow: 0 2px 7px rgba(0,0,0,.28), inset 0 0 0 2px rgba(255,255,255,.16); }
+  .function-mode-entry__avatar .material-symbols-outlined { color: #fff; font-size: 21px; font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24; filter: drop-shadow(0 1px 1px rgba(0,0,0,.22)); }
+  .function-mode-entry__avatar--gift { background: radial-gradient(circle at 34% 28%, #d9fbff 0 12%, #5fc9ff 13% 36%, #1676ca 67%, #164778 100%); }
+  .function-mode-entry__avatar--shop { background: radial-gradient(circle at 34% 28%, #fff0bc 0 11%, #ffad37 12% 37%, #e66a23 65%, #84321b 100%); }
+  .function-mode-entry__avatar--ruby { background: radial-gradient(circle at 34% 28%, #ffd8df 0 11%, #ff7187 12% 37%, #d82747 66%, #74142a 100%); }
+  body[data-home-mode="function-bar"] .function-mode-bar { display: flex; }
+  body[data-home-mode="function-bar"] #tab-nav { display: none; }
+  body[data-home-mode="function-bar"] .sticky-header { padding-bottom: 7px; }
+  body[data-home-mode="function-bar"] .simple-hero-bg::after,
+  body[data-home-mode="function-bar"] .sticky-header::after { background: linear-gradient(180deg, rgba(20,30,45,.46) 0%, rgba(20,30,45,.25) 48%, rgba(247,249,251,.43) 76%, var(--background) 100%); }
   .tutorial-control {
     position: fixed; top: 76px; right: 24px; z-index: 9999;
     display: flex; align-items: center; justify-content: space-between; gap: 14px;
@@ -1062,8 +1076,8 @@
 <nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
 
 <div class="variant-switcher" id="variantSwitcher">
-  <button data-variant="web" class="active" onclick="setVariant('web')">网页版</button>
-  <button data-variant="miniprogram" onclick="setVariant('miniprogram')">小程序版</button>
+  <button data-mode="normal" class="active" onclick="setHomeMode('normal')">普通模式</button>
+  <button data-mode="function-bar" onclick="setHomeMode('function-bar')">功能栏模式</button>
 </div>
 <div class="tutorial-control" aria-label="新手教程控制">
   <div class="tutorial-control__copy">
@@ -1076,6 +1090,10 @@
   </label>
 </div>
 
+<div class="tutorial-control" style="top:150px" aria-label="红钻充值指引控制">
+  <div class="tutorial-control__copy"><span class="tutorial-control__title">红钻充值指引</span><span class="tutorial-control__hint">独立预览，按当前模式定位</span></div>
+  <label class="tutorial-switch"><input id="rubyTutorialToggle" type="checkbox" role="switch" aria-label="开启红钻充值指引" onchange="setRubyTutorialEnabled(this.checked)"><span class="tutorial-switch__track" aria-hidden="true"></span></label>
+</div>
 <div class="phone-shell">
 
   <!-- Hero background (only in miniprogram variant) -->
@@ -1138,8 +1156,8 @@
         <span class="drawer-menu-label">充值中心</span>
       </div>
       <div class="drawer-menu-item" onclick="closeDrawer()">
-        <span class="material-symbols-outlined">support_agent</span>
-        <span class="drawer-menu-label">客服中心</span>
+        <span class="material-symbols-outlined">diamond</span>
+        <span class="drawer-menu-label">红钻充值</span>
       </div>
     </div>
   </div>
@@ -1193,6 +1211,11 @@
         <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">发现</button>
         <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">攻略</button>
         <button class="tab-inactive text-[15px] py-2.5" onclick="switchTab(this)">关注</button>
+      </div>
+      <div class="function-mode-bar" aria-label="首页功能栏">
+        <button class="function-mode-entry" type="button" aria-label="礼包中心" onclick="location.href='WelfareTask.html'"><span class="function-mode-entry__avatar function-mode-entry__avatar--gift"><span class="material-symbols-outlined" aria-hidden="true">redeem</span></span>礼包中心</button>
+        <button class="function-mode-entry" type="button" aria-label="商城中心" onclick="openDrawer()"><span class="function-mode-entry__avatar function-mode-entry__avatar--shop"><span class="material-symbols-outlined" aria-hidden="true">storefront</span></span>商城中心</button>
+        <button class="function-mode-entry" type="button" aria-label="红钻" onclick="openDrawer()"><span class="function-mode-entry__avatar function-mode-entry__avatar--ruby"><span class="material-symbols-outlined" aria-hidden="true">diamond</span></span>红钻</button>
       </div>
     </div>
 
@@ -2240,6 +2263,7 @@
   let tutorialStep = 0;
   let tutorialEnabled = false;
   let tutorialCloseTimer = null;
+  let rubyTutorialEnabled = false;
 
   const STEPS = [
     {
@@ -2264,6 +2288,26 @@
       step: '第 2 步 / 共 2 步',
       title: '🎁 在这里领取你的奖励！',
       body: '在"功能与福利"中，点击每日签到、礼包中心或官方商城，每天领取专属玩家奖励。',
+      nextLabel: '我知道了',
+    },
+    {
+      getTarget: () => document.querySelector('.function-mode-entry[aria-label="红钻"]'),
+      padding: 7,
+      radius: '50%',
+      arrowDir: 'top',
+      step: '红钻充值指引',
+      title: '红钻充值商店已开启',
+      body: '点击查看充值福利!',
+      nextLabel: '我知道了',
+    },
+    {
+      getTarget: () => [...document.querySelectorAll('.drawer-menu-item')].find(item => item.querySelector('.drawer-menu-label')?.textContent.trim() === '红钻充值'),
+      padding: 7,
+      radius: '10px',
+      arrowDir: 'top',
+      step: '红钻充值指引',
+      title: '红钻充值商店已开启',
+      body: '点击查看充值福利!',
       nextLabel: '我知道了',
     },
   ];
@@ -2292,6 +2336,7 @@
     spotlight.style.borderRadius = cfg.radius;
 
     const tooltip = document.getElementById('tutorialTooltip');
+    tooltip.style.removeProperty('--tutorial-arrow-left');
     const ttW     = 220;
     let ttTop, ttLeft;
 
@@ -2318,6 +2363,7 @@
   }
 
   function tutorialNext() {
+    if (rubyTutorialEnabled) { closeTutorial(); return; }
     if (tutorialStep === 0) {
       // Open drawer before showing step 2
       document.getElementById('drawer').classList.add('open');
@@ -2345,6 +2391,8 @@
   }
 
   function closeTutorial() {
+    rubyTutorialEnabled = false;
+    document.getElementById('rubyTutorialToggle').checked = false;
     tutorialEnabled = false;
     syncTutorialToggle();
     const overlay = document.getElementById('tutorialOverlay');
@@ -2360,6 +2408,9 @@
   }
 
   function openTutorial() {
+    rubyTutorialEnabled = false;
+    document.getElementById('rubyTutorialToggle').checked = false;
+    document.querySelector('.tutorial-tooltip-dots').style.display = '';
     clearTimeout(tutorialCloseTimer);
     closeDrawer();
     tutorialStep = 0;
@@ -2373,6 +2424,39 @@
   }
 
   // Init on load — keep tutorial disabled until the desktop preview switch is turned on.
+  function setRubyTutorialEnabled(enabled) {
+    closeTutorial();
+    clearTimeout(tutorialCloseTimer);
+    rubyTutorialEnabled = Boolean(enabled);
+    document.getElementById('rubyTutorialToggle').checked = rubyTutorialEnabled;
+    if (!enabled) { document.getElementById('tutorialOverlay').style.display = 'none'; return; }
+    closeDrawer();
+    const normal = document.body.getAttribute('data-home-mode') !== 'function-bar';
+    if (normal) openDrawer();
+    const overlay = document.getElementById('tutorialOverlay');
+    overlay.style.display = 'block';
+    overlay.style.opacity = '1';
+    overlay.classList.add('active');
+    document.querySelector('.tutorial-tooltip-dots').style.display = 'none';
+    setTimeout(() => {
+      if (!rubyTutorialEnabled) return;
+      positionTutorial(normal ? 3 : 2);
+      const shell = document.querySelector('.phone-shell').getBoundingClientRect();
+      const spot = document.getElementById('tutorialSpotlight');
+      const tip = document.getElementById('tutorialTooltip');
+      const top = parseFloat(spot.style.top);
+      const left = parseFloat(spot.style.left);
+      const width = parseFloat(spot.style.width);
+      const height = parseFloat(spot.style.height);
+      const tipLeft = Math.max(8, Math.min(left + width / 2 - tip.offsetWidth / 2, shell.width - tip.offsetWidth - 8));
+      const below = top + height + 14;
+      const above = below + tip.offsetHeight > shell.height - 8;
+      tip.className = 'tutorial-tooltip ' + (above ? 'arrow-bottom' : 'arrow-top');
+      tip.style.top = (above ? Math.max(8, top - tip.offsetHeight - 14) : below) + 'px';
+      tip.style.left = tipLeft + 'px';
+      tip.style.setProperty('--tutorial-arrow-left', Math.max(16, Math.min(left + width / 2 - tipLeft - 8, tip.offsetWidth - 32)) + 'px');
+    }, normal ? 300 : 30);
+  }
   window.addEventListener('load', () => {
     tutorialEnabled = false;
     syncTutorialToggle();
@@ -2566,19 +2650,20 @@ window.addEventListener('load', function () {
   startTimer();
 })();
 
-  /* ── Variant Switcher（网页 / 小程序） ── */
-  function setVariant(variant) {
-    if (!['web', 'miniprogram'].includes(variant)) variant = 'web';
-    document.body.setAttribute('data-active-variant', variant);
+  /* ── 首页模式切换（普通 / 功能栏） ── */
+  function setHomeMode(mode) {
+    if (!['normal', 'function-bar'].includes(mode)) mode = 'normal';
+    document.body.setAttribute('data-home-mode', mode);
     document.querySelectorAll('#variantSwitcher button').forEach(b => {
-      b.classList.toggle('active', b.dataset.variant === variant);
+      b.classList.toggle('active', b.dataset.mode === mode);
     });
-    try { localStorage.setItem('home-cn-variant', variant); } catch (e) {}
+    try { localStorage.setItem('home-cn-mode', mode); } catch (e) {}
+    if (rubyTutorialEnabled) setRubyTutorialEnabled(true);
   }
-  (function initVariant() {
-    let saved = 'web';
-    try { saved = localStorage.getItem('home-cn-variant') || 'web'; } catch (e) {}
-    setVariant(saved);
+  (function initHomeMode() {
+    let saved = 'normal';
+    try { saved = localStorage.getItem('home-cn-mode') || 'normal'; } catch (e) {}
+    setHomeMode(saved);
   })();
 
   /* ── 小程序版 · 登录弹窗 ── */
@@ -2758,15 +2843,15 @@ window.addEventListener('load', function () {
 #spec-body blockquote{border-left:3px solid #0061a4;margin:8px 0;padding:6px 12px;background:#eff6ff;border-radius:0 6px 6px 0;color:#566166;font-size:12px;}
 #spec-body hr{border:none;border-top:1px solid #e8eff3;margin:16px 0;}
 </style>
-<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.4 · 首页福利任务入口与发帖话题">
+<button id="spec-fab" onclick="openSpecPanel()" title="需求说明 v3.1.6 · 红钻充值新手指引">
   <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
 </button>
 <div id="spec-overlay" onclick="closeSpecPanel()"></div>
 <div id="spec-panel">
   <div id="spec-panel-head">
     <div style="display:flex;align-items:baseline;gap:0">
-      <span id="spec-panel-title">首页需求说明 · 福利任务入口与发帖话题</span>
-      <span id="spec-panel-ver">v3.1.4</span>
+      <span id="spec-panel-title">首页需求说明 · 红钻充值新手指引</span>
+      <span id="spec-panel-ver">v3.1.6</span>
     </div>
     <button id="spec-panel-close" onclick="closeSpecPanel()">
       <svg viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
@@ -2822,7 +2907,7 @@ window.addEventListener('load', function () {
   document.getElementById('spec-body').innerHTML = md2html(raw);
   document.getElementById('spec-body').insertAdjacentHTML('afterbegin',
     '<section id="spec-v314">' +
-      '<h2>v3.1.4 · 首页福利任务入口与发帖话题（最新）</h2>' +
+      '<h2>v3.1.4 · 首页福利任务入口与发帖话题</h2>' +
       '<h3>一、版本范围</h3>' +
       '<p>本版本说明首页福利任务入口联动与首页发帖话题推荐两项能力。后台配置、C 端展示及跨页面跳转须按本说明保持一致。</p>' +
       '<h3>二、福利任务入口与版块配置</h3>' +
@@ -2856,6 +2941,23 @@ window.addEventListener('load', function () {
       '<li>勾选或取消勾选话题 → 卡片对号和选中样式即时同步，总浏览量位置保持在左下方。</li>' +
       '<li>选择话题后分别进入「攻略 / 帖子」和「发心情」→ 对应发布页展示已带入话题；取消全部选择后进入发布页不展示已带入话题。</li></ul>' +
     '</section><hr><h2>v3.0.0 · 小程序登录弹窗（原有说明）</h2>');
+  document.getElementById('spec-body').insertAdjacentHTML('afterbegin',
+    '<section id="spec-v316"><h2>v3.1.6 · 红钻充值新手指引（最新）</h2>' +
+    '<h3>一、替换范围与视觉样式</h3>' +
+    '<p>移除原有“点击菜单按钮 → 功能与福利”两步新手教程，不再向玩家触发。新增独立的红钻充值指引，仅参考原教程的遮罩、目标聚焦框、白色提示卡及箭头样式，不合并为原教程的后续步骤，也不依赖原教程是否出现或完成。</p>' +
+    '<h3>二、按首页模式定位</h3>' +
+    '<table><tr><th>当前模式</th><th>聚焦入口</th><th>展示要求</th></tr>' +
+    '<tr><td>功能栏模式</td><td>首页顶部“红钻”</td><td>直接聚焦对应入口。</td></tr>' +
+    '<tr><td>普通模式</td><td>侧边抽屉“红钻充值”</td><td>打开抽屉后聚焦对应入口。</td></tr></table>' +
+    '<p>每次仅展示当前模式对应的一处指引，不自动切换首页模式，不要求玩家依次查看两处。提示卡不得溢出画布，箭头须对准对应入口。</p>' +
+    '<p><strong>标题：</strong>红钻充值商店已开启<br><strong>正文：</strong>点击查看充值福利!</p>' +
+    '<h3>三、浏览器缓存去重</h3>' +
+    '<ul><li>以玩家当前浏览器本地缓存为记录维度，本次红钻指引使用独立的“已出现”标记；不得沿用原教程的完成标记。</li>' +
+    '<li>进入首页、对应入口已完成渲染且本地无“已出现”标记时，展示一次指引；首次实际展示时立即记录，不等待玩家点击“我知道了”或完成充值。</li>' +
+    '<li>指引出现过即不再显示：关闭、跳过、刷新、重新进入首页、重启浏览器及切换两种首页模式，均不得重复触发。两种模式共用本次指引的去重标记。</li>' +
+    '<li>目标入口未展示或未完成渲染时，不显示指引，也不提前写入“已出现”标记。</li>' +
+    '<li>记录不做跨浏览器、跨设备同步；清除对应站点本地缓存或使用新的浏览器环境后，无历史标记，可再次出现。</li>' +
+    '<li>原型手动预览开关仅用于验收，不作为正式上线的触发条件。</li></ul></section><hr>');
 })();
 function openSpecPanel(){
   document.getElementById('spec-panel').classList.add('open');
