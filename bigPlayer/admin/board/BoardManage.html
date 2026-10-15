@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>版块管理 - 大玩家后台</title>
+<link rel="stylesheet" href="../../shared/sidebar.css?v=admin-sidebar-v034">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#262626;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;display:flex;min-height:100vh}.admin-main{flex:1;padding:24px;overflow:auto}.page-card{background:#fff;border-radius:4px;box-shadow:0 1px 4px #00000012;margin-bottom:16px;overflow:hidden}.page-title{font-size:18px;font-weight:600;padding:20px;border-bottom:1px solid #f0f0f0}.filter{display:flex;gap:14px;align-items:center;padding:16px 20px;border-bottom:1px solid #f0f0f0;flex-wrap:wrap}.field{display:flex;align-items:center;gap:7px;font-size:13px;color:#595959}.field b{color:#ff4d4f}.input,.select{height:32px;border:1px solid #d9d9d9;border-radius:4px;padding:0 10px;min-width:150px;outline:0;background:#fff}.input:focus,.select:focus{border-color:#1890ff}.btn{height:32px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;padding:0 16px;cursor:pointer;color:#595959}.btn:hover{color:#1890ff;border-color:#1890ff}.btn-primary{background:#1890ff;color:#fff;border-color:#1890ff}.btn-primary:hover{color:#fff;background:#40a9ff}.toolbar{padding:12px 20px;border-bottom:1px solid #f0f0f0}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:1100px}th{background:#fafafa;text-align:left;font-weight:500;color:#262626;padding:12px;border-bottom:1px solid #e8e8e8;white-space:nowrap}td{padding:13px 12px;border-bottom:1px solid #f0f0f0;color:#595959;vertical-align:middle}.tag{display:inline-block;padding:2px 8px;margin:2px;border-radius:2px;background:#e6f7ff;color:#1890ff;border:1px solid #91d5ff;font-size:12px}.tag.cyan{background:#e6fffb;color:#13c2c2;border-color:#87e8de}.op{border:0;background:none;color:#1890ff;cursor:pointer;padding:0 5px}.op.danger{color:#ff4d4f}.status{color:#52c41a}.status.off{color:#999}.drawer-mask{display:none;position:fixed;inset:0;background:#0006;z-index:900}.drawer-mask.open{display:block}.drawer{position:fixed;z-index:901;right:-650px;top:0;width:620px;height:100vh;background:#fff;box-shadow:-4px 0 24px #00000024;transition:right .25s;display:flex;flex-direction:column}.drawer.open{right:0}.drawer-head{padding:16px 20px;border-bottom:1px solid #e8e8e8;display:flex;justify-content:space-between;align-items:center;font-weight:600}.close{border:0;background:#f5f5f5;border-radius:50%;width:26px;height:26px;cursor:pointer}.drawer-body{padding:20px;overflow:auto;flex:1}.drawer-foot{padding:12px 20px;border-top:1px solid #e8e8e8;text-align:right}.row{display:flex;gap:10px;margin-bottom:15px;align-items:flex-start}.label{width:90px;text-align:right;padding-top:8px;font-size:13px;color:#595959;flex:none}.control{flex:1}.textarea{height:70px;resize:vertical;padding:8px}.check-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;font-size:13px;color:#595959}.check-grid label{display:flex;gap:6px;align-items:center}.section{font-weight:600;font-size:14px;border-left:3px solid #1890ff;padding-left:8px;margin:22px 0 12px}.switch{position:relative;display:inline-block;width:36px;height:20px}.switch input{display:none}.switch i{position:absolute;inset:0;background:#d9d9d9;border-radius:20px}.switch i:after{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.2s}.switch input:checked+i{background:#1890ff}.switch input:checked+i:after{transform:translateX(16px)}.config{border:1px solid #e8e8e8;border-radius:4px;overflow:auto}.config table{min-width:700px;font-size:12px}.config td,.config th{padding:9px}.mini{height:28px;width:100%;min-width:75px}.icon{width:28px;height:28px;border:1px dashed #bbb;display:inline-flex;align-items:center;justify-content:center;color:#999}.addline{width:100%;border:1px dashed #d9d9d9;background:#fff;padding:8px;color:#1890ff;cursor:pointer;margin-top:8px}.help{position:fixed;right:24px;bottom:24px;width:104px;height:46px;border:0;border-radius:8px;background:#1890ff;color:#fff;box-shadow:0 4px 14px #1890ff55;cursor:pointer}.help-panel{display:none;position:fixed;right:0;top:0;width:420px;height:100vh;background:#fff;z-index:950;box-shadow:-4px 0 20px #0002;padding:20px}.help-panel.open{display:block}.help-panel h3{margin-top:0}.help-panel p{font-size:13px;color:#888}
+.drawer{width:930px;max-width:100vw;right:-950px}
+.config .feature-table{min-width:860px;table-layout:auto}.feature-table th{white-space:normal;text-align:center;font-size:12px}.feature-table td{text-align:center;padding:9px 6px}.feature-table .mini{min-width:95px;width:100%}.feature-table .feature-link{min-width:160px}.feature-table .feature-limit{color:#262626;white-space:nowrap;font-size:12px}.feature-upload{display:inline-flex;cursor:pointer}.feature-icon{display:flex;width:36px;height:36px;border:1px solid #d9d9d9;align-items:center;justify-content:center;font-size:25px}.feature-icon img{width:100%;height:100%;object-fit:contain}.drag-handle{color:#aaa;cursor:grab;font-size:18px}.feature-table input[type=checkbox]{accent-color:#1890ff}
+</style></head>
+<body><nav id="sidebar" class="sidebar"></nav><main class="admin-main">
+<div class="page-card"><div class="page-title">版块管理</div><div class="filter"><label class="field"><b>*</b>数据中心<select id="center" class="select"><option>国内</option><option>海外</option></select></label><label class="field">版块名称<input id="keyword" class="input" placeholder="请输入版块名称"></label><button class="btn btn-primary" onclick="filterRows()">查询</button></div><div class="toolbar"><button class="btn btn-primary" onclick="openDrawer()">＋ 新增版块</button></div><div class="table-wrap"><table><thead><tr><th>版块ID</th><th>版块名称</th><th>版块图片</th><th>功能栏</th><th>资讯栏目</th><th>操作时间</th><th>操作人</th><th>状态</th><th>操作</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+</main>
+<div id="mask" class="drawer-mask" onclick="closeDrawer()"></div><aside id="drawer" class="drawer"><div class="drawer-head"><span id="drawerTitle">新增版块</span><button class="close" onclick="closeDrawer()">×</button></div><div class="drawer-body"><div class="row"><label class="label">数据中心</label><div class="control"><select class="select" id="formCenter"><option>国内</option><option>海外</option></select></div></div><div class="row"><label class="label">*版块名称</label><div class="control"><input id="formName" class="input" style="width:100%" placeholder="请输入版块名称"></div></div><div class="row"><label class="label">*版块介绍</label><div class="control"><textarea class="input textarea" id="formIntro" style="width:100%" placeholder="请输入版块介绍"></textarea></div></div><div class="row"><label class="label">*游戏选择</label><div class="control"><select class="select" style="width:100%"><option>超能世界-国内（2131-CN-ZS）</option><option>我的末日基地-国内</option><option>Super World-海外</option></select></div></div><div class="row"><label class="label">*可见模式</label><div class="control check-grid"><label><input type="checkbox" checked>游戏内置</label><label><input type="checkbox">游客模式</label><label><input type="checkbox">通用模式</label></div></div><div class="section">首页模块</div><div class="check-grid"><label><input type="checkbox" checked>攻略站功能</label><label><input type="checkbox">品宣模块</label><label><input type="checkbox">创作者中心</label><label><input type="checkbox">发现</label><label><input type="checkbox">玩家投稿</label><label><input type="checkbox">概率功能</label><label><input type="checkbox">游戏下载</label><label><input type="checkbox">兑换码</label><label><input type="checkbox">大神模式</label><label><input type="checkbox" checked>功能栏</label></div><div class="section">附加功能</div><div class="check-grid"><label><input type="checkbox">快捷评论</label><label><input type="checkbox">贴文翻译</label></div><div class="section">功能栏配置 <label class="switch"><input type="checkbox" checked><i></i></label></div><div class="config"><table><thead><tr><th>排序</th><th>类别名称</th><th>链接地址</th><th>登录</th><th>操作</th></tr></thead><tbody id="featureRows"><tr><td>≡</td><td><input class="input mini" value="每日签到"></td><td><input class="input mini" value="/sign-in"></td><td><label class="switch"><input type="checkbox" checked><i></i></label></td><td><button class="op danger" onclick="this.closest('tr').remove()">删除</button></td></tr><tr><td>≡</td><td><input class="input mini" value="礼包中心"></td><td><input class="input mini" value="/welfare"></td><td><label class="switch"><input type="checkbox"><i></i></label></td><td><button class="op danger" onclick="this.closest('tr').remove()">删除</button></td></tr></tbody></table></div><button class="addline" onclick="addFeature()">＋ 添加功能</button><div class="section">资讯栏目</div><div class="config"><table><thead><tr><th>排序</th><th>类别名称</th><th>类型</th><th>启用</th><th>操作</th></tr></thead><tbody id="newsRows"><tr><td>1</td><td><input class="input mini" value="官方资讯"></td><td><select class="select mini"><option>帖子</option><option>动态</option></select></td><td><label class="switch"><input type="checkbox" checked><i></i></label></td><td><button class="op danger" onclick="this.closest('tr').remove()">移除</button></td></tr><tr><td>2</td><td><input class="input mini" value="攻略大全"></td><td><select class="select mini"><option>帖子</option><option>动态</option></select></td><td><label class="switch"><input type="checkbox" checked><i></i></label></td><td><button class="op danger" onclick="this.closest('tr').remove()">移除</button></td></tr></tbody></table></div><button class="addline" onclick="addNews()">＋ 添加类别</button></div><div class="drawer-foot"><button class="btn" onclick="closeDrawer()">取消</button> <button class="btn btn-primary" onclick="saveBoard()">提交</button></div></aside><button class="help" onclick="document.getElementById('help').classList.add('open')">📋 需求说明</button><div id="help" class="help-panel"><button class="close" style="float:right" onclick="this.parentElement.classList.remove('open')">×</button><h3>版块管理 — 需求说明</h3><p>暂无需求说明。</p></div>
+<script src="../../shared/sidebar-data.js?v=admin-sidebar-v034"></script><script src="../../shared/sidebar.js?v=sidebar-system-split-v037"></script><script>
+const data=[{id:2,name:'超能世界',features:['每日签到','礼包中心','积分商城','红钻商城','DIY榜单','客服中心'],news:['官方资讯','攻略大全','趣味栏目','讨论圈子','其他'],time:'2026-10-15 10:20',user:'运营管理员',on:true},{id:28,name:'我的末日基地',features:[],news:['官方公告','讨论圈子'],time:'2026-10-14 16:32',user:'张三',on:true},{id:9,name:'欢乐战三国',features:[],news:[],time:'2026-10-13 11:06',user:'李四',on:false},{id:18,name:'天境传说',features:[],news:[],time:'2026-10-12 09:18',user:'王五',on:true},{id:22,name:'我要当老祖',features:[],news:[],time:'2026-10-11 17:45',user:'运营管理员',on:true},{id:5,name:'妖神记',features:[],news:[],time:'2026-10-10 14:21',user:'运营管理员',on:true},{id:1,name:'圣魂纷争',features:[],news:[],time:'2026-10-09 10:05',user:'赵六',on:true}];
+function tags(a,cyan){return a.length?a.map(x=>`<span class="tag ${cyan?'cyan':''}">${x}</span>`).join(''):'—'}function render(list=data){rows.innerHTML=list.map((x,i)=>`<tr><td>${x.id}</td><td>${x.name}</td><td><div style="width:48px;height:34px;background:#e6f7ff;color:#1890ff;display:flex;align-items:center;justify-content:center;border-radius:3px">图</div></td><td>${tags(x.features)}</td><td>${tags(x.news,true)}</td><td>${x.time}</td><td>${x.user}</td><td class="status ${x.on?'':'off'}">${x.on?'启用':'停用'}</td><td><button class="op" onclick="openDrawer(${i})">编辑</button><button class="op" onclick="toggle(${i})">${x.on?'停用':'启用'}</button><button class="op danger" onclick="removeRow(${i})">删除</button></td></tr>`).join('')}function filterRows(){const k=keyword.value.trim();render(k?data.filter(x=>x.name.includes(k)):data)}function toggle(i){data[i].on=!data[i].on;render()}function removeRow(i){if(confirm('确认删除该版块吗？删除后不可恢复。')){data.splice(i,1);render()}}function openDrawer(i){drawerTitle.textContent=i==null?'新增版块':'编辑版块';if(i!=null){formName.value=data[i].name;formIntro.value='面向玩家的社区交流版块';formCenter.value='国内'}else{formName.value='';formIntro.value='';formCenter.value=center.value}mask.classList.add('open');drawer.classList.add('open')}function closeDrawer(){mask.classList.remove('open');drawer.classList.remove('open')}function saveBoard(){if(!formName.value.trim()){alert('请填写版块名称');return}alert('提交成功');closeDrawer()}function addFeature(){featureRows.insertAdjacentHTML('beforeend',`<tr><td>≡</td><td><input class="input mini" placeholder="类别名称"></td><td><input class="input mini" placeholder="链接地址"></td><td><label class="switch"><input type="checkbox"><i></i></label></td><td><button class="op danger" onclick="this.closest('tr').remove()">删除</button></td></tr>`)}function addNews(){newsRows.insertAdjacentHTML('beforeend',`<tr><td>${newsRows.children.length+1}</td><td><input class="input mini" placeholder="类别名称"></td><td><select class="select mini"><option>帖子</option><option>动态</option></select></td><td><label class="switch"><input type="checkbox" checked><i></i></label></td><td><button class="op danger" onclick="this.closest('tr').remove()">移除</button></td></tr>`)}render();
+</script>
+<script>
+initSidebar({ root: '../..', currentHref: 'admin/board/BoardManage.html' });
+const featureTable = document.getElementById('featureRows').closest('table');
+featureTable.classList.add('feature-table');
+featureTable.querySelector('thead').innerHTML = '<tr><th>排序</th><th>序号</th><th>图标</th><th>类别名称</th><th>链接地址 ⓘ</th><th>是否登录</th><th>会员中心通知</th><th>渠道限制 ⓘ</th><th>白名单用户 ⓘ</th><th>拓展</th><th>操作</th></tr>';
+function escapeFeature(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function renumberFeatures() { document.querySelectorAll('#featureRows tr').forEach((row, i) => row.querySelector('.feature-number').textContent = i + 1); }
+function removeFeature(button) { button.closest('tr').remove(); renumberFeatures(); }
+function editFeatureLimit(button, label) {
+  const value = prompt(label + '（多个值请用逗号分隔）', button.dataset.value || '');
+  if (value === null) return;
+  button.dataset.value = value;
+  button.textContent = (value.trim() || (label === '渠道限制' ? '无' : '暂无')) + ' ✎';
+}
+function uploadFeatureIcon(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { alert('请选择图片文件'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = () => { const holder = input.parentElement.querySelector('.feature-icon'); holder.textContent = ''; const img = document.createElement('img'); img.src = reader.result; img.alt = '功能图标'; holder.appendChild(img); };
+  reader.readAsDataURL(file);
+}
+addFeature = function(name = '', link = '', icon = '＋', notify = false) {
+  document.getElementById('featureRows').insertAdjacentHTML('beforeend', `<tr draggable="true"><td><span class="drag-handle" title="拖动排序">≡</span></td><td class="feature-number"></td><td><label class="feature-upload" title="上传功能图标"><span class="feature-icon">${escapeFeature(icon)}</span><input type="file" accept="image/*" hidden onchange="uploadFeatureIcon(this)"></label></td><td><input class="input mini" aria-label="类别名称" placeholder="类别名称" value="${escapeFeature(name)}"></td><td><input class="input mini feature-link" aria-label="链接地址" placeholder="请输入链接地址" value="${escapeFeature(link)}"></td><td><label class="switch"><input type="checkbox" checked><i></i></label></td><td><input type="checkbox" aria-label="会员中心通知" ${notify ? 'checked' : ''}></td><td><button class="op feature-limit" onclick="editFeatureLimit(this,'渠道限制')">无 ✎</button></td><td><button class="op feature-limit" onclick="editFeatureLimit(this,'白名单用户')">暂无 ✎</button></td><td><button class="op" title="展开拓展配置" onclick="this.textContent=this.textContent==='«'?'»':'«';this.setAttribute('aria-expanded',this.textContent==='»')">«</button></td><td><button class="op danger" title="移除功能" onclick="removeFeature(this)">⊖</button></td></tr>`);
+  renumberFeatures();
+};
+document.getElementById('featureRows').innerHTML = '';
+[['每日签到','/sign-in','🎂',true],['礼包中心','/welfare','🎁',true],['积分商城','/points-mall','🎊',false],['红钻商城','/diamond-mall','💎',false],['DIY榜单','/ranking','🏆',false],['客服中心','/support','🎧',false]].forEach(row => addFeature(...row));
+function attachRechargeLimit(row) {
+  if (row.querySelector('.recharge-cell')) return;
+  const cell = document.createElement('td');
+  cell.className = 'recharge-cell';
+  cell.innerHTML = '<button type="button" class="op feature-limit" onclick="editRechargeLimit(this)"><span>全部玩家</span> ✎</button>';
+  row.insertBefore(cell, row.children[9]);
+}
+const rechargeHeader = document.createElement('th');
+rechargeHeader.textContent = '充值额限制';
+featureTable.querySelector('thead tr').insertBefore(rechargeHeader, featureTable.querySelector('thead tr').children[9]);
+document.querySelectorAll('#featureRows tr').forEach(attachRechargeLimit);
+const addFeatureWithOriginalFields = addFeature;
+addFeature = function(...args) { addFeatureWithOriginalFields(...args); attachRechargeLimit(document.getElementById('featureRows').lastElementChild); };
+let rechargeEditingButton = null;
+function editRechargeLimit(button) {
+  rechargeEditingButton = button;
+  document.getElementById('rechargeAmount').value = button.dataset.amount || '';
+  document.getElementById('rechargeError').textContent = '';
+  document.getElementById('rechargeModal').showModal();
+  document.getElementById('rechargeAmount').focus();
+}
+function saveRechargeLimit(event) {
+  event.preventDefault();
+  const value = document.getElementById('rechargeAmount').value.trim();
+  if (value && !/^[1-9]\d*$/.test(value)) {
+    document.getElementById('rechargeError').textContent = '请输入正整数，不支持零、负数或小数。';
+    return;
+  }
+  rechargeEditingButton.dataset.amount = value;
+  rechargeEditingButton.querySelector('span').textContent = value ? '≥ ' + value : '全部玩家';
+  rechargeEditingButton.title = value ? '玩家累充额大于等于 ' + value + ' 时可见' : '不限制累充额，全部玩家均可见';
+  document.getElementById('rechargeModal').close();
+}
+let draggedFeature = null;
+document.getElementById('featureRows').addEventListener('dragstart', e => { if(e.target.matches('input')) { e.preventDefault(); return; } draggedFeature = e.target.closest('tr'); });
+document.getElementById('featureRows').addEventListener('dragover', e => { e.preventDefault(); const target = e.target.closest('tr'); if (draggedFeature && target && target !== draggedFeature) { const rect = target.getBoundingClientRect(); target.parentElement.insertBefore(draggedFeature, e.clientY < rect.top + rect.height / 2 ? target : target.nextSibling); renumberFeatures(); } });
+document.getElementById('featureRows').addEventListener('dragend', () => { draggedFeature = null; });
+</script>
+<style>
+.config .feature-table{min-width:980px}.recharge-cell{white-space:nowrap}
+#rechargeModal{border:0;border-radius:4px;padding:0;width:440px;max-width:calc(100vw - 32px);box-shadow:0 8px 30px #0003;color:#262626}
+#rechargeModal::backdrop{background:#0006}
+.recharge-head{padding:16px 20px;border-bottom:1px solid #e8e8e8;display:flex;justify-content:space-between;align-items:center;font-weight:600}
+.recharge-body{padding:24px 20px;font-size:13px}.recharge-body label{display:block;margin-bottom:10px}.recharge-body p{color:#888;line-height:1.7;margin:10px 0 0}.recharge-error{color:#ff4d4f;margin-top:8px;font-size:12px}
+</style>
+<dialog id="rechargeModal" aria-labelledby="rechargeTitle"><form onsubmit="saveRechargeLimit(event)" novalidate><div class="recharge-head"><span id="rechargeTitle">编辑充值额限制</span><button type="button" class="close" onclick="document.getElementById('rechargeModal').close()" aria-label="关闭">×</button></div><div class="recharge-body"><label for="rechargeAmount">累充额</label><input id="rechargeAmount" class="input" type="text" inputmode="numeric" placeholder="请输入正整数，留空表示不限制" style="width:100%" aria-describedby="rechargeHint rechargeError"><div id="rechargeError" class="recharge-error" role="alert"></div><p id="rechargeHint">不填写时，全部玩家均可见。设置后，仅累充额大于等于该数值的玩家可见此功能栏按钮。清空并保存可取消限制。</p></div><div class="drawer-foot"><button class="btn" type="button" onclick="document.getElementById('rechargeModal').close()">取消</button> <button class="btn btn-primary" type="submit">确定</button></div></form></dialog>
+<style>
+#help{width:560px;max-width:100vw;overflow-y:auto}.recharge-prd{font-size:13px;line-height:1.8;color:#595959}.recharge-prd h4{font-size:14px;color:#262626;margin:18px 0 8px}.recharge-prd table{min-width:0;font-size:12px;table-layout:fixed}.recharge-prd th,.recharge-prd td{padding:8px;white-space:normal;overflow-wrap:anywhere}.recharge-prd p{font-size:13px;color:#595959}.prd-version{background:#e6f7ff;color:#1890ff;padding:10px 12px;border-radius:4px;font-weight:600}
+</style>
+<script>
+const requirementPanel = document.getElementById('help');
+requirementPanel.querySelector('p').remove();
+requirementPanel.insertAdjacentHTML('beforeend', `<div class="recharge-prd">
+<div class="prd-version">v3.1.6 · 功能栏新增累充额限制</div>
+<h4>1. 需求概述</h4>
+<p>本次仅新增功能栏按钮的累充额可见性限制。运营人员可为每个功能栏按钮独立设置累充额门槛；未设置时不限制玩家累充额。其他既有功能和限制规则保持不变。</p>
+<h4>2. 配置入口与流程</h4>
+<p>版块管理 → 新增/编辑版块 → 功能栏配置 → “白名单用户”右侧新增“充值额限制”列 → 点击该行编辑 → 弹窗输入“累充额” → 确定后回显 → 提交版块配置。</p>
+<h4>3. 字段定义</h4>
+<p><strong>累充额定义：</strong>当前冰川通行证的历史累计充值金额。</p>
+<table><thead><tr><th>字段</th><th>规则</th></tr></thead><tbody>
+<tr><td>充值额限制（列表列）</td><td>每行独立配置。未设置显示“全部玩家”；已设置显示“≥ N”，提供编辑入口。</td></tr>
+<tr><td>累充额（弹窗字段）</td><td>非必填，默认留空。填写时仅允许正整数，不支持 0、负数、小数、字母或其他非数字字符。</td></tr>
+</tbody></table>
+<h4>4. 编辑交互</h4>
+<ul><li>编辑弹窗回填当前行已配置的累充额，未配置时输入框为空。</li><li>点击“确定”校验输入；不合法时提示“请输入正整数，不支持零、负数或小数。”，保留输入且不关闭弹窗。</li><li>清空字段并确定，取消当前按钮的累充额限制，回显“全部玩家”。</li><li>点击“取消”、关闭按钮或按 Esc，不修改原配置。</li><li>弹窗确定仅更新当前版块的编辑内容，最终随版块提交保存；保存失败不得提示成功。</li></ul>
+<h4>5. 玩家端可见性规则</h4>
+<table><thead><tr><th>配置/玩家情况</th><th>累充额条件判定</th></tr></thead><tbody>
+<tr><td>未设置累充额限制</td><td>全部玩家通过累充额条件。</td></tr>
+<tr><td>玩家累充额低于 N</td><td>不展示该功能栏按钮。</td></tr>
+<tr><td>玩家累充额等于或高于 N</td><td>通过累充额条件。</td></tr>
+</tbody></table>
+<p>示例：门槛为 100，玩家累充额为 99 时不展示，达到 100 时通过该条件。通过累充额条件不代表绕过原有登录、渠道、白名单等规则；本次不修改这些规则的既有逻辑。</p>
+<h4>6. 兼容与边界</h4>
+<ul><li>历史功能栏按钮默认不设置累充额限制，保持原有可见性。</li><li>新增功能行默认“全部玩家”；不同按钮的配置互不影响。</li><li>新增配置不增加列表筛选条件，不改变既有权限和版块筛选规则。</li></ul>
+</div>`);
+</script>
+</body></html>

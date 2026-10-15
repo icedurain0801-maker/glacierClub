@@ -34,7 +34,7 @@ const SIDEBAR_DATA = [
           {
             type: 'item',
             label: '首页（社区主页）',
-            version: 'v3.1.4',
+            version: 'v3.1.6',
             href: 'client/domestic/home/home.html'
           },
           {
@@ -286,7 +286,14 @@ const SIDEBAR_DATA = [
       {
         type: 'dir',
         label: '版块管理',
-        children: []
+        children: [
+          {
+            type: 'item',
+            label: '版块管理',
+            version: 'v3.1.6',
+            href: 'admin/board/BoardManage.html'
+          }
+        ]
       },
       {
         type: 'dir',
