@@ -7,6 +7,7 @@ const AdminSidebar = {
         { label: '方案管理', dir: 'schemeManagement', file: 'schemeList.html',          icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>' },
         { label: '特殊方案', dir: 'schemeManagement', file: 'specialScheme.html',        icon: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>' },
         { label: '配置中心', dir: 'config',            file: 'configList.html',          icon: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' }
+        ,{ label: '支付配置管理', dir: 'config', file: 'paymentConfigManagement.html', child: true, icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>' }
       ]
     }
   ],
@@ -52,11 +53,13 @@ const AdminSidebar = {
         const href = this._prefix(item.dir) + item.file;
         const active = this._isActive(item) ? ' active' : '';
         const click = active ? '' : ` onclick="location.href='${href}'"`;
-        html += `<div class="nav-item${active}"${click}>`;
+        html += item.child
+          ? `<a class="nav-item nav-child${active}" href="${href}" style="padding-left:62px;text-decoration:none"${active ? ' aria-current="page"' : ''}>`
+          : `<div class="nav-item${active}"${click}>`;
         html += `<span class="icon"><svg viewBox="0 0 24 24">${item.icon}</svg></span>`;
         html += `<span>${item.label}</span>`;
         if (item.file === 'configList.html' && hasPendingAudit) html += '<i class="nav-audit-dot" aria-hidden="true"></i>';
-        html += '</div>';
+        html += item.child ? '</a>' : '</div>';
       });
       html += '</div>';
     });
