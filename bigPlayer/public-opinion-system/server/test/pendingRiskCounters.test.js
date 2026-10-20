@@ -34,7 +34,7 @@ test('single, mixed batch and repeat handling reduce only outstanding risk count
   assert.equal((await stats()).attention,1);assert.equal((await stats()).urgent,2);
   await handleContents(repo,{contentIds:[id(2),id(3),id(4)],handlingMethod:'notified'});
   const after=await stats();assert.equal(after.attention,0);assert.equal(after.urgent,0);assert.equal(after.negative,0);assert.equal(after.post,3);assert.equal(after.comment,2);
-  await handleContents(repo,{contentIds:[id(1),id(3)],handlingMethod:'false_positive'});
+  await handleContents(repo,{contentIds:[id(1),id(3)],handlingMethod:'false_positive',handlingNote:'正常讨论，不是产品异常'});
   assert.deepEqual(await stats(),after);
   assert(calls.every(q=>q.communityId==='community'&&q.publishedFrom==='from'&&q.publishedTo==='to'));
 });

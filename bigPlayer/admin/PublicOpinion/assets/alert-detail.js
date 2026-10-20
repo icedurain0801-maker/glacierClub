@@ -3,11 +3,11 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.PublicOpinionAlertDetail = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  const severityLabel = value => ({ urgent: 'P0 紧急', attention: 'P1 关注', normal: 'P2 提示' }[value] || 'P2 提示');
+  const severityLabel = value => ({ urgent: 'P0 紧急', negative: '紧急告警', attention: 'P1 关注', normal: 'P2 提示' }[value] || 'P2 提示');
   const contentTypeLabel = type => ({ post: '帖子', video: '帖子', comment: '评论', review: '评论' }[type] || type || '帖子');
 
   function extractAiSummary(value) {
-    return String(value || '').match(/^AI 摘要：(.+)$/m)?.[1]?.trim() || '';
+    return String(value || '').replace(/负面\s*待处理/g, '紧急告警').match(/^AI 摘要：(.+)$/m)?.[1]?.trim() || '';
   }
 
   function formatTitle(alert) {
@@ -16,7 +16,7 @@
   }
 
   function renderTriggerDetail(value, esc) {
-    const points = String(value || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+    const points = String(value || '').replace(/负面\s*待处理/g, '紧急告警').split(/\r?\n/).map(item => item.trim()).filter(Boolean);
     if (!points.length) return '<div class="detail-empty">暂无规则信息</div>';
     return `<ul class="trigger-points">${points.map(point => `<li>${esc(point)}</li>`).join('')}</ul>`;
   }
@@ -57,13 +57,19 @@
     if (translation.errorCode === 'AI_TRANSLATION_DAILY_LIMIT_REACHED') return '今日翻译额度已用完，明日自动继续';
     return { pending: '中文翻译排队中', running: '中文翻译生成中', retryable: '中文翻译等待重试', failed: '中文翻译生成失败', completed: '暂无中文译文' }[translation.status] || '暂无中文翻译';
   }
+  function renderMedia(item, esc) {
+    let media = item.media;
+    if (typeof media === 'string') { try { media = JSON.parse(media); } catch { media = []; } }
+    return [...new Set(Array.isArray(media) ? media : [])].filter(url => {
+      try { return new URL(url).protocol === 'https:' && !String(item.body || '').includes(url); } catch { return false; }
+    }).map(url => `<img class="content-image" src="${esc(url)}" alt="本条内容附图" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'content-image-error',textContent:'图片加载失败'}))">`).join('');
+  }
   function renderContentNode(item, matchedIds, label, esc) {
     const title = String(item.title || '').trim();
     const author = String(item.author_name || '').trim();
     const metadata = [`作者：${author || '-'}`, `作者 ID：${item.author_id || item.platform_author_id || '-'}`, `发布时间：${beijingOr(item.published_at)}`];
     const matched = matchedIds.has(item.id);
-    const media = Array.isArray(item.media) ? item.media.filter(url => !String(url).match(IMAGE_URL) || !String(item.body || '').includes(String(url))) : [];
-    const mediaHtml = media.map(url => `<img class="content-image" src="${esc(url)}" alt="帖子图片" loading="lazy">`).join(''); return `<article class="related-content${matched ? ' is-matched' : ''}"><div class="related-head"><span class="content-type ${esc(item.content_type || '')}">${esc(label || contentTypeLabel(item.content_type))}</span>${matched ? '<span class="matched-badge">告警命中</span>' : ''}${title ? `<strong>${esc(title)}</strong>` : ''}</div><div class="related-meta">${metadata.map(esc).join(' · ')}</div><div class="related-content-body">${renderBodyWithImages(item.body, esc)}</div>${renderTranslation(item, esc)}${mediaHtml}${item.source_url ? `<a class="source-link" href="${esc(item.source_url)}" target="_blank" rel="noopener noreferrer">查看平台原文</a>` : ''}</article>`;
+    const mediaHtml = renderMedia(item, esc); return `<article class="related-content${matched ? ' is-matched' : ''}"><div class="related-head"><span class="content-type ${esc(item.content_type || '')}">${esc(label || contentTypeLabel(item.content_type))}</span>${matched ? '<span class="matched-badge">告警命中</span>' : ''}${title ? `<strong>${esc(title)}</strong>` : ''}</div><div class="related-meta">${metadata.map(esc).join(' · ')}</div><div class="related-content-body">${renderBodyWithImages(item.body, esc)}</div>${mediaHtml}${renderTranslation(item, esc)}</article>`;
   }
 
   function renderRelatedContents(alert, esc) {
@@ -86,5 +92,5 @@
       <section class="detail-block" data-detail-module="resolution"><div class="detail-label">处置状态 <span class="state-badge ${esc(status)}">钉钉：${esc(dingLabel(status))}</span></div><div class="detail-text"><select class="input" id="alertStatus" style="width:100%"><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已处理</option><option value="false_positive">误报</option></select><textarea class="input" id="resolutionNote" style="height:80px;width:100%;margin-top:10px;padding-top:8px" placeholder="填写处置备注">${esc(alert.resolution_note || '')}</textarea><button class="btn primary" id="saveAlert" style="margin-top:10px">保存处置结果</button></div></section>`;
   }
 
-  return { contentTypeLabel, extractAiSummary, formatTitle, render, renderBodyWithImages, renderTranslation, renderContentNode, renderRelatedContents, renderTriggerDetail, severityLabel, hasTranslationText, translationMessage };
+  return { contentTypeLabel, extractAiSummary, formatTitle, render, renderBodyWithImages, renderMedia, renderTranslation, renderContentNode, renderRelatedContents, renderTriggerDetail, severityLabel, hasTranslationText, translationMessage };
 });

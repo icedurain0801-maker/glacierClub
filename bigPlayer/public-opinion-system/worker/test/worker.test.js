@@ -113,7 +113,7 @@ test('Discord comments 429 stops later comments and reply dispatch for the same 
 
 test('rate limit retry uses bounded provider delay and bounded exponential fallback', () => {
   const now = Date.parse('2026-09-18T05:00:00.000Z');
-  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 0 }, { attempts: 1 }, now).nextRetryAt, '2026-09-18T05:00:01.000Z');
+  assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 0 }, { attempts: 1 }, now).nextRetryAt, '2026-09-18T05:00:05.000Z');
   assert.equal(rateLimitRetry({ code: 'RATE_LIMITED', retryAfterMs: 99 * 60 * 60 * 1000 }, { attempts: 1 }, now).nextRetryAt, '2026-09-18T06:00:00.000Z');
   assert.equal(rateLimitRetry({ code: 'RATE_LIMITED' }, { attempts: 3 }, now).nextRetryAt, '2026-09-18T05:04:00.000Z');
   const terminal = rateLimitRetry({ code: 'RATE_LIMITED' }, { attempts: 99 }, now);
@@ -417,6 +417,9 @@ test('quality candidates are created only after deep analysis and include recomm
     recommendPin: false,
     recommendFeature: true,
     qualityReason: '内容完整、时效性强且具备长期参考价值。',
+    body: '这是一段足够长、结构完整、包含明确问题背景、影响范围、复现步骤和解决建议的优质社区内容，用于验证优质内容分析候选的真实筛选条件。',
+    contentType: undefined,
+    qualityPolicy: require('../../server/src/services/aiAnalysisPolicy').defaultPolicy().quality,
     analysisVersion: 'd1',
     modelName: 'dm',
     contentFingerprint: 'fp-quality'
@@ -447,7 +450,8 @@ test('cached deep quality analysis creates the same candidate without calling AI
   };
   await processAnalysisBacklog({ repo, ai, alertEngine: {}, leaseOwner: 'w1' });
   assert.equal(aiCalls, 0);
-      const { body, ...expectedAnalysis } = candidates[0].analysis;
+      const { body, contentType, qualityPolicy, ...expectedAnalysis } = candidates[0].analysis;
+      assert.deepEqual(qualityPolicy, require('../../server/src/services/aiAnalysisPolicy').defaultPolicy().quality);
       assert.deepEqual({ ...expectedAnalysis, contentFingerprint: 'fp-cached-deep' }, { sentiment: 'positive', qualityScore: 0.88, recommendHome: false, recommendPin: true, recommendFeature: false, qualityReason: '分区相关性强，适合在栏目内置顶。', analysisVersion: 'd1', modelName: 'dm', contentFingerprint: 'fp-cached-deep' });
 });
 

@@ -70,7 +70,7 @@ function withFetch(handler, fn) {
         const rule = /被盗/.test(text) ? 'R6' : 'R7';
         const level = row.s === 'positive' || (row.s === 'neutral' && !row.gx && !issue) ? 'L0' : issue ? row.v === 'urgent' ? 'L3' : 'L2' : 'L1';
         row.v = { L0: 'normal', L1: 'attention', L2: 'negative', L3: 'urgent' }[level];
-        row.risk = { level, level_name: { L0: '噪声过滤', L1: '关注级', L2: '负面待处理', L3: '紧急告警' }[level],
+        row.risk = { level, level_name: { L0: '噪声过滤', L1: '关注级', L2: '紧急告警', L3: '紧急告警' }[level],
           gate_result: { L0: 'GATE0_noise', L1: 'GATE1_fail_L1', L2: 'GATE3_default_L2', L3: 'GATE2_pass_L3' }[level],
           claim_type: issue ? 'fact' : 'emotion', issue_object: issue ? text : '', claim_evidence: row.ge || text,
           issue_summary: issue ? '游戏功能故障' : null, confidence: row.c, reason: `“${text}”`, noise_reason: 'pure_meme',

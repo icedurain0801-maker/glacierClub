@@ -113,21 +113,22 @@ class Q1AnalysisRunner {
     const jobs = await this.repo.claimAnalysisJobs({ profile, version: spec.version, leaseOwner: this.claimOwner, leaseSeconds: 900, limit: profile === 'deep' ? this.deepBatchSize : this.batchSize, sourceId: this.sourceId, gameId: this.scope.gameId, communityId: this.scope.communityId, contentIds: this.contentIds, publishedFrom: this.publishedFrom, publishedTo: this.publishedTo, businessDate: this.businessDate, allowDisabledSource: this.manualClaim });
     if (jobs.some(job => (this.scope.gameId && String(job.game_id) !== String(this.scope.gameId)) || (this.scope.communityId && String(job.community_id) !== String(this.scope.communityId)))) throw Object.assign(new Error('analysis job escaped canonical scope'), { code: 'ANALYSIS_SCOPE_MISMATCH' });
     if (!jobs.length) return 0;
+    await require('../../server/src/services/humanCorrections').enrichCorrectionContexts(this.repo, jobs, this.ai);
     const keys = jobs.map(job => cacheKey(this.ai, job, profile));
     const cached = new Map((await this.repo.getAnalysisCache(keys)).map(row => [row.cache_key, row]));
     const pending = jobs.filter((job, index) => !cached.has(keys[index]));
     let results = jobs.map((job, index) => cached.get(keys[index]) || null);
     try {
       if (pending.length) {
-        const fresh = await analyzeWithFallback(this.ai, pending.map(job => ({ contentType: job.content_type, title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
+        const fresh = await analyzeWithFallback(this.ai, pending.map(job => ({ aiCorrections: job.aiCorrections, contentType: job.content_type, analysisContext: require('../../server/src/services/commentAnalysisContext').commentContext(job), title: job.title, body: job.body, media: job.media, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code, analysisPolicy: require('../../server/src/services/aiAnalysisPolicy').policyForJob(job) })), profile);
         let cursor = 0; results = results.map(result => result || fresh[cursor++]);
       }
       for (let i = 0; i < jobs.length; i += 1) {
-        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint, { title: job.title, body: job.body }), analysisVersion: results[i]?.analysisVersion || spec.version, normalizationBatchId: this.claimOwner, cacheKey: keys[i], triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
+        const job = jobs[i]; const analysis = { ...normalizeAnalysis(results[i], profile, job.content_fingerprint || job.fingerprint, job), analysisVersion: results[i]?.analysisVersion || spec.version, normalizationBatchId: this.claimOwner, cacheKey: keys[i], triggerReason: job.trigger_reason || null, matchedKeywords: parseJson(job.matched_keywords) };
         await this.repo.insertAnalysis(job.content_id, analysis);
         if (typeof this.repo.reconcilePositiveRiskAlerts === 'function') await this.repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: this.claimOwner });
         if (!cached.has(keys[i])) await this.repo.upsertAnalysisCache({ ...analysis, cacheKey: keys[i], contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
-        if (profile === 'deep' || this.ai.singlePass) { const quality = qualityOf(analysis); await this.repo.upsertQualityCandidate(job.content_id, { ...(quality || {}), body: job.body, sentiment: analysis.sentiment || '', analysisVersion: analysis.analysisVersion, modelName: analysis.modelName, contentFingerprint: analysis.contentFingerprint }); }
+        if (profile === 'deep' || this.ai.singlePass) { const quality = qualityOf(analysis); await this.repo.upsertQualityCandidate(job.content_id, { ...(quality || {}), body: job.body, contentType: job.content_type, qualityPolicy: require('../../server/src/services/aiAnalysisPolicy').normalizePolicy(require('../../server/src/services/aiAnalysisPolicy').policyForJob(job)).quality, sentiment: analysis.sentiment || '', analysisVersion: analysis.analysisVersion, modelName: analysis.modelName, contentFingerprint: analysis.contentFingerprint }); }
         await this.repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner, status: 'completed' });
         if (profile === 'light') {
           const rules = await this.repo.loadKeywordRules(job.game_id, job.platform, job.community_id);

@@ -5,10 +5,10 @@ const nullableString = { type: ['string', 'null'] };
 const list = items => ({ type: 'array', items });
 const enumeration = values => ({ type: 'string', enum: values });
 const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
-const rules = [...Array.from({ length: 14 }, (_, i) => `R${i + 1}`), 'U3', 'U4', 'U5'];
+const rules = [...Array.from({ length: 15 }, (_, i) => `R${i + 1}`), 'U3', 'U4', 'U5'];
 const risk = object({
   level: enumeration(['L0', 'L1', 'L2', 'L3']),
-  level_name: enumeration(['噪声过滤', '关注级', '负面待处理', '紧急告警']),
+  level_name: enumeration(['噪声过滤', '关注级', '紧急告警']),
   gate_result: enumeration(['GATE0_noise', 'GATE1_fail_L1', 'GATE2_pass_L3', 'GATE3_default_L2']),
   claim_type: enumeration(['emotion', 'fact', 'allegation', 'evidence_backed_allegation']),
   has_evidence: enumeration(['none', 'screenshot', 'repro_steps', 'data_sample', 'official_quote', 'ticket_proof']),

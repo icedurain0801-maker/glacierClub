@@ -8,6 +8,8 @@ const { MemoryChallengeStore, MemoryExchangeStore, MemorySessionStore } = requir
 const { loadLocalEnvironment } = require('./env');
 const { createCredentialResolver } = require('./credentials');
 const { BigPlayerH5PlaywrightAutomation } = require('./adapters/bigPlayerH5Playwright');
+const { FacebookBrowserAutomation } = require('./adapters/facebookBrowser');
+const { ExternalBrowserClient } = require('./externalBrowserClient');
 const fs = require('node:fs');
 
 function resolveBrowserExecutable(env = process.env) {
@@ -17,7 +19,8 @@ function resolveBrowserExecutable(env = process.env) {
   const candidates = [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
   ];
   return candidates.find(file => fs.existsSync(file)) || null;
 }
@@ -35,7 +38,8 @@ function createAdapters(env = process.env, options = {}) {
     mock: mockAdapter,
     douyin: mockEnabled ? mockAdapter : new DouyinLoginAdapter({ automation: options.automation?.douyin }),
     xiaohongshu: mockEnabled ? mockAdapter : new XiaohongshuLoginAdapter({ automation: options.automation?.xiaohongshu }),
-    bigplayer_h5: new BigPlayerH5LoginAdapter({ automation: bigplayerAutomation })
+    bigplayer_h5: new BigPlayerH5LoginAdapter({ automation: bigplayerAutomation }),
+    facebook: options.automation?.facebook || new FacebookBrowserAutomation({ externalBrowserClient: new ExternalBrowserClient(env, options.fetchImpl), playwright: options.playwright, executablePath: resolveBrowserExecutable(env), headless: String(env.LOGIN_SESSION_HEADLESS || 'true') !== 'false', timeoutMs: Number(env.LOGIN_AUTOMATION_TIMEOUT_MS || 30000), verificationDnsServers: String(env.LOGIN_SESSION_FACEBOOK_VERIFICATION_DNS_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean) })
   };
 }
 
@@ -83,4 +87,4 @@ if (require.main === module) {
   createApp().listen(port, host, () => process.stdout.write(`login-session-service listening on http://${host}:${port}\n`));
 }
 
-module.exports = { createAdapters, createApp, createReadiness, createService, loadLocalEnvironment };
+module.exports = { createAdapters, createApp, createReadiness, createService, loadLocalEnvironment, resolveBrowserExecutable };

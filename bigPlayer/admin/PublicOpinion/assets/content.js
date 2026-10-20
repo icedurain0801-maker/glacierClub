@@ -1,5 +1,7 @@
 const API = window.PUBLIC_OPINION_API || '/api/public-opinion';
 const Detail = window.PublicOpinionAlertDetail;
+const ContentImages = window.PublicOpinionContentImages;
+let disposeImagePreviews = () => {};
 const Handling = window.PublicOpinionContentHandling;
 const RiskModes = window.PublicOpinionRiskModes;
 const state = { sources: [], contents: [], scope: null, contentMode: 'post', riskContentType: '', page: 1, pageSize: 50, total: 0, requestSerial: 0, statsSerial: 0, deepLinkOpened: '', publishedFrom: '', publishedTo: '' };
@@ -25,7 +27,7 @@ const analysisStatus = item => pick(item, 'analysis_status', 'analysisStatus') |
 const analysisLevel = item => pick(item, 'analysis_level', 'analysisLevel');
 const analysisReasonText = item => {
   const status = analysisStatus(item);
-  const reason = String(pick(item, 'analysis_reason', 'analysisReason') || '').trim();
+  const reason = String(pick(item, 'analysis_reason', 'analysisReason') || '').replace(/负面\s*待处理/g, '紧急告警').trim();
   if (status === 'completed' && reason) return `分析原因：${reason}`;
   if (['pending', 'running'].includes(status)) return '分析完成后将生成原因。';
   if (['retryable', 'failed'].includes(status)) return '分析原因生成失败，可重新分析。';
@@ -140,6 +142,7 @@ async function rawApi(path, options = {}) {
   return body.data ?? body;
 }
 function renderSkeleton() {
+  disposeImagePreviews();
   $('#tableContent').innerHTML = `<table class="table"><thead><tr><th>内容</th><th>类型</th><th>处理状态</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${Array.from({ length: 5 }).map(() => '<tr><td><div class="skeleton" style="width:240px"></div><div class="skeleton" style="width:180px"></div></td><td><div class="skeleton" style="width:45px"></div></td><td><div class="skeleton" style="width:80px"></div></td><td><div class="skeleton" style="width:50px"></div></td><td><div class="skeleton" style="width:90px"></div></td><td><div class="skeleton" style="width:50px"></div></td><td><div class="skeleton" style="width:45px"></div></td><td><div class="skeleton" style="width:90px"></div></td><td><div class="skeleton" style="width:55px"></div></td></tr>').join('')}</tbody></table>`;
 }
 function scopePath(item) {
@@ -150,7 +153,7 @@ function scopePath(item) {
 }
 function emptyMessage() { return '暂无匹配内容'; }
 const riskModeParams = mode => ({ riskMode: mode, severity: RiskModes.severityForRiskMode(mode) });
-const modeConfig = { post: { label: '帖子内容', params: { contentType: 'post' } }, comment: { label: '评论内容', params: { contentType: 'comment' } }, negative: { label: '紧急告警', params: riskModeParams('negative') }, attention: { label: '关注级', params: riskModeParams('attention') }, urgent: { label: '紧急告警', params: riskModeParams('urgent') } };
+const modeConfig = { post: { label: '帖子内容', params: { contentType: 'post' } }, comment: { label: '评论内容', params: { contentType: 'comment' } }, attention: { label: '关注级', params: riskModeParams('attention') }, urgent: { label: '紧急告警', params: riskModeParams('urgent') } };
 function updateContentMode() { document.querySelectorAll('[data-content-mode]').forEach(card => { const active = card.dataset.contentMode === state.contentMode; card.classList.toggle('active', active); card.setAttribute('aria-pressed', String(active)); }); const label = modeConfig[state.contentMode]?.label || '帖子内容'; const hint = $('#resultHint'); if (hint) hint.textContent = label + (state.riskContentType && ['negative', 'attention', 'urgent'].includes(state.contentMode) ? ' · ' + (state.riskContentType === 'post' ? '帖子/动态' : '评论') : ''); }
 function applyContentMode(query) { Object.keys(modeConfig).forEach(mode => Object.keys(modeConfig[mode].params).forEach(key => query.delete(key))); const params = modeConfig[state.contentMode]?.params || modeConfig.post.params; if (params.riskMode) query.delete('sentiment'); Object.entries(params).forEach(([key, value]) => query.set(key, value)); if (params.riskMode && state.riskContentType) query.set('contentType', state.riskContentType); }
 function statsQuery(baseQuery, filters = {}) {
@@ -160,23 +163,26 @@ function statsQuery(baseQuery, filters = {}) {
   query.delete('sentiment'); query.delete('bigPlayerContentKind');
   return query;
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { sentimentPercentage, localDateString, nextDateString, normalizedPublishedRange, applyPublishedRange, exactPublishedRange, statsQuery, hasRealTitle, bigPlayerDisplayType, typeLabel, validDateValue, validDateRange, resolvePublishedRange };
+if (typeof module !== 'undefined' && module.exports) module.exports = { severityLabel, sentimentPercentage, localDateString, nextDateString, normalizedPublishedRange, applyPublishedRange, exactPublishedRange, statsQuery, hasRealTitle, bigPlayerDisplayType, typeLabel, validDateValue, validDateRange, resolvePublishedRange };
 function renderTable(items) {
+  disposeImagePreviews();
   if (!items.length) { $('#resultHint').textContent = `共 ${Number(state.total || 0).toLocaleString()} 条`; $('#tableContent').innerHTML = `<div class="empty">${esc(emptyMessage())}</div>`; return; }
   $('#resultHint').textContent = `共 ${Number(state.total || items.length).toLocaleString()} 条（当前页 ${items.length} 条）`;
-  $('#tableContent').innerHTML = `<table class="table"><thead><tr><th class="handling-select"><input type="checkbox" id="handlingSelectAll" aria-label="全选当前页"></th><th>内容</th><th>帖子 ID</th><th>类型</th><th>处理状态</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${items.map(item => {
+  $('#tableContent').innerHTML = `<table class="table"><thead><tr><th class="handling-select"><input type="checkbox" id="handlingSelectAll" aria-label="全选当前页"></th><th>内容</th><th title="来源平台的原始内容编号，各平台格式和长度不同">平台内容 ID</th><th>类型</th><th>处理状态</th><th>情感</th><th>分析状态 / 等级</th><th>风险等级</th><th>评论数</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${items.map(item => {
     const type = contentType(item);
     const displayType = bigPlayerDisplayType(item);
     const title = String(pick(item, 'title') ?? '').trim();
     const body = String(item.body ?? '');
     const primaryText = displayType === 'dynamic' ? (body.trim() || '(无内容)') : (title || (type === 'post' ? '(无标题)' : body || '(无内容)'));
     const secondaryText = displayType === 'dynamic' ? '' : body;
+    const imagePreview = ContentImages?.markup(item, esc) || '';
     const sentiment = item.sentiment || 'unclassified';
     const source = sourceById(item.source_id || item.sourceId);
     const account = source?.account || source?.accounts?.find(value => String(value.id) === String(accountId(item))) || item.account || {};
     const accountName = pick(account, 'account_name', 'accountName', 'nickname', 'name');
-    return `<tr><td class="handling-select">${Handling.checkboxHtml(item, esc)}</td><td><div class="content-title ${isDeleted(item) ? 'deleted' : ''}">${esc(primaryText)}</div>${secondaryText ? `<div class="content-body">${esc(secondaryText)}</div>` : ''}</td><td class="mono" title="${esc(item.external_id || '')}">${esc(item.external_id || '-')}</td><td><span class="type-pill">${esc(typeLabel(displayType))}</span></td><td class="handling-cell">${Handling.statusHtml(item, esc)}</td><td class="sentiment ${esc(sentiment)}">${sentimentLabel(sentiment)}${sentimentPercentage(item)}</td><td><span class="analysis-status ${esc(analysisStatus(item))}">${esc(analysisStatusLabel(analysisStatus(item)))}</span><div><span class="analysis-level ${esc(analysisLevel(item) || '')}">${esc(analysisLevelLabel(analysisLevel(item)))}</span></div></td><td><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></td><td>${commentCount(item).toLocaleString()}</td><td>${esc(publishedAt(item))}</td><td><button class="row-action" data-content="${esc(contentId(item))}">查看详情</button></td></tr>`;
+    return `<tr><td class="handling-select">${Handling.checkboxHtml(item, esc)}</td><td data-content-cell>${imagePreview || `<div class="content-title ${isDeleted(item) ? 'deleted' : ''}">${esc(primaryText)}</div>${secondaryText ? `<div class="content-body">${esc(secondaryText)}</div>` : ''}`}</td><td class="mono" title="${esc(item.external_id || '')}">${esc(item.external_id || '-')}</td><td><span class="type-pill">${esc(typeLabel(displayType))}</span></td><td class="handling-cell">${Handling.statusHtml(item, esc)}</td><td class="sentiment ${esc(sentiment)}">${sentimentLabel(sentiment)}${sentimentPercentage(item)}</td><td><span class="analysis-status ${esc(analysisStatus(item))}">${esc(analysisStatusLabel(analysisStatus(item)))}</span><div><span class="analysis-level ${esc(analysisLevel(item) || '')}">${esc(analysisLevelLabel(analysisLevel(item)))}</span></div></td><td><span class="severity ${esc(item.severity || 'normal')}">${contentSeverityLabel(item)}</span></td><td>${commentCount(item).toLocaleString()}</td><td>${esc(publishedAt(item))}</td><td><button class="row-action" data-content="${esc(contentId(item))}">查看详情</button></td></tr>`;
   }).join('')}</tbody></table>`;
+  if (ContentImages) disposeImagePreviews = ContentImages.bind($('#tableContent'), items, { resolve: item => api(`/contents/${encodeURIComponent(item.id)}?${state.scope?.query?.() || new URLSearchParams()}`) });
   Handling.bindTable(items);
   $('#tableContent').querySelectorAll('[data-content]').forEach(button => { button.onclick = () => openContent(button.dataset.content); });
 }
@@ -199,7 +205,17 @@ function buildFlatTree(items, root) {
   return walk(rootKey, 0, new Set());
 }
 function renderThread(item, depth) {
-  return `<div class="thread depth-${Math.min(depth, 3)}"><div class="thread-head"><span class="thread-author">${esc(authorName(item))}</span><span>评论</span><span>${esc(publishedAt(item))}</span>${isDeleted(item) ? '<span class="severity attention">已删除 / 隐藏</span>' : ''}</div><div class="thread-body ${isDeleted(item) ? 'deleted' : ''}">${Detail.renderBodyWithImages(item.body || '(无内容)', esc)}</div>${renderTranslation(item, { compact: true })}<div class="thread-head">作者 ID：${esc(authorPlatformId(item))}</div></div>`;
+  return `<div class="thread depth-${Math.min(depth, 3)}"><div class="thread-head"><span class="thread-author">${esc(authorName(item))}</span><span>评论</span><span>${esc(publishedAt(item))}</span>${isDeleted(item) ? '<span class="severity attention">已删除 / 隐藏</span>' : ''}</div><div class="thread-body ${isDeleted(item) ? 'deleted' : ''}">${Detail.renderBodyWithImages(item.body || '(无内容)', esc)}</div>${Detail.renderMedia(item, esc)}${renderTranslation(item, { compact: true })}<div class="thread-head">作者 ID：${esc(authorPlatformId(item))}</div></div>`;
+}
+function urgentReviewOf(item) { const raw = item.urgent_review; try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return null; } }
+function isApprovedUrgentReview(review) { return review?.version === 'urgent-independent-review-v1' && review.status === 'approved' && review.level === 'L3'; }
+function contentSeverityLabel(item) { if (analysisStatus(item) !== 'completed' && !item.sentiment) return '待判定'; return item.severity === 'urgent' && !isApprovedUrgentReview(urgentReviewOf(item)) ? '待二次复核' : severityLabel(item.severity); }
+function urgentReviewMarkup(item) {
+  const review = urgentReviewOf(item);
+  if (item.severity === 'urgent' && !isApprovedUrgentReview(review)) return '<div class="analysis-reason">历史紧急结果尚无有效二次复核记录，不计入已确认紧急告警。</div>';
+  if (!review) return '';
+  const sentiment = review.sentimentReason ? '<div class="detail-text">情感判断：' + esc(({ positive: '正面', neutral: '中性', negative: '负面' })[review.sentiment] || '待判定') + '</div><div class="analysis-reason">' + esc(review.sentimentReason) + '</div><div class="detail-text">语境：' + esc(({ available: '已结合原帖', missing: '原帖缺失，仅依据当前评论', not_applicable: '当前帖子' })[review.contextStatus] || '待确认') + '；复核模型：' + esc(review.model || '') + '</div>' : '';
+  return '<div class="detail-block urgent-review"><div class="detail-label">AI 二次复核</div><div>复核状态：' + esc(review.status === 'approved' ? '通过' : '已降级') + '</div><div>初判等级：' + esc(review.firstLevel || 'L3') + '；复核等级：' + esc(({ L0:'正常', L1:'关注级', L2:'紧急告警', L3:'紧急告警' })[review.level] || '待复核') + '</div><div class="analysis-reason">' + esc(String(review.reason || '').replace(/负面\s*待处理/g, '紧急告警')) + '</div><div class="detail-text">原文依据：“' + esc(review.quote || '') + '”</div>' + sentiment + '</div>';
 }
 function renderDetail(detail) {
   const item = detail.content;
@@ -208,15 +224,15 @@ function renderDetail(detail) {
   const flat = nested.length ? nested : buildFlatTree(state.contents, item);
   const integrity = pick(item, 'completeness', 'integrity', 'capability') || pick(detail, 'completeness', 'integrity') || 'unknown';
   const integrityText = ({ full: '完整', authorized_scope: '授权范围', partial: '部分', unknown: '未声明' }[integrity] || integrity);
-  const sourceUrl = item.source_url || item.sourceUrl || item.url;
   const status = analysisStatus(item);
   const canReanalyze = !['pending', 'running'].includes(status);
   const sentiment = ['positive', 'negative', 'neutral'].includes(item.sentiment) ? item.sentiment : 'unclassified';
   const commentsSyncStatus = pick(item, 'comments_sync_status', 'commentsSyncStatus');
   const declaredCommentCount = Number(pick(item, 'total_comment_count', 'totalCommentCount', 'comment_count', 'commentCount') || engagementOf(item).comments || engagementOf(item).comment || 0);
   const commentsEmptyText = ['pending', 'running', 'retryable'].includes(commentsSyncStatus) || declaredCommentCount > 0 ? '评论仍在同步中，请稍后刷新' : commentsSyncStatus === 'failed' ? '评论同步失败，请查看采集源进度' : commentsSyncStatus === 'unauthorized' ? '评论接口未授权' : '暂无评论';
-  $('#drawerContent').innerHTML = `<h2>${esc(item.title || '(无标题)')}</h2><div class="content-body" style="max-width:none">${esc(scopePath(item))} · ${esc(sourceName(item.source_id || item.sourceId || item.platform))} · ${esc(publishedAt(item))}</div><div class="detail-block"><div class="detail-label"><span>原文内容</span><span class="integrity ${integrity === 'unknown' ? 'unknown' : ''}">${esc(integrityText)}</span></div><div class="detail-text ${isDeleted(item) ? 'deleted' : ''}">${Detail.renderBodyWithImages(item.body || '', esc)}</div>${renderTranslation(item)}</div><div class="detail-block"><div class="detail-label">来源信息</div><div class="meta-grid"><div><span>作者</span><br>${esc(authorName(item))}</div><div><span>平台作者 ID</span><br>${esc(authorPlatformId(item))}</div><div><span>内容状态</span><br>${isDeleted(item) ? '已删除 / 隐藏' : '正常'}</div><div><span>来源链接</span><br>${sourceUrl ? `<a href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">打开来源</a>` : '-'}</div></div></div><div class="detail-block"><div class="detail-label"><span>AI 分析</span><button class="btn" id="reanalyzeBtn" ${isDeleted(item) || !canReanalyze ? 'disabled' : ''}>重新分析</button></div><div class="sentiment-result"><span class="sentiment-badge ${esc(sentiment)}">${sentimentLabel(sentiment)}${sentimentPercentage(item)}</span><div class="analysis-reason">${esc(analysisReasonText(item))}</div></div><div class="meta-grid"><div><span>风险等级</span><br><span class="severity ${esc(item.severity || 'normal')}">${severityLabel(item.severity)}</span></div><div><span>分析状态</span><br><span class="analysis-status ${esc(status)}">${esc(analysisStatusLabel(status))}</span></div></div></div><div class="detail-block"><div class="detail-label"><span>评论（包含评论内回复）</span><span>${flat.length} 条</span></div><div class="tree">${flat.length ? flat.map(({ node, depth }) => renderThread(node, depth)).join('') : `<div class="empty" style="padding:24px">${esc(commentsEmptyText)}</div>`}</div></div>`;
-  if (contentType(item) === 'comment') $('#drawerContent .detail-block').insertAdjacentHTML('beforebegin', '<div class="detail-block original-post"><div class="detail-label">所属原帖</div>' + (detail.originalPost ? Detail.renderContentNode(detail.originalPost, new Set(), detail.originalPost.is_deleted ? '原帖（已删除 / 隐藏）' : '原帖', esc) : '<div class="detail-text">原帖暂未采集或不可访问</div>') + '</div>');
+  $('#drawerContent').innerHTML = `<h2>${esc(item.title || '(无标题)')}</h2><div class="content-body" style="max-width:none">${esc(scopePath(item))} · ${esc(sourceName(item.source_id || item.sourceId || item.platform))} · ${esc(publishedAt(item))}</div><div class="detail-block"><div class="detail-label"><span>${contentType(item) === 'comment' ? '评论内容' : '原文内容'}</span><span class="integrity ${integrity === 'unknown' ? 'unknown' : ''}">${esc(integrityText)}</span></div><div class="detail-text ${isDeleted(item) ? 'deleted' : ''}">${Detail.renderBodyWithImages(item.body || '', esc)}</div>${Detail.renderMedia(item, esc)}${renderTranslation(item)}</div><div class="detail-block"><div class="detail-label">来源信息</div><div class="meta-grid"><div><span>作者</span><br>${esc(authorName(item))}</div><div><span>平台作者 ID</span><br>${esc(authorPlatformId(item))}</div><div><span>内容状态</span><br>${isDeleted(item) ? '已删除 / 隐藏' : '正常'}</div></div></div><div class="detail-block"><div class="detail-label"><span>AI 分析</span><button class="btn" id="reanalyzeBtn" ${isDeleted(item) || !canReanalyze ? 'disabled' : ''}>重新分析</button></div><div class="sentiment-result"><span class="sentiment-badge ${esc(sentiment)}">${sentimentLabel(sentiment)}${sentimentPercentage(item)}</span><div class="analysis-reason">${esc(analysisReasonText(item))}</div></div><div class="meta-grid"><div><span>风险等级</span><br><span class="severity ${esc(item.severity || 'normal')}">${contentSeverityLabel(item)}</span></div><div><span>分析状态</span><br><span class="analysis-status ${esc(status)}">${esc(analysisStatusLabel(status))}</span></div></div></div><div class="detail-block"><div class="detail-label"><span>评论（包含评论内回复）</span><span>${flat.length} 条</span></div><div class="tree">${flat.length ? flat.map(({ node, depth }) => renderThread(node, depth)).join('') : `<div class="empty" style="padding:24px">${esc(commentsEmptyText)}</div>`}</div></div>`;
+  $('#drawerContent .sentiment-result')?.insertAdjacentHTML('afterend', urgentReviewMarkup(item));
+  if (contentType(item) === 'comment') $('#drawerContent .detail-block').insertAdjacentHTML('afterend', '<section class="detail-block original-post" aria-label="所属原贴上下文"><div class="detail-label">所属原贴（上下文说明）</div><p class="original-post-hint">以下原贴仅用于理解评论语境，当前分析和处理对象为上方评论。</p>' + (detail.originalPost ? Detail.renderContentNode(detail.originalPost, new Set(), detail.originalPost.is_deleted ? '原帖（已删除 / 隐藏）' : '原帖', esc) : '<div class="detail-text">原帖暂未采集或不可访问</div>') + '</section>');
   if (bigPlayerDisplayType(item) === 'dynamic') $('#drawerContent h2').textContent = '动态';
   const button = $('#reanalyzeBtn');
   if (button && canReanalyze) button.onclick = async () => {
@@ -254,7 +270,7 @@ async function openContent(id) {
 }
 function toast(message) { const element = $('#toast'); element.textContent = message; element.classList.add('show'); setTimeout(() => element.classList.remove('show'), 2400); }
 function updateUrl(content = '', historyMode = 'replace') {
-  const params = state.scope?.query?.() || new URLSearchParams();
+  const params = state.scope?.pageQuery?.() || new URLSearchParams();
   const range = normalizedPublishedRange();
   [['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['handlingStatus', '#handlingStatusFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].forEach(([key, selector]) => { if ($(selector).value) params.set(key, $(selector).value); else params.delete(key); });
   const kind = selectedBigPlayerContentKind();
@@ -274,7 +290,7 @@ function accountOptions() {
 }
 async function loadFilters() {
   try {
-    const scope = state.scope?.query?.() || new URLSearchParams(); const suffix = scope.toString() ? `?${scope}` : ''; const sources = await api(`/sources${suffix}`); state.sources = Array.isArray(sources) ? sources : sources.items || [];
+    const scope = state.scope?.query?.() || new URLSearchParams(); const suffix = scope.toString() ? `&${scope}` : ''; const sources = await api(`/sources?view=summary${suffix}`); state.sources = Array.isArray(sources) ? sources : sources.items || [];
   } catch (_) { /* list load still reports the service state */ }
 }
 async function load(resetPage = false) {
@@ -325,14 +341,14 @@ async function pollProgress() {
   catch (error) { if (serial === progressSerial) { const el = $('#analysisProgress'); if (el) el.textContent = `AI 分析进度加载失败：${error.message}`; progressTimer = setTimeout(pollProgress, 5000); } }
 }
 
-function loadStats() {
+function loadStats({ preserve = false } = {}) {
   const serial = ++state.statsSerial;
   const lifecycle = state.scope?.beginRequest?.();
   if (lifecycle && !lifecycle.allowed) { ['#statPost', '#statComment', '#statNegative', '#statAttention', '#statUrgent'].forEach(selector => { const element = $(selector); if (element) element.textContent = '—'; }); return; }
   const query = statsQuery(state.scope?.query?.(), Object.fromEntries([['sentiment', '#sentimentFilter'], ['analysisStatus', '#analysisStatusFilter'], ['analysisLevel', '#analysisLevelFilter'], ['handlingStatus', '#handlingStatusFilter'], ['keyword', '#keywordFilter'], ['postId', '#postIdFilter']].map(([key, selector]) => [key, $(selector).value])));
   applyPublishedRange(query);
   const set = (selector, value) => { const element = $(selector); if (element) element.textContent = value == null ? '—' : Number(value).toLocaleString(); };
-  ['#statPost', '#statComment', '#statNegative', '#statAttention', '#statUrgent'].forEach(selector => set(selector, null));
+  if (!preserve) ['#statPost', '#statComment', '#statNegative', '#statAttention', '#statUrgent'].forEach(selector => set(selector, null));
   return fetch(`${API}/contents/stats?${query}`, { headers: { 'content-type': 'application/json' }, signal: lifecycle?.signal })
     .then(async response => {
       let body = {};
@@ -366,14 +382,36 @@ function restoreUrl(params = new URLSearchParams(window.location.search)) {
   if (isBigPlayerScope() && kind && [...(kindFilter?.options || [])].some(option => option.value === kind)) kindFilter.value = kind;
   const restoredRange = resolvePublishedRange(params); state.exactRange = restoredRange?.exact || null;
   $('#publishedFromFilter').value = restoredRange?.from || localDateString(new Date()); $('#publishedToFilter').value = restoredRange?.to || localDateString(new Date()); const range = normalizedPublishedRange(); state.publishedFrom = range.from; state.publishedTo = range.to; updateDatePresetState();
-  const legacyMode = { post: 'post', comment: 'comment' }[params.get('contentType')]; const riskMode = RiskModes.normalizeRiskMode(params.get('riskMode')); state.contentMode = modeConfig[params.get('contentMode')] ? params.get('contentMode') : (riskMode || legacyMode || 'post'); if (state.contentMode === 'negative') state.contentMode = 'urgent'; updateContentMode();
+  const legacyMode = { post: 'post', comment: 'comment' }[params.get('contentType')]; const riskMode = RiskModes.normalizeRiskMode(params.get('riskMode')); const requestedMode = params.get('contentMode') === 'negative' || riskMode === 'negative' ? 'urgent' : params.get('contentMode'); state.contentMode = modeConfig[requestedMode] ? requestedMode : (riskMode || legacyMode || 'post'); updateContentMode();
   state.riskContentType = ['negative', 'attention', 'urgent'].includes(state.contentMode) && ['post', 'comment'].includes(params.get('contentType')) ? params.get('contentType') : '';
   updateContentMode();
   updateBigPlayerContentKindFilter();
   return params.get('contentId');
 }
+function applyHandlingResult(result) {
+  const ids = new Set(result.contentIds.map(String));
+  const changed = state.contents.filter(item => ids.has(String(item.id)) && item.handling_status !== 'processed');
+  // Discard reads started before this committed save so they cannot overwrite the row.
+  state.requestSerial++; state.statsSerial++;
+  state.contents = state.contents.map(item => ids.has(String(item.id)) ? { ...item, handling_status: result.handlingStatus, handling_method: result.handlingMethod, handling_note: result.handlingNote, handled_by_name: result.handledByName, handled_at: result.handledAt } : item);
+  const filter = $('#handlingStatusFilter').value;
+  const decrement = (selector, count) => { const el = $(selector); if (!el || !count) return; const value = Number(el.textContent.replaceAll(',', '')); if (Number.isFinite(value)) el.textContent = Math.max(0, value - count).toLocaleString(); };
+  const pendingRisk = changed.filter(item => ['neutral', 'negative'].includes(item.sentiment));
+  decrement('#statAttention', pendingRisk.filter(item => item.severity === 'attention').length);
+  const urgentCount = pendingRisk.filter(item => item.severity === 'negative' || item.severity === 'urgent' && isApprovedUrgentReview(urgentReviewOf(item))).length;
+  decrement('#statUrgent', urgentCount); decrement('#statNegative', urgentCount);
+  if (filter === 'pending') {
+    state.contents = state.contents.filter(item => !ids.has(String(item.id)));
+    state.total = Math.max(0, state.total - changed.length);
+    decrement('#statPost', changed.filter(item => contentType(item) === 'post').length);
+    decrement('#statComment', changed.filter(item => contentType(item) === 'comment').length);
+  }
+  renderTable(state.contents);
+  // Reconcile counts in the background; the save and row update do not await it.
+  loadStats({ preserve: true });
+}
 function bind() {
-  Handling.init({ state, api, esc, toast, closeDetail: closeDrawer, reload: () => Promise.all([load(), loadStats()]) });
+  Handling.init({ state, api, esc, toast, closeDetail: closeDrawer, onSaved: applyHandlingResult });
   ensureBigPlayerContentKindFilter();
   const query = () => { state.page = 1; normalizedPublishedRange(); updateUrl('', 'push'); load(); loadStats(); };
   const queryButton = $('#queryBtn'); if (queryButton) queryButton.onclick = query;
@@ -394,7 +432,7 @@ function bind() {
   $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); };
   document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); });
   window.addEventListener('popstate', () => { state.restoringHistory = true; stopProgressPolling(); });
-  window.addEventListener('pagehide', () => { state.requestSerial += 1; stopProgressPolling(); });
+  window.addEventListener('pagehide', () => { disposeImagePreviews(); state.requestSerial += 1; stopProgressPolling(); });
 }
-async function scopeChanged() { Handling.clearDetail(); const params = new URLSearchParams(location.search); $('#drawerMask').classList.remove('open'); state.deepLinkOpened = ''; state.sources = []; const restoring = Boolean(state.restoringHistory); state.restoringHistory = false; if (restoring) restoreUrl(params); updateBigPlayerContentKindFilter(); const epoch = state.scope.epoch(); await loadFilters(); if (epoch !== state.scope.epoch()) return; loadStats(); await load(!restoring); if (restoring && params.get('contentId')) openContent(params.get('contentId')); }
-if (typeof module === 'undefined' || !module.exports) { bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }); updateBigPlayerContentKindFilter(); await loadFilters(); const deepLink = restoreUrl(); loadStats(); await load(); if (deepLink) openContent(deepLink); })(); }
+async function scopeChanged() { Handling.clearDetail(); const params = new URLSearchParams(location.search); $('#drawerMask').classList.remove('open'); state.deepLinkOpened = ''; state.sources = []; const restoring = Boolean(state.restoringHistory); state.restoringHistory = false; if (restoring) restoreUrl(params); updateBigPlayerContentKindFilter(); const epoch = state.scope.epoch(); const filtersTask = loadFilters(); if (epoch !== state.scope.epoch()) return; loadStats(); await load(!restoring); await filtersTask; if (restoring && params.get('contentId')) openContent(params.get('contentId')); }
+if (typeof module === 'undefined' || !module.exports) { bind(); (async () => { state.scope = await PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }); updateBigPlayerContentKindFilter(); const filtersTask = loadFilters(); const deepLink = restoreUrl(); loadStats(); await load(); await filtersTask; if (deepLink) openContent(deepLink); })(); }

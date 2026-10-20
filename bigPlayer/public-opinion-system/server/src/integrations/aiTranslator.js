@@ -87,7 +87,7 @@ class AiTranslator {
           : { 'content-type': 'application/json', authorization: `Bearer ${this.token}` };
         const body = anthropic
           ? { model: this.model, max_tokens: this.maxOutputTokens, system: messages[0].content, messages: [messages[1]] }
-          : { model: this.model, temperature: 0, max_tokens: this.maxOutputTokens, messages };
+          : { model: this.model, temperature: 0, max_tokens: this.maxOutputTokens, messages, ...(this.responseFormat ? { response_format: this.responseFormat } : {}) };
         const response = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(this.timeoutMs) });
         if (!response.ok) {
           const code = `AI_TRANSLATION_HTTP_${response.status}`;
@@ -140,4 +140,4 @@ class AiTranslator {
   }
 }
 
-module.exports = { AiTranslator, clean, translationText };
+module.exports = { AiTranslator, clean, translationText, responseText };

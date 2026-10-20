@@ -1,11 +1,11 @@
 const API = window.PUBLIC_OPINION_API || '/api/public-opinion';
 const RiskModes = window.PublicOpinionRiskModes;
-const PERIOD_LABELS = { today: '今日', yesterday: '昨日', '7d': '近7天', '30d': '近30天' };
+const PERIOD_LABELS = { today: '今日', yesterday: '昨日', '7d': '近7天', '15d': '近15天' };
 const OVERVIEW_PERIOD_STORAGE_KEY = 'public-opinion:overview:period';
 function validPeriod(value) { return Object.prototype.hasOwnProperty.call(PERIOD_LABELS, value); }
-function readSavedPeriod(storage = window.localStorage) { try { const value = storage.getItem(OVERVIEW_PERIOD_STORAGE_KEY); return validPeriod(value) ? value : null; } catch (_) { return null; } }
+function readSavedPeriod(storage = window.localStorage) { try { const saved = storage.getItem(OVERVIEW_PERIOD_STORAGE_KEY); const value = saved === '30d' ? '15d' : saved; return validPeriod(value) ? value : null; } catch (_) { return null; } }
 function savePeriod(value, storage = window.localStorage) { try { if (validPeriod(value)) storage.setItem(OVERVIEW_PERIOD_STORAGE_KEY, value); else storage.removeItem(OVERVIEW_PERIOD_STORAGE_KEY); } catch (_) { /* private mode must not block overview refresh */ } }
-function resolveOverviewPeriod(params = new URLSearchParams(window.location.search), storage = window.localStorage) { const requested = params.get('period'); return validPeriod(requested) ? requested : readSavedPeriod(storage) || 'today'; }
+function resolveOverviewPeriod(params = new URLSearchParams(window.location.search), storage = window.localStorage) { const requested = params.get('period') === '30d' ? '15d' : params.get('period'); return validPeriod(requested) ? requested : params.has('boardId') ? 'today' : readSavedPeriod(storage) || 'today'; }
 const state = { sources: [], overview: null, contents: [], alerts: [], scope: null, period: resolveOverviewPeriod() };
 const hotPanels = {
   negative: { type: 'post', items: [], serial: 0, selector: '#hotList', link: '#viewAllNegative' },
@@ -13,13 +13,14 @@ const hotPanels = {
 };
 let hotPanelsReady = false;
 function validOverviewWindow(params = new URLSearchParams(location.search)) {
+  if (params.get('period') === '30d') return null;
   const from = params.get('publishedFrom'); const to = params.get('publishedTo');
   return from?.includes('T') && to?.includes('T') && Number.isFinite(Date.parse(from)) && Date.parse(to) > Date.parse(from) && Date.parse(to) - Date.parse(from) <= 31 * 86400000 ? { publishedFrom: from, publishedTo: to } : null;
 }
 state.window = validOverviewWindow();
 const beijingIso = value => new Date(Date.parse(value) + 8 * 3600000).toISOString().replace('Z', '+08:00');
 function negativeContentHref(mode = 'negative') {
-  const params = state.scope?.query() || new URLSearchParams();
+  const params = state.scope?.pageQuery() || new URLSearchParams();
   params.set('contentMode', mode);
   params.set('contentType', hotPanels[mode]?.type || 'post');
   params.delete('riskMode'); params.delete('sentiment'); params.delete('severity');
@@ -41,8 +42,8 @@ const hotContentText = item => {
   return [title, body].map(clean).find(value => value && !isAssetUrl(value)) || '（无内容）';
 };
 const hotSummaryText = item => {
-  const summary = String(item?.summary ?? '').trim();
-  return `内容摘要：${summary || '暂无摘要'}`;
+  const reason = [item?.analysis_reason, item?.analysisReason].map(value => String(value ?? '').trim()).find(Boolean);
+  return `AI分析原因：${reason || '暂无AI分析原因'}`;
 };
 const sourceName = id => state.sources.find(item => item.id === id)?.display_name || state.sources.find(item => item.id === id)?.source_name || state.sources.find(item => item.id === id)?.platform || id;
 
@@ -76,7 +77,7 @@ async function rawApi(path, options = {}) {
     throw error;
   }
   if (!response.ok) throw new Error(body.error?.message || body.message || `请求失败 (${response.status})`);
-  return body.data;
+  return options.includeMeta ? body : body.data;
 }
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
 function periodLabel() { return PERIOD_LABELS[state.period] || PERIOD_LABELS.today; }
@@ -98,19 +99,73 @@ function syncPeriodUrl() {
   const params = new URLSearchParams(window.location.search); params.set('period', state.period);
   savePeriod(state.period); state.window = null; params.delete('publishedFrom'); params.delete('publishedTo');
   history.pushState(null, '', `${window.location.pathname}${params.toString() ? `?${params}` : ''}`);
+  window.PublicOpinionScope?.syncUrl('replace');
 }
 function renderMetrics(metrics) {
   metrics = metrics || {};
   const breakdown = index => {
     const keys = [['postCount', 'commentCount'], ['attentionPostCount', 'attentionCommentCount'], ['urgentPostCount', 'urgentCommentCount']][index];
     if (keys.some(key => metrics[key] == null)) return '';
+    if (index === 0) return `<span class="metric-breakdown"><a href="${esc(href())}">帖子/动态 <b>${Number(metrics.postCount).toLocaleString()}</b></a><a href="${esc(href().replace('contentMode=post', 'contentMode=comment'))}">评论 <b>${Number(metrics.commentCount).toLocaleString()}</b></a></span>`;
     return `<span class="metric-breakdown"><span>帖子/动态 <b>${Number(metrics[keys[0]]).toLocaleString()}</b></span><span>评论 <b>${Number(metrics[keys[1]]).toLocaleString()}</b></span></span>`;
   };
-  const cards = [[`${periodLabel()}发布内容`, Number(metrics.newCount ?? metrics.total ?? 0).toLocaleString(), '当前筛选范围内新增', '总'], ['关注级', Number(metrics.attention ?? 0).toLocaleString(), '已识别的关注级内容', '注'], ['紧急告警', Number(metrics.urgent ?? 0).toLocaleString(), '已识别的待处理风险内容', '警']];
-  const accent = index => ['', ' metric-attention', ' metric-urgent'][index] || '';
   const metricsEl = $('#metrics'); if (!metricsEl) return;
-  metricsEl.innerHTML = cards.map(([label, value, foot, icon], index) => `<div class="metric${accent(index)}"><div class="metric-head"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot metric-total-foot ${index > 0 ? 'up' : ''}"><span>${foot}</span>${breakdown(index)}</div></div>`).join('');
+  const href = mode => {
+    const params = state.scope?.pageQuery?.() || new URLSearchParams();
+    params.delete('contentType');
+    if (state.window) { params.set('publishedFrom', state.window.publishedFrom); params.set('publishedTo', state.window.publishedTo); }
+    if (mode) { params.set('contentMode', mode); params.set('riskMode', mode); }
+    else params.set('contentMode', 'post');
+    return `content.html?${params}`;
+  };
+  const qualityParams = state.scope?.pageQuery?.() || new URLSearchParams(); qualityParams.set('tab', 'quality');
+  if (state.window) { qualityParams.set('overviewFrom', state.window.publishedFrom); qualityParams.set('overviewTo', state.window.publishedTo); }
+  const quality = state.qualityMetric;
+  const qualityValue = quality?.error ? '加载失败' : quality ? Number(quality.total).toLocaleString() : '—';
+  const riskCard = (label, value, index, cls) => `<a class="bm-card ${cls}" href="${esc(href(index === 1 ? 'attention' : 'negative'))}"><div class="bm-title">${label}</div><div class="bm-value">${Number(value || 0).toLocaleString()}</div><div class="bm-bottom">${breakdown(index)}<span>查看内容 →</span></div></a>`;
+  metricsEl.innerHTML = `<div class="metric-published"><span class="published-symbol" aria-hidden="true">▤</span><div class="published-label"><b>${periodLabel()}发布内容</b><small>当前筛选范围内新增</small></div><div class="metric-value">${Number(metrics.newCount ?? metrics.total ?? 0).toLocaleString()}</div>${breakdown(0)}<span class="metric-link-label">按类型查看 →</span></div><div class="overview-metric-zones"><section class="overview-metric-zone overview-negative-zone" aria-label="负面内容"><div class="metric-zone-head"><h3>负面内容</h3><small>识别风险 · 跟进处理</small></div><div class="risk-metric-grid">${riskCard('关注级', metrics.attention, 1, 'metric-attention')}${riskCard('紧急告警', metrics.urgent, 2, 'metric-urgent')}</div></section><section class="overview-metric-zone overview-positive-zone" aria-label="正面内容"><div class="metric-zone-head"><h3>正面内容</h3><small>发现价值 · 沉淀口碑</small></div><a class="bm-card metric-quality" href="${esc(`alerts.html?${qualityParams}`)}"><div class="bm-quality-main"><div class="bm-title">优质内容</div><div class="bm-value" aria-live="polite">${qualityValue}</div><div class="bm-bottom">${quality?.error ? '优质内容统计暂不可用' : quality ? `帖子 / 动态 ${Number(quality.postCount).toLocaleString()}　评论 ${Number(quality.commentCount).toLocaleString()}　查看内容 →` : '统计加载中…'}</div></div><span class="quality-glow" aria-hidden="true">✦</span></a></section></div>`;
+  // Hide only confirmed zero counts; loading and error states remain visible.
+  const attentionCard = metricsEl.querySelector('.metric-attention');
+  const urgentCard = metricsEl.querySelector('.metric-urgent');
+  const qualityCard = metricsEl.querySelector('.metric-quality');
+  attentionCard.hidden = metrics.attention != null && Number(metrics.attention) === 0;
+  urgentCard.hidden = metrics.urgent != null && Number(metrics.urgent) === 0;
+  qualityCard.hidden = Boolean(quality && !quality.error && Number(quality.total) === 0);
+  const negativeZone = metricsEl.querySelector('.overview-negative-zone');
+  const positiveZone = metricsEl.querySelector('.overview-positive-zone');
+  negativeZone.hidden = attentionCard.hidden && urgentCard.hidden;
+  positiveZone.hidden = qualityCard.hidden;
+  metricsEl.querySelector('.overview-metric-zones').hidden = negativeZone.hidden && positiveZone.hidden;
+
 }
+
+async function loadQualityMetric(serial, lifecycle) {
+  const query = state.scope?.query?.() || new URLSearchParams();
+  if (!state.window) return;
+  query.set('publishedFrom', state.window.publishedFrom); query.set('publishedTo', state.window.publishedTo);
+  query.set('pageSize', '100');
+  try {
+    let page = 1, total, rows = [];
+    do {
+      query.set('page', String(page));
+      const response = await api(`/quality-contents?${query}`, { signal: lifecycle?.signal, includeMeta: true });
+      if (serial !== loadSerial || !lifecycle?.isCurrent?.()) return;
+      const nextTotal = Number(response.meta?.total);
+      if (!Number.isSafeInteger(nextTotal) || nextTotal < 0 || !Array.isArray(response.data)) throw new Error('优质统计响应无效');
+      if (total != null && nextTotal !== total) throw new Error('优质统计正在更新，请刷新');
+      total = nextTotal;
+      if (response.data.length === 0 && rows.length < total) throw new Error('优质统计分页不完整');
+      rows.push(...response.data); page++;
+    } while (rows.length < total);
+    const commentCount = rows.filter(row => (row.content_type || row.contentType) === 'comment').length;
+    state.qualityMetric = { total, commentCount, postCount: rows.length - commentCount };
+  } catch (error) {
+    if (error.name === 'AbortError' || serial !== loadSerial || !lifecycle?.isCurrent?.()) return;
+    state.qualityMetric = { error: true };
+  }
+  renderMetrics(state.overview?.metrics || {});
+}
+
 function normalizeSentiment(sentiment, trend) {
   const totals = { positive: 0, neutral: 0, negative: 0, unclassified: 0 };
   if (Array.isArray(sentiment)) {
@@ -148,7 +203,7 @@ function normalizeTrend(items) {
 // This chart owns its time range; the overview date controls never enter its query.
 const lineTrendState = { period: '7d', serial: 0, controller: null };
 function lineTrendDays(overview, period) {
-  const count = period === '30d' ? 30 : 7;
+  const count = period === '15d' ? 15 : period === '30d' ? 30 : 7;
   const start = overview?.window?.publishedFrom;
   const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
   const first = start && Number.isFinite(Date.parse(start)) ? beijingIso(start).slice(0, 10) : new Date(Date.parse(`${today}T00:00:00Z`) - (count - 1) * 86400000).toISOString().slice(0, 10);
@@ -307,10 +362,10 @@ function renderAlerts(items, urgentContents = [], urgentTotal = urgentContents.l
   const viewAll = $('#viewAlerts');
   if (viewAll) viewAll.onclick = () => {
     if (!items?.length && urgentContents.length) {
-      const url = new URL(negativeContentHref('urgent'), window.location.href);
+      const url = new URL(negativeContentHref('urgent'), document.baseURI);
       url.searchParams.delete('contentType'); window.location.href = url.href;
     } else {
-      const params = state.scope?.query?.() || new URLSearchParams(); params.set('period', state.period);
+      const params = state.scope?.pageQuery?.() || new URLSearchParams(); params.set('period', state.period);
       window.location.href = `alerts.html?${params}`;
     }
   };
@@ -322,7 +377,7 @@ function renderAlerts(items, urgentContents = [], urgentTotal = urgentContents.l
     container.querySelectorAll('[data-urgent-content]').forEach(el => { el.onclick = () => openContent(el.dataset.urgentContent); });
     if (urgentTotal > urgentContents.length) {
       container.insertAdjacentHTML('beforeend', `<div class="row-meta">共 ${Number(urgentTotal).toLocaleString()} 条尚未生成事件的严重内容，显示最新 ${urgentContents.length} 条。<button class="row-action" id="viewUrgentContents">查看全部严重内容</button></div>`);
-      $('#viewUrgentContents').onclick = () => { const url = new URL(negativeContentHref('urgent'), window.location.href); url.searchParams.delete('contentType'); window.location.href = url.href; };
+      $('#viewUrgentContents').onclick = () => { const url = new URL(negativeContentHref('urgent'), document.baseURI); url.searchParams.delete('contentType'); window.location.href = url.href; };
     }
   }
 }
@@ -401,16 +456,48 @@ function renumberOverviewSections() {
     if (label) label.textContent = section.hidden ? '' : String(++number).padStart(2, '0');
   });
 }
+let feedbackView = 'cloud', feedbackSentiment = 'all';
 function renderTopics(items, metrics) {
   const container = $('#topics'); if (!container) return;
-  const rows = (Array.isArray(items) ? items : []).map(item => ({ topic: String(item?.topic ?? '').trim(), count: Number(item?.count || 0), negative: Number(item?.negative || 0) })).filter(item => item.topic && item.count > 0);
-  const label = $('#topicLabel'); if (label) label.textContent = `话题聚类 · ${periodLabel()}`;
-  if (!rows.length) { container.innerHTML = `<div class="module-state">${esc(scopeEmpty(`${periodLabel()}议题数据`))}</div>`; return; }
-  const total = Number(metrics?.newCount ?? metrics?.total ?? 0) || rows.reduce((sum, item) => sum + item.count, 0);
-  const max = Math.max(...rows.map(item => item.count), 1);
-  container.innerHTML = `${rows.map(item => `<div class="topic-bar" title="${esc(item.topic)} · ${item.count.toLocaleString()} 条，其中负面 ${item.negative.toLocaleString()} 条"><span>${esc(item.topic)}</span><div class="topic-track"><i style="width:${(item.count / max * 100).toFixed(1)}%"></i></div><b>${item.count.toLocaleString()} 条 ${(item.count / total * 100).toFixed(0)}%${item.negative ? `<em>负 ${item.negative.toLocaleString()}</em>` : ''}</b></div>`).join('')}<div class="topic-note">按话题标签聚类，一条内容可命中多个议题，占比以${periodLabel()}内容总量为分母。</div>`;
+  const groups = state.overview?.frequentFeedbackBySentiment || { all: items };
+  const selectedItems = groups[feedbackSentiment] || [];
+  const rows = (Array.isArray(selectedItems) ? selectedItems : []).filter(item => item?.text && Number(item.count) >= 1).sort((a, b) => Number(b.count) - Number(a.count)).slice(0, 80);
+  document.querySelectorAll('[data-feedback-view]').forEach(button => {
+    const active = button.dataset.feedbackView === feedbackView;
+    button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active));
+    button.onclick = () => { feedbackView = button.dataset.feedbackView; renderTopics(items, metrics); };
+  });
+  const sentimentSelect = $('#feedbackSentiment');
+  if (sentimentSelect) { sentimentSelect.value = feedbackSentiment; sentimentSelect.onchange = () => { feedbackSentiment = sentimentSelect.value; renderTopics(items, metrics); }; }
+  const label = $('#topicLabel'); if (label) label.textContent = `${rows.length} 个关键词（最多80） · ${periodLabel()}`;
+  let status = $('#feedbackTopicStatus');
+  if (!status) { status = document.createElement('div'); status.id = 'feedbackTopicStatus'; status.className = 'feedback-topic-status'; container.before(status); }
+  status.textContent = state.overview?.feedbackTopicStatus?.message || '反馈数量指提及该关键词的帖子和评论数';
+  if (!rows.length) { container.innerHTML = '<div class="module-state">当前筛选范围暂无具体讨论内容</div>'; return; }
+  const max = Math.max(...rows.map(item => Number(item.count)), 1), min = Math.min(...rows.map(item => Number(item.count)));
+  if (feedbackView === 'ranking') {
+    container.innerHTML = `<div class="feedback-ranking-head"><span>排名</span><span>关键词</span><span>反馈数量</span></div><ol class="feedback-ranking">${rows.map((item, index) => `<li><span class="feedback-rank ${index < 3 ? 'feedback-rank-top feedback-rank-' + (index + 1) : ''}">${index + 1}</span><div class="feedback-rank-keyword"><strong>${esc(item.translatedText || item.text)}</strong>${item.translatedText ? `<small>原文：${esc((item.originalTexts || [item.text]).join(' / '))}</small>` : item.translationStatus === 'failed' ? '<small>中文翻译暂不可用</small>' : ''}</div><div class="feedback-rank-count"><b>${Number(item.count).toLocaleString()}<small> 条</small></b><div class="feedback-rank-track"><i style="width:${Number(item.count) / max * 100}%"></i></div></div></li>`).join('')}</ol><div class="topic-note">按反馈数量从高到低排列。同一帖子或评论重复提及只计1条；全部包含中性及暂未分析内容，正面、负面按内容分析结果筛选。</div>`;
+    return;
+  }
+  const colors = ['#9065e8', '#24afa3', '#ff8c57', '#6486ef', '#d46cda', '#65b764'];
+  const words = rows.map((item, index) => {
+    const ratio = max === min ? .45 : (Math.sqrt(Number(item.count)) - Math.sqrt(min)) / (Math.sqrt(max) - Math.sqrt(min));
+    const display = item.translatedText || item.text;
+    const size = Math.round(14 + ratio * 22);
+    return `<button type="button" class="feedback-cloud-word" data-feedback-word="${index}" style="font-size:${size}px;color:${colors[index % colors.length]}" title="${esc((item.originalTexts || [item.text]).join(' / '))}${item.translatedText ? ' / ' + esc(item.translatedText) : ''} · ${Number(item.count).toLocaleString()} 条反馈">${esc(display)}</button>`;
+  });
+  // Alternate larger and smaller words to distribute weight through the cloud.
+  const arranged = []; for (let i = 0, j = words.length - 1; i <= j; i++, j--) { arranged.push(words[i]); if (i !== j) arranged.push(words[j]); }
+  container.innerHTML = `<div class="feedback-cloud">${arranged.join('')}</div><div class="feedback-cloud-detail" aria-live="polite"></div><div class="topic-note">筛选日期内的具体讨论关键词和短语；字号越大，反馈越多。点击查看反馈数量。海外词汇显示中文，点击可看原文。同一内容重复提及只计1条。</div>`;
+  const show = index => {
+    const item = rows[index], detail = container.querySelector('.feedback-cloud-detail');
+    detail.innerHTML = `<div><strong>${esc(item.translatedText || item.text)}</strong><b>${Number(item.count).toLocaleString()} 条反馈</b></div>${item.translatedText ? `<small>原文：${esc((item.originalTexts || [item.text]).join(' / '))}</small>` : item.translationStatus === 'failed' ? '<small>中文翻译暂不可用</small>' : ''}`;
+    container.querySelectorAll('[data-feedback-word]').forEach(button => button.classList.toggle('selected', Number(button.dataset.feedbackWord) === index));
+  };
+  container.querySelectorAll('[data-feedback-word]').forEach(button => button.addEventListener('click', () => show(Number(button.dataset.feedbackWord))));
+  show(0);
 }
-function renderOverviewContent(item, originalPost, detailError = '') { const published = item.published_at || item.publishedAt; const media = Array.isArray(item.media) ? item.media : []; const mediaHtml = media.map(url => `<img class="content-image" src="${esc(url)}" alt="帖子图片" loading="lazy">`).join(''); $('#drawerContent').innerHTML = `<h2>${esc(item.title || '(无标题)')}</h2><div class="row-meta">${esc(scopePath(item))} · ${esc(sourceName(item.source_id || item.sourceId || item.platform))} · ${(published && window.formatBeijingTime) ? window.formatBeijingTime(published) : (published || '-')}</div><div class="detail-block"><div class="detail-label">原文内容</div><div class="detail-text">${Detail.renderBodyWithImages(item.body, esc)}</div>${mediaHtml}</div>${Detail.renderTranslation(item, esc)}<div class="detail-block"><div class="detail-label">内容分析</div><div class="detail-text">情感：${item.sentiment === 'negative' ? '负面' : item.sentiment === 'positive' ? '正面' : '中性'} · 负面强度 ${Math.round(Number(item.negative_score || item.negativeScore || 0) * 100)}%<br>话题：${esc((item.topics || []).join ? (item.topics || []).join('、') : item.topic || '未分类')}<br>命中关键词：${esc((item.matched_keywords || item.keywords || []).join ? (item.matched_keywords || item.keywords || []).join('、') : '无')}<br>摘要：${esc(item.summary || '暂无摘要')}</div></div><div class="detail-block"><div class="detail-label">来源信息</div><div class="detail-text">作者：${esc(item.author_name || item.author || '未知')}<br>来源链接：<a href="${esc(item.source_url || item.url || '#')}" target="_blank" rel="noreferrer">打开来源</a></div></div>`; if (item.content_type === 'comment') $('#drawerContent').insertAdjacentHTML('beforeend', '<div class="detail-block original-post"><div class="detail-label">所属原帖</div>' + (originalPost ? Detail.renderContentNode(originalPost, new Set(), originalPost.is_deleted ? '原帖（已删除 / 隐藏）' : '原帖', esc) : '<div class="detail-text">' + esc(detailError ? '原帖加载失败，请关闭后重试：' + detailError : '原帖暂未采集或不可访问') + '</div>') + '</div>'); hydrateOverviewTranslations(); }
+function renderOverviewContent(item, originalPost, detailError = '') { const published = item.published_at || item.publishedAt; const media = Array.isArray(item.media) ? item.media : []; const mediaHtml = media.map(url => `<img class="content-image" src="${esc(url)}" alt="帖子图片" loading="lazy">`).join(''); $('#drawerContent').innerHTML = `<h2>${esc(item.title || '(无标题)')}</h2><div class="row-meta">${esc(scopePath(item))} · ${esc(sourceName(item.source_id || item.sourceId || item.platform))} · ${(published && window.formatBeijingTime) ? window.formatBeijingTime(published) : (published || '-')}</div><div class="detail-block"><div class="detail-label">原文内容</div><div class="detail-text">${Detail.renderBodyWithImages(item.body, esc)}</div>${mediaHtml}</div>${Detail.renderTranslation(item, esc)}<div class="detail-block"><div class="detail-label">内容分析</div><div class="detail-text">情感：${item.sentiment === 'negative' ? '负面' : item.sentiment === 'positive' ? '正面' : '中性'} · 负面强度 ${Math.round(Number(item.negative_score || item.negativeScore || 0) * 100)}%<br>话题：${esc((item.topics || []).join ? (item.topics || []).join('、') : item.topic || '未分类')}<br>命中关键词：${esc((item.matched_keywords || item.keywords || []).join ? (item.matched_keywords || item.keywords || []).join('、') : '无')}<br>摘要：${esc(item.summary || '暂无摘要')}</div></div><div class="detail-block"><div class="detail-label">来源信息</div><div class="detail-text">作者：${esc(item.author_name || item.author || '未知')}<br>帖子 ID：${esc((item.content_type === 'comment' ? originalPost?.external_id : item.external_id) ?? '暂不可用')}</div></div>`; if (item.content_type === 'comment') $('#drawerContent').insertAdjacentHTML('beforeend', '<div class="detail-block original-post"><div class="detail-label">所属原帖</div>' + (originalPost ? Detail.renderContentNode(originalPost, new Set(), originalPost.is_deleted ? '原帖（已删除 / 隐藏）' : '原帖', esc) : '<div class="detail-text">' + esc(detailError ? '原帖加载失败，请关闭后重试：' + detailError : '原帖暂未采集或不可访问') + '</div>') + '</div>'); hydrateOverviewTranslations(); }
 function hydrateOverviewTranslations() {
   const nodes = [...$('#drawerContent').querySelectorAll('[data-translation-id]')];
   const scope = state.scope?.query?.() || new URLSearchParams();
@@ -498,7 +585,7 @@ const OVERVIEW_LOAD_MODULES = [
   { key: 'sources', label: '采集源' },
   { key: 'sourceDist', label: '平台来源' },
   { key: 'trend', label: '口碑趋势' },
-  { key: 'topics', label: '议题分布' },
+  { key: 'topics', label: '高频反馈' },
   { key: 'attentionList', label: '关注级内容' },
   { key: 'alerts', label: '当前告警' },
   { key: 'hotList', label: '负面内容' }
@@ -566,8 +653,6 @@ function moduleError(selector, error) {
 function renderOverview(overview) {
   if (overview.window?.publishedFrom && overview.window?.publishedTo) {
     state.window = Object.freeze({ publishedFrom: beijingIso(overview.window.publishedFrom), publishedTo: beijingIso(overview.window.publishedTo) });
-    const params = new URLSearchParams(location.search); params.set('publishedFrom', state.window.publishedFrom); params.set('publishedTo', state.window.publishedTo);
-    history.replaceState(null, '', `${location.pathname}?${params}`);
     const all = $('#viewAllNegative'); if (all) all.href = negativeContentHref();
     const attention = $('#viewAllAttention'); if (attention) attention.href = negativeContentHref('attention');
   }
@@ -576,13 +661,15 @@ function renderOverview(overview) {
   renderMetrics(state.overview.metrics || {});
   renderSourceDistribution(state.overview.sourceDistribution || []);
   renderTrend(state.overview.trend || [], state.overview.sentiment);
-  renderTopics(state.overview.topicDistribution || [], state.overview.metrics || {});
+  renderTopics(state.overview.frequentFeedback || [], state.overview.metrics || {});
   hotPanelsReady = true;
   loadHotPanel('attention');
   renderAlerts(state.overview.activeAlerts || [], state.overview.urgentUnlinkedContents || [], state.overview.metrics?.urgentUnlinkedTotal || 0);
   loadHotPanel('negative');
 }
 async function load() {
+  window.PublicOpinionWeeklyReport?.load(state.scope);
+  state.qualityMetric = null;
   renderRefreshFrequency('采集频率加载中…');
   hotPanelsReady = false;
   updateContentTopicsVisibility();
@@ -604,11 +691,12 @@ async function load() {
   startOverviewLoading();
   renderOverviewLoading();
 
-  const overviewTask = api(`/overview?${overviewSuffix}${overviewSuffix ? '&' : ''}fresh=1`, { signal: lifecycle?.signal })
-    .then(overview => {
+  const overviewTask = api(`/overview?${overviewSuffix}`, { signal: lifecycle?.signal })
+    .then(async overview => {
       if (serial !== loadSerial || !lifecycle?.isCurrent?.() || overviewLoadState.timedOut) return;
       renderOverview(overview);
       markOverviewGroup(['metrics', 'sourceDist', 'trend', 'topics', 'alerts']);
+      await loadQualityMetric(serial, lifecycle);
     })
     .catch(error => {
       if (error.name !== 'AbortError' && serial === loadSerial && lifecycle?.isCurrent?.()) {
@@ -617,7 +705,7 @@ async function load() {
       }
     });
 
-  const sourcesTask = api(`/sources${sourceSuffix ? `?${sourceSuffix}` : ''}`, { signal: lifecycle?.signal })
+  const sourcesTask = api(`/sources?view=summary${sourceSuffix ? `&${sourceSuffix}` : ''}`, { signal: lifecycle?.signal })
     .then(sources => {
       if (serial !== loadSerial || !lifecycle?.isCurrent?.() || overviewLoadState.timedOut) return;
       state.sources = Array.isArray(sources) ? sources : sources?.items || [];
@@ -634,11 +722,11 @@ async function load() {
   // 内容分析进度已按需求隐藏：不再启动 5s 轮询（renderAnalysisProgress/pollAnalysisProgress 函数保留）
   // pollAnalysisProgress();
 }
-function bind() { bindLineTrend(); bindHotTabs(); document.querySelectorAll('[data-period]').forEach(button => { button.onclick = () => { if (button.dataset.period === state.period) return; state.period = button.dataset.period; syncPeriodUrl(); updatePeriodUi(); load(); }; }); const periodSelect = $('[data-period-select]'); if (periodSelect) periodSelect.onchange = () => { if (!PERIOD_LABELS[periodSelect.value] || periodSelect.value === state.period) return; state.period = periodSelect.value; syncPeriodUrl(); updatePeriodUi(); load(); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; $('#viewAlerts').onclick = () => { const params = state.scope?.query?.() || new URLSearchParams(); params.set('period', state.period); window.location.href = `alerts.html?${params}`; }; }
+function bind() { bindLineTrend(); bindHotTabs(); document.querySelectorAll('[data-period]').forEach(button => { button.onclick = () => { if (button.dataset.period === state.period) return; state.period = button.dataset.period; syncPeriodUrl(); updatePeriodUi(); load(); }; }); const periodSelect = $('[data-period-select]'); if (periodSelect) periodSelect.onchange = () => { if (!PERIOD_LABELS[periodSelect.value] || periodSelect.value === state.period) return; state.period = periodSelect.value; syncPeriodUrl(); updatePeriodUi(); load(); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; $('#viewAlerts').onclick = () => { const params = state.scope?.pageQuery?.() || new URLSearchParams(); params.set('period', state.period); window.location.href = `alerts.html?${params}`; }; }
 bind();
 async function scopeChanged() { alertDetailSerial += 1; closeDrawer(); state.overview = null; state.sources = []; state.window = validOverviewWindow(); state.period = resolveOverviewPeriod(new URLSearchParams(location.search)); loadLineTrend(); await load(); }
 PublicOpinionScope.init({ host: '[data-po-scope]', onChange: scopeChanged }).then(scope => {
-  state.scope = scope; loadLineTrend();
+  state.scope = scope; state.period = resolveOverviewPeriod(); state.window = validOverviewWindow(); loadLineTrend();
   load();
 }).catch(error => {
   renderRefreshFrequency('采集频率加载失败');

@@ -1,0 +1,28 @@
+#taskProgress{padding:22px 24px}
+#taskProgress .card-head{margin-bottom:16px}
+.single-post-progress-heading{display:flex;align-items:center;gap:9px}
+.single-post-progress-dot{width:8px;height:8px;border-radius:50%;background:#a6b3c3;flex:none}
+.single-post-progress-dot.is-active{background:#1890ff;box-shadow:0 0 0 4px #e9f4ff}
+.single-post-progress-dot.is-complete{background:#16a36a}
+.single-post-progress-dot.is-failed{background:#d9303a}
+.single-post-progress-summary{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 20px;margin-bottom:20px}
+.single-post-progress-summary strong{color:#43526a;font-size:13px;font-weight:500}
+.single-post-progress-summary .muted{font-variant-numeric:tabular-nums}
+.single-post-progress-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:32px}
+.single-post-progress-list.is-search{grid-template-columns:1fr}
+.single-post-progress-item{min-width:0}
+.single-post-progress-label{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-bottom:10px;font-size:12px}
+.single-post-progress-label b{font-weight:500;color:#52627a}
+.single-post-progress-label span{color:#718096;font-variant-numeric:tabular-nums}
+.single-post-progress-track{height:8px;border-radius:5px;background:#edf1f6;overflow:hidden}
+.single-post-progress-track i{display:block;height:100%;border-radius:inherit;background:#1890ff;transition:width .35s ease}
+.single-post-progress-track.is-indeterminate i{animation:single-post-progress-slide 1.5s ease-in-out infinite}
+.single-post-progress-track.is-running i{background-image:linear-gradient(110deg,transparent 25%,#ffffff40 50%,transparent 75%);background-size:70px 100%;animation:single-post-progress-flow 1.4s linear infinite}
+.single-post-progress-track.is-complete i{background:#16a36a}
+.single-post-progress-track.is-partial i{background:#e6a128}
+.single-post-progress-track.is-failed i{background:#d9303a;animation:none}
+.single-post-progress-note{margin:14px 0 0;font-size:11px;color:#94a0b1;line-height:1.7}
+@keyframes single-post-progress-slide{from{transform:translateX(-100%)}to{transform:translateX(320%)}}
+@keyframes single-post-progress-flow{to{background-position:70px 0}}
+@media(max-width:760px){.single-post-progress-list{grid-template-columns:1fr;gap:18px}.single-post-progress-summary{align-items:flex-start;flex-direction:column}#taskProgress{padding:18px}}
+@media(prefers-reduced-motion:reduce){.single-post-progress-track i{animation:none!important;transition:none}}

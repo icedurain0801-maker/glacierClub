@@ -10,7 +10,7 @@ test('factory switches provider and keeps legacy available',()=>{
 });
 test('confidence, emergency and verifiable gates survive repeated normalization and persistence',()=>{
  const ai=new TypeSafeAnalyzer({});const text='竞技场第三回合卡死';const questions=ai.questions(text);
- for(const [raw,confidence,issue,trigger,expected,status]of [['L2',.5,.8,'none','attention','auto_passed'],['L3',.5,.8,'login_or_asset','urgent','manual_review'],['L3',.9,.8,'none','negative','auto_passed'],['L3',.9,.2,'login_or_asset','attention','auto_passed'],['L0',.9,.1,'none','normal','auto_passed']]){
+ for(const [raw,confidence,issue,trigger,expected,status]of [['L2',.5,.8,'none','attention','auto_passed'],['L3',.5,.8,'login_or_asset','negative','manual_review'],['L3',.9,.8,'none','negative','auto_passed'],['L3',.9,.2,'login_or_asset','attention','auto_passed'],['L0',.9,.1,'none','normal','auto_passed']]){
   const result=ai.parse(response(raw,confidence,issue,trigger),text,questions);
   assert.equal(result.severity,expected);assert.equal(result.typeSafeDecision.status,status);
   const normalized=normalizeAnalysisResult(result,{body:text});assert.equal(normalized.severity,expected);assert.equal(normalized.needsDeep,false);
@@ -23,7 +23,7 @@ test('invalid answers are never converted to normal',()=>{
 });
 test('batch concurrency 10 and comments do not inherit parent title',async()=>{
  let active=0,max=0;const payloads=[];
- const ai=new TypeSafeAnalyzer({}, {fetchImpl:async(_,options)=>{
+ const ai=new TypeSafeAnalyzer({}, {explainer: { explain: async () => ({ status: 'generated', reason: '普通评论，没有具体问题或紧急事实。', inputTokens: 1, outputTokens: 1, totalTokens: 2 }) }, fetchImpl:async(_,options)=>{
   active++;max=Math.max(max,active);payloads.push(JSON.parse(options.body));await new Promise(r=>setTimeout(r,10));active--;
   return {ok:true,status:200,json:async()=>response('L0')};
  }});ai.key=()=> 'isolated-key';

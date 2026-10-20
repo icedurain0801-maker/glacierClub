@@ -60,14 +60,14 @@ function rateLimitRetry(error, syncRun, now = Date.now()) {
   if (retryAfterMs == null) {
     retryAfterMs = 60_000 * (2 ** Math.min(attempts - 1, 6));
   }
-  retryAfterMs = Math.min(60 * 60 * 1000, Math.max(1000, Math.ceil(retryAfterMs)));
+  retryAfterMs = Math.min(60 * 60 * 1000, Math.max(1000, Math.ceil(retryAfterMs), 5000 * (2 ** Math.min(attempts - 1, 6))));
   const nextRetryAt = new Date(now + retryAfterMs).toISOString();
   return { nextRetryAt, auditSuffix: ` [retry_after_ms:${retryAfterMs} next_eligible_at:${nextRetryAt}]`, terminal: false, errorCode: 'RATE_LIMITED' };
 }
 function isSessionExpired(error) { return errorCode(error) === 'SESSION_EXPIRED'; }
 function facebookAuthFailureStatus(error) {
   const code = errorCode(error);
-  if (code === 'FACEBOOK_TOKEN_EXPIRED') return 'expired';
+  if (['FACEBOOK_TOKEN_EXPIRED', 'SESSION_EXPIRED', 'SESSION_NOT_ACTIVE'].includes(code)) return 'expired';
   return ['FACEBOOK_TOKEN_INVALID', 'FACEBOOK_PAGE_MISMATCH', 'FACEBOOK_PERMISSION_MISSING'].includes(code) ? 'unauthorized' : null;
 }
 function isManualVerification(error) { const code = errorCode(error); return MANUAL_VERIFICATION_CODES.has(code) || /(?:VERIFICATION|CAPTCHA|CHALLENGE|QR_CODE|DEVICE_CONFIRMATION).*REQUIRED/.test(code); }
@@ -96,11 +96,13 @@ function normalizePlatformItem(raw, { scope, platform = '', rootPlatformContentI
   const authorName = String(first(raw, ['authorName', 'author_name', 'nickname'], first(author, ['nickname', 'name'], '')) || '').trim();
   const sourceUrl = String(first(raw, ['sourceUrl', 'source_url', 'url', 'share_url'], '') || '').trim();
   const publishedAt = first(raw, ['publishedAt', 'published_at', 'create_time', 'createdAt', 'created_at']);
-  const contentType = scope === 'posts' ? (first(raw, ['contentType', 'content_type', 'type'], 'post') === 'video' ? 'video' : 'post') : 'comment';
-  const normalized = normalizeRawContent({ externalId: String(externalId), contentType, authorName, title, body, publishedAt: publishedAt && /^\d{10}$/.test(String(publishedAt)) ? Number(publishedAt) * 1000 : publishedAt, sourceUrl: sourceUrl || `urn:${contentType}:${externalId}`, engagement: first(raw, ['engagement', 'statistics', 'stats'], {}) || {} });
-  const rootId = scope === 'posts' ? '' : String(rootPlatformContentId || first(raw, ['rootPlatformContentId', 'root_platform_content_id', 'post_id', 'postId'], '') || '');
-  const parentId = scope === 'posts' ? null : (first(raw, ['platformParentId', 'platform_parent_id', 'parent_id', 'reply_to_id'], parentPlatformContentId || null) == null ? null : String(first(raw, ['platformParentId', 'platform_parent_id', 'parent_id', 'reply_to_id'], parentPlatformContentId || null)));
-  const depth = scope === 'posts' ? 0 : Math.max(1, Number(first(raw, ['contentDepth', 'content_depth', 'depth'], parentId ? 2 : 1)) || 1);
+  const inlineReply = platform === 'discord' && first(raw, ['contentType', 'content_type']) === 'comment';
+  const contentType = inlineReply ? 'comment' : scope === 'posts' ? (first(raw, ['contentType', 'content_type', 'type'], 'post') === 'video' ? 'video' : 'post') : 'comment';
+  const normalized = normalizeRawContent({ externalId: String(externalId), contentType, authorName, title, body, media: platform === 'facebook' ? require('../../shared/facebookMedia').imageUrls(raw.media) : [], publishedAt: publishedAt && /^\d{10}$/.test(String(publishedAt)) ? Number(publishedAt) * 1000 : publishedAt, sourceUrl: sourceUrl || `urn:${contentType}:${externalId}`, engagement: first(raw, ['engagement', 'statistics', 'stats'], {}) || {} });
+  if (platform === 'facebook' && normalized.media.length) normalized.fingerprint = require('node:crypto').createHash('sha256').update(normalized.fingerprint+require('../../shared/facebookMedia').mediaHash(normalized.media)).digest('hex');
+  const rootId = scope === 'posts' && !inlineReply ? '' : String(rootPlatformContentId || first(raw, ['rootPlatformContentId', 'root_platform_content_id', 'post_id', 'postId'], '') || '');
+  const parentId = scope === 'posts' && !inlineReply ? null : (first(raw, ['platformParentId', 'platform_parent_id', 'parent_id', 'reply_to_id'], parentPlatformContentId || null) == null ? null : String(first(raw, ['platformParentId', 'platform_parent_id', 'parent_id', 'reply_to_id'], parentPlatformContentId || null)));
+  const depth = scope === 'posts' && !inlineReply ? 0 : Math.max(1, Number(first(raw, ['contentDepth', 'content_depth', 'depth'], parentId ? 2 : 1)) || 1);
   const originalType = raw.rawPayload?.type;
   const retainedType = platform === 'bigplayer_h5' && scope === 'posts' && [0, 1, '0', '1'].includes(originalType)
     ? { type: originalType } : null;
@@ -226,7 +228,7 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
     if (!scope.publishedFrom && !scope.publishedTo) return true;
     const value = entry.content?.published_at || entry.raw?.publishedAt || entry.raw?.published_at;
     if (!value) return false;
-    const timestamp = new Date(value).getTime();
+    const timestamp = utcDateTime(value).getTime();
     const from = scope.publishedFrom ? new Date(scope.publishedFrom).getTime() : -Infinity;
     const to = scope.publishedTo ? new Date(scope.publishedTo).getTime() : Infinity;
     return Number.isFinite(timestamp) && timestamp >= from && timestamp < to;
@@ -237,7 +239,7 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
   const light = profileSpec(ai, 'light');
   for (const entry of changed) {
     const raw = entry.raw || entry.content; const hit = matchRules({ title: raw.title, body: raw.body, authorName: raw.authorName || raw.author_name }, sourceRules);
-    await repo.enqueueAnalysisJob(entry.content.id, { profile: 'light', version: light.version, contentFingerprint: raw.fingerprint, triggerReason: hit.needAI ? 'keyword_match' : 'all_content', matchedKeywords: hit.matchedKeywords || [] });
+    await repo.enqueueAnalysisJob(entry.content.id, { profile: 'light', version: light.version, contentFingerprint: raw.fingerprint, triggerReason: hit.needAI ? 'keyword_match' : 'all_content', matchedKeywords: hit.matchedKeywords || [], analysisPolicy: deps.aiAnalysisPolicy || raw.rawPayload?._aiAnalysisPolicy });
   }
   if (scope.enqueueOnly) return { analyzed: 0, alerted: 0, enqueued: changed.length };
   let analyzed = 0; let alerted = 0;
@@ -274,6 +276,7 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
       continue;
     }
     if (globalSinglePassDeep) deps.emptyDeepCheckAt = 0;
+    await require('../../server/src/services/humanCorrections').enrichCorrectionContexts(repo, jobs, ai);
     const cacheStarted = Date.now();
     const cached = typeof repo.getAnalysisCache === 'function' ? await repo.getAnalysisCache(jobs.map(job => analysisCacheKey(ai, job, profile))) : [];
     timings.cacheMs += Date.now() - cacheStarted;
@@ -283,21 +286,22 @@ async function processPersistentAnalysisJobs(deps, source, entries = [], scope =
     try {
       if (pending.length) {
         const modelStarted = Date.now();
-        const analyses = await ai.analyzeBatch(pending.map(({ job }) => ({ contentType: job.content_type, title: job.title, body: job.body, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code })), profile);
+        const analyses = await ai.analyzeBatch(pending.map(({ job }) => ({ aiCorrections: job.aiCorrections, contentType: job.content_type, analysisContext: require('../../server/src/services/commentAnalysisContext').commentContext(job), title: job.title, body: job.body, media:job.media, platform: job.platform, fingerprint: job.fingerprint, gameId: job.game_id, gameName: job.game_name, communityId: job.community_id, communityName: job.community_name, regionCode: job.region_code, analysisPolicy: require('../../server/src/services/aiAnalysisPolicy').policyForJob(job) })), profile, { settleErrors: true });
         timings.modelMs += Date.now() - modelStarted;
         pending.forEach(({ index }, i) => { results[index] = analyses[i]; });
       }
       const persistStarted = Date.now();
       await runBounded(jobs.map((job, index) => ({ job, index })), deps.analysisPersistConcurrency || 1, async ({ index }) => {
         try {
+          if (results[index]?.analysisError) throw stableError(results[index].analysisError.code, 'individual analysis failed');
           const job = jobs[index]; const raw = job; const cachedAnalysis = cacheAnalysis(job); const analysis = normalizePersistedAnalysis({ ...results[index], analysisLevel: profile, profile, analysisVersion: results[index]?.analysisVersion || spec.version, contentFingerprint: job.content_fingerprint || job.fingerprint, normalizationBatchId: scope.runId || job.sync_run_id || job.id, cacheKey: analysisCacheKey(ai, job, profile), triggerReason: job.trigger_reason || null, matchedKeywords: cachedAnalysis?.matchedKeywords || parseObject(job.matched_keywords) || [] }, job);
           const escalatedFromLight = profile === 'deep' && ['light_escalation', 'keyword_match'].includes(job.trigger_reason);
           const lightAnalysis = escalatedFromLight && typeof repo.getLightAnalysis === 'function' ? normalizePersistedAnalysis(await repo.getLightAnalysis(job.content_id), job) : null;
           if (typeof repo.insertAnalysis === 'function') await repo.insertAnalysis(job.content_id, analysis);
           if (typeof repo.reconcilePositiveRiskAlerts === 'function') await repo.reconcilePositiveRiskAlerts(job.content_id, analysis, { runId: scope.runId || job.sync_run_id || job.id });
-          if (typeof repo.upsertAnalysisCache === 'function' && !cacheByKey.has(analysisCacheKey(ai, job, profile))) await repo.upsertAnalysisCache({ ...analysis, cacheKey: analysisCacheKey(ai, job, profile), contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
+          if (typeof repo.upsertAnalysisCache === 'function' && !cacheByKey.has(analysisCacheKey(ai, job, profile))) await repo.upsertAnalysisCache({ ...analysis, contentContext: job, cacheKey: analysisCacheKey(ai, job, profile), contentFingerprint: analysis.contentFingerprint, profile, version: analysis.analysisVersion, usage: { inputTokens: analysis.inputTokens, outputTokens: analysis.outputTokens, totalTokens: analysis.totalTokens, estimated: analysis.usageEstimated } });
           const qualityCandidate = profile === 'deep' || ai.singlePass ? qualityCandidateOf(analysis) : null;
-          if (qualityCandidate && typeof repo.upsertQualityCandidate === 'function') { try { await repo.upsertQualityCandidate(job.content_id, qualityCandidate); } catch (qualityError) { console.error('upsertQualityCandidate failed:', qualityError?.code || 'QUALITY_CANDIDATE_FAILED'); } }
+          if (qualityCandidate && typeof repo.upsertQualityCandidate === 'function') await repo.upsertQualityCandidate(job.content_id, { ...qualityCandidate, body: job.body, contentType: job.content_type, qualityPolicy: require('../../server/src/services/aiAnalysisPolicy').normalizePolicy(require('../../server/src/services/aiAnalysisPolicy').policyForJob(job)).quality });
           await repo.finishAnalysisJob(job.id, { leaseOwner: job.lease_owner || deps.leaseOwner, status: 'completed' }); analyzed += 1;
           const ruleKey = JSON.stringify([job.game_id, job.platform, job.community_id]);
           if (!source?.game_id && !rulesByScope.has(ruleKey)) rulesByScope.set(ruleKey, typeof repo.loadKeywordRules === 'function' ? repo.loadKeywordRules(job.game_id, job.platform, job.community_id) : Promise.resolve([]));
@@ -345,7 +349,7 @@ async function processDownstream(deps, source, entries, scope = {}) {
     if (!scope.publishedFrom && !scope.publishedTo) return true;
     const value = entry.content?.published_at || entry.raw?.publishedAt || entry.raw?.published_at;
     if (!value) return false;
-    const timestamp = new Date(value).getTime();
+    const timestamp = utcDateTime(value).getTime();
     const from = scope.publishedFrom ? new Date(scope.publishedFrom).getTime() : -Infinity;
     const to = scope.publishedTo ? new Date(scope.publishedTo).getTime() : Infinity;
     return Number.isFinite(timestamp) && timestamp >= from && timestamp < to;
@@ -355,7 +359,13 @@ async function processDownstream(deps, source, entries, scope = {}) {
   const rules = typeof deps.repo.loadKeywordRules === 'function' ? await deps.repo.loadKeywordRules(source.game_id, source.platform, source.community_id) : []; const queue = [];
   for (const entry of changed) { const raw = entry.raw || entry.content; const hit = matchRules({ title: raw.title, body: raw.body, authorName: raw.authorName || raw.author_name }, rules); if (hit.needAI) queue.push({ ...entry, raw, hit }); }
   if (!queue.length) return { analyzed: 0, alerted: 0 };
-  const analyses = await deps.ai.analyzeBatch(queue.map(({ raw }) => ({ title: raw.title, body: raw.body, platform: source.platform, fingerprint: raw.fingerprint, regionCode: source.region_code, gameId: source.game_id, gameName: source.game_name, communityId: source.community_id, communityName: source.community_name })));
+  const inputs = await Promise.all(queue.map(async ({ raw, content }) => {
+    const contentType = raw.contentType || raw.content_type || content.content_type;
+    const analysisContext = contentType === 'comment' && typeof deps.repo.getCommentAnalysisContext === 'function'
+      ? await deps.repo.getCommentAnalysisContext(content.id) : require('../../server/src/services/commentAnalysisContext').commentContext({ ...content, ...raw });
+    return { contentType, analysisContext, title: raw.title, body: raw.body, media:raw.media, platform: source.platform, fingerprint: raw.fingerprint, regionCode: source.region_code, gameId: source.game_id, gameName: source.game_name, communityId: source.community_id, communityName: source.community_name };
+  }));
+  const analyses = await deps.ai.analyzeBatch(inputs);
   const game = { id: source.game_id, name: source.game_name || source.display_name, region_code: source.region_code, community_id: source.community_id, dingtalk_webhook_ref: source.dingtalk_webhook_ref }; let alerted = 0;
   for (let index = 0; index < queue.length; index += 1) { const { content, raw, hit } = queue[index]; const analysis = normalizePersistedAnalysis(analyses[index], raw); const persisted = { ...analysis, normalizationBatchId: scope.runId || content.sync_run_id || content.id, triggerReason: 'keyword_match', matchedKeywords: hit.matchedKeywords }; await deps.repo.insertAnalysis(content.id, persisted); if (typeof deps.repo.reconcilePositiveRiskAlerts === 'function') await deps.repo.reconcilePositiveRiskAlerts(content.id, persisted, { runId: scope.runId || content.sync_run_id || content.id }); const created = await deps.alertEngine.process({ game, content, hit, analysis: persisted }); alerted += created.filter(item => !item.reused).length; }
   return { analyzed: queue.length, alerted };
@@ -368,7 +378,11 @@ async function checkAuthorization(repo, source, connector, { account, credential
     if (!installation.installed && !installation.configured) health = { configured: false, reason: installation.reason };
     else {
       try {
-        if (isSocialPlatform(source.platform)) sessionRef = await getSessionRef(loginSessionClient, source, account);
+        if (require('../../shared/facebookBrowser').isFacebookBrowser(source)) {
+          const browserHealth = await connector.accountHealth({ source, account });
+          if (!browserHealth.authorized) throw stableError(browserHealth.reason || 'SESSION_EXPIRED', '请在账号管理页面登录本社区 Facebook 账号');
+        }
+        else if (isSocialPlatform(source.platform)) sessionRef = await getSessionRef(loginSessionClient, source, account);
         else if (source.platform === 'taptap') health = { configured: true, reason: 'no-login web API' }; // 免登采集：健康即可，无凭据
         else {
           if (!credentialContext) { const error = new Error('credential context is required'); error.code = 'CREDENTIAL_CONTEXT_REQUIRED'; throw error; }
@@ -377,7 +391,7 @@ async function checkAuthorization(repo, source, connector, { account, credential
         health = { configured: true };
       } catch (error) { health = { configured: false, reason: errorCode(error) }; }
     }
-    if (typeof repo.updateAccount === 'function') await repo.updateAccount(account.id, { authStatus: health.configured ? 'authorized' : (isManualVerification({ code: health.reason }) ? 'awaiting_manual_verification' : 'unauthorized') });
+    if (typeof repo.updateAccount === 'function') await repo.updateAccount(account.id, { authStatus: health.configured ? 'authorized' : (isManualVerification({ code: health.reason }) ? (require('../../shared/facebookBrowser').isFacebookBrowser(source) ? 'manual_verification' : 'awaiting_manual_verification') : 'unauthorized') });
   } else health = await connector.healthCheck(source);
   await repo.updateSourceAuth(source.id, { authStatus: health.configured ? 'authorized' : 'unauthorized' });
   return health.configured ? { authorized: true, sessionRef } : { authorized: false, reason: health.reason || 'credentials required' };
@@ -549,6 +563,7 @@ async function syncStagePage(deps, stage) {
       _overseasScope: { sourceId: source.id, accountId: account.id, siteId: source.siteId || source.site_id, boardId: item.boardId },
       recoveryContextAncestor: item.recoveryContextAncestor };
   });
+  if (deps.aiAnalysisPolicy) normalized.forEach(item => { item.rawPayload = { ...item.rawPayload, _aiAnalysisPolicy: deps.aiAnalysisPolicy }; });
   const upsertInput = { account, source, syncScope: stage.syncScope, rootPlatformContentId: stage.checkpointRoot, items: normalized, nextCursor: page.nextCursor, hasMore: page.hasMore, syncMode: stage.syncMode, syncRunId: stage.syncRunId, taskKind, taskKey, feed, checkpointId: stage.checkpoint.id, leaseOwner: deps.leaseOwner, leaseSeconds: deps.leaseSeconds, lastItemAt: page.platformWatermark || null };
   if (atomicPageJobs) {
     if (source.platform !== 'bigplayer_h5' || source.region_code !== 'overseas' || typeof deps.getOverseasRunContract !== 'function') throw Object.assign(new Error('overseas page contract required'), { code: 'OVERSEAS_PAGE_CONTRACT_REQUIRED' });
@@ -660,7 +675,26 @@ function terminalQ1Boundary(existing) {
   } catch { return null; }
 }
 
-async function syncStage(deps, { source, account, connector, credential, sessionRef = null, scope, rootPlatformContentId = '', syncMode, syncRunId = null, postPlatformId = '', historyStart = null, updatedSince = null, taskKind, taskKey, keyword = null, feed = null, commentId = null, sortType = 0, onPageCommitted = null }) {
+async function syncStage(deps, input) {
+  if (!['taptap', 'discord'].includes(input.source.platform)) return syncStageBatch(deps, input);
+  // A budget bounds one checkpoint segment, not the entire collection window.
+  const batches = Math.min(100, Math.max(1, Number(deps.stageContinuationBatches || 50)));
+  const bounded = { ...deps, deadlineAt: Math.min(Number(deps.deadlineAt) || Infinity, Date.now() + 30 * 60 * 1000) };
+  let aggregate = null;
+  let previousCursor;
+  for (let batch = 0; batch < batches; batch += 1) {
+    assertDeadline(bounded);
+    const result = await syncStageBatch(bounded, input);
+    if (!aggregate) aggregate = result;
+    else aggregate = { ...result, discovered: aggregate.discovered + result.discovered, stored: aggregate.stored + result.stored, entries: [...aggregate.entries, ...result.entries], replyTargets: [...aggregate.replyTargets, ...result.replyTargets] };
+    if (result.completed || result.skipped || result.unsupported) return aggregate;
+    if (result.cursor == null || String(result.cursor) === previousCursor) throw stableError('PAGINATION_STALLED', 'checkpoint continuation did not advance');
+    previousCursor = String(result.cursor);
+  }
+  return aggregate;
+}
+
+async function syncStageBatch(deps, { source, account, connector, credential, sessionRef = null, scope, rootPlatformContentId = '', syncMode, syncRunId = null, postPlatformId = '', historyStart = null, updatedSince = null, taskKind, taskKey, keyword = null, feed = null, commentId = null, sortType = 0, onPageCommitted = null }) {
   taskKind ||= scope === 'posts' ? 'owned_content' : scope;
   taskKey ||= rootPlatformContentId || (scope === 'posts' ? 'owned' : 'root');
   if (source.platform === 'bigplayer_h5') {
@@ -787,7 +821,7 @@ async function finishPagedFailure(deps, source, run, syncRun, counts, error, com
   const message = `${safeErrorMessage(error)}${retry.auditSuffix}`.slice(0, 500);
   const deferDiscordRateLimit = source.platform === 'discord' && code === 'RATE_LIMITED' && retry.nextRetryAt && !terminalRateLimit;
   await finishOnce(terminalRateLimit ? 'failed' : status, counts, { errorCode: terminalRateLimit ? retry.errorCode : code, errorMessage: message, nextRetryAt: terminalRateLimit ? null : retry.nextRetryAt, defer: deferDiscordRateLimit, sourceStatus: timedOut ? 'partial' : 'failed', sourceErrorMessage: manual ? `awaiting_manual_verification: ${message}` : message });
-  if (manual && typeof deps.repo.updateSourceAuth === 'function') await deps.repo.updateSourceAuth(source.id, { authStatus: 'awaiting_manual_verification' });
+  if (manual && typeof deps.repo.updateSourceAuth === 'function') await deps.repo.updateSourceAuth(source.id, { authStatus: require('../../shared/facebookBrowser').isFacebookBrowser(source) ? 'manual_verification' : 'awaiting_manual_verification' });
 }
 
 async function runDailyQ1Collection(deps, context) {
@@ -903,6 +937,7 @@ async function runDailyQ1Collection(deps, context) {
 }
 
 async function runPagedSourceUnlocked(deps, source, connector, run, account, syncRun, finishOnce = createFinishOnce(deps, source, run, syncRun)) {
+  if (!deps.aiAnalysisPolicy && typeof deps.repo.getAiAnalysisPolicy === 'function' && source.game_id) deps = { ...deps, aiAnalysisPolicy: await deps.repo.getAiAnalysisPolicy(source.game_id, source.community_id) };
   const metadata = parseObject(account.metadata); const syncMode = syncModeOf(source, account, syncRun);
   const collectionWindow = deps.collectionWindow || {};
   const dailyBounded = Boolean(collectionWindow.dailyBounded);
@@ -971,10 +1006,10 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
     gate = await checkAuthorization(deps.repo, source, connector, { account, credentialContext: deps.credentialContext, loginSessionClient: deps.loginSessionClient });
     if (!gate.authorized) { const error = new Error(gate.reason || 'credentials required'); error.code = gate.reason || 'UNAUTHORIZED'; throw error; }
     // TapTap 免登采集：无需凭据，直接通过连接器健康检查。
-    credential = source.platform === 'taptap' ? null : (isSocialPlatform(source.platform) ? null : await deps.credentialContext.load(account, 'api_token'));
-    const facebookPageAccounting = source.platform === 'facebook';
+    credential = source.platform === 'taptap' || require('../../shared/facebookBrowser').isFacebookBrowser(source) ? null : (isSocialPlatform(source.platform) ? null : await deps.credentialContext.load(account, 'api_token'));
+    const facebookPageAccounting = ['facebook', 'taptap', 'discord'].includes(source.platform);
     let posts = { discovered: 0, stored: 0, entries: [], capability: 'authorized_scope', completed: true, replyTargets: [] };
-    const commentsSupported = typeof connector.hasSourceCapability !== 'function' || connector.hasSourceCapability('comments', source);
+    const commentsSupported = !connector.commentsIncludedInOwnedFeed && (typeof connector.hasSourceCapability !== 'function' || connector.hasSourceCapability('comments', source));
     const usesDailyQ1Scheduler = dailyBounded && source.platform === 'bigplayer_h5' && typeof connector.discoverFeeds === 'function' && typeof connector.listFeedContents === 'function';
     if (usesDailyQ1Scheduler) {
       await runDailyQ1Collection(sourceDeps, { source, connector, account, syncRun, credential, sessionRef: gate.sessionRef, syncMode, historyStart, commentPageBudget, commentsSupported, isInCollectionWindow, recordPage, recordStageResult, failStage });
@@ -1022,7 +1057,7 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
       }
     }
     if (commentsSupported && !usesDailyQ1Scheduler) {
-      const freshPosts = posts.entries.filter(entry => entry.change !== 'unchanged' && entry.content?.content_type === 'post' && entry.raw?.publishedAt && (!dailyBounded || isInCollectionWindow(entry)));
+      const freshPosts = posts.entries.filter(entry => (source.platform === 'facebook' || entry.change !== 'unchanged') && entry.content?.content_type === 'post' && entry.raw?.publishedAt && (!dailyBounded || isInCollectionWindow(entry)));
       const freshPostIds = new Set(freshPosts.map(entry => String(entry.raw.externalId)).filter(Boolean));
       const commentParents = dailyBounded
         ? []
@@ -1037,7 +1072,7 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
         seenPosts.add(postId);
         return true;
       });
-      const commentConcurrency = source.platform === 'discord'
+      const commentConcurrency = ['discord','facebook'].includes(source.platform)
         ? 1
         : dailyBounded
         ? Math.max(1, Number(sourceDeps.dailyCommentFetchConcurrency ?? process.env.DAILY_COMMENT_FETCH_CONCURRENCY ?? 4))
@@ -1056,7 +1091,7 @@ async function runPagedSourceUnlocked(deps, source, connector, run, account, syn
         }
       });
       if (discordRateLimit) throw discordRateLimit;
-      const replyConcurrency = dailyBounded
+      const replyConcurrency = source.platform === 'facebook' ? 1 : dailyBounded
         ? Math.max(1, Number(sourceDeps.dailyReplyFetchConcurrency ?? process.env.DAILY_REPLY_FETCH_CONCURRENCY ?? 4))
         : Math.max(1, Number(process.env.SYNC_REPLY_CONCURRENCY || process.env.SYNC_COMMENT_CONCURRENCY || 4));
       await runBounded([...replyTargets.values()], source.platform === 'discord' ? 1 : replyConcurrency, async target => {
@@ -1155,6 +1190,13 @@ function withClaimedRunWindow(deps, claimed, source = null, requireWindow = fals
 async function validatedClaimedRunDeps(deps, source, claimed, requireWindow = false) {
   const claimedDeps = withClaimedLeaseOwner(deps, claimed);
   try {
+    if (source.platform === 'facebook' && require('../../shared/facebookBrowser').isFacebookBrowser(source) && !claimed.window_start && !claimed.windowStart) {
+      const window=require('../../shared/facebookMedia').facebookWindow();
+      await claimedDeps.repo.query('UPDATE po_sync_runs SET window_start=?,window_end=? WHERE id=? AND window_start IS NULL AND window_end IS NULL',[window.publishedFrom,window.publishedTo,claimed.id]);
+      const [persisted]=await claimedDeps.repo.query('SELECT window_start,window_end FROM po_sync_runs WHERE id=?',[claimed.id]);
+      if (!persisted?.window_start || !persisted?.window_end) throw stableError('FACEBOOK_WINDOW_REQUIRED','Facebook collection requires a persisted time window');
+      claimed={...claimed,...persisted};
+    }
     return withClaimedRunWindow({ ...claimedDeps, syncRunLeaseEpoch: first(claimed, ['lease_epoch', 'leaseEpoch'], null) }, claimed, source, requireWindow);
   } catch (error) {
     const run = await claimedDeps.repo.createRun(source.id);
@@ -1324,7 +1366,7 @@ function buildDeps(env = process.env) {
     connectorCapabilities: schedulerConnectorCapabilities(connectors)
   };
   const bigPlayerCandidateObservation = { enabled: String(env.BIGPLAYER_CANDIDATE_OBSERVATION_ENABLED || '').trim().toLowerCase() === 'true', sourceId: String(env.BIGPLAYER_CANDIDATE_OBSERVATION_SOURCE_ID || '').trim() || null, runId: String(env.BIGPLAYER_CANDIDATE_OBSERVATION_RUN_ID || '').trim() || null };
-  return { repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), leaseOwner, workerId, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), leaseHeartbeatMs: Number(env.SYNC_LEASE_HEARTBEAT_MS || 0), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 4)), queuePollIntervalMs: Math.max(250, Number(env.WORKER_QUEUE_POLL_INTERVAL_MS || 5000)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisTimingEnabled: env.AI_ANALYSIS_TIMINGS === "1", analysisPersistConcurrency: Math.min(4, Math.max(1, Number(env.AI_ANALYSIS_PERSIST_CONCURRENCY || 1))), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), bigPlayerCandidateObservation, unifiedScheduler };
+  return { bigPlayerTokenRenewal: new (require('../../server/src/services/bigPlayerTokenRenewal').BigPlayerTokenRenewal)({ repo, env }), repo, connectors, credentialContext, oauthService, loginSessionClient, authRefreshCoordinator, ai, notifier, alertEngine: new AlertEngine(repo, notifier), leaseOwner, workerId, leaseSeconds: Number(env.SYNC_LEASE_SECONDS || 300), leaseHeartbeatMs: Number(env.SYNC_LEASE_HEARTBEAT_MS || 0), pageSize: Number(env.SYNC_PAGE_SIZE || 50), pageBudget: Number(env.SYNC_PAGE_BUDGET || 20), pageTimeoutMs: Number(env.SYNC_PAGE_TIMEOUT_MS || env.BIGPLAYER_H5_TIMEOUT_MS || 30000), sourceConcurrency: Math.max(1, Number(env.WORKER_SOURCE_CONCURRENCY || 3)), queuePollIntervalMs: Math.max(250, Number(env.WORKER_QUEUE_POLL_INTERVAL_MS || 5000)), analysisJobBatchSize: Number(env.AI_ANALYSIS_JOB_BATCH_SIZE || 100), analysisTimingEnabled: env.AI_ANALYSIS_TIMINGS === "1", analysisPersistConcurrency: Math.min(4, Math.max(1, Number(env.AI_ANALYSIS_PERSIST_CONCURRENCY || 1))), analysisMaxAttempts: Number(env.AI_ANALYSIS_MAX_ATTEMPTS || 3), analysisRetryBaseMs: Number(env.AI_ANALYSIS_RETRY_BASE_MS || 1000), bigPlayerCandidateObservation, unifiedScheduler };
 }
 async function unifiedSchedulerSchemaReady(connection) {
   const [rows] = await connection.query(
@@ -1497,11 +1539,18 @@ async function runOnceAdmitted(deps) {
     if (typeof deps.repo?.upsertWorkerHeartbeat !== 'function') return;
     try { await deps.repo.upsertWorkerHeartbeat({ workerId: deps.workerId || heartbeatWorkerId(), buildSha: process.env.BUILD_SHA || null, mode: process.env.WORKER_MODE || 'enabled', ...patch }); } catch (error) { console.error(`[worker] heartbeat failed errorCode=${errorCode(error)}`); }
   };
-  await heartbeat({ scanStartedAt: new Date(), scanFinishedAt: null, scanStatus: 'running', scanError: null, currentScan: 'runOnce' });
+  const scanHeartbeat = require('./workerScanHeartbeat').createWorkerScanHeartbeat({
+    write: heartbeat,
+    warn: event => console.warn(JSON.stringify({ task: 'unified-worker', ...event }))
+  });
+  let scanOutcome = 'completed', scanFailure = null;
+  await scanHeartbeat.start();
   try {
   if (draining()) return drainedResult();
+  scanHeartbeat.stage('database-health');
   if (typeof deps.repo.health === 'function') await deps.repo.health();
   if (draining()) return drainedResult();
+  scanHeartbeat.stage('expired-run-recovery');
   if (deps.repo.pool && typeof deps.repo.query === 'function') {
     if (deps.recoverCandidateLegacyRuns != null) {
       await require('./overseasCandidateLegacyRecovery').assertCandidateLegacyRecovery(deps.recoverCandidateLegacyRuns, deps.repo)();
@@ -1509,6 +1558,7 @@ async function runOnceAdmitted(deps) {
   }
   if (draining()) return drainedResult();
   const recoverySourceId = String(deps.unifiedScheduler?.recoverySourceId || '').trim() || null;
+  scanHeartbeat.stage('queue-discovery');
   const allQueued = typeof deps.repo.listRunnableSyncRuns === 'function' ? await classifyQueue(await deps.repo.listRunnableSyncRuns()) : [];
   let queued = recoverySourceId
     ? allQueued.filter(item => {
@@ -1530,6 +1580,12 @@ async function runOnceAdmitted(deps) {
     if (source.enabled && source.game_enabled) manualRunnable.push(source);
   }
   if (draining()) return drainedResult();
+  if (!recoverySourceId && deps.bigPlayerTokenRenewal) {
+    scanHeartbeat.stage('token-renewal');
+    try { await deps.bigPlayerTokenRenewal.runDue(); }
+    catch { console.error('[worker] token renewal scan failed errorCode=TOKEN_RENEWAL_SCAN_FAILED'); }
+  }
+  scanHeartbeat.stage('scheduler');
   const schedulerResult = await runUnifiedSchedulerSeam({ ...(deps.unifiedScheduler || {}), recoverySourceId, drainController: deps.drainController });
   if (draining()) return drainedResult();
   // The admitted scheduler creates scheduled parent runs after the initial
@@ -1570,9 +1626,14 @@ async function runOnceAdmitted(deps) {
   for (const candidate of [...manualRunnable, ...sources]) if (!queuedSourceIds.has(String(candidate.id))) work.set(`source:${candidate.id}`, { source: candidate, syncRun: null, manualMarker: manualIds.has(String(candidate.id)) });
   const runSourceOperation = deps.runSource || runSource;
   let activeWorkCount = 0;
-  const permit=classify?require('./sharedWorkerPermit').createSharedWorkerPermit(deps.sourceConcurrency||1):null;
+  const { createFairCollectionPool, collectionAccountKey } = require('../../shared/fairCollectionPool');
+  const collectionPool = createFairCollectionPool(deps.sourceConcurrency || 3);
+  scanHeartbeat.stage('collection', () => {
+    const inventory = collectionPool.inventory();
+    return `active=${inventory.active},waiting=${inventory.waiting}`;
+  });
   const runTrackedSource = async item => {
-    const slot=permit?await permit.acquire():null;
+    const slot=null;
     try{
     if (scanLeaseLost) throw stableError('WORKER_SCAN_LEASE_LOST', 'worker scan lease was lost');
     const ticket = deps.drainController?.admit();
@@ -1592,7 +1653,7 @@ async function runOnceAdmitted(deps) {
       }
       return await runSourceOperation(deps, item.source, item.syncRun, ticket);
     }
-    finally { activeWorkCount = Math.max(0, activeWorkCount - 1); ticket?.release(); }
+    finally { activeWorkCount = Math.max(0, activeWorkCount - 1); if (item.syncRun?.id) seenManualRunIds.delete(String(item.syncRun.id)); ticket?.release(); }
     }finally{slot?.release();}
   };
   const seenManualRunIds = new Set([...queued].map(item => {
@@ -1608,6 +1669,8 @@ async function runOnceAdmitted(deps) {
     polling = true;
     pollPromise = (async () => {
       try {
+        // Recovery must keep running while another community has a long collection.
+        if (deps.repo.pool && typeof deps.repo.query === 'function' && !deps.recoverCandidateLegacyRuns && !recoverySourceId) await recoverExpiredRuns(deps.repo.query.bind(deps.repo));
         let availableSlots = Math.max(0, Number(deps.sourceConcurrency || 1) - activeWorkCount);
         if (!availableSlots) return;
         const discovered = await classifyQueue(await deps.repo.listRunnableSyncRuns());
@@ -1629,7 +1692,7 @@ async function runOnceAdmitted(deps) {
           polledManualCount += 1;
           if (additions.length >= availableSlots) break;
         }
-        if (additions.length) await runBounded(additions, Math.min(availableSlots, additions.length), runTrackedSource);
+        for (const item of additions) void collectionPool.submit(collectionAccountKey(item), () => runTrackedSource(item)).catch(error => console.error(`[worker] queued collection failed errorCode=${errorCode(error)}`));
       } catch (error) {
         console.error(`[worker] manual queue poll failed errorCode=${errorCode(error)}`);
       } finally {
@@ -1643,24 +1706,29 @@ async function runOnceAdmitted(deps) {
     ? setInterval(() => { void pollManualQueue(); }, queuePollIntervalMs)
     : null;
   try {
-  await runBounded([...work.values()], deps.sourceConcurrency || 1, runTrackedSource);
+  const outcomes = await Promise.allSettled([...work.values()].map(item => collectionPool.submit(collectionAccountKey(item), () => runTrackedSource(item))));
+  await collectionPool.idle();
+  const failure = outcomes.find(result => result.status === 'rejected');
+  if (failure) throw failure.reason;
   } finally {
     if (pollTimer) clearInterval(pollTimer);
     if (pollPromise) await pollPromise;
   }
   if (!draining() && typeof deps.repo.enqueueMissingAnalysis === 'function'
     && (typeof deps.ai?.configured !== 'function' || deps.ai.configured('light'))) {
+    scanHeartbeat.stage('analysis-enqueue');
     const spec = profileSpec(deps.ai, 'light');
     await deps.repo.enqueueMissingAnalysis({ profile: 'light', version: spec.version, limit: deps.analysisJobBatchSize || 100 });
     // Collection only queues jobs; the independent analysis worker consumes them.
   }
   const result = { queued: queued.length + polledManualCount, manual: manual.length, scanned: sources.length };
-  await heartbeat({ scanFinishedAt: new Date(), scanStatus: 'completed', scanError: null, currentScan: null });
   return result;
   } catch (error) {
-    await heartbeat({ scanFinishedAt: new Date(), scanStatus: 'failed', scanError: safeErrorMessage(error), currentScan: null });
+    scanOutcome = 'failed';
+    scanFailure = safeErrorMessage(error);
     throw error;
   } finally {
+    await scanHeartbeat.finish(scanOutcome, scanFailure);
     if (scanTimer) clearInterval(scanTimer);
     if (scanRenewPromise) await scanRenewPromise;
     // Never retain this token across DB failures or scans. A recovery scan
@@ -1679,8 +1747,31 @@ if (require.main === module) {
     let sharedDeps = null;
     const scheduleRun = createScanRunner(async () => { try { if (!sharedDeps) sharedDeps = buildDeps(); console.log(JSON.stringify({ task: 'unified-worker', phase: 'scan_started', mode, at: new Date().toISOString() })); const result = await runOnce(sharedDeps); console.log(JSON.stringify({ task: 'unified-worker', phase: 'scan_completed', mode, at: new Date().toISOString(), ...result })); } catch (error) { console.error('[worker] status=failed errorCode=', errorCode(error)); } });
     scheduleRun();
+    // Separate runner: report calls never hold up collection scans. DB named
+    // lock serializes reporting across worker processes and releases on crash.
+    let reportRepo = null;
+    const reportRun = createScanRunner(async () => {
+      if (process.env.WEEKLY_REPORT_ENABLED !== 'true') return;
+      try {
+        if (!reportRepo) reportRepo = new Repository({ ...process.env, DB_POOL_SIZE: '1' });
+        const { WeeklyReportRunner } = require('./weeklyReportRunner');
+        await new WeeklyReportRunner(reportRepo).tick();
+      } catch (error) { console.error('[weekly-report] scan failed code=' + (error.code || 'WEEKLY_REPORT_SCAN_FAILED')); }
+    });
+    reportRun();
+    let singlePostRunner = null;
+    const singlePostRun = createScanRunner(async () => {
+      try {
+        if (!sharedDeps) sharedDeps = buildDeps();
+        if (!singlePostRunner) singlePostRunner = new (require('./singlePostRunner').SinglePostRunner)(sharedDeps);
+        await singlePostRunner.tick();
+      } catch (error) { console.error('[single-post] scan failed code=' + (error.code || 'SINGLE_POST_FAILED')); }
+    });
+    singlePostRun();
+    const singlePostTimer = setInterval(singlePostRun, 5000);
+    const reportTimer = setInterval(reportRun, 5000);
     const timer = setInterval(scheduleRun, interval);
-    const shutdown = async signal => { console.log(`[worker] stopping signal=${signal}`); clearInterval(timer); try { await sharedDeps?.repo?.pool?.end?.(); } catch (error) { console.error(`[worker] shutdown failed: ${errorCode(error)}`); } };
+    const shutdown = async signal => { console.log(`[worker] stopping signal=${signal}`); clearInterval(timer); clearInterval(reportTimer); clearInterval(singlePostTimer); try { await reportRepo?.pool?.end?.(); await sharedDeps?.repo?.pool?.end?.(); } catch (error) { console.error(`[worker] shutdown failed: ${errorCode(error)}`); } };
     process.once('SIGINT', () => shutdown('SIGINT').finally(() => process.exit(0)));
     process.once('SIGTERM', () => shutdown('SIGTERM').finally(() => process.exit(0)));
     console.log(`public-opinion-worker mode=${mode} scanning all eligible sources every ${interval}ms`);

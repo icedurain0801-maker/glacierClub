@@ -1,0 +1,22 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { Repository } = require('E:/CodexData/public-opinion/releases/release-20261020-community-load-r4/server/src/db/repository');
+test('source summary preserves all checkpoint totals grouped by scope and status', async () => {
+  const repo = new Repository({ DB_PORT: 1, DB_NAME: 'fixture_never_connects' });
+  repo.pool = { query() { throw new Error('must not connect'); } };
+  const calls = [];
+  const rows = [{ sync_scope: 'comments', status: 'idle', checkpoint_count: 72524, items_fetched: 6479 }, { sync_scope: 'posts', status: 'completed', checkpoint_count: 2190, items_fetched: 1498 }];
+  repo.query = async (sql, params) => { calls.push({ sql, params }); return sql.includes('ordered_errors') ? [{sync_scope:'comments',error_message:'fixture first error'}] : rows; };
+  assert.deepEqual(await repo.getSourceSyncStatusSummary({ accountId: 'fixture' }), rows.map(row=>({...row,error_message:row.sync_scope==='comments'?'fixture first error':null})));
+  assert.match(calls[0].sql, /COUNT\(\*\) AS checkpoint_count/);
+  assert.match(calls[0].sql, /SUM\(items_fetched\)/);
+  assert.match(calls[0].sql, /GROUP BY sync_scope,status/);
+  assert.match(calls[0].sql, /FORCE INDEX \(po_checkpoint_summary_cover\)/);
+  assert.doesNotMatch(calls[0].sql, /SELECT \*|LIMIT|root_platform_content_id/);
+  assert.deepEqual(calls[0].params, ['fixture']);
+  await repo.getSyncStatus({ accountId: 'fixture' });
+  assert.match(calls[1].sql, /ORDER BY root_platform_content_id,id/);
+  assert.match(calls[1].sql, /FORCE INDEX \(po_checkpoint_error_summary_idx\)/);
+  assert.match(calls[1].sql, /error_message IS NOT NULL AND error_message<>''/);
+  assert.match(calls[2].sql, /SELECT \* FROM po_sync_checkpoints/);
+});

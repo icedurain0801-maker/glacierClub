@@ -23,34 +23,45 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
   }
 
   function publicOpinionScope() {
-    return window.PublicOpinionScope?.selected?.() || null;
+    const currentScope = window.PublicOpinionScope?.selected?.();
+    if (currentScope) return currentScope;
+    try { return JSON.parse(sessionStorage.getItem('publicOpinionScope') || 'null'); } catch (_) { return null; }
   }
 
   const PUBLIC_OPINION_ICONS = {
+    api: '<svg viewBox="0 0 24 24" focusable="false"><path d="M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></svg>',
     overview: '<svg viewBox="0 0 24 24" focusable="false"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg>',
     content: '<svg viewBox="0 0 24 24" focusable="false"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>',
     alerts: '<svg viewBox="0 0 24 24" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>',
     sources: '<svg viewBox="0 0 24 24" focusable="false"><circle cx="8" cy="8" r="3"/><path d="M3 20v-2a5 5 0 0 1 10 0v2M16 7h5m-2.5-2.5v5M16 14h5M16 18h5"/></svg>',
     runs: '<svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2M8 3l-2 3M16 3l2 3"/></svg>',
-    keywords: '<svg viewBox="0 0 24 24" focusable="false"><circle cx="10" cy="10" r="6"/><path d="m14.5 14.5 5 5M7 10h6M10 7v6"/></svg>'
+    keywords: '<svg viewBox="0 0 24 24" focusable="false"><circle cx="10" cy="10" r="6"/><path d="m14.5 14.5 5 5M7 10h6M10 7v6"/></svg>',
+    permissions: '<svg viewBox="0 0 24 24" focusable="false"><path d="M12 3 4 6v5c0 5.2 3.4 8.8 8 10 4.6-1.2 8-4.8 8-10V6zM9 12l2 2 4-4"/></svg>'
   };
 
   const navigationData = isPublicOpinionWorkbench ? PUBLIC_OPINION_SIDEBAR_DATA : SIDEBAR_DATA;
   const initialScopeParams = new URLSearchParams(location.search);
+  if (isPublicOpinionWorkbench && ['admin/PublicOpinion/permissions.html', 'admin/PublicOpinion/api-config.html'].includes(currentHref)) {
+    const params = new URLSearchParams(location.search);
+    ['regionCode', 'gameId', 'communityId', 'boardId', 'platform'].forEach(key => params.delete(key));
+    history.replaceState(null, '', `${location.pathname}${params.size ? `?${params}` : ''}${location.hash}`);
+  }
 
   function hrefFor(node) {
     const params = new URLSearchParams();
-    if (isPublicOpinionWorkbench && isPublicOpinionPage(node.href)) {
+    if (isPublicOpinionWorkbench && !node.global && node.href !== 'admin/PublicOpinion/permissions.html' && isPublicOpinionPage(node.href)) {
       const scope = publicOpinionScope();
       const regionCode = scope?.regionCode || initialScopeParams.get('regionCode');
       const communityId = scope?.communityId || initialScopeParams.get('communityId');
       const platform = scope?.platform || initialScopeParams.get('platform');
-      if (regionCode) params.set('regionCode', regionCode);
-      if (communityId) params.set('communityId', communityId);
-      if (platform) params.set('platform', platform);
+      const boardId = scope?.community?.externalId ?? scope?.community?.external_id ?? scope?.boardId ?? initialScopeParams.get('boardId');
+      if (boardId != null && String(boardId)) params.set('boardId', String(boardId));
+      else { if (regionCode) params.set('regionCode', regionCode); if (communityId) params.set('communityId', communityId); }
+      if (platform && platform !== 'bigplayer_h5') params.set('platform', platform);
     }
     const query = params.toString();
-    return root + '/' + node.href + (query ? `?${query}` : '') + (node.screenId ? '#' + node.screenId : '');
+    const href = isPublicOpinionWorkbench && node.href === 'admin/PublicOpinion/index.html' && !location.pathname.startsWith('/apps/') ? '/' : root + '/' + node.href;
+    return href + (query ? `?${query}` : '') + (node.screenId ? '#' + node.screenId : '');
   }
 
   const searchIndex = [];
@@ -71,6 +82,11 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
   if (!isPublicOpinionWorkbench) collectItems(navigationData, []);
 
   const allItems = [];
+  const permissionForNode = node => ({
+    'admin/PublicOpinion/index.html': 'overview', 'admin/PublicOpinion/content.html': 'content', 'admin/PublicOpinion/single-post-analysis.html': 'content', 'admin/PublicOpinion/alerts.html': 'alerts',
+    'admin/PublicOpinion/sources.html': 'sources', 'admin/PublicOpinion/collection-runs.html': 'runs', 'admin/PublicOpinion/keywords.html': 'keywords',
+    'admin/PublicOpinion/permissions.html': 'permissions'
+  })[node.href];
 
   function isActiveNow(node) {
     if (normPath(node.href) !== current) return false;
@@ -156,6 +172,7 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
       if (node.type === 'item') {
         const link = document.createElement('a');
         link.className = 'nav-item';
+        if (node.adminOnly) link.style.display = 'none';
         link.href = hrefFor(node);
 
         let marker;
@@ -208,6 +225,15 @@ function initSidebar({ root = '.', currentHref = '' } = {}) {
   treeWrap.className = 'sidebar-tree';
   treeWrap.appendChild(buildTree(navigationData, 0));
   nav.appendChild(treeWrap);
+  if (isPublicOpinionWorkbench && window.PublicOpinionAuth?.ready) window.PublicOpinionAuth.ready.then(session => {
+    const allowed = session?.identity?.navigation;
+    allItems.forEach(({ el, node }) => {
+      if (node.adminOnly) { el.style.display = session?.identity?.roles?.includes('admin') ? '' : 'none'; return; }
+      const permission = permissionForNode(node);
+      if (Array.isArray(allowed) && permission && !allowed.includes(permission)) el.style.display = 'none';
+    });
+    nav.querySelectorAll('.nav-group').forEach(group => { if (![...group.querySelectorAll('.nav-item')].some(item => item.style.display !== 'none')) group.style.display = 'none'; });
+  }).catch(() => {});
 
   if (!isPublicOpinionWorkbench) {
     const SEARCH_KEY = 'bigPlayer.sidebar.searchQuery';

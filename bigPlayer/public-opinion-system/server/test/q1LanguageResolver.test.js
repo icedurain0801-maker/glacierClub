@@ -25,8 +25,28 @@ test('unsupported ID cannot silently become Chinese or Japanese', async () => {
 });
 test('configuration lookup failure retries rather than caching a default', async () => {
   let calls = 0; const resolve = createQ1LanguageResolver(async () => { if (++calls === 1) throw Error('network'); return response(languages); });
+  assert.equal(await resolve(site(9), 'ja-jp'), 'ko-KR');
+  assert.equal(calls, 2);
+});
+test('transient language endpoint outage uses the last successful mapping during a short grace window', async () => {
+  let time = 0, calls = 0; const resolve = createQ1LanguageResolver(async () => { calls += 1; if (calls > 1) throw Error('temporary outage'); return response(languages); }, { now: () => time, ttlMs: 10, timeoutMs: 20 });
+  assert.equal(await resolve(site(9), ''), 'ko-KR'); time = 11; assert.equal(await resolve(site(9), ''), 'ko-KR');
+  assert.equal(calls, 3);
+});
+test('persistent language endpoint outage still fails closed without a prior mapping', async () => {
+  let calls = 0; const resolve = createQ1LanguageResolver(async () => { calls += 1; throw Error('network'); }, { timeoutMs: 20 });
   await assert.rejects(resolve(site(9), 'ja-jp'), { code: 'Q1_LANGUAGE_CONFIG_UNAVAILABLE' });
-  assert.equal(await resolve(site(9), 'ja-jp'), 'ko-KR'); assert.equal(calls, 2);
+  assert.equal(calls, 2);
+});
+test('a successful mapping is refreshed after the grace window expires', async () => {
+  let time = 0, calls = 0; const resolve = createQ1LanguageResolver(async () => { calls += 1; return response(languages); }, { now: () => time, ttlMs: 10 });
+  assert.equal(await resolve(site(9), ''), 'ko-KR'); time = 1800001; assert.equal(await resolve(site(9), ''), 'ko-KR');
+  assert.equal(calls, 2);
+});
+test('configuration lookup can recover on a later invocation', async () => {
+  let calls = 0; const resolve = createQ1LanguageResolver(async () => { if (++calls <= 3) throw Error('network'); return response(languages); });
+  await assert.rejects(resolve(site(9), 'ja-jp'), { code: 'Q1_LANGUAGE_CONFIG_UNAVAILABLE' });
+  assert.equal(await resolve(site(9), 'ja-jp'), 'ko-KR'); assert.equal(calls, 4);
 });
 test('malformed config, duplicate ID, invalid ID and unsafe redirect are rejected', async () => {
   await assert.rejects(createQ1LanguageResolver(async () => response({}))(site(2), ''), { code: 'Q1_LANGUAGE_CONFIG_INVALID' });

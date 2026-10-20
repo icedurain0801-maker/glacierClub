@@ -16,6 +16,12 @@ class AuthRefreshCoordinator {
 
   async refresh({ source, account }) {
     if (!source?.id || !account?.id) throw new ConnectorError('AUTH_REFRESH_FAILED', 'account refresh binding is incomplete');
+    if (source.platform === 'bigplayer_h5' && typeof this.repo.getAccount === 'function') {
+      const fresh = await this.repo.getAccount(account.id);
+      const password = await this.repo.getCredentialByAccount(account.id, 'account_password');
+      const { BigPlayerTokenRenewal, tokenMode } = require('./bigPlayerTokenRenewal');
+      if (fresh && tokenMode(fresh, password?.status === 'active')) return new BigPlayerTokenRenewal({ repo: this.repo, env: this.env }).renew({ source, account: fresh, force: true });
+    }
     const lockName = `po-auth-refresh:${account.id}`;
     const acquired = await this.repo.acquireAdvisoryLock(lockName, this.lockWaitSeconds);
     if (!acquired) throw new ConnectorError('AUTH_REFRESH_ALREADY_RUNNING', 'account authorization refresh is already running');

@@ -39,7 +39,7 @@ test('audit failure rolls back the analysis write and stale fingerprint never wr
   });
   await assert.rejects(repo.insertAnalysis('c', { sentiment: 'positive', severity: 'urgent', contentFingerprint: 'old' }), { code: 'ANALYSIS_CONTENT_CHANGED' });
   assert.equal(repo.calls.some(call => call.sql.startsWith('INSERT INTO po_analyses')), false);
-  await assert.rejects(repo.insertAnalysis('c', { sentiment: 'positive', severity: 'urgent', contentFingerprint: 'current' }), /audit unavailable/);
+  await assert.rejects(repo.insertAnalysis('c', { sentiment: 'positive', severity: 'urgent', reason: '正面内容，无需处理。', contentFingerprint: 'current' }), /audit unavailable/);
   assert.equal(commit, 0);
   assert.equal(rollback, 2);
 });
@@ -114,7 +114,7 @@ test('analysis progress separates claimable jobs, active leases and orphan alarm
   assert.match(repo.calls[0].sql, /s\.enabled=1/);
   assert.match(repo.calls[0].sql, /c\.is_deleted=0/);
   assert.match(repo.calls[0].sql, /j\.lease_owner NOT LIKE/);
-  assert.match(repo.calls[1].sql, /c\.id IS NULL/);
+  assert.match(repo.calls[1].sql, /j\.content_id NOT IN \(SELECT id FROM po_contents\)/);
 });
 
 test('analysis claim fails closed after consumer gate connection ownership is lost', async () => {
@@ -329,8 +329,14 @@ test('findOpenAlert 只取冷却期内未闭环告警', async () => {
 });
 
 test('insertAlert 写主体并关联命中内容', async () => {
-  const repo = stubRepo((sql) => (sql.startsWith('SELECT') ? [{ id: 'fixed', game_id: 'g1' }] : { affectedRows: 1 }));
-  const alert = await repo.insertAlert({ gameId: 'g1', severity: 'urgent', alertType: 'immediate', title: 't', triggerDetail: 'd', contentIds: ['c1', 'c2'] });
+  const { VERSION, hash } = require('../src/services/urgentValidation');
+  const body = '全服无法登录，持续3小时无法进入游戏';
+  const reason = `原文“${body}”：报告群体持续服务中断，需要紧急核查。`;
+  const decision = { provider: 'typesafe-v12-secondary-review-v1', raw_level: 'L3', final_level: 'L3', status: 'auto_passed', confidence: .95, has_verifiable_issue: .95, reason_key: 'emergency', emergency_trigger: 'login_or_asset', source_hash: hash(body) };
+  const review = { version: VERSION, status: 'approved', level: 'L3', confidence: .95, hasIssue: true, isQuestion: false, emergency: 'login_or_asset', reason: '报告群体持续服务中断，需要紧急核查。', quote: body, sourceHash: hash(body) };
+  const row = { id: 'fixed', game_id: 'g1', community_id: 'cm1', severity: 'urgent', body, fingerprint: 'fp', content_fingerprint: 'fp', risk_context: JSON.stringify({ rawAnalysis: { typeSafeDecision: decision, urgentReview: review, reason } }) };
+  const repo = stubRepo(sql => sql.startsWith('SELECT') ? [row] : { affectedRows: 1 });
+  const alert = await repo.insertAlert({ gameId: 'g1', communityId: 'cm1', severity: 'urgent', alertType: 'immediate', title: 't', triggerDetail: 'd', contentIds: ['c1', 'c2'] });
   assert.equal(alert.game_id, 'g1');
   const inserts = repo.calls.filter(c => c.sql.startsWith('INSERT INTO po_alerts'));
   const links = repo.calls.filter(c => c.sql.startsWith('INSERT IGNORE INTO po_alert_contents'));
@@ -493,7 +499,7 @@ test('claimAnalysisJobs rejects disabled source bypass without the complete manu
 test('countAnalysisJobs and countContentsByType keep yesterday isolation in SQL', async () => {
   const repo = stubRepo(sql => sql.includes('GROUP BY j.status')
     ? [{ status: 'pending', count: '2' }, { status: 'completed', count: '5' }]
-    : sql.includes('c.id IS NULL') ? [{ count: 0 }] : [{ content_type: 'post', count: '3' }, { content_type: 'comment', count: '4' }]);
+    : sql.includes('j.content_id NOT IN (SELECT id FROM po_contents)') ? [{ count: 0 }] : [{ content_type: 'post', count: '3' }, { content_type: 'comment', count: '4' }]);
   const window = { publishedFrom: '2026-08-10T16:00:00.000Z', publishedTo: '2026-08-11T16:00:00.000Z' };
 
   const progress = await repo.countAnalysisJobs({ profile: 'light', version: 'sentiment-v1', ...window });
@@ -557,7 +563,8 @@ test('content list and tree queries expose analysis_reason', async () => {
 
 test('getOverview 返回完整归属的 trend、hotNegative 与当前告警', async () => {
   const repo = stubRepo((sql, params) => {
-    if (/SELECT COUNT\(\*\) AS total/.test(sql) && params.includes('comment')) return [{ total: 0 }];
+    if (/SELECT c.content_type, COUNT\(\*\) AS count/.test(sql)) return [{ content_type: 'post', count: 5, attention: 0, urgent: 2 }];
+    if (/SELECT (?:STRAIGHT_JOIN )?COUNT\(\*\) AS total/.test(sql) && params.includes('comment')) return [{ total: 0 }];
     if (/DATE_ADD\(c\.published_at, INTERVAL 8 HOUR\)/.test(sql)) return [{ date: '2026-08-07', negative: 2, total: 5 }];
     if (/SELECT c\.\*/.test(sql) && /ORDER BY c\.published_at DESC, c\.id DESC/.test(sql)) return [{ id: 'c1', game_name: '超能世界', community_name: '超能世界国服版', engagement: 99 }];
     if (/GROUP BY s\.platform/.test(sql)) return [{ platform: 'taptap', count: 5 }];
@@ -629,7 +636,7 @@ test('active urgent alerts exclude downgraded contents without recovering old li
   assert.match(repo.calls.find(({ sql }) => sql.startsWith('SELECT DISTINCT a.*,')).sql, /live_analysis\.severity='urgent'/);
 });
 
-test('attention remains separate and merged urgent covers both levels across list count and tree', async () => {
+test('combined L2 and reviewed L3 queue stays separate from L1 across list count and tree', async () => {
   for (const [riskMode, levels] of [['attention', ['attention']], ['negative', ['negative', 'urgent']], ['urgent', ['negative', 'urgent']]]) {
     const repo = stubRepo(() => []);
     await repo.listContents({ riskMode, communityId: 'cm1' });
@@ -1692,6 +1699,33 @@ test('enqueueSyncRun preserves the pre-023 legacy insert when scheduler state ta
   assert.ok(!executed.some(call => call.sql.startsWith('SELECT source_id, lease_until')));
 });
 
+test('manual sync window is yesterday midnight Beijing regardless of host timezone or prior cursor', () => {
+  const { effectiveBigPlayerWindow } = require('../src/db/repository');
+  for (const [anchor, expected] of [
+    ['2026-10-19 07:35:12.345', '2026-10-17 16:00:00.000'],
+    ['2026-10-18 16:00:00.000', '2026-10-17 16:00:00.000'],
+    ['2026-10-18 15:59:59.999', '2026-10-16 16:00:00.000'],
+    ['2026-01-01 01:00:00.000', '2025-12-30 16:00:00.000'],
+    ['2024-03-01 01:00:00.000', '2024-02-28 16:00:00.000']
+  ]) {
+    for (const cursor of [null, '2026-10-19 07:30:00.000', '2020-01-01 00:00:00.000']) {
+      const window = effectiveBigPlayerWindow(anchor, cursor);
+      assert.equal(window.windowStart, expected);
+      assert.equal(window.windowEnd, anchor);
+    }
+  }
+  assert.throws(() => effectiveBigPlayerWindow('invalid'), { code: 'UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED' });
+});
+
+test('manual sync persists yesterday midnight even when a newer successful cursor exists', async () => {
+  for (const cursor of [null, '2026-09-11 07:00:00.000']) {
+    const { repo, executed } = manualSyncHarness({ lastSuccessfulCursor: cursor });
+    await repo.startSourceSync({ sourceId: 's1' });
+    const insert = executed.find(call => call.sql.startsWith('INSERT INTO po_sync_runs'));
+    assert.deepEqual(insert.params.slice(4, 6), ['2026-09-09 16:00:00.000', '2026-09-11 08:30:00.000']);
+  }
+});
+
 test('startSourceSync locks the source/default account and creates exactly one queued manual run', async () => {
   const { repo, executed } = manualSyncHarness();
   const result = await repo.startSourceSync({ sourceId: 's1', syncMode: 'incremental', metadata: { crawlScope: 'incremental' } });
@@ -1739,7 +1773,7 @@ test('BigPlayer multi-site manual sync creates one parent and one queued child p
     assert.equal(inserts[index + 1].params[3], site.url);
     assert.equal(inserts[index + 1].params[4], 's1');
   }
-  assert.deepEqual(inserts.slice(1).map(call => call.params[8]), ['2026-09-11 07:00:00.000', '2026-09-10 20:00:00.000', '2026-09-04 08:30:00.000']);
+  assert.deepEqual(inserts.slice(1).map(call => call.params[8]), Array(3).fill('2026-09-09 16:00:00.000'));
   const registry = executed.find(call => call.sql.startsWith('SELECT site_id, url, enabled FROM po_source_sites'));
   assert.deepEqual(registry.params, ['s1']);
 });
@@ -1795,7 +1829,7 @@ test('overseas BigPlayer aligned sites retain legacy identity and checkpoint cur
   assert.deepEqual(inserts.slice(1).map(call => call.params[2]), alignedSites.map(site => site.siteId));
   assert.deepEqual(inserts.slice(1).map(call => call.params[3]), urls);
   assert.deepEqual(inserts.slice(1).map(call => call.params[11]), ['100017', '100017', '100017']);
-  assert.equal(inserts[1].params[8], historicalCursor, '原 legacy 站点继续使用原 checkpoint 游标');
+  assert.equal(inserts[1].params[8], '2026-09-09 16:00:00.000', '手动同步从北京时间昨天零点开始，不受历史游标影响');
   const cursorRead = executed.find(call => call.sql.startsWith('SELECT site_id,MAX(last_item_at)'));
   assert.deepEqual(cursorRead.params.slice(1, 4), alignedSites.map(site => site.siteId));
   assert.ok(!executed.some(call => /^(UPDATE|DELETE)\s+po_(?:sync_runs|sync_checkpoints|source_sites)\b/i.test(call.sql)), '历史 Run、checkpoint 和 registry 身份不得重键或删除');
@@ -2558,7 +2592,7 @@ test('quality candidate upsert is deep-only, idempotent, and preserves review fi
   assert.equal(candidate.id, 'q1');
   assert.match(repo.calls[1].sql, /ON DUPLICATE KEY UPDATE/);
   assert.doesNotMatch(repo.calls[1].sql, /home_review_status=VALUES|home_adopted=VALUES|reviewer_id=VALUES/);
-  assert.deepEqual(repo.calls[1].params.slice(1), ['c1', 0.9, 1, 0, 0, 'high value', 'deep-v2', 'model', 'fp']);
+  assert.deepEqual(repo.calls[1].params.slice(1), ['c1', 0.9, 1, 0, 0, 'high value', 'deep-v2', 'model', 'fp', null]);
 });
 
 test('quality candidate upsert removes negative candidates and stale recommendations', async () => {
@@ -2584,7 +2618,7 @@ test('quality content queries enforce scope, recommendation review, date, and pa
   assert.equal(items[0].id, 'q1'); assert.equal(total, 3); assert.equal(detail.id, 'q1');
   assert.match(repo.calls[0].sql, /q\.recommend_home=1/); assert.match(repo.calls[0].sql, /q\.home_review_status=\?/);
   assert.match(repo.calls[0].sql, /CHAR_LENGTH\(REGEXP_REPLACE/);
-  assert.match(repo.calls[0].sql, /q\.quality_score >= 0\.7/);
+  assert.match(repo.calls[0].sql, /q\.quality_score >= COALESCE\(JSON_EXTRACT\(q\.quality_policy,'\$\.minScore'\) \+ 0,0\.7\)/);
   assert.match(repo.calls[0].sql, /ORDER BY c\.published_at DESC, q\.quality_score DESC, q\.id DESC/);
   assert.deepEqual(repo.calls[0].params, ['g1', 'cm1', 's1', 'domestic', '2026-08-01', '2026-08-21', 'pending', 10, 10]);
   assert.deepEqual(repo.calls[2].params, ['q1', 'g1', 'cm1', 's1', 'domestic']);

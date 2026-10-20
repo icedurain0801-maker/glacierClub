@@ -79,8 +79,9 @@ const server = http.createServer((req, res) => {
   }
   if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { allow: 'GET, HEAD' }); res.end(); return; }
   if (requestUrl.pathname === '/') {
-    res.writeHead(302, { location: '/admin/PublicOpinion/index.html', 'cache-control': 'no-store' });
-    res.end();
+    const html = fs.readFileSync(path.join(staticRoot, 'admin/PublicOpinion/index.html'), 'utf8').replace(/<head>/i, '<head><base href="/admin/PublicOpinion/">');
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(req.method === 'HEAD' ? undefined : html);
     return;
   }
   const file = safeStaticPath(requestUrl.pathname);

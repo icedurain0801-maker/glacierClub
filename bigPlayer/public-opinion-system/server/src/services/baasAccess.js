@@ -32,7 +32,7 @@ function requiredPermission(method, pathname) {
   if (method === 'GET' && path === '/sources') return 'read'; // Overview refresh frequency uses source summaries.
   // Configuration, credentials and login challenges are never exposed to read-only roles.
   if (/^\/(?:sources|accounts|credentials|keyword-rules|oauth|sync-runs|collection-runs)(?:\/|$)/.test(path)) return 'manage';
-  if (method === 'GET' && /^(?:\/(?:overview|overview-trend|games|communities|analysis\/progress)|\/(?:contents|quality-contents|alerts)(?:\/[^/]+)?)$/.test(path)) return 'read';
+  if (method === 'GET' && /^(?:\/(?:overview|overview-trend|weekly-report|games|communities|analysis\/progress)|\/(?:contents|quality-contents|alerts)(?:\/[^/]+)?)$/.test(path)) return 'read';
   if (method === 'PATCH' && /^\/(?:quality-contents|alerts)\/[^/]+$/.test(path)) return 'review';
   if (method === 'POST' && path === '/contents/batch-handle') return 'review';
   if (method === 'POST' && /^\/contents\/[^/]+\/translation$/.test(path)) return 'read';
@@ -68,13 +68,19 @@ class BaasAccess {
       throw accessError('BAAS_LOGIN_REQUIRED', 401, '请先登录冰川账号');
     }
     let response;
-    try {
-      response = await this.fetch(`${BAAS_BASE_URL}/v1/auth/me`, {
-        headers: { 'X-App-Key': BAAS_APP_KEY, Authorization: authorization },
-        redirect: 'error', signal: AbortSignal.timeout(5000)
-      });
-    } catch {
-      throw accessError('BAAS_UNAVAILABLE', 503, '冰川身份服务暂不可用，请稍后重试');
+    const signal = AbortSignal.timeout(5000);
+    // Retry only the identity read, never a business write; share one time budget.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await this.fetch(`${BAAS_BASE_URL}/v1/auth/me`, {
+          headers: { 'X-App-Key': BAAS_APP_KEY, Authorization: authorization },
+          redirect: 'error', signal
+        });
+        if (response.status !== 429 && response.status < 500) break;
+      } catch (_) {
+        if (attempt === 1 || signal.aborted) throw accessError('BAAS_UNAVAILABLE', 503, '冰川身份服务暂不可用，请稍后重试');
+      }
+      if (attempt === 0 && !signal.aborted) await new Promise(resolve => setTimeout(resolve, 100));
     }
     if (response.status === 401 || response.status === 403) throw accessError('BAAS_LOGIN_REQUIRED', 401, '登录已失效或不属于本应用，请重新登录');
     if (!response.ok) throw accessError('BAAS_UNAVAILABLE', 503, '冰川身份服务暂不可用，请稍后重试');

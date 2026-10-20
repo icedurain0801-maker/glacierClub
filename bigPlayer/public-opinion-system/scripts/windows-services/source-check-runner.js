@@ -4,7 +4,6 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const ROOT = 'C:/ProgramData/PublicOpinion/collection-check';
-const OVERSEAS = '081a16d2-5545-4afd-9c65-e04777e4540b';
 const powershell = args => execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args], { windowsHide: true, encoding: 'utf8', timeout: 120000 });
 function workerRoot() {
   const xml = fs.readFileSync('C:/ProgramData/PublicOpinion/services/PublicOpinionWorker.xml', 'utf8');
@@ -44,24 +43,22 @@ async function main(argv) {
     const runs = await q(`SELECT status,scheduled_at,started_at FROM po_sync_runs WHERE source_id=? AND parent_run_id IS NULL
       AND (status IN ('queued','running','paused','pausing','cancelling','awaiting_manual_verification') OR started_at>=? OR scheduled_at>=?)`, [source.id, slot.slice(0, 23).replace('T', ' '), slot.slice(0, 23).replace('T', ' ')]);
     const decision = recoveryDecision(source, runs, slot);
-    if (source.collect_requested_at && decision === 'RECOVER' && source.id !== OVERSEAS) return { sourceId: source.id, scheduledAt: slot, status: 'ALREADY_REQUESTED' };
-    if (source.id !== OVERSEAS && ['ACTIVE', 'RECOVER'].includes(decision)) {
+    if (source.collect_requested_at && decision === 'RECOVER') return { sourceId: source.id, scheduledAt: slot, status: 'ALREADY_REQUESTED' };
+    if (['ACTIVE', 'RECOVER'].includes(decision)) {
       powershell(['-Command', "$s=Get-Service -Name PublicOpinionWorker; if($s.Status -eq 'Stopped'){Start-Service -Name PublicOpinionWorker}"]);
     }
     if (decision !== 'RECOVER') return { sourceId: source.id, scheduledAt: slot, status: decision };
-    if (source.id === OVERSEAS) {
-      // Use the installed task's exact guarded collector; never substitute the
-      // shared Worker or bypass authorization/exclusion checks.
-      const task = JSON.parse(powershell(['-Command', "$a=(Get-ScheduledTask -TaskName 'BigPlayer Last Night Overseas Daily 02').Actions; [pscustomobject]@{path=$a.Execute;args=$a.Arguments} | ConvertTo-Json -Compress"]));
-      if (!task.path.toLowerCase().endsWith('\\wscript.exe')) throw new Error('OVERSEAS_HIDDEN_ACTION_REQUIRED');
-      const quoted = [...task.args.matchAll(/"([^"]+)"/g)].map(match => match[1]);
-      if (quoted.length !== 2 || !quoted[1].startsWith('C:\\ProgramData\\PublicOpinion\\overseas-daily\\releases\\')) throw new Error('OVERSEAS_ACTION_INVALID');
-      execFileSync(task.path, ['//B', '//Nologo', ...quoted], { windowsHide: true, stdio: 'ignore', timeout: 3600000 });
-      return { sourceId: source.id, scheduledAt: slot, status: 'OVERSEAS_RECOVERY_EXECUTED' };
-    }
     // Existing request entry preserves the Worker authorization and admission
     // gates. No standalone crawler or credentials are introduced here.
-    await repo.requestCollect(source.id);
+    if (source.platform === 'bigplayer_h5') {
+      // Use the normal multi-site admission path so recovery checks do not
+      // silently fall back to the source's first-language compatibility URL.
+      const now = new Date(source.db_now.replace(' ', 'T') + 'Z');
+      const businessDay = new Date(now.getTime() + 8 * 3600000);
+      businessDay.setUTCHours(0, 0, 0, 0);
+      const windowStart = new Date(businessDay.getTime() - 32 * 3600000).toISOString();
+      await repo.enqueueManualSourceSync({ sourceId: source.id, syncMode: 'backfill', windowStart, windowEnd: now.toISOString() });
+    } else await repo.requestCollect(source.id);
     return { sourceId: source.id, scheduledAt: slot, status: 'RECOVERY_REQUESTED' };
   } finally {
     if (locked) await connection.query('SELECT RELEASE_LOCK(?)', [lockName]);

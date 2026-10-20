@@ -11,6 +11,8 @@ test('HTTP draft authorization is read-only and configuration writes require its
   const stub = (object, key, value) => { const old = object[key]; object[key] = value; restores.push(() => { object[key] = old; }); };
   let writes = 0, authorized = true;
   const calls = [];
+  let tokenExchanges = 0, configuration;
+  stub(require('../src/services/bigPlayerTokenRenewal').BigPlayerTokenRenewal.prototype, 'exchange', async () => { tokenExchanges++; return { apiToken: 'isolated-new-token', expiresAt: '2030-01-01T00:00:00Z' }; });
   stub(app.baasAccess, 'enabled', false);
   stub(app.repo, 'listSources', async () => [source]);
   stub(app.repo, 'getDefaultAccount', async () => account);
@@ -21,7 +23,7 @@ test('HTTP draft authorization is read-only and configuration writes require its
   });
   stub(app.connectors.bigplayer_h5, 'accountHealth', async () => { calls.push('auth'); return { authorized, reason: 'UNAUTHORIZED' }; });
   stub(app.connectors.bigplayer_h5, 'detectCapabilities', async () => { calls.push('capabilities'); return { posts: { status: 'available' }, comments: { status: 'available' } }; });
-  stub(app.repo, 'updateSourceConfiguration', async () => { writes++; return { source }; });
+  stub(app.repo, 'updateSourceConfiguration', async (_, patch) => { writes++; configuration = patch; return { source }; });
   stub(app.repo, 'updateSourceAuth', async () => {});
   stub(app.repo, 'updateAccount', async () => {});
   stub(app.repo, 'upsertSourceCapability', async () => {});
@@ -49,6 +51,17 @@ test('HTTP draft authorization is read-only and configuration writes require its
     assert.equal(changed.status, 400); assert.equal(writes, 0);
     const saved = await request('/configuration', { ...body, authorizationCheckToken: result.authorizationCheckToken }, 'PATCH');
     assert.equal(saved.status, 200, await saved.text()); assert.equal(writes, 1);
+    process.env.CREDENTIAL_ENC_KEY ||= Buffer.alloc(32, 9).toString('base64');
+    const tokenBody = { ...body, authMode: 'api_token' };
+    const tokenChecked = await request('/check-authorization', { boardId: body.boardId, baseUrl: body.baseUrl, authMode: 'api_token' });
+    const receipt = (await tokenChecked.json()).data.authorizationCheckToken;
+    assert.ok(receipt);
+    const tokenSaved = await request('/configuration', { ...tokenBody, authorizationCheckToken: receipt }, 'PATCH');
+    assert.equal(tokenSaved.status, 200, await tokenSaved.text());
+    assert.equal(tokenExchanges, 1); assert.equal(configuration.authMode, 'api_token');
+    assert.equal(configuration.credential.expireAt, '2030-01-01T00:00:00Z');
+    const plain = require('../src/integrations/credentialCipher').decrypt(configuration.credentialCipher, process.env, { aad: `${account.id}:api_token:bigplayer_h5` });
+    assert.equal(plain, 'isolated-new-token');
   } finally {
     await new Promise(resolve => app.server.close(resolve));
     restores.reverse().forEach(restore => restore());

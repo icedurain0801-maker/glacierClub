@@ -24,6 +24,10 @@ test.before(async () => {
     if (sql.includes('information_schema.COLUMNS')) return [];
     if (sql.startsWith('SELECT COUNT(*) AS total')) return [{ total: 1 }];
     if (sql.startsWith('SELECT r.id FROM')) return [{ id: 'run-fixture' }];
+    if (sql.startsWith('SELECT scope.root_id AS run_id,')) {
+      assert.deepEqual(params, ['run-fixture', 'run-fixture']);
+      return [{ run_id: 'run-fixture', post_count: 3, actual_comment_body_count: 1, reply_count: 0 }];
+    }
     if (sql.startsWith('SELECT r.id,')) return [{ id: 'run-fixture', account_id: 'account-fixture', source_id: source.id, status: 'completed' }];
     throw new Error(`unexpected fixture query: ${sql.slice(0, 32)}`);
   };
@@ -51,6 +55,8 @@ test('current-schema fixture serves health, source, list, detail, and latest rea
   const runs = await get('/api/public-opinion/sync-runs?page=1&pageSize=20');
   assert.equal(runs.status, 200);
   assert.equal(runs.body.data[0].id, 'run-fixture');
+  assert.equal(runs.body.data[0].post_count, 3);
+  assert.equal(runs.body.data[0].actual_comment_body_count, 1);
   const detail = await get('/api/public-opinion/sync-runs/run-fixture');
   assert.equal(detail.status, 200);
   assert.equal(detail.body.data.id, 'run-fixture');

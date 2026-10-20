@@ -13,6 +13,23 @@ const validCommunity = {
   regionCode: ' domestic '
 };
 
+test('provider backs off repeated failures and resumes without returning stale authorization', async () => {
+  let now = 1000, calls = 0, online = false;
+  const subject = provider(async () => { calls++; if (!online) throw new TypeError('offline'); return response([validCommunity]); }, {}, () => now);
+  await assert.rejects(subject.getCommunities());
+  await assert.rejects(subject.getCommunities());
+  assert.equal(calls, 1);
+  now += 5001;
+  await assert.rejects(subject.getCommunities());
+  assert.equal(calls, 2);
+  now += 10000;
+  await assert.rejects(subject.getCommunities());
+  assert.equal(calls, 2);
+  now += 20001; online = true;
+  assert.equal((await subject.getCommunities()).length, 1);
+  assert.equal(calls, 3);
+});
+
 function response(body, { ok = true, status = 200 } = {}) {
   return { ok, status, async json() { return body; } };
 }

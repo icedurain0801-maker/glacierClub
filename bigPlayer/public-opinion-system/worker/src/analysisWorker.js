@@ -47,6 +47,8 @@ async function runAnalysisLoop(deps, { sleepFn = sleep, signal, processFn = proc
   const idleMs = Math.max(100, Number(process.env.AI_ANALYSIS_WORKER_IDLE_MS || 1000));
   let nextMetricsAt = 0;
   let metricsPending = false;
+  const repairReasons = require('./qualityReasonBackfill').createQualityReasonBackfill({ repo: deps.repo });
+  let reasonRepairPending = false;
   while (!signal?.aborted) {
     let result;
     try {
@@ -57,6 +59,13 @@ async function runAnalysisLoop(deps, { sleepFn = sleep, signal, processFn = proc
       continue;
     }
     log(JSON.stringify({ task: 'analysis-worker', at: new Date().toISOString(), analyzed: result?.analyzed || 0, skipped: Boolean(result?.skipped), timings: result?.timings }));
+    if (!reasonRepairPending && deps.repo?.pool && typeof deps.repo.qualityContentFilter === 'function') {
+      reasonRepairPending = true;
+      void repairReasons().then(result => {
+        if (result.generated || result.failed) log(JSON.stringify({ task: 'quality-reason-backfill', ...result }));
+      }).catch(error => console.error('[quality-reason-backfill]', error.code || 'REPAIR_FAILED'))
+        .finally(() => { reasonRepairPending = false; });
+    }
     if (!metricsPending && Date.now() >= nextMetricsAt && typeof deps.repo.countAnalysisJobs === 'function') {
       nextMetricsAt = Date.now() + 60000;
       metricsPending = true;

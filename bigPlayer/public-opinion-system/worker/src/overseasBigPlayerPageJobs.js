@@ -24,7 +24,7 @@ function createOverseasPageJobs({ analysisOptionsFor, translationOptions, repair
           // Do not reset a completed version or touch a running lease.
         } else {
           if (existing && (existing.status === 'running' || existing.lease_owner != null || existing.lease_until != null)) fail('OVERSEAS_QUEUE_ACTIVE_VERSION_CONFLICT');
-          await facade.enqueueAnalysisJob(row.id, { ...analysis, contentFingerprint: row.fingerprint,
+          await facade.enqueueAnalysisJob(row.id, { ...analysis, analysisPolicy: raw.rawPayload?._aiAnalysisPolicy, contentFingerprint: row.fingerprint,
             force: Boolean(existing && existing.content_fingerprint !== row.fingerprint) });
         }
       }

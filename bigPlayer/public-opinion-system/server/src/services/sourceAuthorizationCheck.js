@@ -3,6 +3,7 @@ const { normalizeSiteUrls } = require('./bigplayerSiteConfig');
 
 function fail(code, message) { throw Object.assign(new Error(message), { code, status: 400 }); }
 function prepare(source, body, allowedHosts) {
+  if (body.authMode != null && !['api_token', 'account_password'].includes(body.authMode)) fail('INVALID_CREDENTIALS', '授权方式无效');
   const config = typeof source.config === 'string' ? JSON.parse(source.config || '{}') : source.config || {};
   const boardId = String(body.boardId ?? config.boardId ?? '');
   if (!/^[1-9]\d*$/.test(boardId) || !Number.isSafeInteger(Number(boardId))) fail('INVALID_BOARD_ID', '版块 ID 必须为正整数');
@@ -18,14 +19,14 @@ function prepare(source, body, allowedHosts) {
       if (!String(credential.account || '').trim() || typeof credential.password !== 'string' || !credential.password) fail('INVALID_CREDENTIALS', '请填写账号和密码');
     } else fail('INVALID_CREDENTIALS', '不支持的授权方式');
   }
-  return { config: { ...config, ...sites, boardId }, credential };
+  return { config: { ...config, ...sites, boardId }, credential, ...(body.authMode ? { authMode: body.authMode } : {}) };
 }
 
 class SourceAuthorizationCheck {
   constructor({ now = Date.now, ttl = 300000 } = {}) { this.now = now; this.ttl = ttl; this.key = crypto.randomBytes(32); this.receipts = new Map(); this.previews = new Map(); }
   fingerprint(source, account, prepared) {
     return crypto.createHmac('sha256', this.key).update(JSON.stringify({ sourceId: source.id, accountId: account.id,
-      baseline: source.config, updatedAt: source.updated_at, config: prepared.config, credential: prepared.credential })).digest('hex');
+      baseline: source.config, updatedAt: source.updated_at, config: prepared.config, credential: prepared.credential, authMode: prepared.authMode })).digest('hex');
   }
   issue(source, account, prepared, capabilities) {
     for (const [key, value] of this.receipts) if (value.expires <= this.now()) this.receipts.delete(key);
@@ -50,6 +51,7 @@ class SourceAuthorizationCheck {
     const context = Object.create(credentialContext);
     let cachedToken;
     const loaded = async type => {
+      if (prepared.authMode && type !== prepared.authMode) throw Object.assign(new Error('credential not selected'), { code: 'CREDENTIAL_NOT_FOUND' });
       if (prepared.credential) {
         if (type !== prepared.credential.credentialType) throw Object.assign(new Error('credential not found'), { code: 'CREDENTIAL_NOT_FOUND' });
         return { apiToken: prepared.credential.secret, secretObject: prepared.credential };

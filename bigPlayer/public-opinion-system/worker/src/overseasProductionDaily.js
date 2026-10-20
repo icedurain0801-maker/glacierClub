@@ -11,6 +11,7 @@ const { stripBoardInsert } = require('./overseasBigPlayerPageStore');
 const { createOverseasPageJobs } = require('./overseasBigPlayerPageJobs');
 const { createProxyFetch, networkFailure, retryNetwork } = require('./overseasProxyTransport');
 const { computeSchedule } = require('./scheduleSlots');
+const { assertQueuedManual } = require('./overseasQueuedManual');
 const { collectComments, commentRootTasks, ensureCommentRootScope } = require('./overseasDailyComments');
 const SOURCE = '081a16d2-5545-4afd-9c65-e04777e4540b';
 const ACCOUNT = '75c8205f-37eb-4bdf-b6a4-f4f502e35658';
@@ -97,7 +98,7 @@ function assertSharedExclusion(manifestPath, processSnapshot) {
   const workerPath = path.join(manifest.releaseRoot, 'worker/src/worker.js');
   const startedAt = +new Date(snapshot.processes?.[0]?.CreationDate);
   if (snapshot.state !== 'Running' || snapshot.processes?.length !== 1 || !Number.isFinite(startedAt)
-    || !String(snapshot.processes[0].CommandLine).toLowerCase().includes(workerPath.toLowerCase())
+    || !String(snapshot.processes[0].CommandLine).replace(/\\/g,'/').toLowerCase().includes(workerPath.replace(/\\/g,'/').toLowerCase())
     || startedAt < newest) fail('OVERSEAS_SHARED_EXCLUSION_NOT_ACTIVE');
   return manifest;
 }
@@ -206,9 +207,15 @@ async function admit(repo, intent, owner, directory) {
       || dbTime(parent.window_start)!==dbTime(intent.windowStart) || dbTime(parent.window_end)!==dbTime(intent.windowEnd))) fail('OVERSEAS_PRODUCTION_SLOT_CONFLICT');
     const previousChildren=parent?await q('SELECT * FROM po_sync_runs WHERE parent_run_id=? FOR UPDATE',[parent.id]):[];
     let handoff=null;
+    let queuedHandoff=false;
     if(previousChildren.length && previousChildren.some(run=>!productionReceipt(run))){
       if(Number(state.live))fail('OVERSEAS_PRODUCTION_SOURCE_BUSY');
-      assertLegacyHandoff(intent,parent,previousChildren,scope.sites);
+      if(intent.manualQueueParent===parent?.id){
+        assertQueuedManual(parent,previousChildren,scope.sites);
+        const written=await q('SELECT content_id FROM po_sync_run_contents WHERE run_id IN (?,?,?,?) LIMIT 1',[parent.id,...previousChildren.map(run=>run.id)]);
+        if(written.length)fail('OVERSEAS_MANUAL_HANDOFF_INVALID');
+        queuedHandoff=true;
+      }else assertLegacyHandoff(intent,parent,previousChildren,scope.sites);
       // Keep the original rows and checkpoint cursors intact in a durable
       // private receipt before changing any run. Old feed cursors are not
       // compatible with the independent merged feed and are never imported.
@@ -221,7 +228,7 @@ async function admit(repo, intent, owner, directory) {
       handoff={receiptFile:path.basename(filename),sha256:sha(fs.readFileSync(filename))};
     }else if(previousChildren.length && (previousChildren.length!==3 || new Set(previousChildren.map(run=>run.site_id)).size!==3
       || previousChildren.some(run=>run.source_id!==SOURCE||run.account_id!==ACCOUNT||!scope.sites.some(site=>site.site_id===run.site_id)
-        || (run.id!==idFor(`${intent.scheduledAt}:${run.site_id}`) && !(intent.parentId===LEGACY_HANDOFF_PARENT
+        || (run.id!==idFor(`${intent.scheduledAt}:${run.site_id}`) && !(intent.manualQueueParent===intent.parentId && productionReceipt(run)?.manualQueueParent===intent.parentId) && !(intent.parentId===LEGACY_HANDOFF_PARENT
           && LEGACY_HANDOFF_CHILDREN.get(run.id)?.[0]===run.site_id && productionReceipt(run)?.legacyHandoff)))))fail('OVERSEAS_PRODUCTION_RECEIPT_CONFLICT');
     const runIds=new Map(scope.sites.map(site=>[site.site_id,previousChildren.find(run=>run.site_id===site.site_id)?.id||idFor(`${intent.scheduledAt}:${site.site_id}`)]));
     const active = await q("SELECT id FROM po_sync_runs WHERE source_id=? AND status IN ('queued','running','pausing','cancelling') AND (lease_until IS NULL OR lease_until>UTC_TIMESTAMP(3)) FOR UPDATE", [SOURCE]);
@@ -229,21 +236,21 @@ async function admit(repo, intent, owner, directory) {
     if(active.some(run=>!ownedIds.has(run.id)))fail('OVERSEAS_PRODUCTION_SOURCE_BUSY');
     if (parent?.status === 'completed') return { ...scope, alreadyCompleted: true };
     if (parent && ['pausing','cancelling','cancelled','canceled','awaiting_manual_verification'].includes(parent.status)) fail('OVERSEAS_PRODUCTION_CONTROL_PENDING');
-    if (!parent) await q(`INSERT INTO po_sync_runs (id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
-      VALUES (?,?,?,'running','incremental',?,?,?,?,?,UTC_TIMESTAMP(3))`, [intent.parentId,SOURCE,ACCOUNT,intent.kind==='today'?'manual':'scheduled',intent.kind==='today'?null:dbTime(intent.scheduledAt),dbTime(intent.windowStart),dbTime(intent.windowEnd),scope.source.schedule_version]);
-    await q("UPDATE po_sync_runs SET status='running',lease_owner=?,lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),lease_epoch=lease_epoch+1,attempts=attempts+1,finished_at=NULL WHERE id=?", [owner,LEASE_SECONDS,intent.parentId]);
+    if (!parent) await q(`INSERT INTO po_sync_runs (created_at,requested_at,id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
+      VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,'running','incremental',?,?,?,?,?,UTC_TIMESTAMP(3))`, [intent.parentId,SOURCE,ACCOUNT,intent.kind==='today'?'manual':'scheduled',intent.kind==='today'?null:dbTime(intent.scheduledAt),dbTime(intent.windowStart),dbTime(intent.windowEnd),scope.source.schedule_version]);
+    await q("UPDATE po_sync_runs SET status='running',lease_owner=?,lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),lease_epoch=lease_epoch+1,attempts=attempts+1,started_at=COALESCE(started_at,UTC_TIMESTAMP(3)),finished_at=NULL WHERE id=?", [owner,LEASE_SECONDS,intent.parentId]);
     const children = [];
     for (const site of scope.sites) {
       const runId = runIds.get(site.site_id);
       let [run] = await q('SELECT * FROM po_sync_runs WHERE id=? FOR UPDATE', [runId]);
       if (!run) {
-        await q(`INSERT INTO po_sync_runs (id,source_id,account_id,parent_run_id,site_id,status,sync_mode,trigger_type,window_start,window_end,schedule_version,started_at,error_message)
-          VALUES (?,?,?,?,?,'running','incremental','scheduled_site',?,?,?,UTC_TIMESTAMP(3),?)`, [runId,SOURCE,ACCOUNT,intent.parentId,site.site_id,dbTime(intent.windowStart),dbTime(intent.windowEnd),scope.source.schedule_version,JSON.stringify(receiptFor(intent,site))]);
+        await q(`INSERT INTO po_sync_runs (created_at,requested_at,id,source_id,account_id,parent_run_id,site_id,status,sync_mode,trigger_type,window_start,window_end,schedule_version,started_at,error_message)
+          VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,?,'running','incremental','scheduled_site',?,?,?,UTC_TIMESTAMP(3),?)`, [runId,SOURCE,ACCOUNT,intent.parentId,site.site_id,dbTime(intent.windowStart),dbTime(intent.windowEnd),scope.source.schedule_version,JSON.stringify(receiptFor(intent,site))]);
         [run] = await q('SELECT * FROM po_sync_runs WHERE id=?', [runId]);
       }
       if(handoff){
         const baseline=Object.fromEntries(['fetched_count','inserted_count','changed_count','unchanged_count','stored_count'].map(key=>[key,Number(run[key]||0)]));
-        const receipt={...receiptFor(intent,site),legacyHandoff:{...handoff,baseline},dailyCounts:{observations:0,inserted:0,changed:0,unchanged:0,stored:0}};
+        const receipt={...receiptFor(intent,site),legacyHandoff:{...handoff,baseline},...(queuedHandoff?{manualQueueParent:intent.parentId}:{}),dailyCounts:{observations:0,inserted:0,changed:0,unchanged:0,stored:0}};
         await q("UPDATE po_sync_runs SET error_message=?,status='partial',error_code=NULL WHERE id=? AND lease_epoch=?",[JSON.stringify(receipt),run.id,run.lease_epoch]);
         run.error_message=JSON.stringify(receipt);run.status='partial';
       }
@@ -429,9 +436,15 @@ async function main(argv = process.argv.slice(2), {refreshToday=false} = {}) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '1';
   if (process.env.OVERSEAS_DAILY_EXECUTION_ENABLED !== 'true') fail('OVERSEAS_PRODUCTION_EXECUTION_DISABLED');
   const guardPath = process.env.OVERSEAS_SHARED_EXCLUSION_MANIFEST;
-  const check = async () => assertSharedExclusion(guardPath);
-  await check();
   const directory = assertStateDirectory(process.env.OVERSEAS_DAILY_STATE_DIRECTORY);
+  const activeXml=fs.readFileSync('C:/ProgramData/PublicOpinion/services/PublicOpinionWorker.xml','utf8');
+  const activeRoot=path.dirname(activeXml.match(/<workingdirectory>([^<]+)</)?.[1]||'');
+  const previousGuard=parse(fs.readFileSync(guardPath,'utf8'));
+  const rebound=require('../../scripts/refresh-overseas-shared-exclusion').rebindManifest(previousGuard,activeRoot);
+  const reboundPath=path.join(process.env.OVERSEAS_DAILY_STATE_DIRECTORY,'active-shared-exclusion.json');
+  durableJson(reboundPath,rebound);
+  const check = async () => assertSharedExclusion(reboundPath);
+  await check();
   if(fs.existsSync(path.join(directory,'STOP')))fail('OVERSEAS_PRODUCTION_STOPPED');
   const { Repository } = require('../../server/src/db/repository');
   const { CredentialContext } = require('../../server/src/services/credentialContext');
@@ -452,8 +465,18 @@ async function main(argv = process.argv.slice(2), {refreshToday=false} = {}) {
     const [[lock]] = await lockConn.query('SELECT GET_LOCK(?,0) AS acquired',[`po-overseas-production:${SOURCE}`]);
     if (Number(lock.acquired) !== 1) fail('OVERSEAS_PRODUCTION_BUSY'); locked = true;
     const initial = await loadScope(repo.query.bind(repo));
-    const existing = fs.readdirSync(directory).filter(name => refreshToday?/^today-\d{13}\.json$/.test(name):/^slot-\d{13}\.json$/.test(name)).sort();
-    for (const name of existing) {
+    if(!refreshToday){
+      const [queued]=await repo.query("SELECT * FROM po_sync_runs WHERE source_id=? AND account_id=? AND parent_run_id IS NULL AND trigger_type='manual' AND status='queued' AND attempts=0 AND lease_owner IS NULL AND lease_until IS NULL ORDER BY created_at,id LIMIT 1",[SOURCE,ACCOUNT]);
+      if(queued){
+        const children=await repo.query('SELECT * FROM po_sync_runs WHERE parent_run_id=?',[queued.id]);
+        const slot=assertQueuedManual(queued,children,initial.sites);
+        intentPath=path.join(directory,'manual-'+queued.id+'.json');
+        if(fs.existsSync(intentPath))intent=parse(fs.readFileSync(intentPath,'utf8'));
+        else {intent={format:'overseas-production-slot-v1',status:'intent',sourceId:SOURCE,accountId:ACCOUNT,...slot,configSha256:initial.configSha256};durableJson(intentPath,intent,true);}
+      }
+    }
+    const existing = fs.readdirSync(directory).filter(name => refreshToday?/^today-\d{13}\.json$/.test(name):/^(?:slot-\d{13}|manual-[a-f0-9-]{36})\.json$/.test(name)).sort();
+    for (const name of intent?[]:existing) {
       const previous = parse(fs.readFileSync(path.join(directory,name),'utf8'));
       if (previous.status !== 'completed') { intent = previous; intentPath = path.join(directory,name); break; }
     }

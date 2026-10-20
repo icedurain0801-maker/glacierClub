@@ -46,3 +46,66 @@ test('nested source paths are not consumed by list route',async () => {
   assert.equal((await get('/sources/qa-source/unknown-subresource')).status,501);
   assert.equal(calls.length,before);
 });
+
+test('configuration detail never reads checkpoints when an account exists', async () => {
+  const keys = ['listAccounts', 'getAccountCredentialSummary', 'getSyncStatus', 'getSourceSyncStatusSummary'];
+  const previous = Object.fromEntries(keys.map(key => [key, app.repo[key]]));
+  app.repo.listAccounts = async () => [{ id: 'qa-account', source_id: source.id }];
+  app.repo.getAccountCredentialSummary = async () => [];
+  app.repo.getSyncStatus = app.repo.getSourceSyncStatusSummary = async () => { throw Error('checkpoint query must not run'); };
+  try {
+    const result = await get('/sources/qa-source?communityId=qa-community');
+    assert.equal(result.status, 200);
+    assert.equal(result.body.data.account.id, 'qa-account');
+    assert.equal(Object.hasOwn(result.body.data, 'checkpoints'), false);
+  } finally { Object.assign(app.repo, previous); }
+});
+test('source list returns account configuration without waiting for historical checkpoints', async () => {
+  const previous = { listAccounts: app.repo.listAccounts, getAccountCredentialSummary: app.repo.getAccountCredentialSummary, getSourceSyncStatusSummary: app.repo.getSourceSyncStatusSummary };
+  app.repo.listAccounts = async () => [{ id: 'qa-account', source_id: source.id }];
+  app.repo.getAccountCredentialSummary = async () => [];
+  app.repo.getSourceSyncStatusSummary = async () => { throw Error('list must not read historical checkpoints'); };
+  try {
+    const result = await get('/sources?communityId=qa-community');
+    assert.equal(result.status, 200); assert.equal(result.body.data[0].account.id, 'qa-account');
+    assert.deepEqual(result.body.data[0].checkpoints, []);
+  } finally { Object.assign(app.repo, previous); }
+});
+
+test('separate sync status uses the scoped source and returns complete summary', async () => {
+  const oldDefault = app.repo.getDefaultAccount, oldSummary = app.repo.getSourceSyncStatusSummary;
+  let queries = 0;
+  app.repo.getDefaultAccount = async filters => { assert.equal(filters.sourceId, source.id); return { id: 'qa-account' }; };
+  app.repo.getSourceSyncStatusSummary = async ({ accountId }) => { queries++; assert.equal(accountId, 'qa-account'); return [{ sync_scope: 'comments', status: 'idle', checkpoint_count: 90673, items_fetched: 10 }]; };
+  try {
+    const result = await get('/sources/qa-source/sync-status?communityId=qa-community');
+    assert.equal(result.status, 200); assert.equal(result.body.data.checkpoints[0].checkpoint_count, 90673);
+    assert.equal((await get('/sources/qa-source/sync-status?communityId=other-community')).status, 404);
+    assert.equal((await get('/sources/qa-source/sync-status?sourceId=other')).status, 400);
+    assert.equal(queries, 1);
+    app.repo.getSourceSyncStatusSummary = async () => { throw Error('summary unavailable'); };
+    assert.equal((await get('/sources/qa-source?communityId=qa-community')).status, 200);
+  } finally { app.repo.getDefaultAccount = oldDefault; app.repo.getSourceSyncStatusSummary = oldSummary; }
+});
+
+test('lightweight source list does not read accounts credentials or checkpoints',async()=>{
+ const old=app.repo.listAccounts; app.repo.listAccounts=async()=>{throw Error('lightweight list must not load accounts')};try{const result=await get('/sources?view=summary&communityId=qa-community');assert.equal(result.status,200);assert.equal(result.body.data[0].id,'qa-source');assert.equal(Object.hasOwn(result.body.data[0],'account'),false);assert.equal(Object.hasOwn(result.body.data[0],'config'),false);}finally{app.repo.listAccounts=old}
+});
+
+test('overseas management list skips aggregated historical checkpoints', async () => {
+  const keys = ['listAccounts', 'getAccountCredentialSummary', 'getSyncStatus', 'getSourceSyncStatusSummary'];
+  const previous = Object.fromEntries(keys.map(key => [key, app.repo[key]]));
+  const oldRegion = source.region_code;
+  source.region_code = 'overseas';
+  app.repo.listAccounts = async () => [{ id: 'qa-account', source_id: source.id }];
+  app.repo.getAccountCredentialSummary = async () => [];
+  app.repo.getSyncStatus = async () => { throw Error('full checkpoint read must not run'); };
+  let queries = 0;
+  app.repo.getSourceSyncStatusSummary = async () => { queries++; return [{ sync_scope: 'comments', status: 'idle', checkpoint_count: 26785 }]; };
+  try {
+    const result = await get('/sources?communityId=qa-community');
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.body.data[0].checkpoints, []);
+    assert.equal(queries, 0);
+  } finally { Object.assign(app.repo, previous); source.region_code = oldRegion; }
+});
