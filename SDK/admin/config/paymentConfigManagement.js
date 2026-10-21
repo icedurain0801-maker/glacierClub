@@ -10,8 +10,14 @@
     { id:'huaweiQuick', label:'华为快游戏支付', identity:[['ApplicationId','ApplicationId（应用ID）']], credentials:[['ClientSecret','ClientSecret（应用密钥）',true],['PublicKey','PublicKey（公钥）']], enabled:true },
     { id:'harmony', label:'鸿蒙支付', identity:[['ApplicationId','ApplicationId（应用ID）']], credentials:[['IssuerId','IssuerId（发行者ID）'],['PrivateKey','PrivateKey（私钥）',true],['PrivateKeyId','PrivateKeyId（私钥ID）']], enabled:true },
     { id:'terminal3', label:'Terminal3支付', identity:[], credentials:[['publicKey','publicKey（公钥）'],['privateKey','privateKey（私钥）',true],['sandBox','sandBox（沙盒支付）',false,'boolean']], enabled:true },
-    { id:'xsolla', label:'Xsolla支付', identity:[['projectId','projectId（项目ID）']], credentials:[['apiKey','apiKey（API密钥）',true],['notifyKey','notifyKey（通知密钥）',true],['sandBox','sandBox（沙盒支付）',false,'boolean']], enabled:true }
+    { id:'razer', label:'Razer支付', identity:[], credentials:[['applicationCode','applicationCode（应用编码）'],['secretKey','secretKey（密钥）',true]], enabled:true },
+    { id:'xsolla', label:'Xsolla支付', identity:[['projectId','projectId（项目ID）']], credentials:[['apiKey','apiKey（API密钥）',true],['notifyKey','notifyKey（通知密钥）',true],['sandBox','sandBox（沙盒支付）',false,'boolean']], enabled:true },
+    { id:'adyen', label:'Adyen支付', identity:[['merchantAccount','merchantAccount（商户账号）']], credentials:[['apiKey','apiKey（API密钥）',true],['signKey','signKey（签名密钥）',true],['storePaymentMethodMode','storePaymentMethodMode（支付方式保存模式）'],['recurringProcessingModel','recurringProcessingModel（重复支付处理模式）']], enabled:true },
+    { id:'payermax', label:'PayerMax支付', identity:[['appId','appId（应用ID）']], credentials:[['privateKey','privateKey（私钥）',true],['publicKey','publicKey（公钥）']], enabled:true },
+    { id:'waffo', label:'Waffo支付', identity:[['merchantId','merchantId（商户ID）']], credentials:[['apiKey','apiKey（API密钥）',true],['privateKey','privateKey（私钥）',true],['publicKey','publicKey（公钥）']], enabled:true },
+    { id:'checkout', label:'Checkout支付', identity:[], credentials:[['apiKey','apiKey（API密钥）',true],['processingChannelId','processingChannelId（处理渠道ID）'],['authorizationKey','authorizationKey（授权密钥）',true],['webHookSignKey','webHookSignKey（Webhook签名密钥）',true]], enabled:true }
   ];
+  const versionTypes = ['terminal3','razer','xsolla','adyen','payermax','waffo','checkout'];
   const form = document.getElementById('payment-form');
   const trigger = document.getElementById('scheme-type');
   const menu = document.getElementById('type-menu');
@@ -28,11 +34,16 @@
   let feedbackTimer;
 
   function fieldRow([id, label, secret, control]) {
-    const lengthLimit = ['publicKey','privateKey','projectId','apiKey','notifyKey'].includes(id) ? ' maxlength="99999999"' : '';
+    const keyHint = current.id === 'terminal3' ? ({publicKey:'对应Project Key',privateKey:'对应Secret Key'})[id] : '';
+    const checkoutHelp = current.id === 'checkout' ? ({apiKey:['checkout-api-key.png','API 密钥获取位置'],processingChannelId:['checkout-processing-channel-id.png','处理渠道 ID 获取位置'],authorizationKey:['checkout-authorization-key.png','授权密钥获取位置'],webHookSignKey:['checkout-webhook-sign-key.png','Webhook 签名密钥获取位置']})[id] : null;
+    const waffoHelp = current.id === 'waffo' ? ({merchantId:['waffo-merchant-id.png','商户ID获取位置'],apiKey:['waffo-api-key.png','API密钥获取位置'],privateKey:['waffo-private-key.png','需要用支付宝小工具转成PKCS1 （PS：openssl工具生成的就是pkcs1的）'],publicKey:['waffo-public-key.png','Waffo Public Key获取位置']})[id] : null;
+    const imageHelp = checkoutHelp || waffoHelp;
+    const help = imageHelp ? `<span class="key-help" tabindex="0" role="img" aria-label="${imageHelp[1]}">?<span class="key-help-tip key-help-image" role="tooltip"><span>${imageHelp[1]}</span><img src="assets/${imageHelp[0]}" alt="${imageHelp[1]}（密钥已脱敏）"></span></span>` : keyHint ? `<span class="key-help" tabindex="0" role="img" aria-label="${keyHint}">?<span class="key-help-tip" role="tooltip">${keyHint}</span></span>` : '';
+    const lengthLimit = versionTypes.includes(current.id) && control !== 'boolean' ? ' maxlength="99999999"' : '';
     const input = control === 'boolean'
       ? `<select class="text-input" id="${id}" name="${id}" required aria-describedby="error-${id}"><option value="">请选择</option><option value="true">是（沙盒环境）</option><option value="false">否（正式环境）</option></select>`
       : `<input class="text-input" id="${id}" name="${id}" type="${secret ? 'password' : 'text'}"${lengthLimit} placeholder="请输入" required autocomplete="off" spellcheck="false" aria-describedby="error-${id}">`;
-    return `<div class="form-row" data-field="${id}"><label class="form-label" for="${id}"><span class="required">*</span>${label}：</label><div class="form-control">${input}<p class="field-error" id="error-${id}" hidden></p></div></div>`;
+    return `<div class="form-row" data-field="${id}"><label class="form-label" for="${id}"><span class="required">*</span>${label}${help}：</label><div class="form-control">${input}<p class="field-error" id="error-${id}" hidden></p></div></div>`;
   }
 
   function tagRow(id, label, placeholder, hideLabel = false) {
@@ -56,11 +67,19 @@
     scope = draft.scope;
     enabled = draft.enabled;
     document.getElementById('type-value').textContent = type.label;
+    document.getElementById('game-version-fields').innerHTML = versionTypes.includes(type.id)
+      ? '<div class="form-row" data-field="gameVersion"><label class="form-label" for="gameVersion"><span class="required">*</span>游戏版本：</label><div class="form-control"><select class="text-input" id="gameVersion" name="gameVersion" required aria-describedby="error-gameVersion"><option value="超能世界-国内">超能世界-国内</option><option value="超能世界-国内海岛2">超能世界-国内海岛2</option><option value="超能世界-国内审核">超能世界-国内审核</option><option value="超能世界-国内先遣">超能世界-国内先遣</option></select><p class="field-error" id="error-gameVersion" hidden></p></div></div>' : '';
     document.getElementById('identity-fields').innerHTML = type.id === 'callback'
       ? `<div class="form-row"><span class="form-label" id="scope-label"><span class="required">*</span>游戏配置：</span><div class="form-control"><div class="scope-options" role="radiogroup" aria-labelledby="scope-label"><label><input type="radio" name="scope" value="server" ${scope === 'server' ? 'checked' : ''}>按区服</label><label><input type="radio" name="scope" value="pid" ${scope === 'pid' ? 'checked' : ''}>按Pid</label></div></div></div>${tagRow('scopeRange','配置范围','输入范围，如: 1,2,3,4-5，按回车键提交',true)}`
       : type.identity.map(field => field[0] === 'BundleId' ? tagRow('BundleId',field[1],'请输入bundleId,按回车添加，多个使用英文逗号分隔') : fieldRow(field)).join('');
-    document.getElementById('credential-fields').innerHTML = type.credentials.map(fieldRow).join('');
-    form.querySelectorAll('input[name]:not([type=radio]),select[name]').forEach(input => { input.value = draft.values[input.name] ?? (input.name === 'sandBox' ? 'false' : ''); });
+    document.getElementById('credential-fields').innerHTML = (type.id === 'terminal3' ? '<p class="terminal3-key-note">从Terminal3管理后台获取 项目的Project Key 和 Secret Key</p>' : '') + type.credentials.map(fieldRow).join('');
+    const divider = form.querySelector('.group-divider');
+    const identityFields = document.getElementById('identity-fields');
+    if (type.id === 'xsolla') identityFields.insertAdjacentHTML('afterbegin','<p class="terminal3-key-note">从Xsolla后台获取到 项目ID、Webhook通知秘钥和API秘钥</p>');
+    if (type.id === 'checkout') identityFields.insertAdjacentHTML('afterbegin','<p class="terminal3-key-note">Webhook通知需要单独配置充值成功通知和退款通知，两个通知的authorizationKey可共用同一个授权密钥，webHookSignKey可共用同一个签名密钥。</p>');
+    const credentialFields = document.getElementById('credential-fields');
+    identityFields.parentNode.insertBefore(divider,['xsolla','adyen','payermax','waffo','checkout'].includes(type.id) ? identityFields : credentialFields);
+    form.querySelectorAll('input[name]:not([type=radio]),select[name]').forEach(input => { input.value = draft.values[input.name] ?? (input.name === 'sandBox' ? 'false' : input.name === 'gameVersion' ? '超能世界-国内' : ''); });
     document.getElementById('enabled-row').hidden = !type.enabled;
     clearErrors();
     renderTags();
@@ -74,7 +93,10 @@
     const fields = current.id === 'callback'
       ? [['游戏配置','必选：按区服（默认）或按Pid'],['配置范围','必填，按回车添加整数或递增区间'],['PayCallbackUrl','必填，完整的 http:// 或 https:// 地址']]
       : [...current.identity,...current.credentials].map(([id,label]) => [label,id === 'BundleId' ? '必填，按回车添加；多个值用逗号分隔' : id === 'sandBox' ? '默认否（false，正式环境）；可选是（true，沙盒环境）' : '必填']);
-    if (['terminal3','xsolla'].includes(current.id)) fields.push(['gameId','配置归属维度，无需手填']);
+    if (versionTypes.includes(current.id)) {
+      fields.unshift(['游戏版本','必填，下拉单选，默认超能世界-国内']);
+      fields.push(['gameId','配置归属维度，无需手填']);
+    }
     if (current.enabled) fields.push(['启用状态','默认启用，可切换为停用']);
     const table = document.getElementById('requirements-fields');
     table.replaceChildren();
@@ -82,8 +104,9 @@
       const row = document.createElement('tr');
       const descriptions = { publicKey:'Terminal3 Project Key，用于识别渠道项目', privateKey:'Terminal3 Secret Key，支付鉴权凭据', projectId:'Xsolla 项目标识，不等同于游戏ID', apiKey:'Xsolla API 请求鉴权密钥', notifyKey:'Xsolla Webhook 支付通知校验密钥', sandBox:'选择渠道支付环境', gameId:'配置归属于对应游戏ID，不同游戏参数隔离' };
       const fieldId = [...current.identity,...current.credentials].find(field => field[1] === label)?.[0] || label;
-      const description = descriptions[fieldId] || (label === '启用状态' ? '标识方案是否启用' : '当前支付类型的配置参数');
-      if (['publicKey','privateKey','projectId','apiKey','notifyKey'].includes(fieldId)) rule += '；最大长度99999999字符，格式不限';
+      const channelDescriptions = {applicationCode:'Razer应用编码',secretKey:'Razer渠道密钥',merchantAccount:'Adyen商户账号',signKey:'渠道签名校验密钥',storePaymentMethodMode:'支付方式保存模式参数',recurringProcessingModel:'重复支付处理模式参数',appId:'PayerMax应用标识',merchantId:'Waffo商户标识',processingChannelId:'Checkout处理渠道标识',authorizationKey:'Checkout授权密钥',webHookSignKey:'Checkout Webhook签名校验密钥'};
+      const description = channelDescriptions[fieldId] || (fieldId === 'publicKey' && current.id !== 'terminal3' ? '渠道公钥' : fieldId === 'privateKey' && current.id !== 'terminal3' ? '渠道私钥' : fieldId === 'apiKey' ? '渠道API请求鉴权密钥' : descriptions[fieldId]) || (label === '游戏版本' ? '选择当前游戏下的版本；原型选项为演示数据' : label === '启用状态' ? '标识方案是否启用' : '当前支付类型的配置参数');
+      if (versionTypes.includes(current.id) && [...current.identity,...current.credentials].some(field => field[0] === fieldId && field[3] !== 'boolean')) rule += '；最大长度99999999字符，格式不限';
       [label,rule,description].forEach(text => { const cell = document.createElement('td'); cell.textContent = text; row.append(cell); });
       table.append(row);
     });
