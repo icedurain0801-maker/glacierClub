@@ -27,6 +27,7 @@
   const requirementsButton = document.getElementById('requirements-button');
   const requirementsDrawer = document.getElementById('requirements-drawer');
   const drafts = Object.create(null);
+  const adyenDefaults = { storePaymentMethodMode:'askForConsent', recurringProcessingModel:'CardOnFile' };
   let current = types[0];
   let tags = [];
   let scope = 'server';
@@ -79,7 +80,7 @@
     if (type.id === 'checkout') identityFields.insertAdjacentHTML('afterbegin','<p class="terminal3-key-note">Webhook通知需要单独配置充值成功通知和退款通知，两个通知的authorizationKey可共用同一个授权密钥，webHookSignKey可共用同一个签名密钥。</p>');
     const credentialFields = document.getElementById('credential-fields');
     identityFields.parentNode.insertBefore(divider,['xsolla','adyen','payermax','waffo','checkout'].includes(type.id) ? identityFields : credentialFields);
-    form.querySelectorAll('input[name]:not([type=radio]),select[name]').forEach(input => { input.value = draft.values[input.name] ?? (input.name === 'sandBox' ? 'false' : input.name === 'gameVersion' ? '超能世界-国内' : ''); });
+    form.querySelectorAll('input[name]:not([type=radio]),select[name]').forEach(input => { input.value = draft.values[input.name] ?? (type.id === 'adyen' && input.name in adyenDefaults ? adyenDefaults[input.name] : input.name === 'sandBox' ? 'false' : input.name === 'gameVersion' ? '超能世界-国内' : ''); });
     document.getElementById('enabled-row').hidden = !type.enabled;
     clearErrors();
     renderTags();
@@ -107,6 +108,7 @@
       const channelDescriptions = {applicationCode:'Razer应用编码',secretKey:'Razer渠道密钥',merchantAccount:'Adyen商户账号',signKey:'渠道签名校验密钥',storePaymentMethodMode:'支付方式保存模式参数',recurringProcessingModel:'重复支付处理模式参数',appId:'PayerMax应用标识',merchantId:'Waffo商户标识',processingChannelId:'Checkout处理渠道标识',authorizationKey:'Checkout授权密钥',webHookSignKey:'Checkout Webhook签名校验密钥'};
       const description = channelDescriptions[fieldId] || (fieldId === 'publicKey' && current.id !== 'terminal3' ? '渠道公钥' : fieldId === 'privateKey' && current.id !== 'terminal3' ? '渠道私钥' : fieldId === 'apiKey' ? '渠道API请求鉴权密钥' : descriptions[fieldId]) || (label === '游戏版本' ? '选择当前游戏下的版本；原型选项为演示数据' : label === '启用状态' ? '标识方案是否启用' : '当前支付类型的配置参数');
       if (versionTypes.includes(current.id) && [...current.identity,...current.credentials].some(field => field[0] === fieldId && field[3] !== 'boolean')) rule += '；最大长度99999999字符，格式不限';
+      if (current.id === 'adyen' && fieldId in adyenDefaults) rule += `；默认${adyenDefaults[fieldId]}，可修改`;
       [label,rule,description].forEach(text => { const cell = document.createElement('td'); cell.textContent = text; row.append(cell); });
       table.append(row);
     });
