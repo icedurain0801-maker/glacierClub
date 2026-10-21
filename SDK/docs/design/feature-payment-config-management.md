@@ -27,6 +27,13 @@ Updated: 2026-10-21
 
 ## 帮助与字段规则
 
+| Adyen字段 | 默认值 | 规则 |
+|---|---|---|
+| storePaymentMethodMode（支付方式保存模式） | askForConsent | 新增时默认填入，可修改；必填，最大99999999字符，格式不限 |
+| recurringProcessingModel（重复支付处理模式） | CardOnFile | 新增时默认填入，可修改；必填，最大99999999字符，格式不限 |
+
+切换支付类型保留已修改的页面内草稿，不覆盖为默认值。
+
 - Waffo 的 merchantId、apiKey、privateKey、publicKey 均提供对应后台脱敏截图；敏感值不得写入源码或图片。
 - 所有帮助问号支持鼠标悬停和键盘聚焦；图片提示向下展开、等比例完整显示，桌面不截断，窄屏居中并限制高度。长标签和 Terminal3/Xsolla/Checkout 提示框在窄屏自动换行。
 - T3、Xsolla 的 sandBox 默认“否（正式环境）”；七种新增渠道文本参数最大长度99999999字符、格式不限，密钥类字段使用密码输入。

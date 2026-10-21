@@ -149,6 +149,10 @@
     <section class="req-section"><h3>Checkout支付字段</h3><table class="req-table"><thead><tr><th>字段名称</th><th>字段限制</th><th>字段说明</th></tr></thead><tbody><tr><td>apiKey（API密钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的API密钥参数</td></tr><tr><td>processingChannelId（处理渠道ID）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的处理渠道ID参数</td></tr><tr><td>authorizationKey（授权密钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的授权密钥参数</td></tr><tr><td>webHookSignKey（Webhook签名密钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的Webhook签名密钥参数</td></tr></tbody></table></section>
     <section class="req-section"><h3>本批优化：Razer 与 Checkout</h3><ul><li>新增 Razer 支付，排序位于 Terminal3支付之后、Xsolla支付之前；必填游戏版本、applicationCode、secretKey，且不展示 gameId、sandbox。</li><li>Checkout 字段顺序固定为 apiKey、processingChannelId、authorizationKey、webHookSignKey。</li><li>Checkout 四个字段标签后的问号分别展示 API 密钥、处理渠道 ID、授权密钥、Webhook 签名密钥的获取位置截图；支持鼠标悬停和键盘聚焦。</li></ul></section>
     <section class="req-section">
+      <h3>Adyen参数默认值</h3>
+      <table class="req-table"><thead><tr><th>字段名称</th><th>字段限制</th><th>字段说明</th></tr></thead><tbody><tr><td>storePaymentMethodMode（支付方式保存模式）</td><td>必填；默认askForConsent，可修改；最大99999999字符，格式不限</td><td>支付方式保存模式参数</td></tr><tr><td>recurringProcessingModel（重复支付处理模式）</td><td>必填；默认CardOnFile，可修改；最大99999999字符，格式不限</td><td>重复支付处理模式参数</td></tr></tbody></table>
+    </section>
+    <section class="req-section">
       <h3>当前类型：<span id="requirements-type">支付成功回调地址</span></h3>
       <p class="req-note">切换方案类型后，此处同步展示对应的字段说明。</p>
       <table class="req-table"><thead><tr><th scope="col">字段名称</th><th scope="col">字段限制</th><th scope="col">字段说明</th></tr></thead><tbody id="requirements-fields"></tbody></table>
