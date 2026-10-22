@@ -18,6 +18,9 @@
     { id:'checkout', label:'Checkout支付', identity:[], credentials:[['apiKey','apiKey（API密钥）',true],['processingChannelId','processingChannelId（处理渠道ID）'],['authorizationKey','authorizationKey（授权密钥）',true],['webHookSignKey','webHookSignKey（Webhook签名密钥）',true]], enabled:true }
   ];
   const versionTypes = ['terminal3','razer','xsolla','adyen','payermax','waffo','checkout'];
+  const regionTypes = {domestic:['callback','apple','huawei','huaweiQuick','harmony'],overseas:['callback','google','apple','huawei',...versionTypes]};
+  const regionPicker = document.getElementById('payment-region');
+  const allowedTypes = () => types.filter(type => regionTypes[regionPicker.value].includes(type.id));
   const form = document.getElementById('payment-form');
   const trigger = document.getElementById('scheme-type');
   const menu = document.getElementById('type-menu');
@@ -27,6 +30,7 @@
   const requirementsButton = document.getElementById('requirements-button');
   const requirementsDrawer = document.getElementById('requirements-drawer');
   const drafts = Object.create(null);
+  let editingId = null;
   const adyenDefaults = { storePaymentMethodMode:'askForConsent', recurringProcessingModel:'CardOnFile' };
   let current = types[0];
   let tags = [];
@@ -69,7 +73,7 @@
     enabled = draft.enabled;
     document.getElementById('type-value').textContent = type.label;
     document.getElementById('game-version-fields').innerHTML = versionTypes.includes(type.id)
-      ? '<div class="form-row" data-field="gameVersion"><label class="form-label" for="gameVersion"><span class="required">*</span>游戏版本：</label><div class="form-control"><select class="text-input" id="gameVersion" name="gameVersion" required aria-describedby="error-gameVersion"><option value="超能世界-国内">超能世界-国内</option><option value="超能世界-国内海岛2">超能世界-国内海岛2</option><option value="超能世界-国内审核">超能世界-国内审核</option><option value="超能世界-国内先遣">超能世界-国内先遣</option></select><p class="field-error" id="error-gameVersion" hidden></p></div></div>' : '';
+      ? '<div class="form-row" data-field="gameVersion"><label class="form-label" for="gameVersion">游戏版本：</label><div class="form-control"><select class="text-input" id="gameVersion" name="gameVersion" aria-describedby="error-gameVersion"><option value="">不指定游戏版本</option><option value="超能世界-国内">超能世界-国内</option><option value="超能世界-国内海岛2">超能世界-国内海岛2</option><option value="超能世界-国内审核">超能世界-国内审核</option><option value="超能世界-国内先遣">超能世界-国内先遣</option></select><p class="field-error" id="error-gameVersion" hidden></p></div></div>' : '';
     document.getElementById('identity-fields').innerHTML = type.id === 'callback'
       ? `<div class="form-row"><span class="form-label" id="scope-label"><span class="required">*</span>游戏配置：</span><div class="form-control"><div class="scope-options" role="radiogroup" aria-labelledby="scope-label"><label><input type="radio" name="scope" value="server" ${scope === 'server' ? 'checked' : ''}>按区服</label><label><input type="radio" name="scope" value="pid" ${scope === 'pid' ? 'checked' : ''}>按Pid</label></div></div></div>${tagRow('scopeRange','配置范围','输入范围，如: 1,2,3,4-5，按回车键提交',true)}`
       : type.identity.map(field => field[0] === 'BundleId' ? tagRow('BundleId',field[1],'请输入bundleId,按回车添加，多个使用英文逗号分隔') : fieldRow(field)).join('');
@@ -80,7 +84,7 @@
     if (type.id === 'checkout') identityFields.insertAdjacentHTML('afterbegin','<p class="terminal3-key-note">Webhook通知需要单独配置充值成功通知和退款通知，两个通知的authorizationKey可共用同一个授权密钥，webHookSignKey可共用同一个签名密钥。</p>');
     const credentialFields = document.getElementById('credential-fields');
     identityFields.parentNode.insertBefore(divider,['xsolla','adyen','payermax','waffo','checkout'].includes(type.id) ? identityFields : credentialFields);
-    form.querySelectorAll('input[name]:not([type=radio]),select[name]').forEach(input => { input.value = draft.values[input.name] ?? (type.id === 'adyen' && input.name in adyenDefaults ? adyenDefaults[input.name] : input.name === 'sandBox' ? 'false' : input.name === 'gameVersion' ? '超能世界-国内' : ''); });
+    form.querySelectorAll('input[name]:not([type=radio]),select[name]').forEach(input => { input.value = draft.values[input.name] ?? (type.id === 'adyen' && input.name in adyenDefaults ? adyenDefaults[input.name] : input.name === 'sandBox' ? 'false' : ''); });
     document.getElementById('enabled-row').hidden = !type.enabled;
     clearErrors();
     renderTags();
@@ -95,7 +99,7 @@
       ? [['游戏配置','必选：按区服（默认）或按Pid'],['配置范围','必填，按回车添加整数或递增区间'],['PayCallbackUrl','必填，完整的 http:// 或 https:// 地址']]
       : [...current.identity,...current.credentials].map(([id,label]) => [label,id === 'BundleId' ? '必填，按回车添加；多个值用逗号分隔' : id === 'sandBox' ? '默认否（false，正式环境）；可选是（true，沙盒环境）' : '必填']);
     if (versionTypes.includes(current.id)) {
-      fields.unshift(['游戏版本','必填，下拉单选，默认超能世界-国内']);
+      fields.unshift(['游戏版本','非必填，下拉单选，默认不指定；同一游戏、同一支付类型下，相同版本或空版本均只能有一条方案；编辑排除自身']);
       fields.push(['gameId','配置归属维度，无需手填']);
     }
     if (current.enabled) fields.push(['启用状态','默认启用，可切换为停用']);
@@ -115,7 +119,7 @@
   }
 
   function renderOptions() {
-    const filtered = types.filter(type => type.label.toLowerCase().includes(search.value.trim().toLowerCase()));
+    const filtered = allowedTypes().filter(type => type.label.toLowerCase().includes(search.value.trim().toLowerCase()));
     options.replaceChildren();
     filtered.forEach(type => {
       const button = document.createElement('button');
@@ -261,6 +265,12 @@
   form.addEventListener('submit',event => {
     event.preventDefault();
     clearErrors();
+    const gameVersion = document.getElementById('gameVersion')?.value || '';
+    if (!regionTypes[regionPicker.value].includes(current.id)) { showFeedback('当前区域不支持此支付类型，请重新选择'); return; }
+    if (versionTypes.includes(current.id) && window.SDKPaymentPrototype.isDuplicate?.({id:editingId,region:regionPicker.value,type:current.id,gameVersion})) {
+      showFeedback(gameVersion ? '该支付类型下已存在此游戏版本的方案，请勿重复创建' : '该支付类型下已存在未指定游戏版本的方案，请勿重复创建');
+      return;
+    }
     let valid = commitTags();
     form.querySelectorAll('input[required],select[required]').forEach(input => {
       if (!input.value.trim()) { setError(input.id,'请填写此项'); valid = false; }
@@ -280,7 +290,9 @@
     }
     if (!valid) { form.querySelector('[aria-invalid=true]')?.focus(); return; }
     saveDraft();
-    showFeedback('校验通过。当前为静态原型，未提交到支付服务。');
+    showFeedback('已保存演示配置，刷新后恢复；未提交到支付服务。');
+    const record = {id:editingId,region:regionPicker.value,type:current.id,gameVersion,values:Object.fromEntries(new FormData(form)),name:document.getElementById('schemeName').value.trim(),enabled};
+    document.dispatchEvent(new CustomEvent('payment-prototype-save-record',{detail:record}));
     document.dispatchEvent(new CustomEvent('payment-prototype-saved',{detail:{type:current.id,name:document.getElementById('schemeName').value.trim(),enabled,binding:tags.join(',') || document.getElementById('PackageName')?.value || document.getElementById('ApplicationId')?.value || '',projectId:document.getElementById('projectId')?.value || ''}}));
   });
   document.getElementById('cancel-button').addEventListener('click',() => {
@@ -327,12 +339,17 @@
   });
   renderType(types[0],false);
   window.SDKPaymentPrototype = {
-    types:types.map(({id,label}) => ({id,label})),
+    allowedTypes:() => allowedTypes().map(({id,label}) => ({id,label})),
+    types:types.map(({id,label,identity,credentials}) => ({id,label,fields:[...identity,...credentials].map(([key,name]) => ({key,name}))})),
     open(record) {
+      if (record && (record.region !== regionPicker.value || !regionTypes[regionPicker.value].includes(record.type))) return;
+      editingId = record?.id || null;
       Object.keys(drafts).forEach(key => delete drafts[key]);
       renderType(types.find(type => type.id === record?.type) || types[0],false);
       document.getElementById('schemeName').value = record?.name || '';
       if (record) {
+        Object.entries(record.values || {}).forEach(([name,value]) => { const input = form.elements.namedItem(name); if (input && 'value' in input) input.value = value; });
+        if (document.getElementById('gameVersion')) document.getElementById('gameVersion').value = record.gameVersion || '';
         enabled = record.enabled; renderSwitch();
         if (tagField()) { tags = record.binding ? record.binding.split(',') : []; renderTags(); }
         const bindingInput = document.getElementById('PackageName') || document.getElementById('ApplicationId');
@@ -342,5 +359,11 @@
       document.querySelector('#payment-form-view .panel-title').textContent = record ? '编辑支付配置' : '新增支付配置';
     }
   };
+  regionPicker.addEventListener('change',() => {
+    setMenu(false); search.value = '';
+    Object.keys(drafts).forEach(key => delete drafts[key]); editingId = null;
+    renderType(types[0],false);
+    document.dispatchEvent(new Event('payment-region-changed'));
+  });
   syncSidebarToggle();
 })();

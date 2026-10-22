@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SDK 管理后台 · 支付配置管理</title>
-  <link rel="stylesheet" href="paymentConfigManagement.css?v=20261021-drawer-wide">
+  <link rel="stylesheet" href="paymentConfigManagement.css?v=20261022-region-detail">
 </head>
 <body>
 <!--
@@ -32,7 +32,7 @@
       </button>
       <span class="tb-page-title">支付配置管理</span>
       <div class="tb-right">
-        <span class="tb-select">境内<span class="caret">▼</span></span>
+        <select class="tb-select" id="payment-region" aria-label="配置区域"><option value="domestic">境内</option><option value="overseas">境外</option></select>
         <span class="tb-select game">远征手游<span class="caret">▼</span></span>
         <span class="tb-select user"><span class="avatar">福</span><span>福毅</span></span>
       </div>
@@ -109,16 +109,15 @@
   <div class="req-drawer-body" tabindex="0" aria-label="需求说明内容">
     <section class="req-section">
       <h3>本次需求：新增7个三方支付类型</h3>
-      <p>区域范围：仅选择「境外」时，才可选择新增7个三方支付类型。境外可选原有6种类型＋新增7种三方支付；境内仅可选原有6种类型，不展示这7种三方支付。</p>
-      <table class="req-table"><thead><tr><th>配置区域</th><th>可选方案类型</th><th>三方支付默认项</th></tr></thead><tbody><tr><td>境外</td><td>原有6种＋Terminal3（T3）、Razer、Xsolla、Adyen、PayerMax、Waffo、Checkout</td><td>每个游戏、每个三方渠道各有一份默认兜底方案</td></tr><tr><td>境内</td><td>仅原有6种类型</td><td>不存在三方支付默认项，不展示这些默认方案</td></tr></tbody></table>
-      <p>三方支付的游戏版本优先匹配及默认兜底规则仅适用于境外。境内不创建、不展示、不读取这7个三方渠道的默认兜底方案。当前静态原型尚未实现境内/境外切换过滤，以上为需求规则。</p>
+      <table class="req-table"><thead><tr><th>区域</th><th>可选方案类型</th></tr></thead><tbody><tr><td>境外（11种）</td><td>支付成功回调地址、谷歌支付、苹果支付、华为支付、Terminal3支付、Razer支付、Xsolla支付、Adyen支付、PayerMax支付、Waffo支付、Checkout支付</td></tr><tr><td>境内（5种）</td><td>支付成功回调地址、苹果支付、华为支付、华为快游戏支付、鸿蒙支付</td></tr></tbody></table>
+      <p>顶部区域选择联动新增、编辑、列表及配置类型筛选；切换区域关闭详情、返回配置列表，清空筛选与表单草稿。不同区域配置隔离，不跨区域判重；同一区域内按游戏ID、支付类型、游戏版本（含空值）判重。切换区域不删除已保存的演示记录，无默认或兜底方案。</p>
       <p>在「配置中心 → 支付配置管理」新增7个三方支付类型：Terminal3支付（T3）、Razer支付、Xsolla支付、Adyen支付、PayerMax支付、Waffo支付、Checkout支付。各类型分别配置对应渠道参数，原有6种类型保持不变。</p>
       <p>支付配置按照游戏ID维度进行配置：每份支付方案归属于对应游戏ID，不同游戏的支付参数应相互隔离。gameId 是配置归属维度，不作为本页需要手工填写的支付参数；具体游戏上下文获取方式待确认。</p>
     </section>
     <section class="req-section">
       <h3>基础字段</h3>
       <table class="req-table"><thead><tr><th scope="col">字段名称</th><th scope="col">字段限制</th><th scope="col">字段说明</th></tr></thead><tbody>
-        <tr><td>游戏版本</td><td>必填，下拉单选；默认超能世界-国内</td><td>T3、Razer、Xsolla、Adyen、PayerMax、Waffo、Checkout展示，位于方案类型与方案名称之间。使用游戏版本名称，如超能世界-国内、超能世界-国内海岛2、超能世界-国内审核、超能世界-国内先遣，不使用1.0.0等软件版本号。</td></tr>
+        <tr><td>游戏版本</td><td>非必填，下拉单选；默认不指定游戏版本</td><td>T3、Razer、Xsolla、Adyen、PayerMax、Waffo、Checkout展示，位于方案类型与方案名称之间。使用游戏版本名称，如超能世界-国内、超能世界-国内海岛2、超能世界-国内审核、超能世界-国内先遣，不使用1.0.0等软件版本号。</td></tr>
         <tr><td>游戏ID（gameId）</td><td>配置归属维度；无需手填</td><td>标识本配置所属游戏；上下文获取方式待确认。</td></tr>
         <tr><td>方案类型</td><td>必填，下拉单选</td><td>新增T3、Razer、Xsolla、Adyen、PayerMax、Waffo、Checkout，共十三种类型；支持搜索选择。</td></tr>
         <tr><td>方案名称</td><td>必填，最多100个字符</td><td>用于识别支付配置方案。</td></tr>
@@ -147,7 +146,7 @@
     <section class="req-section"><h3>PayerMax支付字段</h3><table class="req-table"><thead><tr><th>字段名称</th><th>字段限制</th><th>字段说明</th></tr></thead><tbody><tr><td>appId（应用ID）</td><td>必填；最大长度99999999字符，格式不限</td><td>PayerMax渠道的应用ID参数</td></tr><tr><td>privateKey（私钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>PayerMax渠道的私钥参数</td></tr><tr><td>publicKey（公钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>PayerMax渠道的公钥参数</td></tr></tbody></table></section>
     <section class="req-section"><h3>Waffo支付字段</h3><table class="req-table"><thead><tr><th>字段名称</th><th>字段限制</th><th>字段说明</th></tr></thead><tbody><tr><td>merchantId（商户ID）</td><td>必填；最大长度99999999字符，格式不限</td><td>Waffo渠道的商户ID参数</td></tr><tr><td>apiKey（API密钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Waffo渠道的API密钥参数</td></tr><tr><td>privateKey（私钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Waffo渠道的私钥参数</td></tr><tr><td>publicKey（公钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Waffo渠道的公钥参数</td></tr></tbody></table></section>
     <section class="req-section"><h3>Checkout支付字段</h3><table class="req-table"><thead><tr><th>字段名称</th><th>字段限制</th><th>字段说明</th></tr></thead><tbody><tr><td>apiKey（API密钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的API密钥参数</td></tr><tr><td>processingChannelId（处理渠道ID）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的处理渠道ID参数</td></tr><tr><td>authorizationKey（授权密钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的授权密钥参数</td></tr><tr><td>webHookSignKey（Webhook签名密钥）</td><td>必填；最大长度99999999字符，格式不限</td><td>Checkout渠道的Webhook签名密钥参数</td></tr></tbody></table></section>
-    <section class="req-section"><h3>本批优化：Razer 与 Checkout</h3><ul><li>新增 Razer 支付，排序位于 Terminal3支付之后、Xsolla支付之前；必填游戏版本、applicationCode、secretKey，且不展示 gameId、sandbox。</li><li>Checkout 字段顺序固定为 apiKey、processingChannelId、authorizationKey、webHookSignKey。</li><li>Checkout 四个字段标签后的问号分别展示 API 密钥、处理渠道 ID、授权密钥、Webhook 签名密钥的获取位置截图；支持鼠标悬停和键盘聚焦。</li></ul></section>
+    <section class="req-section"><h3>Razer 与 Checkout</h3><ul><li>Razer排序位于Terminal3之后、Xsolla之前；游戏版本非必填，applicationCode、secretKey必填，不展示gameId、sandbox。</li><li>Checkout字段顺序为apiKey、processingChannelId、authorizationKey、webHookSignKey，问号展示对应获取位置截图。</li></ul></section>
     <section class="req-section">
       <h3>Adyen参数默认值</h3>
       <table class="req-table"><thead><tr><th>字段名称</th><th>字段限制</th><th>字段说明</th></tr></thead><tbody><tr><td>storePaymentMethodMode（支付方式保存模式）</td><td>必填；默认askForConsent，可修改；最大99999999字符，格式不限</td><td>支付方式保存模式参数</td></tr><tr><td>recurringProcessingModel（重复支付处理模式）</td><td>必填；默认CardOnFile，可修改；最大99999999字符，格式不限</td><td>重复支付处理模式参数</td></tr></tbody></table>
@@ -159,13 +158,10 @@
     </section>
     <section class="req-section">
       <h3>交互规则</h3>
-      <p>最新版本规则：七种新增渠道的游戏版本下拉仅保留超能世界-国内、超能世界-国内海岛2、超能世界-国内审核、超能世界-国内先遣四项，默认首项。无「请选择」，无下方辅助文字。</p>
-      <p>最新列表规则：仅保留原九列，不展示兜底列、游戏版本列；方案名称无（演示）后缀，默认项右侧显示「默认」文字，不使用星形图标。顶部仍标注演示数据。</p>
       <p>字段规则：七种新增渠道文本参数必填，最大长度99999999字符，格式不限；私钥及API、签名、通知、授权密钥为密码输入，公钥和标识为文本输入。Razer仅配置 applicationCode 与 secretKey，不配置 gameId 或沙盒支付。方案名称最多100字符。T3、Xsolla沙盒默认否。取消返回支付配置列表。</p>
       <ol>
         <li>选择所属游戏后配置对应支付方案，配置归属以游戏ID为维度。真实游戏切换与配置保存接口不在当前静态原型中实现。</li>
         <li>选择 T3、Razer 或 Xsolla 后展示对应渠道字段；切换方案类型保留各类型独立的页面内草稿，不能混用渠道凭据。</li>
-        <li>每个游戏ID在T3、Razer、Xsolla、Adyen、PayerMax、Waffo、Checkout渠道下各有一份默认方案作为兜底；另行新建这些渠道的方案必须选择游戏版本。</li>
         <li>除回调地址类型外，启用状态默认开启，可切换为停用。</li>
         <li>Terminal3、Razer和Xsolla支付不配置 gameId；Razer不配置沙盒支付，T3、Xsolla的 sandBox 默认「否（正式环境）」，可切换为「是（沙盒环境）」。</li>
         <li>提交时检查必填项和字段格式，错误显示在字段下方；取消返回支付配置列表。</li>
@@ -183,14 +179,17 @@
       </tbody></table>
     </section>
     <section class="req-section">
-      <h3>配置列表与待审核</h3>
-      <p>兜底匹配规则：先按游戏ID和支付渠道确定范围，再优先按游戏版本匹配对应方案；取不到版本方案时，读取同游戏、同渠道的默认兜底方案。禁止跨游戏或跨渠道兜底。默认项无需绑定单个游戏版本，列表在默认方案名称右侧显示「默认」文字标记；不展示兜底列与游戏版本列。表单游戏版本选择及匹配规则不变。</p>
-      <table class="req-table"><thead><tr><th>字段名称</th><th>字段限制</th><th>字段说明</th></tr></thead><tbody><tr><td>默认文字标记</td><td>只读；仅默认方案名称右侧显示</td><td>每个游戏、每个渠道各有且仅有一份默认兜底，不将新增版本方案自动设为兜底。</td></tr><tr><td>游戏版本</td><td>新增版本方案必填、下拉单选</td><td>默认兜底覆盖未匹配到版本方案的情况；按游戏ID、渠道、版本优先匹配，未匹配时回落同游戏同渠道默认项。</td></tr></tbody></table>
+      <h3>详情参数脱敏</h3>
+      <p>配置列表和待审核列表提供只读「详情」。所有支付参数统一脱敏：长度大于8时保留前4位和后4位，中间为***；长度不超过8时仅显示***；空值显示—。方案名称、方案类型、启用状态、游戏版本正常展示。详情不提供明文切换，复制仅能得到脱敏值；DOM、title和辅助属性不放入参数明文。编辑表单不受此展示规则影响。</p>
+    </section>
+    <section class="req-section">
+      <h3>游戏版本唯一性</h3>
+<p>游戏版本非必填。同一游戏ID、同一支付类型下，相同游戏版本最多一条，不指定游戏版本也最多一条；新增和编辑均校验，编辑排除自身，不受审核或启用状态影响。重复时toast提示：该支付类型下已存在此游戏版本的方案，请勿重复创建；空版本重复提示：该支付类型下已存在未指定游戏版本的方案，请勿重复创建。无默认方案，不自动回落匹配。新增与编辑仅页面内保存演示，刷新恢复。</p>
     </section>
   </div>
 </dialog>
 <script src="../sidebar.js?v=20261020-payment-nav"></script>
-<script src="paymentConfigManagement.js?v=20261021-checkout-note"></script>
-<script src="paymentConfigList.js?v=20261021-razer"></script>
+<script src="paymentConfigManagement.js?v=20261022-region-detail"></script>
+<script src="paymentConfigList.js?v=20261022-region-detail"></script>
 </body>
 </html>
