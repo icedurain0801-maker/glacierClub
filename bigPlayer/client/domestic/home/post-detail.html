@@ -91,7 +91,42 @@
           min-height: max(884px, 100dvh);
         }
     </style>
-</head>
+<style>
+.season{--skin:#edb77e;position:relative;width:88px;height:90px;border:0;background:none;cursor:pointer;isolation:isolate;outline-offset:3px}.pumpkin{position:relative;width:70px;height:70px;z-index:2;overflow:visible;animation:breathe 3s ease-in-out infinite}.face-on{opacity:0}.on{--skin:#ff9b36}.on .face-off{opacity:0}.on .face-on{opacity:1}.on .pumpkin{filter:drop-shadow(0 3px 7px #f9a33a55)}.season:after{content:'';position:absolute;bottom:8px;left:22px;width:44px;height:7px;border-radius:50%;background:#b7885520}.fx{position:absolute;left:36px;top:30px;opacity:0;z-index:3;pointer-events:none}.bat{width:26px;height:15px;background:#685570;clip-path:polygon(0 0,27% 22%,38% 7%,45% 34%,55% 34%,62% 7%,73% 22%,100% 0,85% 79%,64% 66%,50% 100%,36% 66%,15% 79%)}.v2 .pumpkin{animation:peek 3s infinite}.v2.on .mouth{d:path('M43 62 Q60 57 58 76 Q41 86 43 62')}.v3{--skin:#fbe7d1}.v3:before{content:'';position:absolute;inset:12px;border:1px dashed #c8b4db;border-radius:50%}.v3.on:before{border-color:#eead45;animation:orbit 3s linear infinite}.v3 .pumpkin{width:62px}.v4 .pumpkin{width:76px;transform:scaleY(.88)}.v4.on .face-on{transform:translateY(3px)}.v5 .hat{position:absolute;z-index:4;left:22px;top:-4px;color:#817098;font-size:32px;transform:rotate(-12deg)}.v6:before{content:'☾';position:absolute;color:#d5c39a;font-size:76px;left:0;top:0;transform:rotate(-30deg)}.v6 .pumpkin{width:57px;left:9px;top:9px}.play.v1 .pumpkin{animation:hop .7s ease}.play.v2 .pumpkin{animation:shock .6s ease}.play.v3 .pumpkin{animation:spin .85s ease}.play.v4 .pumpkin{animation:squish .7s ease}.play.v5 .hat{animation:lid 1.2s ease}.play.v5 .ghost{animation:ghost 1.3s ease}.play.v6 .pumpkin{animation:hop 1s ease}.play .fx{animation:burst 1.3s ease-out var(--delay,0s) both}.play.v6 .bat{animation:flyarc 1.7s ease-out var(--delay,0s) both}.preview-controls{text-align:center;font-size:11px;color:#7c858b;padding:9px}.preview-controls button{background:white;border:1px solid #dce3e7;border-radius:12px;padding:4px 9px;margin:0 3px;color:#54636e}.season-counter{font-size:14px;font-weight:700;color:#2a3439}.season[aria-pressed=true]+.season-counter{color:#da822d}@keyframes breathe{50%{transform:translateY(-3px) rotate(2deg)}}@keyframes peek{30%{transform:rotate(-8deg)}70%{transform:rotate(7deg)}}@keyframes hop{40%{transform:translateY(-14px) scale(1.12)}75%{transform:scale(.95,1.06)}}@keyframes shock{20%{transform:translateX(-4px) rotate(-12deg)}50%{transform:translateX(4px) rotate(12deg)}75%{transform:translateY(-8px)}}@keyframes spin{50%{transform:rotate(18deg) scale(1.15)}}@keyframes squish{25%{transform:scale(1.2,.8)}65%{transform:translateY(-12px) scale(.9,1.1)}}@keyframes orbit{to{transform:rotate(360deg)}}@keyframes burst{0%{opacity:0;transform:translate(0,0) scale(.3)}15%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translate(var(--x),var(--y)) rotate(var(--r)) scale(1)}}@keyframes flyarc{0%{opacity:0;transform:translate(0,0)}20%{opacity:1;transform:translate(-30px,-20px)}60%{opacity:1;transform:translate(var(--x),-55px)}100%{opacity:0;transform:translate(var(--x),-90px)}}@keyframes lid{35%,65%{transform:translateY(-24px) rotate(20deg)}}@keyframes ghost{15%,75%{opacity:1;transform:translateY(-43px)}100%{opacity:0;transform:translateY(-55px)}}@media(prefers-reduced-motion:reduce){.pumpkin,.fx,.hat{animation:none!important}}
+ .season{flex-shrink:0}
+.season .new-art{width:90px;height:90px}.season:not(.on) .new-art{filter:saturate(.4);opacity:.8}.wizard-hat{transform-origin:50px 43px;transition:transform .45s}.season:not(.on) .wizard-hat{transform:translateY(5px) rotate(-5deg)}.on .wizard-.on .new-art{filter:drop-shadow(0 0 8px #ffb44980)}.prop{transform-origin:50px 65px;transition:transform .5s,opacity .3s}.wand-prop{transform:rotate(20deg)}.on .wand-prop{transform:rotate(-25deg)}.hands{transform:translateY(8px)}.on .hands{transform:translateY(-6px)}.heart-prop{opacity:0;transform:translateY(12px) scale(.7)}.on .heart-prop{opacity:1;transform:none}.wings{transform:scaleX(.45)}.on .wings{transform:scaleX(1)}.moon-prop{opacity:.25;transition:opacity .4s,fill .4s}.on .moon-prop{opacity:1;fill:#ffd37a}.cheer.on .wizard-hat{transform:rotate(15deg) translateY(-5px)}.broom.on .new-art{animation:floatWizard 3s ease-in-out infinite}.play .new-art{animation:twirl 1.35s ease both}.play.cheer .wizard-hat{animation:hatFloat 1.25s ease both}.play .wizard-particle{animation:burst 1.5s ease-out var(--delay) both}@keyframes cast{30%{transform:rotate(-13deg)}65%{transform:rotate(9deg) scale(1.14)}90%{transform:rotate(-3deg)}}@keyframes hatpop{35%{transform:translateY(-10px) scale(.94,1.1)}70%{transform:translateY(0) scale(1.08,.94)}}@keyframes startle{15%{transform:translateX(-5px) rotate(-8deg)}35%{transform:translateX(5px) rotate(9deg)}65%{transform:translateY(-15px)}85%{transform:translateY(2px)}}@keyframes twirl{35%{transform:rotate(-15deg)}70%{transform:rotate(365deg) scale(1.1)}100%{transform:rotate(360deg)}}@keyframes takeoff{30%{transform:translate(-17px,-5px) rotate(-12deg)}65%{transform:translate(20px,-20px) rotate(10deg)}100%{transform:translateY(-5px)}}@keyframes moonwake{25%{transform:rotate(-9deg)}55%{transform:rotate(10deg) scale(1.09)}80%{transform:rotate(-3deg)}}@keyframes hatFloat{40%{transform:translateY(-24px) rotate(28deg)}100%{transform:rotate(15deg) translateY(-5px)}}@keyframes floatWizard{50%{transform:translateY(-7px) rotate(3deg)}}@media(prefers-reduced-motion:reduce){.season .new-art,.wizard-hat,.wizard-particle{animation:none!important}}
+.season{display:inline-grid;place-items:center}.season .new-art,.wizard-hat-layer{grid-area:1/1}.wizard-hat-layer{position:relative;width:90px;height:90px;z-index:10;pointer-events:none;overflow:visible;animation:breathe 3s ease-in-out infinite}.play .wizard-hat-layer{animation:twirl 1.35s ease both}.broom.on .wizard-hat-layer{animation:floatWizard 3s ease-in-out infinite}.wizard-hat{translate:0 0}.season:not(.on) .wizard-hat{transform:none}.cheer.on .wizard-hat{transform:rotate(3deg)}@keyframes hatFloat{40%{transform:translateY(-20px) rotate(20deg)}100%{transform:rotate(3deg)}}@media(prefers-reduced-motion:reduce){.wizard-hat-layer{animation:none!important}}
+.wizard-hat{translate:0 -3px}
+
+ .hair-lock{transform-origin:50px 49px}.hair-tail{transform-origin:77px 46px}.on .hair-lock{transform:rotate(-5deg)}.extra-doubleflip.on .hair-lock{transform:rotate(5deg)}
+ .season.play .new-art,.season.play .wizard-hat-layer{animation:winkheart 1.6s cubic-bezier(.22,.72,.3,1) both!important}
+ .season.extra-bowgreet.play .wizard-hat{animation:hatSalute 1.6s ease both!important}
+ .season.extra-hatspin.play .wizard-hat{animation:hatCircle 1.6s ease both!important}
+ .season.extra-stretchcheer.play .hands{animation:armsUp 1.6s ease both}
+ .extra-stretchcheer.on .hands{transform:translateY(-9px) scaleX(1.1)}
+ .extra-sidesweep.play .hair-lock{animation:hairSide 1.6s ease both}.extra-sidesweep.play .hair-tail{animation:hairTail 1.6s ease both}
+ .extra-doubleflip.play .hair-lock{animation:hairDouble 1.6s ease both}.extra-doubleflip.play .hair-tail{animation:curlTail 1.6s ease both}
+ .extra-hatspin.on .wizard-hat{filter:drop-shadow(0 0 4px #ffc657)}
+ .cheek-heart{position:absolute;top:42px;left:64px;color:#e58d88;font-size:19px;opacity:0;pointer-events:none}.on .cheek-heart{opacity:1}.play .cheek-heart{animation:heartArc 1.6s ease both}
+ .extra-winkheart .heart-prop{display:none}.greet-spark{position:absolute;left:65px;top:8px;color:#d6ae60;opacity:0}.play .greet-spark{animation:saluteSpark 1.6s ease both}
+ @keyframes sidesweep{0%,100%{transform:rotate(0)}22%{transform:translateY(3px) rotate(14deg)}45%{transform:translate(6px,-4px) rotate(-27deg)}64%{transform:rotate(10deg)}82%{transform:rotate(-4deg)}}
+ @keyframes hairSide{0%,20%{transform:rotate(0)}40%{transform:rotate(23deg)}60%{transform:rotate(-15deg)}82%{transform:rotate(8deg)}100%{transform:rotate(-5deg)}}
+ @keyframes hairTail{0%,20%{transform:rotate(0)}45%{transform:rotate(40deg) scaleX(1.35)}68%{transform:rotate(-24deg)}85%{transform:rotate(12deg)}100%{transform:rotate(0)}}
+ @keyframes doubleflip{0%,100%{transform:rotate(0)}18%{transform:rotate(-22deg) translateX(-3px)}38%{transform:rotate(24deg) translateX(3px)}58%{transform:rotate(-18deg)}77%{transform:translateY(-6px) rotate(11deg)}}
+ @keyframes hairDouble{0%{transform:rotate(0)}23%{transform:rotate(21deg)}44%{transform:rotate(-26deg)}66%{transform:rotate(20deg)}85%{transform:rotate(-10deg)}100%{transform:rotate(5deg)}}
+ @keyframes curlTail{20%{transform:rotate(30deg)}42%{transform:rotate(-35deg)}65%{transform:rotate(27deg)}84%{transform:rotate(-15deg)}100%{transform:rotate(0)}}
+ @keyframes bowgreet{0%,100%{transform:rotate(0)}38%,55%{transform:translateY(8px) rotate(18deg) scaleY(.85)}80%{transform:translateY(-3px) rotate(-4deg)}}
+ @keyframes hatSalute{0%,100%{transform:none}28%,62%{transform:translate(22px,-15px) rotate(28deg)}82%{transform:translate(4px,-5px) rotate(5deg)}}
+ @keyframes winkheart{0%,100%{transform:rotate(0)}35%,65%{transform:rotate(-16deg) translateY(-3px)}85%{transform:rotate(5deg)}}
+ @keyframes heartArc{0%{opacity:0;transform:translate(-35px,12px) scale(.2)}35%{opacity:1;transform:translate(-20px,-28px) scale(1.2)}70%{opacity:1;transform:translate(5px,-9px)}100%{opacity:1;transform:none}}
+ @keyframes stretchcheer{0%,100%{transform:scale(1)}24%{transform:scale(1.16,.8) translateY(5px)}52%{transform:scale(.88,1.18) translateY(-10px)}77%{transform:scale(1.07,.95)}}
+ @keyframes armsUp{0%{transform:translateY(6px)}50%,75%{transform:translateY(-13px) scaleX(1.2)}100%{transform:translateY(-9px) scaleX(1.1)}}
+ @keyframes hatspin{0%,100%{transform:rotate(0)}30%{transform:rotate(-7deg)}65%{transform:rotate(7deg)}}
+ @keyframes hatCircle{0%,100%{transform:rotate(0)}22%{transform:translateY(-7px) rotate(-12deg)}70%{transform:translateY(-15px) rotate(360deg)}90%{transform:translateY(-3px) rotate(367deg)}}
+ @keyframes saluteSpark{0%,100%{opacity:0}40%,75%{opacity:1;transform:translate(15px,-15px)}}
+ @media(prefers-reduced-motion:reduce){.season.play .new-art,.season.play .wizard-hat-layer,.season.play .wizard-hat,.season.play .hair-lock,.season.play .hair-tail{animation:none!important}}
+
+</style></head>
 <body class="bg-surface text-on-surface min-h-screen flex justify-center">
 <nav id="sidebar" class="sidebar sidebar--fixed-left"></nav>
 <div class="w-full max-w-[428px] relative shadow-2xl bg-surface flex flex-col h-screen">
@@ -142,20 +177,7 @@
 </section>
 <!-- Interaction Area -->
 <section class="flex flex-col items-center justify-center py-8 gap-2 border-b border-surface-variant/20 mx-6">
-  <button id="likeBtn" onclick="handleLike()" style="
-    width:64px;height:64px;border-radius:50%;cursor:pointer;
-    background:linear-gradient(135deg,#fff5f0 0%,#ffe4d6 100%);
-    border:1.5px solid #ffb89a;
-    display:flex;align-items:center;justify-content:center;
-    outline:none;-webkit-tap-highlight-color:transparent;
-    box-shadow:0 2px 8px rgba(255,107,72,0.18);
-    transition:background 0.3s,box-shadow 0.3s;
-  ">
-    <svg id="likeIcon" viewBox="0 0 24 24" style="width:28px;height:28px;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);">
-      <path id="thumbOff" fill="#ff7043" style="transition:opacity 0.2s;" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/>
-      <path id="thumbOn"  fill="#0061a4" opacity="0" style="transition:opacity 0.2s;" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2l-.01-.01L23 10z"/>
-    </svg>
-  </button>
+  <button class="season v22 extra-winkheart" id="seasonLike" aria-label="万圣节点赞" aria-pressed="false" onclick="handleLike()"><span class="pumpkin new-art art0 wizard-raster" aria-hidden="true"><img class="wizard-idle" src="../assets/halloween-wizard-idle.png?v=aa2" width="720" height="720" alt="" draggable="false"><img class="wizard-liked" src="../assets/halloween-wizard-liked.png?v=aa2" width="720" height="720" alt="" draggable="false"></span><span class="fx wizard-particle " style="--x:44px;--y:-44px;--r:0deg;--delay:0s;color:#e0a64d">♥</span><span class="fx wizard-particle " style="--x:-49px;--y:-49px;--r:50deg;--delay:0.06s;color:#e0a64d">♥</span><span class="fx wizard-particle " style="--x:54px;--y:-54px;--r:100deg;--delay:0.12s;color:#e0a64d">♥</span><span class="fx wizard-particle " style="--x:-59px;--y:-59px;--r:150deg;--delay:0.18s;color:#e0a64d">♥</span><span class="fx wizard-particle " style="--x:64px;--y:-64px;--r:200deg;--delay:0.24s;color:#e0a64d">♥</span><span class="fx wizard-particle " style="--x:-69px;--y:-69px;--r:250deg;--delay:0.3s;color:#e0a64d">♥</span><span class="cheek-heart">♥</span></button>
   <span id="likeCount" class="text-sm font-bold text-on-surface" style="transition:color 0.3s;">515</span>
 </section>
 
@@ -164,107 +186,8 @@
 
 <script>
 (function(){
-  var liked = false;
-  var count = 515;
-  var COLORS = ['#ff3b3b','#ff6b00','#ffcc00','#00c853','#00bcd4','#4d96ff','#c77dff','#ff4d94','#a8ff3e','#ff9e00','#f72585','#80ffdb'];
-  var TAU = Math.PI * 2;
-
-  function rand(a,b){ return a + Math.random()*(b-a); }
-  function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
-  function easeOutExpo(t){ return t>=1?1:1-Math.pow(2,-10*t); }
-  function easeInQ(t){ return t*t; }
-
-  window.handleLike = function(){
-    if(liked) return;
-    liked = true;
-    count++;
-
-    var btn = document.getElementById('likeBtn');
-    var rect = btn.getBoundingClientRect();
-    var ox = rect.left + rect.width / 2;
-    var oy = rect.top  + rect.height / 2;
-
-    document.getElementById('thumbOff').style.opacity = '0';
-    document.getElementById('thumbOn').style.opacity  = '1';
-    document.getElementById('likeIcon').style.transform = 'scale(1.18) rotate(-10deg)';
-    btn.style.background = 'linear-gradient(135deg,#e8f4ff 0%,#d1e9ff 100%)';
-    btn.style.borderColor = '#7ab8f5';
-    btn.style.boxShadow = '0 2px 12px rgba(0,97,164,0.2)';
-
-    var counter = document.getElementById('likeCount');
-    counter.textContent = count;
-    counter.style.color = '#0061a4';
-
-    fireRipple(ox, oy);
-    fireConfetti(ox, oy);
-  };
-
-  function fireRipple(ox, oy){
-    var svg = document.getElementById('confettiSVG');
-    var c = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    c.setAttribute('cx', ox); c.setAttribute('cy', oy);
-    c.setAttribute('r', 0); c.setAttribute('fill','none');
-    c.setAttribute('stroke','#4d96ff'); c.setAttribute('stroke-width', 2.5);
-    svg.appendChild(c);
-    var s=null, DUR=0.45, MAX=30;
-    (function f(ts){ if(!s)s=ts; var t=(ts-s)/1000; if(t>=DUR){c.remove();return;}
-      var p=t/DUR; c.setAttribute('r', easeOutExpo(p)*MAX);
-      c.setAttribute('opacity', 1-p); requestAnimationFrame(f); })(performance.now());
-  }
-
-  function fireConfetti(ox, oy){
-    var svg = document.getElementById('confettiSVG');
-    var pieces = [];
-    var N = 28;
-
-    for(var i=0;i<N;i++){
-      var angle    = rand(0, TAU);
-      var speed    = rand(40, 100);
-      var color    = pick(COLORS);
-      var w        = rand(4, 11);
-      var h        = rand(2, 6);
-      var rotSpeed = rand(-500, 500);
-      var initRot  = rand(0, 360);
-      var gravity  = rand(60, 140);
-      var life     = rand(0.8, 1.2);
-      var delay    = rand(0, 0.05);
-
-      var el = document.createElementNS('http://www.w3.org/2000/svg','rect');
-      el.setAttribute('width',w); el.setAttribute('height',h);
-      el.setAttribute('fill',color); el.setAttribute('rx',1.5);
-      el.setAttribute('opacity',0);
-      svg.appendChild(el);
-      pieces.push({el,angle,speed,w,h,rotSpeed,initRot,gravity,life,delay});
-    }
-
-    var start=null;
-    (function frame(ts){
-      if(!start) start=ts;
-      var elapsed=(ts-start)/1000;
-      var alive=false;
-
-      for(var i=0;i<pieces.length;i++){
-        var p=pieces[i];
-        var t=Math.max(0,elapsed-p.delay);
-        if(t>=p.life){ p.el.setAttribute('opacity',0); continue; }
-        alive=true;
-        var prog=t/p.life;
-        var dist=easeOutExpo(prog)*p.speed*p.life;
-        var px=ox + Math.cos(p.angle)*dist;
-        var py=oy + Math.sin(p.angle)*dist + easeInQ(prog)*p.gravity*p.life*0.5;
-        var rot=p.initRot+p.rotSpeed*t;
-        var opacity=prog<0.55?1:Math.pow(1-(prog-0.55)/0.45,1.5);
-        p.el.setAttribute('transform',
-          'translate('+(px-p.w/2)+','+(py-p.h/2)+') rotate('+rot+' '+(p.w/2)+' '+(p.h/2)+')');
-        p.el.setAttribute('opacity',opacity);
-      }
-
-      if(alive) requestAnimationFrame(frame);
-      else {
-        for(var i=0;i<pieces.length;i++) pieces[i].el.remove();
-      }
-    })(performance.now());
-  }
+ let liked=false;let count=515;
+ window.handleLike=function(){if(liked)return;liked=true;count++;const btn=document.getElementById('seasonLike');btn.classList.add('on','play');btn.setAttribute('aria-pressed','true');document.getElementById('likeCount').textContent=count;document.getElementById('likeCount').style.color='#da822d';const footer=document.getElementById('footerLikeCount');if(footer)footer.textContent=count;};
 })();
 </script>
 <!-- Comments Section -->
@@ -337,10 +260,14 @@
 <div class="flex items-center gap-1">
 <span class="material-symbols-outlined text-lg">chat_bubble</span>
 </div>
-<div class="flex items-center gap-1">
-<span class="material-symbols-outlined text-lg">thumb_up</span>
-<span class="text-xs">12</span>
-</div>
+<button type="button" class="comment-like" aria-pressed="false" aria-label="点赞第1条评论">
+<span class="comment-like-art" aria-hidden="true">
+<img class="comment-like-idle" src="../assets/halloween-wizard-idle.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<img class="comment-like-liked" src="../assets/halloween-wizard-liked.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<svg class="comment-like-heart" viewBox="0 0 10 9"><path d="M5 8.5 1 4.6C-1 2.3 2-1 5 1.8 8-1 11 2.3 9 4.6Z"/></svg>
+</span>
+<span class="comment-like-count">12</span>
+</button>
 </div>
 </div>
 </div>
@@ -364,10 +291,14 @@
 <div class="flex items-center gap-1">
 <span class="material-symbols-outlined text-lg">chat_bubble</span>
 </div>
-<div class="flex items-center gap-1">
-<span class="material-symbols-outlined text-lg">thumb_up</span>
-<span class="text-xs">4</span>
-</div>
+<button type="button" class="comment-like" aria-pressed="false" aria-label="点赞第2条评论">
+<span class="comment-like-art" aria-hidden="true">
+<img class="comment-like-idle" src="../assets/halloween-wizard-idle.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<img class="comment-like-liked" src="../assets/halloween-wizard-liked.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<svg class="comment-like-heart" viewBox="0 0 10 9"><path d="M5 8.5 1 4.6C-1 2.3 2-1 5 1.8 8-1 11 2.3 9 4.6Z"/></svg>
+</span>
+<span class="comment-like-count">4</span>
+</button>
 </div>
 </div>
 </div>
@@ -391,10 +322,14 @@
 <div class="flex items-center gap-1">
 <span class="material-symbols-outlined text-lg">chat_bubble</span>
 </div>
-<div class="flex items-center gap-1">
-<span class="material-symbols-outlined text-lg">thumb_up</span>
-<span class="text-xs">28</span>
-</div>
+<button type="button" class="comment-like" aria-pressed="false" aria-label="点赞第3条评论">
+<span class="comment-like-art" aria-hidden="true">
+<img class="comment-like-idle" src="../assets/halloween-wizard-idle.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<img class="comment-like-liked" src="../assets/halloween-wizard-liked.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<svg class="comment-like-heart" viewBox="0 0 10 9"><path d="M5 8.5 1 4.6C-1 2.3 2-1 5 1.8 8-1 11 2.3 9 4.6Z"/></svg>
+</span>
+<span class="comment-like-count">28</span>
+</button>
 </div>
 </div>
 </div>
@@ -418,10 +353,14 @@
 <div class="flex items-center gap-1">
 <span class="material-symbols-outlined text-lg">chat_bubble</span>
 </div>
-<div class="flex items-center gap-1">
-<span class="material-symbols-outlined text-lg">thumb_up</span>
-<span class="text-xs">1</span>
-</div>
+<button type="button" class="comment-like" aria-pressed="false" aria-label="点赞第4条评论">
+<span class="comment-like-art" aria-hidden="true">
+<img class="comment-like-idle" src="../assets/halloween-wizard-idle.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<img class="comment-like-liked" src="../assets/halloween-wizard-liked.png?v=aa2" width="720" height="720" alt="" draggable="false">
+<svg class="comment-like-heart" viewBox="0 0 10 9"><path d="M5 8.5 1 4.6C-1 2.3 2-1 5 1.8 8-1 11 2.3 9 4.6Z"/></svg>
+</span>
+<span class="comment-like-count">1</span>
+</button>
 </div>
 </div>
 </div>
@@ -447,7 +386,7 @@
 </div>
 <div class="flex flex-col items-center cursor-pointer">
 <span class="material-symbols-outlined text-2xl">thumb_up</span>
-<span class="text-[10px] font-bold">515</span>
+<span id="footerLikeCount" class="text-[10px] font-bold">515</span>
 </div>
 <div class="flex flex-col items-center cursor-pointer">
 <span class="material-symbols-outlined text-2xl">star</span>
@@ -533,4 +472,53 @@ function closePostMenu() {
 <script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
 <script>initSidebar({root:'../../..',currentHref:'client/domestic/home/post-detail.html'});</script>
 <script src="../../../shared/requirement-panel.js?v=20260921-requirements"></script>
-</body></html>
+
+<style>
+/* 8× transparent art; keep the existing breathe/winkheart motion on its holder. */
+.season .wizard-raster{display:block;filter:none!important;opacity:1!important;pointer-events:none}
+.wizard-raster img{position:absolute;inset:0;display:block;width:100%;height:100%;image-rendering:auto;pointer-events:none;user-select:none}
+.wizard-raster .wizard-liked{visibility:hidden}
+.on .wizard-raster .wizard-idle{visibility:hidden}
+.on .wizard-raster .wizard-liked{visibility:visible}
+
+/* Comment-only miniature: ~22px visible art, with a 44px touch target. */
+.comment-like{display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;min-width:44px;height:44px;margin-block:-8px;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-size:12px;line-height:1;cursor:pointer;touch-action:manipulation;flex-shrink:0}
+.comment-like:focus-visible{outline:2px solid #d99749;outline-offset:2px;border-radius:6px}
+.comment-like-art{display:block;position:relative;flex:0 0 24px;width:24px;height:26px;transform-origin:50% 70%;pointer-events:none}
+.comment-like-art img{position:absolute;left:-5px;top:-4px;display:block;width:34px;height:34px;max-width:none;image-rendering:auto;pointer-events:none;user-select:none}
+.comment-like-liked,.comment-like-heart{visibility:hidden}
+.comment-like-heart{position:absolute;right:-2px;bottom:4px;width:7px;height:7px;fill:#d78a82}
+.comment-like-count{min-width:1ch;font-variant-numeric:tabular-nums}
+.comment-like[aria-pressed="true"]{color:#c87926}
+.comment-like[aria-pressed="true"] .comment-like-idle{visibility:hidden}
+.comment-like[aria-pressed="true"] .comment-like-liked,.comment-like[aria-pressed="true"] .comment-like-heart{visibility:visible}
+.comment-like.is-nodding .comment-like-art{animation:commentLikeNod 350ms ease-in-out}
+@keyframes commentLikeNod{0%,100%{transform:rotate(0)}40%{transform:rotate(-10deg)}}
+@media(prefers-reduced-motion:reduce){.comment-like.is-nodding .comment-like-art{animation:none}}
+</style>
+<script>
+(function(){
+  document.querySelectorAll('.comment-like').forEach(function(button){
+    const counter = button.querySelector('.comment-like-count');
+    const initialCount = Number(counter.textContent);
+    const commentNumber = button.getAttribute('aria-label').match(/\d+/)[0];
+    button.addEventListener('click', function(){
+      const isLiked = button.getAttribute('aria-pressed') !== 'true';
+      button.setAttribute('aria-pressed', String(isLiked));
+      button.setAttribute('aria-label', (isLiked ? '取消点赞' : '点赞') + '第' + commentNumber + '条评论');
+      counter.textContent = initialCount + (isLiked ? 1 : 0);
+      button.classList.remove('is-nodding');
+      if (isLiked) {
+        // Restart only the short nod, never the article's animation or particles.
+        void button.offsetWidth;
+        button.classList.add('is-nodding');
+      }
+    });
+    button.addEventListener('animationend', function(event){
+      if (event.animationName === 'commentLikeNod') button.classList.remove('is-nodding');
+    });
+  });
+})();
+</script>
+</body>
+</html>
