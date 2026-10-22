@@ -40,7 +40,7 @@ const SIDEBAR_DATA = [
           {
             type: 'item',
             label: '帖子详情',
-            version: '',
+            version: 'v3.1.7',
             href: 'client/domestic/home/post-detail.html'
           },
           {

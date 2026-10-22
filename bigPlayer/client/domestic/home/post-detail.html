@@ -193,7 +193,7 @@
 <!-- Comments Section -->
 <section class="px-6 py-6">
 <div class="sticky top-0 z-40 bg-surface -mx-6 px-6 py-3 mb-3 flex justify-between items-center border-b border-surface-variant/20">
-<h2 class="text-lg font-bold text-on-surface font-manrope">全部评论</h2>
+<div style="display:flex;align-items:center"><h2 class="text-lg font-bold text-on-surface font-manrope">全部评论</h2><button id="comment-search-trigger" aria-label="搜索评论" aria-expanded="false" style="border:0;background:transparent;color:#0061a4;width:34px;height:34px;display:grid;place-items:center;margin-left:6px;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">search</span></button></div>
 <div class="relative">
   <button id="sortBtn" onclick="toggleSortMenu()" style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;border:none;background:transparent;font-size:12px;font-weight:600;color:#566166;cursor:pointer;">
     <span id="sortLabel">默认</span>
@@ -233,7 +233,9 @@
 })();
 </script>
 <!-- Comment List -->
-<div class="space-y-8">
+<div id="comment-search-panel" hidden></div>
+<div id="comment-search-result" hidden role="status"></div>
+<div class="space-y-8" id="comment-search-list">
 <!-- User 1 -->
 <div class="flex gap-3">
 <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
@@ -468,9 +470,50 @@ function closePostMenu() {
   document.getElementById('postMenuSheet').style.display = 'none';
 }
 </script>
-<script src="../../../shared/sidebar-data.js?v=20260921-c-end-version2"></script>
+<script src="../../../shared/sidebar-data.js?v=20261022-post-detail-v317"></script>
 <script src="../../../shared/sidebar.js?v=sidebar-system-split-v037"></script>
 <script>initSidebar({root:'../../..',currentHref:'client/domestic/home/post-detail.html'});</script>
+<script>
+window.requirementPanelConfig = {
+  title: '帖子详情需求说明',
+  version: 'v3.1.7',
+  html: `
+    <section>
+      <h2>v3.1.7 · 点赞效果与评论搜索</h2>
+      <h3>一、大、小点赞效果</h3>
+      <ul>
+        <li><strong>统一样式：</strong>使用透明底巫师南瓜。未赞为灰杏色；已赞为橙色眨眼表情，保留小爱心。</li>
+        <li><strong>正文大点赞：</strong>采用第10款“眨眼比心”，点赞时播放一次约1.6秒动效。</li>
+        <li><strong>评论小点赞：</strong>位于评论右下角，角色约22px，数量在右侧；点赞时轻歪头回正，约0.35秒，无粒子，平时保持静止。</li>
+        <li><strong>数量规则：</strong>正文与底栏点赞数同步；评论独立计数。点赞、取消及权限沿用原规则，底栏图标不变。</li>
+      </ul>
+
+      <h3>二、评论搜索</h3>
+      <ul>
+        <li><strong>入口：</strong>点击“全部评论”右侧搜索图标展开面板，默认选择“昵称”；点击“搜索”或按Enter执行。</li>
+        <li><strong>搜索方式：</strong>昵称、楼层号、评论内容三选一，输入框随所选类型切换。具体规则如下表。</li>
+      </ul>
+      <table>
+        <thead><tr><th>类型 / 提示</th><th>输入限制</th><th>匹配规则</th></tr></thead>
+        <tbody>
+          <tr><td>昵称<br>“输入昵称”</td><td>单行文本，最多30字符；允许中外文、数字及昵称中的符号。至少输入1个非空白字符。</td><td>按一级评论及回复作者昵称包含匹配，英文不区分大小写；不是按用户ID搜索。</td></tr>
+          <tr><td>楼层号<br>“仅输入数字”</td><td>最多9位，仅保留0–9；输入或粘贴时自动过滤其他字符。右侧固定显示F，无需输入F。</td><td>按楼层数值精确匹配，12仅匹配12F，012也匹配12F；0或不存在的楼层返回0条，楼层编号不变。</td></tr>
+          <tr><td>评论内容<br>“输入评论内容”</td><td>单行文本，最多100字符；允许中外文、数字及标点符号。至少输入1个非空白字符。</td><td>按一级评论及回复的正文文字包含匹配，英文不区分大小写；不搜索帖子正文或图片中的文字。</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><strong>通用输入限制：</strong>输入与粘贴均受长度限制，超过上限不再接收超出部分；按字符而非字节计数。搜索时去除首尾空格，中间空格保留，关键词按普通文字匹配，不作正则或多个条件拆分。</li>
+        <li><strong>空输入：</strong>空值或纯空格不发起搜索，分别提示“输入昵称”“仅输入数字”“输入评论内容”；保留上一次有效结果。Enter用于执行搜索，不输入换行。</li>
+        <li><strong>搜索范围：</strong>仅搜索当前帖全部可见的一级评论和楼中楼回复，包括未加载、未展开的内容；昵称搜索包含回复作者，内容搜索仅查评论文字。</li>
+        <li><strong>结果展示：</strong>显示“找到N条评论”。回复命中时展示所属一级评论组，命中回复可查看；同组去重展示、只计1条，保留原楼层及顺序。无匹配显示0条。</li>
+        <li><strong>切换类型：</strong>分别保留三种方式的输入，切换时更新提示及限制，不自动搜索；再次提交后才更新结果。</li>
+        <li><strong>清除与关闭：</strong>清除恢复原列表；关闭仅收起面板，不自动清除结果。两者均保留搜索类型和输入，不改变评论总数。</li>
+      </ul>
+      <p><strong>说明：</strong>当前原型仅演示已展示数据的筛选，正式版本按上述全量范围实现。节日生效时间待确认。</p>
+    </section>
+  `
+};
+</script>
 <script src="../../../shared/requirement-panel.js?v=20260921-requirements"></script>
 
 <style>
@@ -518,6 +561,58 @@ function closePostMenu() {
       if (event.animationName === 'commentLikeNod') button.classList.remove('is-nodding');
     });
   });
+})();
+</script>
+<style>
+#comment-search-panel[hidden],#comment-search-result[hidden],#comment-search-list>[hidden]{display:none!important}
+#comment-search-panel{background:white;border:1px solid #d9e4ea;border-radius:8px;padding:10px 12px;margin-bottom:14px;color:#2a3439}
+.comment-search-head{display:flex;align-items:center;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.comment-search-close{border:0;background:transparent;color:#566166;font-size:18px;width:24px;height:24px}
+.comment-search-types{display:flex;gap:12px;margin-bottom:8px}
+.comment-search-type{border:0;background:transparent;color:#6d7880;padding:4px 0;font-size:11px;cursor:pointer}
+.comment-search-type[aria-pressed=true]{color:#0061a4;font-weight:700}
+.comment-search-type[aria-pressed=true]:after{content:'';display:block;height:2px;background:#0061a4;margin-top:3px}
+.comment-search-form{display:flex;gap:6px}
+.comment-search-input-wrap{display:flex;align-items:center;flex:1;min-width:0;background:#f0f4f7;border:1px solid #d9e4ea;border-radius:6px}
+.comment-search-input-wrap:focus-within{border-color:#0061a4}
+.comment-search-input-wrap input{width:100%;min-width:0;background:transparent!important;border:0!important;box-shadow:none!important;outline:none;padding:8px 9px!important;font-size:12px}
+.comment-search-suffix{font-size:12px;color:#566166;padding-right:12px}
+.comment-search-submit{border:0;border-radius:6px;background:#0061a4;color:white;padding:0 12px;font-size:12px}
+.comment-search-status{font-size:11px;color:#566166;margin-top:6px}
+#comment-search-result{display:flex;justify-content:space-between;gap:8px;align-items:center;background:#e8eff3;padding:9px;margin-bottom:14px;font-size:11px}
+#comment-search-result button{border:0;background:none;color:#0061a4;white-space:nowrap}
+</style>
+<script>
+(function(){
+  const panel=document.getElementById('comment-search-panel'),trigger=document.getElementById('comment-search-trigger'),result=document.getElementById('comment-search-result');
+  const labels=['昵称','楼层号','评论内容'],placeholders=['输入昵称','仅输入数字','输入评论内容'];
+  const rows=Array.from(document.getElementById('comment-search-list').children);
+  let type=0;const values=['','',''];
+  function close(){panel.hidden=true;trigger.setAttribute('aria-expanded','false');}
+  function render(){
+    panel.innerHTML='<div class="comment-search-head"><b>搜索评论</b><button type="button" class="comment-search-close" aria-label="关闭搜索">×</button></div><div class="comment-search-types">'+labels.map((label,i)=>'<button type="button" class="comment-search-type" data-type="'+i+'" aria-pressed="'+(i===type)+'">'+label+'</button>').join('')+'</div><form class="comment-search-form"><label class="comment-search-input-wrap"><input aria-label="'+labels[type]+'" placeholder="'+placeholders[type]+'" '+(type===1?'inputmode="numeric"':'')+'><span class="comment-search-suffix">'+(type===1?'F':'')+'</span></label><button class="comment-search-submit">搜索</button></form><div class="comment-search-status" role="status"></div>';
+    const input=panel.querySelector('input');input.value=values[type];
+    input.oninput=()=>{if(type===1)input.value=input.value.replace(/\D/g,'');values[type]=input.value;};
+    panel.querySelector('.comment-search-close').onclick=close;
+    panel.querySelectorAll('[data-type]').forEach(button=>button.onclick=()=>{type=Number(button.dataset.type);render();});
+    panel.querySelector('form').onsubmit=event=>{
+      event.preventDefault();const query=input.value.trim();
+      if(!query){panel.querySelector('.comment-search-status').textContent=placeholders[type];return;}
+      let count=0;
+      rows.forEach(row=>{
+        const nickname=row.querySelector('.text-xs.font-bold')?.textContent||'';
+        const floor=Array.from(row.querySelectorAll('span')).find(span=>/^\d+F$/.test(span.textContent.trim()))?.textContent.trim()||'';
+        const content=Array.from(row.querySelectorAll('p')).map(p=>p.textContent).join(' ');
+        const matches=type===1?Number(floor.replace('F',''))===Number(query):(type===0?nickname:content).toLowerCase().includes(query.toLowerCase());
+        row.hidden=!matches;if(matches)count++;
+      });
+      panel.querySelector('.comment-search-status').textContent='找到 '+count+' 条评论';
+      result.replaceChildren();const summary=document.createElement('span');summary.textContent=labels[type]+'：'+query+' · '+count+'条';
+      const clear=document.createElement('button');clear.type='button';clear.textContent='清除';clear.onclick=()=>{rows.forEach(row=>row.hidden=false);result.hidden=true;panel.querySelector('.comment-search-status').textContent='';};
+      result.append(summary,clear);result.hidden=false;
+    };
+  }
+  trigger.onclick=()=>{if(!panel.hidden){close();return;}panel.hidden=false;trigger.setAttribute('aria-expanded','true');render();};
 })();
 </script>
 </body>
