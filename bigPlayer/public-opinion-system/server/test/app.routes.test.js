@@ -170,6 +170,7 @@ test.before(async () => {
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY po_quality_candidates_test_content_uk (content_id)
   )`);
+  await repo.query('ALTER TABLE po_quality_candidates ADD COLUMN IF NOT EXISTS quality_policy JSON NULL');
   await repo.query('CREATE TABLE IF NOT EXISTS po_source_capabilities (id VARCHAR(64) PRIMARY KEY, source_id VARCHAR(64), capability VARCHAR(80), status VARCHAR(30) DEFAULT \'unknown\', detail TEXT NULL, checked_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY po_source_capabilities_test_uk (source_id, capability))');
   await repo.query('CREATE TABLE IF NOT EXISTS po_keyword_rules (id VARCHAR(64) PRIMARY KEY, game_id VARCHAR(64), platform VARCHAR(40) NULL, keyword VARCHAR(160), group_name VARCHAR(120) NULL, severity VARCHAR(20) DEFAULT \'attention\', trigger_mode VARCHAR(20) DEFAULT \'aggregate\', window_seconds INT DEFAULT 1800, threshold_count INT DEFAULT 1, enabled TINYINT DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   gameId = 'g-test-1';

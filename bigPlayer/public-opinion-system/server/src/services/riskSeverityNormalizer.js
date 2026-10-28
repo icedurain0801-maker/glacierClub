@@ -1,4 +1,5 @@
 const SEVERITY_RANK = Object.freeze({ normal: 0, attention: 1, negative: 2, urgent: 3 });
+const { assertUrgentValidated } = require('./urgentValidation');
 const { factualClauses, hasConcreteCrashReport, verifiedSeriousImpact } = require('./gameRiskEvidence');
 const { productIssueEvidence, isPlannedMaintenance } = require('./productIssueEvidence');
 const { POLICY_VERSION, LEVELS, evaluateRiskDecision } = require('./riskDecisionTree');
@@ -101,7 +102,7 @@ function normalizeAnalysisResult(analysis, context = {}) {
   // TypeSafe has already applied its confidence/issue/emergency gates. Do not
   // run the legacy decision tree again and turn neutral text back into risk.
   const typeSafe = analysis.typeSafeDecision || analysis.rawAnalysis?.typeSafeDecision;
-  if (typeSafe?.provider === 'typesafe-v11-production-v1') {
+  if (['typesafe-v11-production-v1', 'typesafe-v12-secondary-review-v1', 'typesafe-v13-l2-l3-secondary-review-v1', require('./commentAnalysisContext').CONTEXT_PROVIDER].includes(typeSafe?.provider)) {
     const levels = { L0: 'normal', L1: 'attention', L2: 'negative', L3: 'urgent' };
     if (!levels[typeSafe.final_level] || !levels[typeSafe.raw_level]
       || !['auto_passed', 'manual_review'].includes(typeSafe.status)
@@ -109,6 +110,7 @@ function normalizeAnalysisResult(analysis, context = {}) {
       throw Object.assign(new Error('TYPESAFE_INVALID_DECISION'), { code: 'TYPESAFE_INVALID_DECISION' });
     }
     const reason = String(analysis.rawAnalysis?.reason || analysis.reason || analysis.analysis_reason || '').slice(0, 255);
+    assertUrgentValidated({ ...analysis, severity: levels[typeSafe.final_level], reason, typeSafeDecision: typeSafe }, context);
     return { ...analysis, severity: levels[typeSafe.final_level], typeSafeDecision: typeSafe,
       rawAnalysis: { ...(analysis.rawAnalysis || {}), typeSafeDecision: typeSafe, reason },
       confidence: typeSafe.confidence, needsDeep: false, reason, analysisReason: reason,
@@ -123,6 +125,7 @@ function normalizeAnalysisResult(analysis, context = {}) {
     body: context.body ?? analysis.body ?? storedDecision?.verifiedSourceText ?? analysis.rawAnalysis?.verifiedEvidenceText,
     evidenceTypes: context.evidenceTypes ?? storedDecision?.verifiedEvidenceTypes,
     riskMetadata: context.riskMetadata ?? storedDecision?.verifiedRiskMetadata });
+  assertUrgentValidated({ ...analysis, severity: normalized.severity }, context);
   const rawAnalysis = { ...(analysis.rawAnalysis || {
     sentiment: analysis.sentiment, severity: analysis.originalSeverity ?? analysis.severity,
     negativeScore: analysis.negativeScore ?? analysis.negative_score, confidence: analysis.confidence,
@@ -179,7 +182,9 @@ function retainVerifiedUrgent(current, previous, context = {}) {
   if (typeof saved === 'string') { try { saved = JSON.parse(saved); } catch { return current; } }
   if (![RISK_POLICY_VERSION, 'verifiable-issue-gates-v10-neutral-no-risk'].includes(previous.riskPolicyVersion ?? saved.riskPolicyVersion)
     || !previous.content_fingerprint || previous.content_fingerprint !== current.contentFingerprint) return current;
-  const prior = normalizeAnalysisResult(previous, context);
+  let prior;
+  try { prior = normalizeAnalysisResult(previous, context); }
+  catch (error) { if (error.code === 'URGENT_REVIEW_REQUIRED') return current; throw error; }
   if (prior.severity !== 'urgent' || !prior.riskDecision) return current;
   const riskDecision = { ...prior.riskDecision,
     downgrade_suggest: `后续分析建议${current.riskDecision?.level_name || current.severity}，保留紧急待人工复核` };

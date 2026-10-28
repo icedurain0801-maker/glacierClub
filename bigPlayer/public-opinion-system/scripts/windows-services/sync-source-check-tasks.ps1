@@ -33,14 +33,6 @@ foreach($entry in $plan){
 }
 # Disable only tasks owned by this feature when their source is disabled/removed.
 foreach($task in $folder.GetTasks(0)){if($task.Name.StartsWith('PublicOpinion Source Check ') -and $task.Name -notin $expected){$task.Enabled=$false}}
-# Overseas primary must also follow its own configured source frequency.
-$overseas=$plan | Where-Object {$_.sourceId -eq '081a16d2-5545-4afd-9c65-e04777e4540b'}
-if($overseas){
-    $d=$folder.GetTask('BigPlayer Last Night Overseas Daily 02').Definition
-    $d.Settings.Enabled=$true
-    $d.Triggers.Clear()
-    $t=$d.Triggers.Create(2);$t.StartBoundary='2026-01-01T02:00:00';$t.DaysInterval=1
-    if($overseas.frequencySeconds -lt 86400){$t.Repetition.Interval='PT'+$overseas.frequencySeconds+'S';$t.Repetition.Duration='P1D'}
-    $null=$folder.RegisterTaskDefinition('BigPlayer Last Night Overseas Daily 02',$d,4,$null,$null,$d.Principal.LogonType,$null)
-} else { $folder.GetTask('BigPlayer Last Night Overseas Daily 02').Enabled=$false }
+# The shared Worker owns every source. Never re-enable the retired dedicated task.
+$folder.GetTask('BigPlayer Last Night Overseas Daily 02').Enabled=$false
 [pscustomobject]@{status='SOURCE_CHECK_TASKS_SYNCED';count=$expected.Count} | ConvertTo-Json -Compress

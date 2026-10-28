@@ -11,6 +11,7 @@
   const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
   const statusOf = run => String(pick(run, 'status', 'state', 'syncStatus', 'sync_status') || 'running').toLowerCase();
   const sequenceOf = item => number(pick(item, 'sequenceNo', 'sequence_no', 'sequence', 'seq', 'syncSequence', 'sync_sequence'));
+  const isNewContent = item => ['inserted', 'created', 'new'].includes(String(pick(item, 'changeType', 'change_type', 'change', 'action') || '').toLowerCase());
 
   function completionMessage(run) {
     const message = pick(run, 'message', 'errorMessage', 'error_message') || '';
@@ -91,13 +92,19 @@
 
     async function fetchContents(serial, finalFetch) {
       if (!isCurrent(serial)) return;
+      const previousAfter = state.after;
       const raw = await request('contents', { sourceId: state.sourceId, runId: state.runId, after: state.after, limit: state.pageSize, final: Boolean(finalFetch) });
       if (!isCurrent(serial)) return;
       const page = normalizeContents(raw);
-      state.items = mergeBySequence(state.items, page.items);
+      const visibleItems = options.itemFilter ? page.items.filter(options.itemFilter) : page.items;
+      state.items = mergeBySequence(state.items, visibleItems);
       state.contentInitialized = true;
       state.after = Math.max(state.after, page.nextAfter, ...page.items.map(sequenceOf));
       state.hasMore = page.hasMore == null ? page.items.length === state.pageSize : page.hasMore;
+      if (options.itemFilter && state.hasMore && state.after <= previousAfter) throw new Error('抓取内容分页游标未前进，请重试');
+      // Skip pages containing only changed/unchanged content. The raw cursor,
+      // not the filtered rows, determines the next request.
+      if (options.itemFilter && !visibleItems.length && state.hasMore) await fetchContents(serial, finalFetch);
     }
 
     async function poll(serial = state.serial) {
@@ -154,5 +161,5 @@
     return { state, snapshot, open, stop, poll, loadMore, isTerminal: status => TERMINAL.has(String(status || '').toLowerCase()) };
   }
 
-  return { RETRY_DELAYS, normalizeRun, normalizeContents, mergeBySequence, sequenceOf, completionMessage, isTerminal: status => TERMINAL.has(String(status || '').toLowerCase()), createController };
+  return { RETRY_DELAYS, normalizeRun, normalizeContents, mergeBySequence, sequenceOf, isNewContent, completionMessage, isTerminal: status => TERMINAL.has(String(status || '').toLowerCase()), createController };
 }));

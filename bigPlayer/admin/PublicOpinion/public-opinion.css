@@ -61,7 +61,7 @@ button, input, select, textarea { font: inherit; }
 .status, .severity, .state-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 7px; }
 .status.resolved, .state-badge.sent { background: var(--po-success-soft); color: var(--po-success); }
 .status, .state-badge.not_sent { background: var(--po-warning-soft); color: var(--po-warning); }
-.severity.urgent, .state-badge.failed, .matched-badge { background: var(--po-danger-soft); color: var(--po-danger); }
+.severity.urgent, .severity.negative, .state-badge.failed, .matched-badge { background: var(--po-danger-soft); color: var(--po-danger); }
 .severity.attention { background: var(--po-warning-soft); color: var(--po-warning); }
 .severity.normal, .content-type, .new-tag { background: var(--po-primary-soft); color: var(--po-primary); }
 .source-pill { background: #f1f4f7; color: #627187; }
@@ -133,6 +133,55 @@ body .admin-main > .command-bar .btn {
   border-color: rgba(255, 255, 255, .28);
 }
 body .admin-main > .command-bar select option { color: #1a2b45; }
+/* Give the paired region/community selectors their own spacing, including user-menu hosts. */
+[data-po-scope-selectors] {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0;
+  flex-wrap: wrap;
+}
+.feedback-term { padding: 11px 0; border-bottom: 1px solid #f0f2f5; }
+.feedback-term-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 8px; }
+.feedback-term-head > span { min-width: 0; line-height: 1.6; overflow-wrap: anywhere; color: #475467; }
+.feedback-term-head > b { flex: none; font-size: 12px; line-height: 1.6; color: #233d60; }
+.feedback-term .topic-track i { display: block; height: 8px; border-radius: 5px; background: #2864ed; }
+.feedback-translation { display: block; margin-top: 4px; color: #78879e; font-size: 12px; line-height: 1.6; }
+.feedback-cloud { display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; gap: 5px 12px; min-height: 290px; padding: 20px 8px; }
+.feedback-cloud-word { border: 0; background: transparent; padding: 3px 2px; font: inherit; line-height: 1.25; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; border-radius: 4px; }
+.feedback-cloud-word:hover, .feedback-cloud-word.selected { background: #f1f5ff; }
+.feedback-cloud-word:focus-visible { outline: 2px solid #337bff; outline-offset: 2px; }
+.feedback-cloud-detail { background: #f7f9fd; border: 1px solid #e7edf6; border-radius: 7px; padding: 12px; margin: 8px 0 12px; }
+.feedback-cloud-detail > div { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.feedback-cloud-detail strong { overflow-wrap: anywhere; color: #344563; }
+.feedback-cloud-detail b { flex: none; font-size: 12px; color: #2864ed; }
+.feedback-cloud-detail small { display: block; margin-top: 6px; color: #77869e; }
+.feedback-card-head { flex-wrap: wrap; gap: 12px; }
+.feedback-head-actions { margin-left: auto; }
+.feedback-view-switch { display: flex; gap: 3px; padding: 3px; background: #f2f5fa; border: 1px solid #e4eaf3; border-radius: 8px; }
+.feedback-view-switch button { border: 0; border-radius: 5px; background: transparent; color: #78879e; font: inherit; font-size: 12px; padding: 6px 11px; cursor: pointer; }
+.feedback-view-switch button.active { color: #2864ed; background: #fff; box-shadow: 0 1px 4px #273b5e14; }
+.feedback-view-switch button:focus-visible, #feedbackSentiment:focus-visible { outline: 2px solid #337bff; outline-offset: 2px; }
+.feedback-toolbar { display: flex; align-items: center; gap: 14px; padding: 12px 18px 0; margin-bottom: 4px; color: #78879e; }
+.feedback-topic-status { padding: 8px 18px 0; font-size: 11px; color: #8491a6; line-height: 1.6; }
+#feedbackSentiment { border: 1px solid #e4eaf3; border-radius: 6px; padding: 6px 26px 6px 10px; background: #fff; color: #344563; font: inherit; font-size: 12px; cursor: pointer; }
+.feedback-ranking-head, .feedback-ranking li { display: grid; grid-template-columns: 34px minmax(0, 1fr) 100px; align-items: center; column-gap: 14px; }
+.feedback-ranking-head { color: #78879e; font-size: 12px; padding: 10px 10px 10px 0; border-bottom: 1px solid #edf1f7; }
+.feedback-ranking { list-style: none; padding: 0 10px 0 0; margin: 0 0 12px; max-height: 350px; overflow-y: auto; scrollbar-width: thin; }
+.feedback-ranking li { min-height: 58px; padding: 12px 0; border-bottom: 1px solid #f0f3f8; }
+.feedback-rank { justify-self: center; color: #8491a6; font-size: 12px; }
+.feedback-rank-top { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-weight: 700; }
+.feedback-rank-1 { background: #fff0cf; color: #d78b0b; border: 1px solid #f4d282; }
+.feedback-rank-2 { background: #e3f2f8; color: #3896b7; border: 1px solid #b4dce9; }
+.feedback-rank-3 { background: #fbecdf; color: #c18a47; border: 1px solid #edd0ad; }
+.feedback-rank-keyword { min-width: 0; overflow-wrap: anywhere; }
+.feedback-rank-keyword strong { color: #344563; font-size: 13px; font-weight: 500; line-height: 1.6; }
+.feedback-rank-keyword small { display: block; font-size: 11px; color: #8491a6; line-height: 1.6; margin-top: 3px; }
+.feedback-rank-count b { color: #344563; font-size: 13px; font-weight: 500; }
+.feedback-rank-count b small { font-weight: 400; color: #8491a6; font-size: 11px; }
+.feedback-rank-track { height: 4px; border-radius: 3px; background: #edf3ff; margin-top: 7px; overflow: hidden; }
+.feedback-rank-track i { display: block; height: 100%; border-radius: inherit; background: #3986f6; }
+@media (max-width: 650px) { .feedback-ranking-head, .feedback-ranking li { grid-template-columns: 26px minmax(0, 1fr) 74px; column-gap: 8px; } }
 body .admin-main > .command-bar .btn.primary { background: #3d97ff; border-color: #3d97ff; }
 body .admin-main > .command-bar .btn:hover:not(:disabled) { color: #fff; background: rgba(255, 255, 255, .22); border-color: rgba(255, 255, 255, .5); }
 body .admin-main > .command-bar .btn.primary:hover:not(:disabled) { background: #57a5ff; border-color: #57a5ff; }

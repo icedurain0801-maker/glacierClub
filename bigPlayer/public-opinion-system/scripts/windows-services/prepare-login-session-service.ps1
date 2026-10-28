@@ -76,6 +76,11 @@ try {
     }
     Copy-Item -LiteralPath $itemPath -Destination $serviceTarget -Recurse -Force
   }
+  Assert-Regular (Join-Path $source 'shared\facebookBrowser.js') 'Facebook browser contract'
+  New-Item -ItemType Directory -Path (Join-Path $stage 'shared') -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $source 'shared\facebookBrowser.js') -Destination (Join-Path $stage 'shared\facebookBrowser.js')
+  Assert-Regular (Join-Path $source 'shared\facebookMedia.js') 'Facebook media contract'
+  Copy-Item -LiteralPath (Join-Path $source 'shared\facebookMedia.js') -Destination (Join-Path $stage 'shared\facebookMedia.js')
   Push-Location (Join-Path $stage 'login-session-service')
   try { & npm.cmd ci --omit=dev --ignore-scripts; if ($LASTEXITCODE -ne 0) { throw "npm ci failed: $LASTEXITCODE" } }
   finally { Pop-Location }

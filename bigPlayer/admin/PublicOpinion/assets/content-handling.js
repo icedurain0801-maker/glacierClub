@@ -8,13 +8,22 @@
   const selected = new Set();
   let options, pageIds = [], revision = 0, saving = false;
   const $ = selector => document.querySelector(selector);
+  function updateReasonField(method, note) {
+    const correction = method.value === 'false_positive';
+    note.required = correction;
+    note.placeholder = correction ? '请说明为什么是误判，例如正常晒卡、没有异常投诉（必填，最多 200 字符）' : '请输入处理备注（选填，最多 200 字符）';
+    note.closest('label').querySelector('span').innerHTML = correction ? '误判理由 <b>*</b> · 将用于AI纠错' : '处理备注';
+    note.setCustomValidity(correction && !note.value.trim() ? '请填写误判理由，AI将据此校正后续判断' : '');
+  }
   function shortenedNote(note) { const chars = [...String(note || '')]; return chars.length > 10 ? chars.slice(0, 10).join('') + '...' : chars.join(''); }
   function statusHtml(item, esc) {
     const processed = item.handling_status === 'processed';
     const eligible = isHandlingEligible(item);
     const note = String(item.handling_note || '');
-    return `<span class="handling-status ${!eligible ? 'not-required' : processed ? 'processed' : 'pending'}"${processed && methods[item.handling_method] ? ` title="${esc(methods[item.handling_method])}"` : ''}>${!eligible ? '无需处理' : processed ? '已处理' : '待处理'}</span>${note ? `<div class="handling-note" title="${esc(note)}">${esc(shortenedNote(note))}</div>` : ''}`;
+    const meta = processed ? `<div class="handling-meta">处理人：${esc(item.handled_by_name || '历史记录')}</div><div class="handling-meta">处理时间：${esc(formatHandledAt(item.handled_at))}</div>` : '';
+    return `<span class="handling-status ${!eligible ? 'not-required' : processed ? 'processed' : 'pending'}"${processed && methods[item.handling_method] ? ` title="${esc(methods[item.handling_method])}"` : ''}>${!eligible ? '无需处理' : processed ? '已处理' : '待处理'}</span>${meta}${note ? `<div class="handling-note" title="${esc(note)}">${esc(shortenedNote(note))}</div>` : ''}`;
   }
+  function formatHandledAt(value) { const date = new Date(value); if (!value || Number.isNaN(date.getTime())) return '未知时间'; return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date).replaceAll('/', '-'); }
   function checkboxHtml(item, esc) { const id = String(item.id), eligible = isHandlingEligible(item); return `<input type="checkbox" data-handling-id="${esc(id)}" aria-label="选择此条内容"${eligible ? (selected.has(id) ? ' checked' : '') : ' disabled title="无需处理"'}>`; }
   function updateSelection() {
     $('#batchHandleBtn').disabled = saving || selected.size === 0;
@@ -54,6 +63,7 @@
     $('#batchHandleBtn').onclick = () => {
       if (!selected.size || saving) return;
       $('#handlingMethod').value = 'handled'; $('#handlingNote').value = ''; $('#handlingNoteCount').textContent = '0 / 200'; $('#handlingFormError').textContent = '';
+      updateReasonField($('#handlingMethod'), $('#handlingNote'));
       $('#handlingDialogCount').textContent = `将处理已勾选的 ${selected.size} 条内容`;
       $('#batchHandlingDialog').showModal();
     };
@@ -64,17 +74,20 @@
       const input = $('#handlingNote'), chars = [...input.value];
       if (chars.length > 200) input.value = chars.slice(0, 200).join('');
       $('#handlingNoteCount').textContent = `${[...input.value].length} / 200`;
+      updateReasonField($('#handlingMethod'), input);
     };
+    $('#handlingMethod').onchange = () => updateReasonField($('#handlingMethod'), $('#handlingNote'));
     $('#batchHandlingForm').onsubmit = async event => {
       event.preventDefault(); if (saving) return;
       const ids = [...selected], method = $('#handlingMethod').value, note = $('#handlingNote').value;
+      if (method === 'false_positive' && !note.trim()) { $('#handlingFormError').textContent = '请填写误判理由，AI将据此校正后续判断'; return; }
       if (!ids.length || !methods[method] || [...note].length > 200) { $('#handlingFormError').textContent = !ids.length ? '请先选择内容' : !methods[method] ? '请选择处理方式' : '处理备注最多 200 字符'; return; }
       const version = revision, query = options.state.scope?.query?.() || new URLSearchParams();
       $('#handlingFormError').textContent = ''; setBusy(true);
       try {
         const result = await options.api(`/contents/batch-handle?${query}`, { method: 'POST', body: JSON.stringify({ contentIds: ids, handlingMethod: method, handlingNote: note }) });
         $('#batchHandlingDialog').close();
-        if (version === revision) { options.toast(`已处理 ${result.processedCount} 条内容`); await options.reload(); }
+        if (version === revision) { result.contentIds.forEach(id => selected.delete(String(id))); options.onSaved(result); options.toast(result.aiCorrection?.status === 'recorded' ? `已记录 ${result.processedCount} 条误判反馈，AI将用于后续相似内容判级` : `已处理 ${result.processedCount} 条内容`); }
       } catch (error) {
         if (version === revision) $('#handlingFormError').textContent = `处理失败：${error.message}`;
         else $('#batchHandlingDialog').close();
@@ -90,18 +103,23 @@
     const drawer = $('.drawer'); drawer.classList.add('has-single-handling');
     drawer.insertAdjacentHTML('beforeend', `<form id="singleHandlingForm" class="single-handling-footer"><div class="detail-label">单条处理</div><label class="handling-field" for="singleHandlingMethod"><span>处理方式 <b>*</b></span><select class="input" id="singleHandlingMethod" required>${Object.entries(methods).map(([key, label]) => `<option value="${key}"${key === 'handled' ? ' selected' : ''}>${label}</option>`).join('')}</select></label><label class="handling-field" for="singleHandlingNote"><span>处理备注</span><textarea class="input" id="singleHandlingNote" rows="2" placeholder="请输入处理备注（选填，最多 200 字符）"></textarea><small id="singleHandlingNoteCount">0 / 200</small></label><div class="handling-form-error" id="singleHandlingError" role="alert"></div><div class="handling-dialog-actions"><button type="submit" class="btn primary" id="singleHandlingSubmit">确认处理</button></div></form>`);
     const form = $('#singleHandlingForm'), method = $('#singleHandlingMethod'), note = $('#singleHandlingNote'), count = $('#singleHandlingNoteCount'), errorEl = $('#singleHandlingError'), submit = $('#singleHandlingSubmit');
+    if (methods[item.handling_method]) method.value = item.handling_method;
     note.value = String(item.handling_note || '');
     const updateCount = () => { const chars = [...note.value]; if (chars.length > 200) note.value = chars.slice(0, 200).join(''); count.textContent = `${[...note.value].length} / 200`; };
-    updateCount(); note.oninput = updateCount;
+    updateCount();
+    updateReasonField(method, note);
+    method.onchange = () => updateReasonField(method, note);
+    note.oninput = () => { updateCount(); updateReasonField(method, note); };
     let busy = false;
     form.onsubmit = async event => {
       event.preventDefault(); if (busy || token !== singleRevision) return;
+      if (method.value === 'false_positive' && !note.value.trim()) { errorEl.textContent = '请填写误判理由，AI将据此校正后续判断'; return; }
       if (!methods[method.value] || [...note.value].length > 200) { errorEl.textContent = '请选择处理方式，备注最多 200 字符'; return; }
       busy = true; method.disabled = note.disabled = submit.disabled = true; submit.textContent = '保存中…'; errorEl.textContent = '';
       try {
-        await options.api(`/contents/batch-handle?${scope}`, { method: 'POST', body: JSON.stringify({ contentIds: [String(item.id)], handlingMethod: method.value, handlingNote: note.value }) });
+        const result = await options.api(`/contents/batch-handle?${scope}`, { method: 'POST', body: JSON.stringify({ contentIds: [String(item.id)], handlingMethod: method.value, handlingNote: note.value }) });
         if (token !== singleRevision || !form.isConnected) return;
-        options.toast('该内容已处理'); options.closeDetail(); await options.reload();
+        result.contentIds.forEach(id => selected.delete(String(id))); options.onSaved(result); options.toast(result.aiCorrection?.status === 'recorded' ? '已记录误判反馈，AI将用于后续相似内容判级' : '该内容已处理'); options.closeDetail();
       } catch (error) { if (token === singleRevision && form.isConnected) errorEl.textContent = `处理失败：${error.message}`; }
       finally { busy = false; if (form.isConnected) { method.disabled = note.disabled = submit.disabled = false; submit.textContent = '确认处理'; } }
     };

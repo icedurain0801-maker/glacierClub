@@ -140,7 +140,7 @@ async function importSample({ repo, items, artifactSha, analysisVersion, transla
       } else {
         // Terminal rows and content become visible in the same commit; no queued
         // sample task can be stolen by the shared Worker during import/recovery.
-        await q("INSERT INTO po_sync_runs (id,source_id,account_id,site_id,status,sync_mode,trigger_type,started_at,finished_at,discovered_count,fetched_count,stored_count,inserted_count,unchanged_count,error_code,error_message) VALUES (?,?,?,?,'partial','incremental','manual',UTC_TIMESTAMP(),UTC_TIMESTAMP(),20,20,?,?,?,'OVERSEAS_SAMPLE_INCOMPLETE',?)", [runId,SOURCE,ACCOUNT,site.siteId,incoming.length,incoming.length,preserved.length,JSON.stringify(receipt)]);
+        await q("INSERT INTO po_sync_runs (created_at,requested_at,id,source_id,account_id,site_id,status,sync_mode,trigger_type,started_at,finished_at,discovered_count,fetched_count,stored_count,inserted_count,unchanged_count,error_code,error_message) VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,'partial','incremental','manual',UTC_TIMESTAMP(),UTC_TIMESTAMP(),20,20,?,?,?,'OVERSEAS_SAMPLE_INCOMPLETE',?)", [runId,SOURCE,ACCOUNT,site.siteId,incoming.length,incoming.length,preserved.length,JSON.stringify(receipt)]);
       }
       for (const observation of site.items) {
         const entry = all.find(e => e.content.external_id === String(observation.externalId));

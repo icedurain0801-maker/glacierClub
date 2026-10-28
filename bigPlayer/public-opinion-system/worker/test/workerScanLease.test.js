@@ -32,7 +32,7 @@ test('two scanner instances are mutually exclusive and old epochs are fenced', a
 
 test('expired recovery is bounded, fences previous owners and converges poison runs', async () => {
   const calls = [];
-  const query = async (sql, params) => { calls.push({ sql, params }); return { affectedRows: 100 }; };
+  const query = async (sql, params) => { calls.push({ sql, params }); return sql.startsWith('SELECT p.id') ? [] : { affectedRows: 100 }; };
   assert.deepEqual(await recoverExpiredRuns(query, { limit: 999 }), { recovered: 100, limit: 100 });
   const { sql, params } = calls[0];
   assert.match(sql, /status='running'.*lease_until<=UTC_TIMESTAMP\(3\)/s);
@@ -42,6 +42,6 @@ test('expired recovery is bounded, fences previous owners and converges poison r
   assert.match(sql, /ORDER BY updated_at ASC, id ASC LIMIT \?/);
   assert.deepEqual(params, [3, 3, 600, 100]);
   await listPoisonedRuns(query, 999);
-  assert.match(calls[1].sql, /error_code='SYNC_RUN_POISONED'/);
-  assert.deepEqual(calls[1].params, [100]);
+  assert.match(calls[2].sql, /error_code='SYNC_RUN_POISONED'/);
+  assert.deepEqual(calls[2].params, [100]);
 });

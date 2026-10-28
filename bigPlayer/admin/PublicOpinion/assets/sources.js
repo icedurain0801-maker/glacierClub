@@ -22,6 +22,7 @@ const platformLabel = platform => PLATFORMS[Status.normalizePlatform(platform)] 
 const sourceTypeLabel = source => { const platform = normalizedPlatform(source); if (platform === 'taptap') return '关键词 + 账号'; if (platform === 'bigplayer_h5') return '社区动态'; if (Status.isSocialLoginPlatform(platform)) return '账号内容'; return '平台内容'; };
 const TAPTAP_SUPER_POWER_WORLD_URL = 'https://www.taptap.cn/app/239580/topic?os=android';
 const DETAIL_REQUEST_TIMEOUT_MS = 8000;
+const SOURCE_LIST_TIMEOUT_MS = 12000;
 function defaultSourceName(platform, communityId) { const label = platformLabel(platform); const prefix = String(label || platform || '采集源').replace(/\s+/g, ''); const used = new Set(state.sources.filter(source => String(pick(source, 'community_id', 'communityId')) === String(communityId) && normalizedPlatform(source) === platform).map(source => String(pick(source, 'display_name', 'displayName') || '')).filter(Boolean)); for (let index = 1; index <= 999; index += 1) { const candidate = `${prefix}${String(index).padStart(3, '0')}`; if (!used.has(candidate)) return candidate; } return `${prefix}${Date.now()}`; }
 function taptapDefaultUrl(source) { return String(sourceCommunity(source).name || '').includes('超能世界') ? TAPTAP_SUPER_POWER_WORLD_URL : ''; }
 const authLabel = status => Status.authLabel(status);
@@ -66,7 +67,12 @@ function facebookCanManage(source = {}) {
 }
 function facebookScopeAllowed(source = {}) {
   const selected = state.scope?.selected?.() || {};
-  return isOverseasLastNight(source) && (pick(source, 'region_code', 'regionCode') || selected.regionCode) === 'overseas';
+  return Boolean(pick(source, 'community_id', 'communityId') || selected.communityId) && (pick(source, 'region_code', 'regionCode') || selected.regionCode) === 'overseas';
+}
+function isFacebookBrowserSource(source) { return normalizedPlatform(source) === 'facebook' && configOf(source).collectionMode === 'browser'; }
+function openFacebookBrowser(source = {}) {
+  const selected = state.scope?.selected?.() || {};
+  return window.FacebookBrowserAdmin.open({ source, selected, api, esc, close: closeDrawer, canManage: facebookCanManage(source), saved: next => { rememberFacebookSource(source, next); } });
 }
 function parseFacebookPageUrl(value) {
   let url;
@@ -241,6 +247,7 @@ function bindFacebookForm(source, creating) {
   }
 }
 function renderFacebookDetail(source, creating = false) {
+  if (window.FacebookBrowserAdmin) return openFacebookBrowser(source);
   $('#drawerContent').innerHTML = `<div class="drawer-header drawer-header--facebook"><h2>${creating ? '新增 Facebook 采集源' : esc(pick(source, 'display_name', 'displayName') || 'Facebook 采集源')}</h2><div class="drawer-header-subtitle">境外 / Last Night · 官方主页授权范围采集</div></div>${facebookForm(source, creating)}`;
   bindFacebookForm(source, creating);
 }
@@ -350,9 +357,9 @@ function sourceLoginMeta(source) { return Status.loginMeta(state.loginStatus && 
 // TapTap 已配置的监控目标：账号 ID（accountIds）或版块/小组 ID（groupIds）任一非空即视为可同步。
 // 实际数据里两种形态并存——按账号抓 owned_content 的用 accountIds，按版块抓讨论的用 groupIds。
 function taptapTargetsConfigured(source) { const config = configOf(source); return Boolean((config.accountIds || []).length || (config.groupIds || []).length); }
-function canSchedule(source) { const platform = normalizedPlatform(source); if (platform === 'facebook') return facebookReady(source); if (platform === 'taptap') return taptapTargetsConfigured(source) && ['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts')); if (platform === 'discord') return sourceAuth(source) === 'authorized' && ['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts')); const authorized = platform === 'bigplayer_h5' ? sourceLoginMeta(source).state === 'healthy' || sourceAuth(source) === 'authorized' : sourceLoginMeta(source).state === 'healthy'; return ACTIONABLE.has(platform) && authorized && ['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts')); }
+function canSchedule(source) { const platform = normalizedPlatform(source); if (platform === 'facebook') return isFacebookBrowserSource(source) ? facebookScopeAllowed(source) && sourceAuth(source) === 'authorized' : facebookReady(source); if (platform === 'taptap') return taptapTargetsConfigured(source) && ['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts')); if (platform === 'discord') return sourceAuth(source) === 'authorized' && ['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts')); const authorized = platform === 'bigplayer_h5' ? sourceLoginMeta(source).state === 'healthy' || sourceAuth(source) === 'authorized' : sourceLoginMeta(source).state === 'healthy'; return ACTIONABLE.has(platform) && authorized && ['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts')); }
 function sourceCommunity(source) { const id = pick(source, 'community_id', 'communityId'); return state.scope?.selected?.().community?.id && String(state.scope.selected().community.id) === String(id) ? state.scope.selected().community : { id, name: pick(source, 'community_name', 'communityName'), status: pick(source, 'community_status', 'communityStatus') }; }
-function syncUnavailableReason(source) { const community = sourceCommunity(source); const platform = normalizedPlatform(source); if (community.status === 'disabled') return `社区「${community.name || community.id || '当前社区'}」已停用，仅可查看历史数据，不能新增同步`; if (platform === 'facebook') return facebookUnavailableReason(source); if (!ACTIONABLE.has(platform)) return '该平台连接器暂不可用'; if (platform === 'taptap') return taptapTargetsConfigured(source) ? '' : '请先配置 TapTap 监控账号 ID 或版块 ID'; if (platform === 'bigplayer_h5' && !/^[1-9]\d*$/.test(String(configOf(source).boardId || ''))) return '请先配置版块 ID'; const authorized = platform === 'discord' ? sourceAuth(source) === 'authorized' : platform === 'bigplayer_h5' ? sourceLoginMeta(source).state === 'healthy' || sourceAuth(source) === 'authorized' : sourceLoginMeta(source).state === 'healthy'; if (!authorized) return platform === 'discord' ? '请先完成 Discord Bot 授权检测' : '请先完成账号授权检测'; if (!['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts'))) return '请先检测帖子同步能力'; return ''; }
+function syncUnavailableReason(source) { const community = sourceCommunity(source); const platform = normalizedPlatform(source); if (community.status === 'disabled') return `社区「${community.name || community.id || '当前社区'}」已停用，仅可查看历史数据，不能新增同步`; if (platform === 'facebook') return isFacebookBrowserSource(source) ? (!facebookScopeAllowed(source) ? '请先选择境外社区' : sourceAuth(source) === 'authorized' ? '' : '请先登录并验证本社区 Facebook 账号') : facebookUnavailableReason(source); if (!ACTIONABLE.has(platform)) return '该平台连接器暂不可用'; if (platform === 'taptap') return taptapTargetsConfigured(source) ? '' : '请先配置 TapTap 监控账号 ID 或版块 ID'; if (platform === 'bigplayer_h5' && !/^[1-9]\d*$/.test(String(configOf(source).boardId || ''))) return '请先配置版块 ID'; const authorized = platform === 'discord' ? sourceAuth(source) === 'authorized' : platform === 'bigplayer_h5' ? sourceLoginMeta(source).state === 'healthy' || sourceAuth(source) === 'authorized' : sourceLoginMeta(source).state === 'healthy'; if (!authorized) return platform === 'discord' ? '请先完成 Discord Bot 授权检测' : '请先完成账号授权检测'; if (!['full', 'authorized_scope', 'supported'].includes(capabilityState(source, 'posts'))) return '请先检测帖子同步能力'; return ''; }
 function syncActionLabel(source, detail = false) { const backfill = sourceMode(source) === 'backfill'; if (detail) return backfill ? '开始同步（授权范围回溯）' : '开始同步（增量）'; return backfill ? '开始授权范围回溯' : '开始同步'; }
 function formatTime(value) { return (value && window.formatBeijingTime) ? window.formatBeijingTime(value) : (value ? String(value).replace('T', ' ').replace(/\.\d{3}Z$/, '') : '-'); }
 function sourceMode(source) { return pick(source, 'sync_mode', 'syncMode') || pick(configOf(source), 'syncMode', 'sync_mode') || pick(parseObject(accountOf(source).metadata), 'syncMode', 'sync_mode') || 'incremental'; }
@@ -454,12 +461,28 @@ async function toggleSource(source, checkbox) {
     toast(`启用状态更新失败：${error.message}`);
   } finally { renderRows(); }
 }
+function recentSyncOf(source) {
+  if (source.recent_sync_run_id) {
+    const status = String(source.recent_sync_status || '');
+    const succeeded = ['completed', 'completed_full', 'completed_authorized_scope'].includes(status);
+    return { at: source.recent_sync_at, error: succeeded ? '' : source.recent_sync_error_message || source.recent_sync_error_code || '', status };
+  }
+  const account = accountIdentity(source).account;
+  const dates = [pick(account, 'last_incremental_sync_at', 'lastIncrementalSyncAt'), pick(account, 'last_full_sync_at', 'lastFullSyncAt'), pick(source, 'last_success_at', 'lastSuccessAt', 'last_run_at', 'lastRunAt')].filter(Boolean);
+  const timestamp = value => Date.parse(String(value).replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/, '$1T$2Z'));
+  dates.sort((a, b) => timestamp(b) - timestamp(a));
+  return { at: dates[0], error: STAGES.flatMap(([scope]) => checkpointsFor(source, scope)).map(item => pick(item, 'error_message', 'errorMessage')).find(Boolean) || pick(source, 'last_error', 'lastError') || '', status: '' };
+}
 function renderFacebookRow(source) {
+  if (isFacebookBrowserSource(source)) {
+    const ready = !syncUnavailableReason(source) && facebookCanManage(source); const account = accountOf(source);
+    return `<tr><td data-label="采集源 / 账号"><div class="source-name">${esc(source.display_name)}</div><div class="subline facebook-source-url">${esc(configOf(source).baseUrl)}</div><div class="subline">登录账号：${esc(account.maskedAccount || '待配置')}</div></td><td data-label="平台">Facebook · 网页采集</td><td data-label="授权">${esc(window.FacebookBrowserAdmin.statusLabel(account.auth_status || sourceAuth(source)))}</td><td data-label="同步策略">每 ${Number(source.frequency_seconds || 21600) / 3600} 小时<div class="subline">${sourceEnableToggle(source, !facebookCanManage(source) || (!ready && !source.enabled))}</div></td><td data-label="最近同步">${esc(formatTime(recentSyncOf(source).at || pick(source, 'last_sync_at', 'last_collected_at')))}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" ${ready ? '' : 'disabled'}>开始同步</button><button class="row-action" data-manage-source="${esc(source.id)}">账号与采集配置</button><button class="row-action danger" data-delete-source="${esc(source.id)}">删除</button></div></td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
+  }
   const identity = accountIdentity(source); const reason = syncUnavailableReason(source); const syncing = String(state.syncingSourceId) === String(source.id);
-  const lastSync = pick(identity.account, 'last_incremental_sync_at', 'lastIncrementalSyncAt', 'last_full_sync_at', 'lastFullSyncAt') || pick(source, 'last_success_at', 'lastSuccessAt', 'last_run_at', 'lastRunAt');
+  const recent = recentSyncOf(source); const lastSync = recent.at;
   const missing = facebookMissingCapabilities(source); const frequency = Number(pick(source, 'frequency_seconds', 'frequencySeconds') || DEFAULT_SOURCE_FREQUENCY_SECONDS);
   const errorCode = checkpointsOf(source).find?.(item => pick(item, 'error_code', 'errorCode'));
-  const error = source._facebookCheck?.error || (errorCode ? facebookErrorMessage(pick(errorCode, 'error_code', 'errorCode')) : '');
+  const error = source._facebookCheck?.error || (source.recent_sync_run_id ? recent.error : errorCode ? facebookErrorMessage(pick(errorCode, 'error_code', 'errorCode')) : '');
   return `<tr><td data-label="采集源 / 账号"><div class="source-name">${esc(pick(source, 'display_name', 'displayName') || 'Facebook')}<span class="source-type">官方主页</span></div><div class="subline facebook-source-url">${esc(facebookUrlOf(source) || '主页地址待配置')}</div><div class="subline">Page ID：${esc(facebookPageId(source) || '待识别')}</div></td><td data-label="平台">Facebook</td><td data-label="授权状态"><span class="pill ${facebookReady(source) ? 'authorized' : 'unconfigured'}">${esc(facebookAuthLabel(source))}</span><div class="subline">部署级官方凭据：${esc(facebookSystemCredentialLabel(source))}</div><div class="subline">${esc(missing.length ? `未通过：${missing.join('、')}` : '六项能力已通过')}</div><div class="subline">最近检测：平台未返回</div></td><td data-label="同步策略">${esc(facebookInitialSyncLabel(source))}<div class="subline">${sourceEnableToggle(source, !facebookCanManage(source) || (!source.enabled && !facebookReady(source)), !facebookCanManage(source) ? '当前账号仅有查看权限' : !source.enabled && !facebookReady(source) ? '部署级凭据与六项能力通过后才能启用' : '')} · ${esc(SOURCE_FREQUENCIES.find(([value]) => value === frequency)?.[1] || `${frequency} 秒`)}</div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(reason || '开始同步并自动启用采集源')}" ${reason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : '开始同步'}</button><button class="row-action" data-manage-source="${esc(source.id)}">${facebookCanManage(source) ? '管理' : '查看'}</button><button class="row-action danger" data-delete-source="${esc(source.id)}">删除</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
 }
 let tokenCountdownTimer = null;
@@ -477,7 +500,7 @@ function tokenCountdownMarkup(source) {
   const metadata = accountOf(source).tokenExpiry;
   if (!metadata) return '';
   const title = metadata.basis === 'token_claim' ? '依据 Token 自带的到期声明，仅供提示' : metadata.basis === 'platform' ? '依据平台记录的到期时间' : '平台未提供 Token 到期时间';
-  return `<div class="subline" data-token-countdown="${esc(metadata.expiresAt || '')}" title="${esc(title)}">${esc(tokenCountdownText(metadata.expiresAt))}</div>`;
+  return `<div class="subline" data-token-countdown="${esc(metadata.expiresAt || '')}" title="${esc(title)}">${esc(tokenCountdownText(metadata.expiresAt))}</div>${accountOf(source).tokenRenewalFailed ? '<div class="subline" style="color:#dc2626">Token 自动续期失败，原授权已保留，请重新检测授权</div>' : ''}`;
 }
 function updateTokenCountdowns() {
   document.querySelectorAll('[data-token-countdown]').forEach(element => {
@@ -502,8 +525,7 @@ function renderRows() {
   $('#rows').innerHTML = filtered.length ? filtered.map(source => {
     if (normalizedPlatform(source) === 'facebook') return renderFacebookRow(source);
     const identity = accountIdentity(source); const social = Status.isSocialLoginPlatform(source.platform); const login = Status.loginMeta(source); const auth = sourceAuthDisplay(source);
-    const error = STAGES.flatMap(([scope]) => checkpointsFor(source, scope)).map(item => pick(item, 'error_message', 'errorMessage')).find(Boolean) || pick(source, 'last_error', 'lastError');
-    const lastSync = pick(identity.account, 'last_incremental_sync_at', 'lastIncrementalSyncAt', 'last_full_sync_at', 'lastFullSyncAt') || pick(source, 'last_success_at', 'lastSuccessAt', 'last_run_at', 'lastRunAt');
+    const recent = recentSyncOf(source); const error = recent.error; const lastSync = recent.at;
     const syncReason = syncUnavailableReason(source); const syncing = String(state.syncingSourceId) === String(source.id);
     const regionCode = pick(source, 'region_code', 'regionCode'); const regionName = pick(source, 'region_name', 'regionName') || (regionCode === 'domestic' ? '境内' : regionCode === 'overseas' ? '境外' : regionCode) || state.scope?.selected?.().regionLabel;
     return `<tr><td data-label="采集源 / 账号"><div class="source-with-dot">${Status.needsAttention(source) ? '<span class="attention-dot" title="需要处理"></span>' : ''}<div><div class="source-name">${esc(source.display_name || source.displayName || platformLabel(source.platform))}<span class="source-type">${esc(sourceTypeLabel(source))}</span></div><div class="subline">${esc(sourceCollectionSummary(source))}${identity.id && !String(identity.id).startsWith('pending:') && normalizedPlatform(source) !== 'taptap' ? ` · ${esc(identity.id)}` : ''}</div></div></div></td><td data-label="平台">${esc(platformLabel(source.platform))}</td><td data-label="授权状态"><span class="pill ${social ? login.tone : esc(auth)}">${esc(social ? login.label : authDisplayLabel(source))}</span>${tokenCountdownMarkup(source)}</td><td data-label="同步策略">${esc(syncModeLabel(sourceMode(source)))}<div class="subline">${sourceEnableToggle(source, !ACTIONABLE.has(normalizedPlatform(source)) || (!source.enabled && !canSchedule(source)))} </div></td><td data-label="最近同步">${esc(formatTime(lastSync))}${error ? `<div class="subline" title="${esc(error)}">${esc(error)}</div>` : ''}</td><td data-label="操作"><div class="row-actions"><button class="row-action primary" data-sync-source="${esc(source.id)}" title="${esc(syncReason || `${syncActionLabel(source)}并自动启用采集源`)}" ${syncReason || syncing ? 'disabled' : ''}>${syncing ? '提交中…' : esc(syncActionLabel(source))}</button><button class="row-action" data-manage-source="${esc(source.id)}">管理</button><button class="row-action danger" data-delete-source="${esc(source.id)}">删除</button></div>${syncReason ? `<div class="subline action-reason">${esc(syncReason)}</div>` : ''}</td></tr>${String(syncController.state.sourceId) === String(source.id) ? renderSyncPanel() : ''}`;
@@ -517,11 +539,11 @@ function capabilityPanel(source) {
   return `<div class="detail-block"><div class="detail-label">同步能力</div><div class="cap-grid">${STAGES.map(([scope, label]) => { const value = capabilities[scope]; const status = (typeof value === 'object' ? pick(value, 'status', 'capability') : value) || 'unconfigured'; return `<div class="cap-item"><div class="cap-name">${label}</div><span class="pill ${esc(status)}">${esc(capabilityLabel(status))}</span></div>`; }).join('')}</div></div>`;
 }
 function h5Credential(source) { return Status.h5CredentialMeta(source); }
-function h5AuthMode(source) { return state.h5AuthMode || (h5Credential(source).hasToken ? 'token' : 'account_password'); }
+function h5AuthMode(source) { const saved = parseObject(accountOf(source).metadata).bigplayerAuthMode; return state.h5AuthMode || (saved ? (saved === 'api_token' ? 'token' : 'account_password') : (h5Credential(source).hasToken ? 'token' : 'account_password')); }
 function h5CredentialFields(source, creating) {
   const summary = h5Credential(source); const mode = h5AuthMode(source); const account = pick(source, 'masked_account', 'maskedAccount', 'login_account_masked', 'loginAccountMasked') || summary.account;
-  const panel = mode === 'token' ? `<div class="field"><label for="cfgToken">已有 Token${creating && !summary.hasToken ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgToken" type="password" autocomplete="new-password" placeholder="${summary.hasToken ? '已配置；留空保持不变' : '请输入已有 Token'}"></div><div class="sensitive-note">Token 用于接口授权，不需要登录会话验证。只在提交时发送，不回显、不写入 URL 或浏览器存储。</div>` : `<div class="field"><label for="cfgH5Account">登录账号${creating && !summary.hasPassword ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgH5Account" autocomplete="username" value="" placeholder="${account ? `已配置：${esc(account)}` : '请输入登录账号'}"></div><div class="field"><label for="cfgH5Password">登录密码${creating && !summary.hasPassword ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgH5Password" type="password" autocomplete="new-password" placeholder="${summary.hasPassword ? '已配置；留空保持不变' : '请输入登录密码'}"></div><div class="sensitive-note">账号仅显示脱敏状态；密码不回显、不写入 URL 或浏览器存储。账密模式保存后才进行登录会话验证。</div>`;
-  return `<div class="detail-block"><div class="detail-label">授权方式</div><div class="auth-mode-tabs" role="tablist" aria-label="H5 授权方式"><button type="button" class="btn ${mode === 'token' ? 'primary' : ''}" id="h5AuthToken" role="tab" aria-controls="h5AuthPanel" aria-selected="${mode === 'token'}">Token</button><button type="button" class="btn ${mode === 'account_password' ? 'primary' : ''}" id="h5AuthPassword" role="tab" aria-controls="h5AuthPanel" aria-selected="${mode === 'account_password'}">账号密码</button></div><div class="auth-mode-panel" id="h5AuthPanel" role="tabpanel">${panel}</div></div>`;
+  const panel = mode === 'token' ? `<div class="field"><label for="cfgToken">已有 Token${creating && !summary.hasToken ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgToken" type="password" autocomplete="new-password" placeholder="${summary.hasToken ? '已配置；留空保持不变' : '请输入已有 Token'}"></div><div class="sensitive-note">保存时自动换取新 Token，并在到期前自动续期；失败保留原授权并提示重新检测。Token 不回显、不写入浏览器存储。</div>` : `<div class="field"><label for="cfgH5Account">登录账号${creating && !summary.hasPassword ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgH5Account" autocomplete="username" value="" placeholder="${account ? `已配置：${esc(account)}` : '请输入登录账号'}"></div><div class="field"><label for="cfgH5Password">登录密码${creating && !summary.hasPassword ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgH5Password" type="password" autocomplete="new-password" placeholder="${summary.hasPassword ? '已配置；留空保持不变' : '请输入登录密码'}"></div><div class="sensitive-note">账号仅显示脱敏状态；密码不回显、不写入 URL 或浏览器存储。账密模式保存后才进行登录会话验证。</div>`;
+  return `<div class="detail-block"><div class="detail-label">授权方式</div><div class="auth-mode-tabs" role="tablist" aria-label="H5 授权方式"><button type="button" class="btn ${mode === 'token' ? 'primary' : ''}" id="h5AuthToken" role="tab" aria-controls="h5AuthPanel" aria-selected="${mode === 'token'}">Token</button><button type="button" class="btn ${mode === 'account_password' ? 'primary' : ''}" id="h5AuthPassword" role="tab" aria-controls="h5AuthPanel" aria-selected="${mode === 'account_password'}">账号密码</button></div><div class="auth-mode-panel" id="h5AuthPanel" role="tabpanel">${panel}</div>${creating ? '' : '<div class="action-row" style="margin-top:12px"><button class="btn" id="btnCheckAuth">检测授权</button><span id="authorizationCheckHint" class="subline">先检测授权，通过后才能保存配置</span></div>'}</div>`;
 }
 function bindDiscordChannelScope() {
   const apply = scope => {
@@ -557,7 +579,7 @@ function bindH5CredentialMode(source, creating, renderCreate) {
 }
 function platformPanel(source, creating = false) {
   const platform = normalizedPlatform(source); const configured = credentialConfigured(source); const identity = accountIdentity(source);
-  if (platform === 'bigplayer_h5') { const siteUrls = sourceSiteUrls(source); return `<div class="detail-block"><div class="detail-label">大玩家 H5 站点</div><div class="field site-url-field"><label for="cfgSiteUrlList">站点地址<span class="required">*</span></label><div class="site-url-list" id="cfgSiteUrlList">${siteUrlRowsMarkup(siteUrls)}</div><div class="site-url-actions"><button type="button" class="btn" id="btnAddSiteUrl">+ 添加站点</button></div><div class="subline">每个站点单独填写；保存时会逐项规范化并拒绝重复或不安全地址。</div></div><input type="hidden" id="cfgBaseUrl" value="${esc(siteUrls[0] || '')}">${isOverseasLastNight(source) ? '<div class="field"><label>起始路径</label><input class="input" value="/" readonly></div><div class="sensitive-note">欧美版可在凭据、授权和帖子同步能力检测通过后启用；若保存时被拒绝，将显示后端门禁原因。</div>' : ''}${h5CredentialFields(source, creating)}${creating ? '' : '<div class="action-row" style="margin-top:12px"><button class="btn" id="btnCheckAuth">检测授权</button><span id="authorizationCheckHint" class="subline">先检测授权，通过后才能保存配置</span></div>'}</div>${capabilityPanel(source)}`; }
+  if (platform === 'bigplayer_h5') { const siteUrls = sourceSiteUrls(source); return `<div class="detail-block"><div class="detail-label">大玩家 H5 站点</div><div class="field site-url-field"><label for="cfgSiteUrlList">站点地址<span class="required">*</span></label><div class="site-url-list" id="cfgSiteUrlList">${siteUrlRowsMarkup(siteUrls)}</div><div class="site-url-actions"><button type="button" class="btn" id="btnAddSiteUrl">+ 添加站点</button></div><div class="subline">每个站点单独填写；保存时会逐项规范化并拒绝重复或不安全地址。</div></div><input type="hidden" id="cfgBaseUrl" value="${esc(siteUrls[0] || '')}">${isOverseasLastNight(source) ? '<div class="field"><label>起始路径</label><input class="input" value="/" readonly></div><div class="sensitive-note">欧美版可在凭据、授权和帖子同步能力检测通过后启用；若保存时被拒绝，将显示后端门禁原因。</div>' : ''}</div>${h5CredentialFields(source, creating)}${capabilityPanel(source)}`; }
   if (platform === 'taptap') return `<div class="detail-block"><div class="detail-label">TapTap 网页地址</div><div class="field"><label for="cfgBaseUrl">网页地址<span class="required">*</span></label><input class="input" id="cfgBaseUrl" type="url" value="${esc(configValue(source, 'baseUrl', 'base_url') || taptapDefaultUrl(source))}" placeholder="https://www.taptap.cn/app/.../topic?os=android"></div></div>`;
   if (Status.isSocialLoginPlatform(platform)) return `<div class="detail-block"><div class="detail-label">平台登录凭据</div><div class="field"><label>国家/地区代码</label><input class="input" value="+86" readonly></div><div class="field"><label>手机号${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPhone" inputmode="numeric" maxlength="11" autocomplete="off" value="${creating ? '' : esc(pick(identity.account, 'masked_phone', 'maskedPhone') || pick(source, 'masked_phone', 'maskedPhone') || '')}" placeholder="11 位中国大陆手机号" ${creating ? '' : 'readonly'}></div><div class="field"><label>登录密码${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPassword" type="password" autocomplete="new-password" placeholder="${configured ? '凭据已配置；留空不修改' : '请输入登录密码'}"></div><div class="field"><label>确认密码${creating ? '<span class="required">*</span>' : ''}</label><input class="input" id="cfgPasswordConfirm" type="password" autocomplete="new-password" placeholder="再次输入登录密码"></div><div class="sensitive-note">创建后为“待验证”，不会自动登录。密码不回显、不写入 URL 或浏览器存储。</div></div>${creating ? '' : capabilityPanel(source)}`;
   if (platform === 'discord') {
@@ -611,7 +633,7 @@ function commonFields(source, creating) {
   const boardId = configOf(source).boardId ?? (creating && String(selected.communityId) === '00000000-0000-0000-0000-000000000101' ? '2' : '');
   return `<div class="detail-block"><div class="detail-label">基础配置</div>${creating ? `<div class="field"><label>归属范围</label><input class="input" value="${esc([selected.regionLabel, selected.communityLabel].join(' / '))}" readonly></div><input type="hidden" id="cfgCommunity" value="${esc(selected.communityId)}"><input type="hidden" id="cfgPlatform" value="${esc(platform)}"><div class="field"><label>平台</label><input class="input" value="${esc(platformLabel(platform))}" readonly></div>` : ''}<div class="field"><label>采集源名称<span class="required">*</span></label><input class="input" id="cfgName" value="${esc(source.display_name || source.displayName || '')}"></div><div class="field"><label>采集频率</label>${frequencySelect(source)}</div>${platform === 'bigplayer_h5' ? `<div class="field"><label for="cfgBoardId">版块 ID（boardId）<span class="required">*</span></label><input class="input" id="cfgBoardId" type="text" inputmode="numeric" value="${esc(boardId)}" placeholder="${boardId ? '' : '未找到默认版块 ID，请手动填写'}"></div>` : ''}</div>`;
 }
-function syncControls(source) { const available = ACTIONABLE.has(normalizedPlatform(source)); const running = STAGES.some(([scope]) => stageState(source, scope) === 'running'); const paused = STAGES.some(([scope]) => stageState(source, scope) === 'paused'); const reason = syncUnavailableReason(source); const syncAllowed = !reason; return `<div class="detail-block"><div class="detail-label">同步控制</div><div class="action-row"><button class="btn primary" id="btnRunSync" title="${esc(reason || '提交任务并自动启用采集源')}" ${syncAllowed ? '' : 'disabled'}>${esc(syncActionLabel(source, true))}</button><button class="btn" id="btnPauseSync" ${syncAllowed && available && running ? '' : 'disabled'}>暂停</button><button class="btn" id="btnResumeSync" ${syncAllowed && available && paused ? '' : 'disabled'}>继续</button><button class="btn danger" id="btnResetSync" ${syncAllowed && canSchedule(source) ? '' : 'disabled'}>授权范围全量回溯</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : '<div class="subline">开始同步后将自动启用该采集源，并进入周期调度。</div>'}</div>`; }
+function syncControls(source) { const available = ACTIONABLE.has(normalizedPlatform(source)); const running = STAGES.some(([scope]) => stageState(source, scope) === 'running'); const paused = STAGES.some(([scope]) => stageState(source, scope) === 'paused'); const reason = syncUnavailableReason(source); const syncAllowed = !reason; return `<div class="detail-block"><div class="detail-label">同步控制</div><div id="detailSyncStatus" class="subline" role="status">同步状态正在单独加载…</div><div class="action-row"><button class="btn primary" id="btnRunSync" title="${esc(reason || '提交任务并自动启用采集源')}" ${syncAllowed ? '' : 'disabled'}>${esc(syncActionLabel(source, true))}</button><button class="btn" id="btnPauseSync" ${syncAllowed && available && running ? '' : 'disabled'}>暂停</button><button class="btn" id="btnResumeSync" ${syncAllowed && available && paused ? '' : 'disabled'}>继续</button><button class="btn danger" id="btnResetSync" ${syncAllowed && canSchedule(source) ? '' : 'disabled'}>授权范围全量回溯</button></div>${reason ? `<div class="subline action-reason">${esc(reason)}</div>` : '<div class="subline">开始同步后将自动启用该采集源，并进入周期调度。</div>'}</div>`; }
 
 function setCommonValues(source) { if ($('#cfgFreq')) $('#cfgFreq').value = String(normalizedFrequency(source.frequency_seconds || source.frequencySeconds)); if ($('#cfgSyncMode')) $('#cfgSyncMode').value = sourceMode(source); if ($('#cfgHistoryStart')) $('#cfgHistoryStart').value = historyStartOf(source); }
 function bindSiteUrlActions() {
@@ -631,6 +653,11 @@ function openCreateDrawer() {
   if (platform !== 'taptap' && !selected.communityId) return toast('新增采集源前请选择具体社区');
   if (platform !== 'taptap' && selected.communityStatus !== 'enabled') return toast(selected.communityStatus === 'disabled' ? `社区「${selected.communityLabel}」已停用，不能新增采集源` : '请选择已启用社区');
   if (platform === 'facebook') {
+    if (window.FacebookBrowserAdmin) {
+      if (selected.regionCode !== 'overseas') return toast('Facebook 网页采集仅支持境外社区');
+      if (!facebookCanManage(selected)) return toast('当前账号仅有查看权限');
+      stopValidationWork({ clearSource: true }); openFacebookBrowser(); return;
+    }
     const facebookSource = { community_id: selected.communityId, region_code: selected.regionCode, platform, display_name: 'Last Night Facebook', enabled: false, frequency_seconds: DEFAULT_SOURCE_FREQUENCY_SECONDS, config: { baseUrl: FACEBOOK_DEFAULT_URL, syncMode: 'backfill', historyStart: FACEBOOK_ALL_HISTORY_START }, canManage: selected.canManage, canEdit: selected.canEdit, canWrite: selected.canWrite };
     if (!facebookScopeAllowed(facebookSource)) return toast('Facebook 采集源仅支持境外 Last Night 社区');
     if (!facebookCanManage(facebookSource)) return toast('当前账号仅有查看权限');
@@ -740,7 +767,8 @@ async function openDrawer(id, force = false) {
     return;
   }
   if (serial !== state.requestSerial || state.activeSourceId !== sourceId) return;
-  const editingSource = detail && String(detail.id) === String(id) ? Object.assign(source, detail, { platform: Status.normalizePlatform(detail.platform || source.platform) }) : source;
+  const editingSource = detail && String(detail.id) === String(id) ? Object.assign(source, detail, { checkpoints: [], platform: Status.normalizePlatform(detail.platform || source.platform) }) : source;
+  if (normalizedPlatform(editingSource) === 'facebook' && window.FacebookBrowserAdmin) return openFacebookBrowser(editingSource);
   const credential = h5Credential(editingSource); state.h5AuthMode = normalizedPlatform(editingSource) === 'bigplayer_h5' && credential.hasPassword ? 'account_password' : 'token';
   if (Status.needsLoginValidation(editingSource, state.h5AuthMode)) {
     try {
@@ -753,6 +781,27 @@ async function openDrawer(id, force = false) {
   renderDetail(editingSource);
   $('#drawerMask').classList.add('open'); updateDeepLink(editingSource.id, $('#statusFilter')?.value || '');
 }
+async function loadDetailSyncStatus(source, serial = state.requestSerial) {
+  const loadSerial = state.detailSyncSerial = (state.detailSyncSerial || 0) + 1;
+  const current = () => loadSerial === state.detailSyncSerial && serial === state.requestSerial && state.activeSourceId === String(source.id);
+  const status = $('#detailSyncStatus');
+  if (current() && status) status.textContent = '同步状态正在单独加载…';
+  for (const selector of ['#btnPauseSync', '#btnResumeSync']) if (current() && $(selector)) $(selector).disabled = true;
+  try {
+    const result = await api('/sources/' + encodeURIComponent(source.id) + '/sync-status', { signal: AbortSignal.timeout(DETAIL_REQUEST_TIMEOUT_MS) });
+    if (!current()) return;
+    source.checkpoints = Array.isArray(result?.checkpoints) ? result.checkpoints : [];
+    const panel = $('#detailSyncStatus');
+    if (panel) panel.textContent = STAGES.map(([scope, label]) => label + '：' + stageLabel(stageState(source, scope)) + ' · 已获取 ' + stageCount(source, scope)).join('；');
+    const allowed = !syncUnavailableReason(source) && ACTIONABLE.has(normalizedPlatform(source));
+    if ($('#btnPauseSync')) $('#btnPauseSync').disabled = !(allowed && STAGES.some(([scope]) => stageState(source, scope) === 'running'));
+    if ($('#btnResumeSync')) $('#btnResumeSync').disabled = !(allowed && STAGES.some(([scope]) => stageState(source, scope) === 'paused'));
+  } catch (_) {
+    if (!current()) return;
+    const panel = $('#detailSyncStatus');
+    if (panel) { panel.innerHTML = '同步状态加载失败，配置仍可查看和编辑。 <button type="button" class="btn" id="retryDetailSyncStatus">重试</button>'; $('#retryDetailSyncStatus').onclick = () => { void loadDetailSyncStatus(source, serial); }; }
+  }
+}
 function renderDetail(source) {
   if (normalizedPlatform(source) === 'facebook') return renderFacebookDetail(source);
   const isDiscord = normalizedPlatform(source) === 'discord';
@@ -763,6 +812,7 @@ function renderDetail(source) {
   $('#drawerContent').innerHTML = `${content}<div class="drawer-footer"><button class="btn primary" id="btnSaveSource">保存配置</button><button class="btn" id="btnCancel">关闭</button></div>`;
   setCommonValues(source); bindSiteUrlActions(); bindH5CredentialMode(source, false); bindDiscordChannelScope(); $('#btnSaveSource').onclick = () => saveSource(source); $('#btnCancel').onclick = closeDrawer; bindPlatformActions(source); bindSyncActions(source); bindValidationActions(source);
   if (normalizedPlatform(source) === 'bigplayer_h5') bindAuthorizationGate(source);
+  void loadDetailSyncStatus(source);
 }
 async function saveSource(source) {
   if (!canUseSavedSource(source)) return;
@@ -815,7 +865,7 @@ async function saveSource(source) {
   }
   else if (!ACTIONABLE.has(normalizedPlatform(source))) patch.platformAccountId = $('#cfgAccountId').value.trim();
   if ((normalizedPlatform(source) === 'bigplayer_h5' || normalizedPlatform(source) === 'discord') && credential && Object.keys(credential).length) patch.credential = credential;
-  if (normalizedPlatform(source) === 'bigplayer_h5') patch.authorizationCheckToken = state.authorizationCheck.token;
+  if (normalizedPlatform(source) === 'bigplayer_h5') { patch.authorizationCheckToken = state.authorizationCheck.token; patch.authMode = h5AuthMode(source) === 'token' ? 'api_token' : 'account_password'; }
   try {
     if (normalizedPlatform(source) === 'bigplayer_h5' || normalizedPlatform(source) === 'taptap' || normalizedPlatform(source) === 'discord') {
       try { await api(`/sources/${source.id}/configuration`, { method: 'PATCH', body: JSON.stringify(patch) }); }
@@ -921,7 +971,7 @@ async function checkDraftAuthorization(source, button) {
   if (parsed.error) return toast(parsed.error);
   const boardId = $('#cfgBoardId')?.value.trim();
   if (!/^[1-9]\d*$/.test(boardId)) return toast('版块 ID 必须为正整数');
-  const body = { boardId, baseUrl: parsed.urls[0] };
+  const body = { boardId, baseUrl: parsed.urls[0], authMode: h5AuthMode(source) === 'token' ? 'api_token' : 'account_password' };
   const savedSites = Array.isArray(configOf(source).siteUrls) ? sourceSiteUrls(source) : [];
   if (savedSites.length !== parsed.urls.length || savedSites.some((url, index) => url !== parsed.urls[index])) body.siteUrls = parsed.urls;
   if (h5AuthMode(source) === 'token') {
@@ -1129,21 +1179,29 @@ function exactSourceParams(source) {
 }
 async function loadSources() {
   const serial = ++state.sourcesRequestSerial;
+  state.sourcesController?.abort();
+  const controller = new AbortController(); state.sourcesController = controller;
+  let timeout;
   if (state.scope && !state.scope.available()) { state.sources = []; state.sourcesLoading = false; state.sourcesError = ''; renderRows(); $('#rows').innerHTML = '<tr><td colspan="6" class="empty">当前地区暂无可用社区</td></tr>'; return; }
   state.sourcesLoading = true;
   state.sourcesError = '';
   $('#rows').innerHTML = '<tr><td colspan="6" class="empty">正在加载采集源...</td></tr>';
   try {
     const params = state.scope?.query?.() || new URLSearchParams();
-    const response = await api(`/sources${params.toString() ? `?${params}` : ''}`);
+    const response = await Promise.race([
+      api(`/sources${params.toString() ? `?${params}` : ''}`, { signal: controller.signal }),
+      new Promise((_, reject) => { timeout = setTimeout(() => { reject(new Error('采集源加载超时，请点击刷新重试')); controller.abort(); }, SOURCE_LIST_TIMEOUT_MS); })
+    ]);
     if (serial !== state.sourcesRequestSerial) return;
     state.sources = sourceItems(response).map(source => ({ ...source, platform: Status.normalizePlatform(source.platform) }));
     state.createResultUnknown = false;
   } catch (error) {
-    if (error.name === 'AbortError' || serial !== state.sourcesRequestSerial) return;
+    if (serial !== state.sourcesRequestSerial) return;
     state.sources = [];
-    state.sourcesError = error.message;
+    state.sourcesError = error.name === 'AbortError' ? '采集源请求已取消，请点击刷新重试' : error.message;
   } finally {
+    clearTimeout(timeout);
+    if (state.sourcesController === controller) state.sourcesController = null;
     if (serial !== state.sourcesRequestSerial) return;
     state.sourcesLoading = false;
     renderRows();
@@ -1166,7 +1224,7 @@ async function deleteSource(source, button) {
   finally { state.deletingSourceId = ''; if (button?.isConnected) { button.disabled = false; button.textContent = originalText; } }
 }
 function openDeepLink() { const params = new URLSearchParams(window.location.search); const status = params.get('status'); if (status && $('#statusFilter')) { $('#statusFilter').value = [...$('#statusFilter').options].some(option => option.value === status) ? status : ''; renderRows(); } const sourceId = params.get('sourceId'); if (sourceId && !state.sourcesLoading && !state.activeSourceId && state.sources.some(source => String(source.id) === sourceId)) openDrawer(sourceId); }
-function updateAddButton() { const selected = state.scope?.selected?.() || {}; const platform = Status.normalizePlatform($('[data-po-platform-select]')?.value || $('#platformFilter')?.value || selected.platform || 'bigplayer_h5'); const tapTapReady = platform === 'taptap'; let enabled = tapTapReady || Boolean(selected.communityId && selected.communityStatus === 'enabled'); if (platform === 'facebook') enabled = enabled && facebookCanManage(selected) && facebookScopeAllowed({ community_id: selected.communityId, region_code: selected.regionCode }); $('#addBtn').disabled = !enabled; $('#addBtn').textContent = tapTapReady ? '+ 配置 TapTap' : '+ 新增采集源'; $('#addBtn').title = enabled ? tapTapReady ? '配置 TapTap 关键词和监控账号' : '在当前社区新增采集源' : platform === 'facebook' ? '仅具备管理权限时可在已启用的境外 Last Night 社区新增' : selected.communityStatus === 'disabled' ? `社区「${selected.communityLabel}」已停用` : '请先选择已启用社区'; }
+function updateAddButton() { const selected = state.scope?.selected?.() || {}; const platform = Status.normalizePlatform($('[data-po-platform-select]')?.value || $('#platformFilter')?.value || selected.platform || 'bigplayer_h5'); const tapTapReady = platform === 'taptap'; let enabled = tapTapReady || Boolean(selected.communityId && selected.communityStatus === 'enabled'); if (platform === 'facebook') enabled = enabled && facebookCanManage(selected) && facebookScopeAllowed({ community_id: selected.communityId, region_code: selected.regionCode }); $('#addBtn').disabled = !enabled; $('#addBtn').textContent = tapTapReady ? '+ 配置 TapTap' : '+ 新增采集源'; $('#addBtn').title = enabled ? tapTapReady ? '配置 TapTap 关键词和监控账号' : '在当前社区新增采集源' : platform === 'facebook' ? '仅具备管理权限时可在已启用的境外社区新增' : selected.communityStatus === 'disabled' ? `社区「${selected.communityLabel}」已停用` : '请先选择已启用社区'; }
 function syncPlatformFilter() { const current = $('#platformFilter').value; const region = state.scope?.selected?.().regionCode || 'domestic'; const items = PublicOpinionScope.platformsForRegion(region); $('#platformFilter').innerHTML = '<option value="">全部平台</option>' + items.map(item => `<option value="${item.value}">${item.label}</option>`).join(''); $('#platformFilter').value = items.some(item => item.value === current) ? current : ''; }
 function bind() { $('#refreshBtn').onclick = load; $('#addBtn').onclick = openCreateDrawer; $('#addBtn').disabled = true; $('#platformFilter').onchange = renderRows; $('#statusFilter').onchange = () => { renderRows(); updateDeepLink('', $('#statusFilter').value); }; $('#rows').onclick = event => { const remove = event.target.closest('[data-delete-source]'); if (remove) return deleteSource(state.sources.find(source => String(source.id) === String(remove.dataset.deleteSource)), remove); const manage = event.target.closest('[data-manage-source]'); if (manage) return openDrawer(manage.dataset.manageSource); const sync = event.target.closest('[data-sync-source]'); if (sync) return startSync(state.sources.find(source => String(source.id) === String(sync.dataset.syncSource)), sync); }; $('#rows').onchange = event => { const checkbox = event.target.closest('[data-toggle-source]'); if (checkbox) toggleSource(state.sources.find(source => String(source.id) === String(checkbox.dataset.toggleSource)), checkbox); }; $('#drawerClose').onclick = closeDrawer; $('#drawerMask').onclick = event => { if (event.target === $('#drawerMask')) closeDrawer(); }; document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); }); window.addEventListener('pagehide', () => { clearInterval(tokenCountdownTimer); stopValidationWork(); state.syncRecoverySerial += 1; syncController.stop(false); }); }
 async function scopeChanged() { closeDrawer(); collapseSyncPanel(); state.sources = []; syncPlatformFilter(); updateAddButton(); await load(); }

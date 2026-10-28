@@ -38,6 +38,9 @@ class CommunityProvider {
     this.cache = null;
     this.cacheExpiresAt = 0;
     this.pending = null;
+    this.retryAfter = 0;
+    this.failureCount = 0;
+    this.lastFailure = null;
   }
 
   configured() {
@@ -48,13 +51,21 @@ class CommunityProvider {
   async getCommunities({ force = false } = {}) {
     if (!this.configured()) throw new CommunityProviderError('COMMUNITY_PROVIDER_NOT_CONFIGURED', 'Community provider is not configured with a valid HTTPS URL and token', 503);
     if (!force && this.cache && this.now() < this.cacheExpiresAt) return this.cache;
+    if (!force && this.lastFailure && this.now() < this.retryAfter) throw this.lastFailure;
     if (this.pending) return this.pending;
     this.pending = this.fetchCommunities();
     try {
       const items = await this.pending;
       this.cache = items;
       this.cacheExpiresAt = this.now() + Math.max(0, this.cacheTtlMs);
+      this.failureCount = 0;
+      this.lastFailure = null;
       return items;
+    } catch (error) {
+      this.lastFailure = error;
+      this.failureCount += 1;
+      this.retryAfter = this.now() + [5000, 30000, 60000][Math.min(this.failureCount - 1, 2)];
+      throw error;
     } finally {
       this.pending = null;
     }

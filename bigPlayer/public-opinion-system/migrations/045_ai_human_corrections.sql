@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS po_ai_human_corrections (
+  content_id CHAR(36) NOT NULL,
+  community_id CHAR(36) NOT NULL,
+  source_id CHAR(36) NOT NULL,
+  platform VARCHAR(40) NOT NULL,
+  content_type VARCHAR(24) NOT NULL,
+  content_fingerprint VARCHAR(64) NULL,
+  title TEXT NULL,
+  body MEDIUMTEXT NULL,
+  original_analysis JSON NULL,
+  correction_reason VARCHAR(200) NOT NULL,
+  actor_id VARCHAR(120) NULL,
+  actor_name VARCHAR(120) NOT NULL,
+  revision CHAR(64) NOT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (content_id),
+  KEY po_ai_correction_scope_idx (community_id,active,updated_at),
+  CONSTRAINT po_ai_correction_content_fk FOREIGN KEY (content_id) REFERENCES po_contents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

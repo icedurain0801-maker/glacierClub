@@ -7,7 +7,7 @@ const { AiAnalyzer } = require('../src/integrations/aiAnalyzer');
 
 function fixture(body, extra = {}) {
   return { body, sentiment: 'negative', severity: 'urgent', negativeScore: 0.99, confidence: 0.9,
-    riskDecision: { level: 'L2', level_name: '负面待处理', gate_result: 'GATE3_default_L2', claim_type: 'fact',
+    riskDecision: { level: 'L2', level_name: '紧急告警', gate_result: 'GATE3_default_L2', claim_type: 'fact',
       issue_object: body.slice(0, 4), claim_evidence: body, issue_summary: '具体游戏问题', confidence: 0.9,
       evidence_types: [], action_intent: [], hit_rules: ['G3'], rule_evidence: {}, reason: `“${body}”`, ...extra } };
 }

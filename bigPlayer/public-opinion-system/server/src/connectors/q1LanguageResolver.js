@@ -5,6 +5,7 @@ const fail = code => { throw new ConnectorError(code, 'Q1 site language could no
 // and overrides the page lang. Never substitute the machine/browser language.
 function createQ1LanguageResolver(fetchImpl, { now = Date.now, ttlMs = 600000, timeoutMs = 10000 } = {}) {
   let cached = null;
+  let lastGood = null;
   return async function resolve(base, fallback, signal) {
     if (base.hostname !== 'club-en.q1.com' || !base.searchParams.has('languageId')) return fallback;
     if (signal?.aborted) fail('COLLECTION_CANCELLED');
@@ -16,7 +17,20 @@ function createQ1LanguageResolver(fetchImpl, { now = Date.now, ttlMs = 600000, t
       const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
       try {
         const url = new URL('/api/club/v1/setting/language', base.origin);
-        const response = await fetchImpl(url, { redirect: 'manual', headers: { accept: 'application/json' }, signal: requestSignal });
+        let response = null;
+        let lastError = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            response = await fetchImpl(url, { redirect: 'manual', headers: { accept: 'application/json' }, signal: requestSignal });
+            if (response.ok) break;
+            lastError = new Error(`HTTP_${response.status}`);
+          } catch (error) {
+            lastError = error;
+            if (requestSignal.aborted) throw error;
+          }
+          if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+        }
+        if (!response) throw lastError || new Error('language configuration request failed');
         if (response.url && new URL(response.url).origin !== base.origin) fail('H5_REDIRECT_OUTSIDE_ALLOWED_HOSTS');
         if (!response.ok) fail('Q1_LANGUAGE_CONFIG_UNAVAILABLE');
         const payload = await response.json();
@@ -29,10 +43,15 @@ function createQ1LanguageResolver(fetchImpl, { now = Date.now, ttlMs = 600000, t
         }
         if (requestSignal.aborted) fail(signal?.aborted ? 'COLLECTION_CANCELLED' : 'Q1_LANGUAGE_CONFIG_UNAVAILABLE');
         cached = { languages, expires: now() + ttlMs };
+        lastGood = cached;
       } catch (error) {
         if (signal?.aborted) fail('COLLECTION_CANCELLED');
         if (error instanceof ConnectorError) throw error;
-        fail('Q1_LANGUAGE_CONFIG_UNAVAILABLE');
+        if (lastGood && lastGood.expires + 1800000 > now()) {
+          cached = { languages: lastGood.languages, expires: now() + Math.min(ttlMs, 60000) };
+        } else {
+          fail('Q1_LANGUAGE_CONFIG_UNAVAILABLE');
+        }
       }
     }
     const code = cached.languages.get(ids[0]);

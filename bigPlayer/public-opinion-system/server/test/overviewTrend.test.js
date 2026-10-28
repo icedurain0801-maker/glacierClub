@@ -34,12 +34,12 @@ test('trend route validates period, independent range and community scope', asyn
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}/api/public-opinion/overview-trend?`;
   try {
-    for (const period of ['7d', '30d']) {
+    for (const period of ['7d', '15d', '30d']) {
       const r = await fetch(base + `period=${period}&communityId=valid&platform=bigplayer_h5`);
       assert.equal(r.status, 200);
       const { data } = await r.json();
       assert.deepEqual(data.trend, []);
-      const days = period === '7d' ? 7 : 30;
+      const days = period === '7d' ? 7 : period === '15d' ? 15 : 30;
       const first = new Date(Date.parse(data.window.publishedFrom) + 8 * 3600000).toISOString().slice(0, 10);
       const last = new Date(Date.parse(data.window.publishedTo) + 8 * 3600000).toISOString().slice(0, 10);
       assert.equal((Date.parse(last) - Date.parse(first)) / 86400000, days - 1);
@@ -48,7 +48,7 @@ test('trend route validates period, independent range and community scope', asyn
     }
     for (const query of ['period=today', 'period=invalid', 'period=7d&from=2026-10-01', 'period=30d&publishedTo=2026-10-12', 'period=7d&platform=invalid']) assert.equal((await fetch(base + query)).status, 400);
     assert.equal((await fetch(base + 'period=7d&communityId=wrong')).status, 404);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
   } finally {
     await new Promise(resolve => server.close(resolve));
     repo.getOverviewTrend = originalTrend; repo.resolveCommunityCanonical = originalScope;

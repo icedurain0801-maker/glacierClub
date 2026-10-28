@@ -569,6 +569,10 @@ class BigPlayerH5Connector extends BaseConnector {
     this.credentialContext = credentialContext;
     this.authRefreshCoordinator = authRefreshCoordinator;
     this.loginSessionClient = loginSessionClient;
+    if (process.env.COLLECTION_REQUEST_LIMIT_ENABLED === '1') {
+      const gateModule = require('../../../shared/collectionRequestGate');
+      fetchImpl = gateModule.sharedGate(fetchImpl);
+    }
     this.fetchImpl = fetchImpl;
     this.resolveQ1Language = createQ1LanguageResolver(fetchImpl, overseasSiteSession ? {
       timeoutMs: Math.min(60000, Math.max(10000, Number(env.BIGPLAYER_H5_TIMEOUT_MS) || 10000))
@@ -635,7 +639,8 @@ class BigPlayerH5Connector extends BaseConnector {
       return probe.promise;
     }
     let passwordLoaded = null;
-    if (typeof credentialContext.load === 'function') {
+    const metadata = typeof credentialSubject?.metadata === 'string' ? JSON.parse(credentialSubject.metadata || '{}') : credentialSubject?.metadata || {};
+    if (typeof credentialContext.load === 'function' && metadata.bigplayerAuthMode !== 'api_token') {
       try { passwordLoaded = await credentialContext.load(credentialSubject, 'account_password'); }
       catch (error) {
         if (error?.code !== 'CREDENTIAL_NOT_FOUND') throw error;
@@ -1118,4 +1123,4 @@ class BigPlayerH5Connector extends BaseConnector {
     return items;
   }
 }
-module.exports = { BigPlayerH5Connector, parseSourceConfig, extractPage, q1PageData };
+module.exports = { BigPlayerH5Connector, parseSourceConfig, extractPage, q1PageData, q1Post, q1Context };

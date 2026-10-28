@@ -43,7 +43,9 @@ function createHttpServer({ service, internalToken, readiness }) {
       if (req.method === 'POST' && url.pathname === '/internal/v1/sessions/reference/exchange') return sendJson(res, 200, { data: service.issueSessionReferenceExchange(input) });
       if (req.method === 'POST' && url.pathname === '/internal/v1/sessions/exchange') return sendJson(res, 200, { data: service.exchangeSessionReference(input) });
       if (req.method === 'POST' && url.pathname === '/internal/v1/sessions/result/claim') return sendJson(res, 200, { data: service.claimAuthResult(input) });
-      if (req.method === 'POST' && url.pathname === '/internal/v1/sessions/revoke') return sendJson(res, 200, { data: service.revoke(input) });
+      if (req.method === 'POST' && url.pathname === '/internal/v1/sessions/revoke') return sendJson(res, 200, { data: await service.revoke(input) });
+      if (req.method === 'POST' && url.pathname === '/internal/v1/facebook/challenge-view') return sendJson(res, 200, { data: await service.inspectFacebookChallenge(input) });
+      if (req.method === 'POST' && url.pathname === '/internal/v1/facebook/collect') return sendJson(res, 200, { data: await service.collectFacebook(input) });
       if (req.method === 'POST' && url.pathname === '/internal/v1/credentials/resolve') return sendJson(res, 200, { data: await service.resolveCredential(input) });
       throw new ServiceError('ROUTE_NOT_FOUND', 'Route was not found', 404);
     } catch (error) {

@@ -28,9 +28,15 @@ const sourceAuthorizationCheck = new SourceAuthorizationCheck();
 const { SOURCE_PLATFORMS, OVERSEAS_LAST_NIGHT_GAME_ID, OVERSEAS_LAST_NIGHT_COMMUNITY_ID, isSocialPlatform, isWesternOverseasSource, WESTERN_EDITION_SCOPE, maskPhone, normalizeFacebookPageUrl, normalizePlatform, socialSecret, validateEndpoint, validateFacebookPageUrl, validateSocialCredential, validateWesternSourceUrl } = require('./services/sourceValidators');
 const { normalizeRiskFilters } = require('../../shared/riskModes');
 const { createSupervisor } = require('./runtimeSupervisor');
+const { createReadinessProbe, drainServer } = require('./serviceLifecycle');
 
 const port = Number(process.env.PORT || 4320);
 const repo = new Repository();
+const { BaasReadRepository } = require('./services/baasReadRepository');
+const { BaasQueryRepository } = require('./services/baasQueryRepository');
+const cloudReadRepository = process.env.PUBLIC_OPINION_DATA_READ_BACKEND === 'baas-query' ? new BaasQueryRepository({ reviewRepository: repo }) : process.env.PUBLIC_OPINION_DATA_READ_BACKEND === 'baas' ? new BaasReadRepository({ reviewRepository: repo }) : null;
+// Recover cloud review propagation from authoritative saved rows after an API restart.
+if (cloudReadRepository) cloudReadRepository.scheduleReviewSync(repo, 15000);
 const { ContentTranslationService } = require('./services/contentTranslationService');
 const contentTranslation = new ContentTranslationService(repo);
 const communityProvider = new CommunityProvider();
@@ -38,11 +44,20 @@ const communityDirectory = new CommunityDirectory({ provider: communityProvider,
 const credentialContext = new CredentialContext({ repo });
 const douyinOAuth = new DouyinOAuthService();
 const loginSessionClient = new LoginSessionClient();
+const { isFacebookBrowser, normalizeFacebookWebUrl } = require('../../shared/facebookBrowser');
+const { FacebookBrowserAccountService } = require('./services/facebookBrowserAccount');
+const facebookBrowserAccounts = new FacebookBrowserAccountService({ repo, loginClient: loginSessionClient, resolveScope: resolveCanonicalScope, requireCommunity: requireEnabledCommunityForSource, assertCommunityScope, sourceById });
 const authRefreshCoordinator = new AuthRefreshCoordinator({ repo, loginSessionClient });
+const bigPlayerTokenRenewal = new (require('./services/bigPlayerTokenRenewal').BigPlayerTokenRenewal)({ repo });
 const connectors = { bigplayer_h5: new BigPlayerH5Connector(process.env, { credentialContext, authRefreshCoordinator, loginSessionClient }), ...buildExternalConnectors(process.env, { credentialContext, douyinOAuthService: douyinOAuth }) };
 const ai = new AiAnalyzer();
+const aiAnalysisDebug = new (require('./services/aiAnalysisDebug').AiAnalysisDebug)({ ai });
 const { TypeSafeTestService } = require('./services/typesafeTestService');
 const typeSafeTests = new TypeSafeTestService({ repo });
+const { SinglePostJobs, validateInput: validateSinglePostInput, fail: singlePostError } = require('./services/singlePostJobs');
+const singlePostJobs = new SinglePostJobs(repo);
+const { BaasDingTalk } = require('./services/baasDingTalk');
+const baasDingTalk = new BaasDingTalk({ repo });
 const dingTalk = new DingTalkNotifier();
 const SYNC_MODES = new Set(['incremental', 'backfill']);
 function validBigPlayerBoardId(value) { return typeof value === 'string' || typeof value === 'number' ? /^[1-9]\d*$/.test(String(value)) && Number.isSafeInteger(Number(value)) : false; }
@@ -53,7 +68,7 @@ function corsOrigin(req) {
   return origin && allowed.includes(origin) ? origin : allowed[0] || 'null';
 }
 function corsHeaders(req) { return { 'access-control-allow-origin': corsOrigin(req), 'access-control-allow-headers': 'content-type,authorization', 'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS', 'access-control-max-age': '600', vary: 'Origin' }; }
-function json(res, status, payload, extraHeaders = {}) { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...(res.noStore ? { 'cache-control': 'no-store' } : {}), ...(res.corsHeaders || {}), ...extraHeaders }); res.end(JSON.stringify(payload)); }
+function json(res, status, payload, extraHeaders = {}) { if (res.dataSource && status < 400) { payload.meta = { ...(payload.meta || {}), dataSource: 'baas', coverageFrom: '2026-10-12T00:00:00+08:00' }; extraHeaders = { ...extraHeaders, 'x-data-source': 'baas', 'access-control-expose-headers': 'x-data-source' }; } res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...(res.noStore ? { 'cache-control': 'no-store' } : {}), ...(res.corsHeaders || {}), ...extraHeaders }); res.end(JSON.stringify(payload)); }
 function requireCredentialResolveAccess(req) {
   const remote = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
   const allowNonLoopback = ['1', 'true'].includes(String(process.env.ALLOW_NON_LOOPBACK_CREDENTIAL_RESOLVE || '').toLowerCase());
@@ -68,16 +83,18 @@ async function resolveCredential(req) {
   if (previewCredential && body.platform === 'bigplayer_h5' && body.credentialType === 'account_password') return previewCredential;
   const sourceId = String(body.sourceId || '').trim(), accountId = String(body.accountId || '').trim();
   const platform = normalizePlatform(body.platform), credentialType = String(body.credentialType || '').trim(), credentialRef = String(body.credentialRef || '').trim();
-  if (!sourceId || !accountId || platform !== 'bigplayer_h5' || credentialType !== 'account_password' || credentialRef !== `credential:${accountId}:account_password`) { const error = new Error('invalid credential binding'); error.code = 'INVALID_INPUT'; throw error; }
+  if (!sourceId || !accountId || !['bigplayer_h5', 'facebook'].includes(platform) || credentialType !== 'account_password' || credentialRef !== `credential:${accountId}:account_password`) { const error = new Error('invalid credential binding'); error.code = 'INVALID_INPUT'; throw error; }
   const source = await sourceById(sourceId), account = await repo.getAccount(accountId);
   if (!source || !account || String(account.source_id) !== sourceId || String(account.platform) !== platform || String(source.platform) !== platform) { const error = new Error('credential binding not found'); error.code = 'CREDENTIAL_NOT_FOUND'; throw error; }
+  if (platform === 'facebook' && !isFacebookBrowser(source)) { const error = new Error('browser binding required'); error.code = 'INVALID_INPUT'; throw error; }
   const credential = await repo.getCredentialByAccount(accountId, credentialType, { includeSecret: true });
   if (!credential) { const error = new Error('credential unavailable'); error.code = 'CREDENTIAL_NOT_FOUND'; throw error; }
   if (credential.status !== 'active') { const error = new Error('credential unavailable'); error.code = 'CREDENTIAL_INACTIVE'; throw error; }
   if (credential.expire_at && Date.parse(credential.expire_at) <= Date.now()) { const error = new Error('credential unavailable'); error.code = 'CREDENTIAL_EXPIRED'; throw error; }
   const secret = await credentialContext.loadSecretObject(accountId, credentialType); const accountValue = String(secret.account || secret.phone || '').trim(), password = String(secret.password || '');
   if (!accountValue || !password) { const error = new Error('credential unavailable'); error.code = 'CREDENTIAL_SECRET_EMPTY'; throw error; }
-  return { account: accountValue, password, baseUrl: parseConfig(source.config).baseUrl || source.base_url || '' };
+  const baseUrl = parseConfig(source.config).baseUrl || source.base_url || '';
+  return { account: accountValue, password, baseUrl, ...(platform === 'facebook' ? { bindingRevision: require('node:crypto').createHash('sha256').update(JSON.stringify([source.id, baseUrl, credential.secret_cipher])).digest('hex') } : {}) };
 }
 function oauthReturnUrl(params = {}) {
   const base = process.env.PUBLIC_OPINION_ADMIN_RETURN_URL || 'http://127.0.0.1:8123/admin/PublicOpinion/sources.html';
@@ -91,7 +108,7 @@ const OVERVIEW_CACHE_TTL_MS = 90 * 1000; // /overview 进程内缓存 TTL
 const { TrendReadCache } = require('./services/trendReadCache');
 const trendReadCache = new TrendReadCache();
 const overviewCache = new Map(); // Map<cacheKey, { data, expiresAt }>；过期条目在被覆盖/命中检查时淘汰
-const OVERVIEW_PERIODS = new Set(['today', 'yesterday', '7d', '30d']);
+const OVERVIEW_PERIODS = new Set(['today', 'yesterday', '7d', '15d', '30d']);
 const ISO_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
 function overviewPeriodRange(period, now = new Date()) {
   const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -103,6 +120,7 @@ function overviewPeriodRange(period, now = new Date()) {
   if (period === 'today') return { from: todayStart.toISOString(), to: tomorrowStart.toISOString() };
   if (period === 'yesterday') return { from: new Date(todayStart.getTime() - 24 * 60 * 60 * 1000).toISOString(), to: todayStart.toISOString() };
   if (period === '7d') return { from: new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(), to: end.toISOString() };
+  if (period === '15d') return { from: new Date(todayStart.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString(), to: end.toISOString() };
   if (period === '30d') return { from: new Date(todayStart.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString(), to: end.toISOString() };
   return null;
 }
@@ -111,7 +129,7 @@ function parseOverviewQuery(url) {
   const query = Object.fromEntries(url.searchParams);
   if (query.platform) query.platform = parseReadPlatform(query.platform);
   const { period, from, to } = query;
-  if (period && !OVERVIEW_PERIODS.has(period)) { const error = new Error('period must be today, yesterday, 7d, or 30d'); error.code = 'INVALID_INPUT'; throw error; }
+  if (period && !OVERVIEW_PERIODS.has(period)) { const error = new Error('period must be today, yesterday, 7d, 15d, or 30d'); error.code = 'INVALID_INPUT'; throw error; }
   if (period && (from || to)) { const error = new Error('period cannot be combined with from or to'); error.code = 'INVALID_INPUT'; throw error; }
   if (period) {
     const range = overviewPeriodRange(period);
@@ -219,7 +237,7 @@ const FACEBOOK_STABLE_ERROR_CODES = new Set([
 ]);
 const REPLY_URL_ALIASES = ['repliesApiUrl', 'replies_api_url', 'replyApiUrl', 'reply_api_url'];
 function isFacebookSource(source) { return normalizePlatform(source?.platform) === 'facebook'; }
-function sourceCapabilityScopes(source) { return isFacebookSource(source) ? FACEBOOK_REQUIRED_CAPABILITIES : [...PUBLIC_SYNC_SCOPES]; }
+function sourceCapabilityScopes(source) { return isFacebookBrowser(source) ? ['posts', 'comments', 'replies'] : isFacebookSource(source) ? FACEBOOK_REQUIRED_CAPABILITIES : [...PUBLIC_SYNC_SCOPES]; }
 function findFacebookSensitiveField(value, prefix = '') {
   if (!value || typeof value !== 'object') return null;
   for (const [key, child] of Object.entries(value)) {
@@ -338,6 +356,10 @@ function isWesternSourceRecord(source) {
   return isWesternOverseasSource(westernCandidate(source), { allowedHosts: westernAllowedHosts() });
 }
 function assertWesternSourceRecord(source) {
+  if (isFacebookBrowser(source)) {
+    if (source.region_code !== 'overseas' || !source.community_id) throw Object.assign(new Error('仅支持境外社区 Facebook 采集源'), { code: 'FACEBOOK_SCOPE_MISMATCH', status: 400 });
+    normalizeFacebookWebUrl(parseConfig(source.config).baseUrl); return;
+  }
   if (isFacebookSource(source)) {
     if (source.region_code !== 'overseas' || source.game_id !== OVERSEAS_LAST_NIGHT_GAME_ID || source.community_id !== OVERSEAS_LAST_NIGHT_COMMUNITY_ID) {
       const error = new Error('Facebook 采集源仅支持境外 Last Night 社区');
@@ -414,14 +436,15 @@ async function requireEnabledCommunityForSource(source) {
     return mirror;
   }
 }
-async function sourceWithAccount(source, { summary = false } = {}) {
+async function sourceWithAccount(source, { summary = false, listOnly = false } = {}) {
   if (!source) return null;
+  if (isFacebookBrowser(source)) return facebookBrowserAccounts.details(source);
   const listAccounts = repo.listAccounts({ sourceId: source.id }).catch(error => { if (error.code === 'ER_NO_SUCH_TABLE') return []; throw error; });
   const listCapabilities = repo.listSourceCapabilities(source.id).catch(error => { if (error.code === 'ER_NO_SUCH_TABLE') return []; throw error; });
   const [accounts, persisted] = await Promise.all([listAccounts, listCapabilities]);
   const account = (source.default_account_id ? accounts.find(item => String(item.id) === String(source.default_account_id)) : null) || accounts[0] || null;
   const [checkpoints, credentials] = account
-    ? await Promise.all([summary && source.platform === 'bigplayer_h5' && source.region_code === 'domestic' ? repo.getSourceSyncStatusSummary({ accountId: account.id }) : repo.getSyncStatus({ accountId: account.id }), account && !isFacebookSource(source) ? repo.getAccountCredentialSummary(account.id) : Promise.resolve([])])
+    ? await Promise.all([!summary || listOnly ? Promise.resolve([]) : repo.getSourceSyncStatusSummary({ accountId: account.id }), account && !isFacebookSource(source) ? repo.getAccountCredentialSummary(account.id) : Promise.resolve([])])
     : [[], []];
   const connector = connectors[source.platform]; let capabilities = {};
   let systemCredentialStatus;
@@ -461,12 +484,13 @@ async function sourceWithAccount(source, { summary = false } = {}) {
     account.masked_phone = account.masked_login_identifier || null;
     account.hasToken = Boolean(account.hasToken || account.has_token || hasToken);
     account.tokenExpiry = await tokenExpiry(repo, account, credentials);
+    account.tokenRenewalFailed = credentials.some(item => item.credential_type === 'api_token' && /^TOKEN_RENEWAL_/.test(item.failure_reason || ''));
     account.hasAccountPassword = Boolean(account.hasAccountPassword || account.has_account_password || hasAccountPassword);
     account.maskedAccount = account.masked_login_identifier || null;
   }
   const safeAccount = sanitizeFacebookAccount(account);
   const safeAccounts = accounts.map(sanitizeFacebookAccount);
-  return { ...sanitizeSource(source), account: safeAccount, accounts: safeAccounts, checkpoints, capabilities, ...(isFacebookSource(source) ? { systemCredentialStatus } : {}) };
+  return { ...sanitizeSource(source), account: safeAccount, accounts: safeAccounts, ...(summary ? { checkpoints } : {}), capabilities, ...(isFacebookSource(source) ? { systemCredentialStatus } : {}) };
 }
 async function sourceWithCredentialState(source) {
   return isWesternSourceRecord(source) || isFacebookSource(source) ? sourceWithAccount(source) : source;
@@ -505,6 +529,7 @@ async function defaultAccountForSource(source, { exactDefault = false } = {}) {
     }
     return account;
   }
+  if (isFacebookBrowser(source) && source.default_account_id) return defaultAccountForSource(source, { exactDefault: true });
   if (isFacebookSource(source)) return (await repo.listAccounts({ sourceId: source.id, gameId: source.game_id, platform: source.platform }))[0] || null;
   return repo.getDefaultAccount({ sourceId: source.id, gameId: source.game_id, platform: source.platform });
 }
@@ -526,7 +551,7 @@ async function requireAuthorizedAccount(source, { exactDefault = false, stableSt
   if (stableStateErrors && account.auth_status !== 'authorized') { const error = new Error('default account is not authorized'); error.code = 'ACCOUNT_UNAUTHORIZED'; throw error; }
   if (stableStateErrors && account.auth_expire_at && Date.parse(account.auth_expire_at) <= Date.now()) { const error = new Error('default account authorization is expired'); error.code = 'ACCOUNT_AUTH_EXPIRED'; throw error; }
   const health = await connectorAccountHealth(connector, source, account);
-  if (isFacebookSource(source)) {
+  if (isFacebookSource(source) && !isFacebookBrowser(source)) {
     const readiness = facebookReadinessError(health || {});
     if (readiness) throw readiness;
   } else if (!health?.authorized) { const error = new Error(health?.reason || 'account is unauthorized'); error.code = 'UNAUTHORIZED'; throw error; }
@@ -536,6 +561,7 @@ async function requireAuthorizedAccount(source, { exactDefault = false, stableSt
 }
 async function requireFacebookCapabilitiesReady(source) {
   if (!isFacebookSource(source)) return;
+  if (isFacebookBrowser(source)) return;
   const rows = await repo.listSourceCapabilities(source.id);
   const statusByCapability = new Map(rows.map(item => [item.capability, item.status]));
   const missing = FACEBOOK_REQUIRED_CAPABILITIES.filter(capability => normalizeFacebookCapabilityStatus(statusByCapability.get(capability)) !== 'authorized_scope');
@@ -552,7 +578,7 @@ async function requireFacebookCapabilitiesReady(source) {
   throw error;
 }
 async function persistFacebookPageIdentity(source, account, result = {}) {
-  if (!isFacebookSource(source) || !account) return;
+  if (!isFacebookSource(source) || isFacebookBrowser(source) || !account) return;
   const page = result.capabilities?.page || result.page || result;
   if (!page?.pageId) return;
   await repo.updateAccount(account.id, {
@@ -676,8 +702,16 @@ function accountConfirmation(accountId, value) {
 async function writeCredential(accountId, body, platform = '') {
   if (!body.secret || !String(body.secret).trim()) { const error = new Error('secret is required'); error.code = 'INVALID_INPUT'; throw error; }
   const credentialType = body.credentialType || 'api_token';
-  const secretCipher = credentialCipher.encrypt(String(body.secret), process.env, { aad: credentialAad({ accountId, credentialType, platform }), kid: process.env.CREDENTIAL_ENC_KEY_ID || 'primary' });
-  return repo.upsertAccountCredential(accountId, { credentialType, secretCipher, status: 'active', expireAt: body.expireAt || null, replaceExpireAt: ['api_token', 'oauth_access_refresh'].includes(credentialType) });
+  let secret = String(body.secret), expireAt = body.expireAt || null;
+  if (platform === 'bigplayer_h5' && credentialType === 'api_token') {
+    const account = await repo.getAccount(accountId);
+    const source = account && await sourceById(account.source_id);
+    if (!source) throw Object.assign(new Error('账号所属社区不存在'), { code: 'ACCOUNT_NOT_FOUND', status: 400 });
+    const result = await bigPlayerTokenRenewal.exchange(source, secret);
+    secret = result.apiToken; expireAt = result.expiresAt;
+  }
+  const secretCipher = credentialCipher.encrypt(secret, process.env, { aad: credentialAad({ accountId, credentialType, platform }), kid: process.env.CREDENTIAL_ENC_KEY_ID || 'primary' });
+  return repo.upsertAccountCredential(accountId, { credentialType, secretCipher, status: 'active', expireAt, replaceExpireAt: ['api_token', 'oauth_access_refresh'].includes(credentialType) });
 }
 function loginBinding(source, account) { return { sourceId: source.id, accountId: account.id, platform: normalizePlatform(source.platform) }; }
 async function socialSourceAccount(id) {
@@ -757,7 +791,7 @@ function normalizeLoginCheckError(error) {
   normalized.cause = error;
   return normalized;
 }
-const READ_PLATFORM_FILTERS = new Set([...SOURCE_PLATFORMS, 'facebook']);
+const READ_PLATFORM_FILTERS = new Set([...SOURCE_PLATFORMS, 'facebook', 'x', 'lounge']);
 function parseReadPlatform(value) {
   if (!value) return undefined;
   const platform = normalizePlatform(value);
@@ -793,7 +827,7 @@ async function resolveCanonicalScope(input = {}) {
 async function resolveRequestScope(url, options) { return resolveCanonicalScope(scopeFromQuery(url, options)); }
 const PERMISSION_NAV = Object.freeze([
   ['overview', '舆情数据概览'], ['content', '抓取内容管理'], ['alerts', '舆情通知管理'],
-  ['sources', '抓取账号管理'], ['runs', '抓取任务记录'], ['keywords', '监控关键词设置']
+  ['sources', '抓取账号管理'], ['runs', '抓取任务记录'], ['keywords', 'AI分析管理']
 ]);
 const SSO_ROLES = Object.freeze([
   { key: 'Ops_chaoneng_cn', name: '超能国内运营' }, { key: 'Ops_dengta_cn', name: '灯塔海外运营' }, { key: 'Ops_weimian2_cn', name: '位面2海外运营' }
@@ -801,12 +835,12 @@ const SSO_ROLES = Object.freeze([
 function navForRequest(pathname) {
   const path = pathname.replace('/api/public-opinion/', '');
   // 社区目录是所有已授权功能的共同依赖；不能因没有“概览”权限而让来源、内容等页面无法加载其社区范围。
-  if (/^(overview|overview-trend)(?:\/|$)/.test(path)) return 'overview';
-  if (/^(contents|quality-contents)(?:\/|$)/.test(path)) return 'content';
+  if (/^(overview|overview-trend|weekly-report)(?:\/|$)/.test(path)) return 'overview';
+  if (/^(contents|quality-contents|single-post)(?:\/|$)/.test(path)) return 'content';
   if (/^alerts(?:\/|$)/.test(path)) return 'alerts';
   if (/^(sources|accounts|credentials|oauth)(?:\/|$)/.test(path)) return 'sources';
   if (/^sync-runs(?:\/|$)/.test(path)) return 'runs';
-  if (/^keyword-rules(?:\/|$)/.test(path)) return 'keywords';
+  if (/^(keyword-rules|ai-analysis-policy)(?:\/|$)/.test(path)) return 'keywords';
   return null;
 }
 async function applySsoRolePermissions(identity) {
@@ -838,9 +872,15 @@ async function assertResourceScope(identity, { sourceId, accountId, syncRunId } 
   }
 }
 
+const readinessProbe = createReadinessProbe(() => repo.health());
 async function handler(req, res) {
   res.corsHeaders = corsHeaders(req);
   if (req.method === 'OPTIONS') { res.writeHead(204, res.corsHeaders); return res.end(); }
+  if (req.method === 'GET' && req.url === '/readyz') {
+    res.noStore = true;
+    const ready = await readinessProbe();
+    return json(res, ready ? 200 : 503, { data: { ready, service: 'public-opinion-system-server' } });
+  }
   if (req.url === '/health') {
     const connectorStatus = await Promise.all(Object.entries(connectors).map(async ([name, connector]) => [name, typeof connector.installationHealth === 'function' ? await connector.installationHealth() : await connector.healthCheck()]));
     let database = { configured: true, status: 'ok' }; try { await repo.health(); } catch (error) { database = { configured: true, status: 'error', message: error.message }; }
@@ -865,10 +905,32 @@ async function handler(req, res) {
     if (req.baasIdentity) req.baasIdentity = await applySsoRolePermissions(req.baasIdentity);
     if (req.method === 'GET' && url.pathname === '/api/public-opinion/auth/session') {
       res.noStore = true;
+      if (cloudReadRepository && req.baasIdentity?.roles?.includes('admin')) {
+        try {
+          if (await baasDingTalk.renewExistingAuthorization(req.headers.authorization.slice(7), req.baasIdentity)) cloudReadRepository.invalidate();
+        } catch (error) { console.error('BAAS_SERVICE_AUTH_RENEW_FAILED', error.code || 'RENEW_FAILED'); }
+      }
       return json(res, 200, success({ enabled: baasAccess.enabled, identity: req.baasIdentity || null }));
     }
     if (resource === 'api-config' && id === 'typesafe' && path.length === 2) return await typeSafeTests.handleRequest(req, res, { path: ['typesafe-test', 'config'], id: 'config', json, success, errorPayload, readBody });
     if (resource === 'typesafe-test') return await typeSafeTests.handleRequest(req, res, { path, id, json, success, errorPayload, readBody });
+    if ((resource === 'api-config' && id === 'dingtalk') || (resource === 'sources' && path[2] === 'dingtalk')) {
+      res.noStore = true;
+      if (!req.baasIdentity?.roles?.includes('admin')) return json(res, 403, errorPayload('BAAS_FORBIDDEN', '仅应用管理员可以配置钉钉推送'));
+      const token = req.headers.authorization.slice(7);
+      if (resource === 'api-config') {
+        if (req.method === 'GET' && path.length === 2) return json(res, 200, success(await baasDingTalk.status()));
+        if (req.method === 'POST' && path[2] === 'authorize' && path.length === 3) { const body = await readBody(req); if (Object.keys(body).length) return json(res, 400, errorPayload('INVALID_INPUT', '不接受额外授权字段')); return json(res, 200, success(await baasDingTalk.authorize(token, req.baasIdentity))); }
+        if (req.method === 'GET' && path[2] === 'robots' && path.length === 3) return json(res, 200, success({ robots: await baasDingTalk.robots(token) }));
+        if (req.method === 'PUT' && path[2] === 'robots' && path.length === 3) return json(res, 200, success({ robots: await baasDingTalk.bind(token, await readBody(req)) }));
+      } else if (path.length === 3) {
+        const source = await sourceById(id); if (!source) return json(res, 404, errorPayload('NOT_FOUND', '采集源不存在'));
+        await assertResourceScope(req.baasIdentity, { sourceId: id });
+        if (req.method === 'GET') return json(res, 200, success(await baasDingTalk.routes(id, token)));
+        if (req.method === 'PUT') return json(res, 200, success(await baasDingTalk.saveRoute(id, token, await readBody(req))));
+      }
+      return json(res, 404, errorPayload('NOT_FOUND', 'route not found'));
+    }
     if (resource === 'permission-rules') {
       if (!req.baasIdentity?.roles?.includes('admin')) return json(res, 403, errorPayload('BAAS_FORBIDDEN', '仅应用管理员可以配置权限'));
       if (req.method === 'GET' && path.length === 1) return json(res, 200, success({ roles: SSO_ROLES, navigation: PERMISSION_NAV.map(([key, label]) => ({ key, label })), communities: await communityDirectory.list({ includeDisabled: false }), grants: await repo.listSsoRolePermissions() }));
@@ -894,6 +956,62 @@ async function handler(req, res) {
       accountId: resource === 'accounts' && id ? id : url.searchParams.get('accountId'),
       syncRunId: resource === 'sync-runs' && id ? id : undefined
     });
+    if (resource === 'single-post') {
+      res.noStore = true;
+      if (!req.baasIdentity?.permissions?.manage) return json(res, 403, errorPayload('BAAS_FORBIDDEN', '此工具需要登录并具备管理权限'));
+      const owner = req.baasIdentity.id;
+      if (req.method === 'POST' && !id && path.length === 1) {
+        const body = await readBody(req);
+        let input, source, kind = 'search';
+        if (body.searchJobId) {
+          const previous = await singlePostJobs.get(String(body.searchJobId));
+          if (!previous || previous.owner_id !== owner || previous.kind !== 'search' || previous.status !== 'completed') throw singlePostError('候选帖子任务不存在或无权访问', 404);
+          assertCommunityScope(req.baasIdentity, previous.community_id);
+          const index = body.candidateIndex;
+          const post = Number.isInteger(index) && previous.result?.candidates?.[index];
+          if (!post) throw singlePostError('请选择有效的候选帖子');
+          input = { ...previous.input, post }; kind = 'analysis';
+          source = (await repo.listSources(null, { sourceId: previous.source_id }))[0];
+        } else {
+          input = validateSinglePostInput(body);
+          assertCommunityScope(req.baasIdentity, input.communityId);
+          const scope = await resolveCanonicalScope(input);
+          if (scope.regionCode !== input.regionCode) throw singlePostError('区域与社区不匹配');
+          const sources = await repo.listSources(null, { communityId: input.communityId, platform: input.platform });
+          source = sources.sort((a,b) => Number(b.auth_status === 'authorized') - Number(a.auth_status === 'authorized'))[0];
+        }
+        if (!source) throw singlePostError('当前社区尚未配置该平台抓取账号，请先配置并授权');
+        await requireEnabledCommunityForSource(source);
+        return json(res, 202, success(await singlePostJobs.create(owner, source, input, kind)));
+      }
+      if (req.method === 'GET' && id && path.length <= 3) {
+        const job = await singlePostJobs.get(id);
+        if (!job || job.owner_id !== owner) throw singlePostError('任务不存在或无权访问', 404);
+        assertCommunityScope(req.baasIdentity, job.community_id);
+        if (path[2] === 'report') {
+          if (job.kind !== 'analysis' || job.status !== 'completed') throw singlePostError('任务完成后才能输出报告');
+          const report = require('./services/singlePostReport').exportReport(job.result, job.input.requirement || job.result.requirement);
+          res.writeHead(200, { ...res.corsHeaders, 'cache-control':'no-store', 'content-type':report.mime, 'content-disposition':`attachment; filename="single-post-${job.id}.${report.extension}"` }); return res.end(report.body);
+        }
+        if (path[2] === 'excel') {
+          if (job.kind !== 'analysis' || job.status !== 'completed') throw singlePostError('分析完成后才能下载');
+          const buffer = require('./services/singlePostExcel').reportWorkbook(job.result);
+          res.writeHead(200, { ...res.corsHeaders, 'cache-control':'no-store', 'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'content-disposition':`attachment; filename="single-post-${job.id}.xlsx"` }); return res.end(buffer);
+        }
+        if (path.length === 2) return json(res, 200, success({ id:job.id, kind:job.kind, status:job.status, input:job.input, result:job.result, progress:job.progress, errorCode:job.error_code, createdAt:job.created_at }));
+      }
+      return json(res, 404, errorPayload('NOT_FOUND','route not found'));
+    }
+    const readRepo = cloudReadRepository && req.method === 'GET' ? cloudReadRepository.forIdentity(req.baasIdentity) : repo;
+    if (resource === 'sources' && id && path[2] === 'browser') {
+      if (req.baasIdentity && !req.baasIdentity.permissions?.manage) return json(res, 403, errorPayload('BAAS_FORBIDDEN', '仅管理权限可配置 Facebook 登录账号'));
+      const source = await sourceById(id);
+      if (!source) return json(res, 404, errorPayload('NOT_FOUND', '采集源不存在'));
+      const body = ['POST', 'PATCH'].includes(req.method) ? await readBody(req) : {};
+      const result = await facebookBrowserAccounts.handle(source, path[3], req.method, body, req.baasIdentity);
+      return json(res, 200, success(result));
+    }
+    if (cloudReadRepository && req.method === 'GET' && ['games', 'communities', 'contents', 'overview', 'overview-trend', 'quality-contents', 'alerts'].includes(resource)) res.dataSource = 'baas';
     if (req.method === 'GET' && !resource) return json(res, 200, success({
       service: 'public-opinion-system',
       message: '舆情分析 API 已启动，请访问具体资源接口',
@@ -931,12 +1049,12 @@ async function handler(req, res) {
       const enqueued = await repo.enqueueMissingAnalysis({ ...body, force: body.force === true, limit, profile: 'light', version: spec.version });
       return json(res, 202, success({ profile: 'light', analysisVersion: spec.version, enqueued, status: 'pending' }));
     }
-    if (req.method === 'GET' && resource === 'games') return json(res, 200, success(await repo.listGames({ regionCode: url.searchParams.get('regionCode') || undefined, externalId: url.searchParams.get('externalId') || undefined })));
+    if (req.method === 'GET' && resource === 'games') return json(res, 200, success(await readRepo.listGames({ regionCode: url.searchParams.get('regionCode') || undefined, externalId: url.searchParams.get('externalId') || undefined })));
     if (req.method === 'GET' && resource === 'communities') {
       const regionCode = url.searchParams.get('regionCode') || undefined;
       const gameId = url.searchParams.get('gameId') || undefined;
       const externalId = url.searchParams.get('externalId') || undefined;
-      const communities = await communityDirectory.list({ gameId, regionCode, externalId, includeDisabled: url.searchParams.get('includeDisabled') !== 'false' });
+      const communities = await (cloudReadRepository ? readRepo.listCommunities({ gameId, regionCode, externalId, includeDisabled: url.searchParams.get('includeDisabled') !== 'false' }) : communityDirectory.list({ gameId, regionCode, externalId, includeDisabled: url.searchParams.get('includeDisabled') !== 'false' }));
       return json(res, 200, success(req.baasIdentity?.scoped ? communities.filter(item => req.baasIdentity.communityIds.includes(String(item.id))) : communities));
     }
     if (['POST', 'PATCH'].includes(req.method) && resource === 'communities') return json(res, 410, errorPayload('COMMUNITY_MANAGED_EXTERNALLY', '社区由外部后台维护，本系统不再提供新增或编辑能力'));
@@ -1010,6 +1128,16 @@ async function handler(req, res) {
       const nextAfter = rows.length ? Number(rows[rows.length - 1].sequence_no) : after;
       return json(res, 200, success(rows, { after, nextAfter, limit, hasMore: rows.length === limit, scope: syncScope }));
     }
+    if (req.method === 'GET' && resource === 'sources' && id && path[2] === 'sync-status' && path.length === 3) {
+      const scope = await resolveRequestScope(url, { readPlatform: true });
+      if (scope.sourceId && scope.sourceId !== id) return json(res, 400, errorPayload('INVALID_INPUT', 'sourceId must match the source path'));
+      const sources = await repo.listSources(scope.gameId, { sourceId: id, regionCode: scope.regionCode, communityId: scope.communityId, platform: scope.platform });
+      const source = sources.find(item => String(item.id) === id);
+      if (!source) return json(res, 404, errorPayload('SOURCE_NOT_FOUND', 'source not found in requested scope'));
+      const account = await defaultAccountForSource(source);
+      const checkpoints = account ? await repo.getSourceSyncStatusSummary({ accountId: account.id }) : [];
+      return json(res, 200, success({ sourceId: id, checkpoints }));
+    }
     if (req.method === 'GET' && resource === 'sources' && path.length <= 2) {
       const scope = await resolveRequestScope(url, { readPlatform: true });
       if (id && scope.sourceId && scope.sourceId !== id) return json(res, 400, errorPayload('INVALID_INPUT', 'sourceId must match the source path'));
@@ -1023,8 +1151,10 @@ async function handler(req, res) {
         const source = sources.find(item => String(item.id) === id);
         return source ? json(res, 200, success(await sourceWithAccount(source))) : json(res, 404, errorPayload('SOURCE_NOT_FOUND', 'source not found in requested scope'));
       }
-      if (req.baasIdentity && !req.baasIdentity.permissions.manage) return json(res, 200, success(sources.map(publicSourceSummary)));
-      return json(res, 200, success(await Promise.all(sources.map(source => sourceWithAccount(source, { summary: true })))));
+      if (url.searchParams.get('view') === 'summary' || req.baasIdentity && !req.baasIdentity.permissions.manage) return json(res, 200, success(sources.map(publicSourceSummary)));
+      // The list uses recent_sync_* from listSources. Historical checkpoints
+      // belong to the source detail and must not block every platform row.
+      return json(res, 200, success(await Promise.all(sources.map(source => sourceWithAccount(source, { summary: true, listOnly: true })))));
     }
     if (req.method === 'GET' && resource === 'accounts' && id && path[2] === 'credentials') { const account = await repo.getAccount(id); return account ? json(res, 200, success(await repo.getAccountCredentialSummary(id))) : json(res, 404, errorPayload('NOT_FOUND', 'account not found')); }
     if (req.method === 'GET' && resource === 'accounts' && id && path[2] === 'sync-status') { const account = await repo.getAccount(id); const syncScope = url.searchParams.get('scope') || undefined; return account ? json(res, 200, success(syncScope && !PUBLIC_SYNC_SCOPES.has(syncScope) ? [] : await repo.getSyncStatus({ accountId: id, syncScope }))) : json(res, 404, errorPayload('NOT_FOUND', 'account not found')); }
@@ -1055,14 +1185,23 @@ async function handler(req, res) {
       const counts = await repo.countAnalysisJobs({ ...filters, contentIds, profile, version });
       return json(res, 200, success({ scope, batchStatus, businessDate, profile, version, publishedFrom: filters.publishedFrom || null, publishedTo: filters.publishedTo || null, ...counts, terminal: analysisTerminal(counts) }));
     }
+    if (req.method === 'GET' && resource === 'weekly-report' && path.length === 1) {
+      const allowed = new Set(['regionCode', 'gameId', 'communityId']);
+      for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
+      const scope = await resolveRequestScope(url);
+      if (!scope.communityId) return json(res, 400, errorPayload('INVALID_INPUT', 'communityId is required'));
+      assertCommunityScope(req.baasIdentity, scope.communityId);
+      const { WeeklyReportRepository } = require('./services/weeklyReportRepository');
+      return json(res, 200, success(await new WeeklyReportRepository(repo).latest(scope.communityId)));
+    }
     if (req.method === 'GET' && resource === 'overview-trend') {
       try {
         const period = url.searchParams.get('period');
-        if (!['7d', '30d'].includes(period)) return json(res, 400, errorPayload('INVALID_INPUT', 'period must be 7d or 30d'));
+        if (!['7d', '15d', '30d'].includes(period)) return json(res, 400, errorPayload('INVALID_INPUT', 'period must be 7d, 15d or 30d'));
         if (['from', 'to', 'publishedFrom', 'publishedTo'].some(key => url.searchParams.has(key))) return json(res, 400, errorPayload('INVALID_INPUT', 'overview-trend uses its own period'));
         const query = { ...parseOverviewQuery(url), ...await resolveRequestScope(url, { readPlatform: true }) };
-        const cacheKey = JSON.stringify([query.regionCode, query.gameId, query.communityId, query.sourceId, query.platform, period, query.from]);
-        const cached = await trendReadCache.get(cacheKey, async () => ({ trend: await repo.getOverviewTrend(query), window: { publishedFrom: new Date(`${query.from.replace(' ', 'T')}Z`).toISOString(), publishedTo: new Date(`${query.to.replace(' ', 'T')}Z`).toISOString() } }));
+        const cacheKey = JSON.stringify([res.dataSource || 'local', req.baasIdentity?.communityIds, query.regionCode, query.gameId, query.communityId, query.sourceId, query.platform, period, query.from]);
+        const cached = await trendReadCache.get(cacheKey, async () => ({ trend: await readRepo.getOverviewTrend(query), window: { publishedFrom: new Date(`${query.from.replace(' ', 'T')}Z`).toISOString(), publishedTo: new Date(`${query.to.replace(' ', 'T')}Z`).toISOString() } }));
         return json(res, 200, success(cached.data), { 'x-trend-cache': cached.status });
       } catch (error) {
         if (error.code === 'INVALID_INPUT') return json(res, 400, errorPayload(error.code, error.message));
@@ -1082,16 +1221,29 @@ async function handler(req, res) {
           const value = url.searchParams.get(key);
           if (value != null) rawKey[key] = key === 'platform' ? parseReadPlatform(value) : value;
         }
-        const cacheKey = JSON.stringify(rawKey);
+        const cacheKey = JSON.stringify([res.dataSource || 'local', req.baasIdentity?.communityIds, rawKey]);
         if (!fresh) {
           const cached = overviewCache.get(cacheKey);
           if (cached && cached.expiresAt > Date.now()) {
             return json(res, 200, success(cached.data), { 'x-cache': 'hit' });
           }
         }
-        const data = await repo.getOverview(query);
+        const data = await readRepo.getOverview(query);
+        const feedbackGroups = data.frequentFeedbackBySentiment || { all: data.frequentFeedback || [] };
+        const feedbackTerms = [...new Map(Object.values(feedbackGroups).flat().map(item => [item.text, item])).values()];
+        if (query.regionCode === 'overseas' && feedbackTerms.length) {
+          const { AiTranslator } = require('./integrations/aiTranslator');
+          const translated = await require('./services/feedbackTranslations').translateFeedback(feedbackTerms, {
+            translator: new AiTranslator({ ...process.env, AI_TRANSLATION_MAX_RETRIES: '1', AI_TRANSLATION_TIMEOUT_MS: '15000', AI_TRANSLATION_MAX_OUTPUT_TOKENS: '4000' }, { reserveCall: limit => repo.reserveTranslationCall(limit) })
+          });
+          const translations = new Map(translated.map(item => [item.text, item]));
+          for (const [sentiment, items] of Object.entries(feedbackGroups)) feedbackGroups[sentiment] = items.map(item => ({ ...translations.get(item.text), ...item }));
+        }
+        for (const [sentiment, items] of Object.entries(feedbackGroups)) feedbackGroups[sentiment] = require('./services/feedbackMerge').mergeFeedback(items);
+        data.frequentFeedbackBySentiment = feedbackGroups;
+        data.frequentFeedback = feedbackGroups.all;
         data.window = { publishedFrom: query.from ? new Date(`${query.from.replace(' ', 'T')}Z`).toISOString() : null, publishedTo: query.to ? new Date(`${query.to.replace(' ', 'T')}Z`).toISOString() : null };
-        overviewCache.set(cacheKey, { data, expiresAt: Date.now() + OVERVIEW_CACHE_TTL_MS });
+        overviewCache.set(cacheKey, { data, expiresAt: Date.now() + (data.feedbackTopicStatus?.pending ? 15000 : OVERVIEW_CACHE_TTL_MS) });
         return json(res, 200, success(data), { 'x-cache': 'no' });
       } catch (error) {
         if (error.code === 'INVALID_INPUT') return json(res, 400, errorPayload(error.code, error.message));
@@ -1114,7 +1266,9 @@ async function handler(req, res) {
       for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
       const input = parseBatchHandling(await readBody(req));
       const scope = await resolveRequestScope(url);
-      return json(res, 200, success(await repo.handleContents(input, { ...scope, actorId: req.baasIdentity?.externalId || req.baasIdentity?.id })));
+      const result = await repo.handleContents(input, { ...scope, actorId: req.baasIdentity?.externalId || req.baasIdentity?.id, actorName: req.baasIdentity?.displayName });
+      if (cloudReadRepository) { cloudReadRepository.invalidateHandling(); cloudReadRepository.scheduleReviewSync(repo); overviewCache.clear(); trendReadCache.entries.clear(); }
+      return json(res, 200, success(result));
     }
     if (req.method === 'POST' && resource === 'contents' && id && path[2] === 'reanalyze') {
       const scope = await resolveRequestScope(url);
@@ -1130,6 +1284,7 @@ async function handler(req, res) {
         version,
         contentFingerprint: content.fingerprint,
         triggerReason: 'manual_reanalysis',
+        analysisPolicy: await repo.getAiAnalysisPolicy(scope.gameId, scope.communityId),
         force: true
       });
       return json(res, 202, success({
@@ -1141,23 +1296,24 @@ async function handler(req, res) {
       }));
     }
     if (req.method === 'GET' && resource === 'contents' && id === 'stats' && path.length === 2) {
-      const scope = await resolveRequestScope(url);
+      const scope = await resolveRequestScope(url, { readPlatform: true });
       let filters = { ...Object.fromEntries(url.searchParams), ...scope };
-      const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform', 'accountId', 'contentType', 'riskMode', 'sentiment', 'severity', 'analysisStatus', 'analysisLevel', 'keyword', 'postId', 'publishedFrom', 'publishedTo']);
+      const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform', 'accountId', 'contentType', 'riskMode', 'sentiment', 'severity', 'analysisStatus', 'analysisLevel', 'handlingStatus', 'keyword', 'postId', 'publishedFrom', 'publishedTo']);
       for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
-      if (filters.platform) filters.platform = parsePlatform(filters.platform);
+      if (filters.handlingStatus && !['pending', 'processed', 'not_required'].includes(filters.handlingStatus)) return json(res, 400, errorPayload('INVALID_INPUT', '处理状态无效'));
+      if (filters.platform) filters.platform = parseReadPlatform(filters.platform);
       filters = normalizeRiskFilters(filters);
       const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
       for (const key of ['publishedFrom', 'publishedTo']) if (filters[key]) { try { filters[key] = parsePublishedBoundary(filters[key], key); } catch (error) { return json(res, 400, errorPayload(error.code, error.message)); } }
       if (filters.publishedFrom && filters.publishedTo && filters.publishedFrom >= filters.publishedTo) return json(res, 400, errorPayload('INVALID_INPUT', 'publishedFrom must be earlier than publishedTo'));
-      return json(res, 200, success(await repo.getContentStats(filters)));
+      return json(res, 200, success(await readRepo.getContentStats(filters)));
     }
     if (req.method === 'GET' && resource === 'contents' && id && path.length === 2) {
       const scope = await resolveRequestScope(url);
-      const rows = await repo.getContentTree(id, { ...scope, includeDeleted: true });
+      const rows = await readRepo.getContentTree(id, { ...scope, includeDeleted: true });
       const content = rows.find(item => item.id === id);
       if (!content) return json(res, 404, errorPayload('NOT_FOUND', 'content not found'));
-      const [analysisView] = await repo.listContents({ ...scope, keyword: null, page: 1, pageSize: 1, contentId: id });
+      const [analysisView] = await readRepo.listContents({ ...scope, keyword: null, page: 1, pageSize: 1, contentId: id });
       const withTranslation = item => {
         const overseas = item?.region_code === 'overseas';
         return {
@@ -1174,7 +1330,7 @@ async function handler(req, res) {
           }
         };
       };
-      const [detailContent] = await repo.withContentHandling([analysisView ? { ...content, ...analysisView } : content]);
+      const [detailContent] = await readRepo.withContentHandling([analysisView ? { ...content, ...analysisView } : content]);
       const translationFields = {
         region_code: content.region_code,
         translation_target_language: content.translation_target_language,
@@ -1189,7 +1345,7 @@ async function handler(req, res) {
       // Root lookup keeps tenant/source boundaries, but ignores list date/risk filters.
       let originalPost = null;
       if (content.content_type === 'comment' && content.root_content_id && content.root_content_id !== id) {
-        const rootRows = await repo.getContentTree(content.root_content_id, { ...scope,
+        const rootRows = await readRepo.getContentTree(content.root_content_id, { ...scope,
           gameId: content.game_id, communityId: content.community_id, sourceId: content.source_id,
           accountId: content.account_id, contentType: 'post', includeDeleted: true });
         const root = rootRows.find(item => item.id === content.root_content_id && item.content_type === 'post');
@@ -1198,11 +1354,11 @@ async function handler(req, res) {
       return json(res, 200, success({ content: withTranslation({ ...detailContent, ...translationFields }), originalPost, comments: rows.filter(item => item.id !== id).map(withTranslation) }));
     }
     if (req.method === 'GET' && resource === 'contents') {
-      const scope = await resolveRequestScope(url);
+      const scope = await resolveRequestScope(url, { readPlatform: true });
       let filters = { ...Object.fromEntries(url.searchParams), ...scope };
       // limit 作为 pageSize 的别名（前端 assets/content.js 等兼容写法），未显式传 pageSize 时生效
       if (filters.limit != null && filters.pageSize == null) { filters.pageSize = filters.limit; }
-      if (filters.platform) filters.platform = parsePlatform(filters.platform);
+      if (filters.platform) filters.platform = parseReadPlatform(filters.platform);
       filters = normalizeRiskFilters(filters);
       const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
       for (const key of ['publishedFrom', 'publishedTo']) if (filters[key]) { try { filters[key] = parsePublishedBoundary(filters[key], key); } catch (error) { return json(res, 400, errorPayload(error.code, error.message)); } }
@@ -1210,15 +1366,15 @@ async function handler(req, res) {
       if (filters.postId != null) { filters.postId = String(filters.postId).trim(); if (!filters.postId) delete filters.postId; else if (filters.postId.length > 255) return json(res, 400, errorPayload('INVALID_INPUT', 'postId 长度不能超过 255')); }
       const usesTreeFilters = filters.accountId || filters.contentType || filters.includeDeleted != null;
       const [items, total] = await Promise.all([
-        usesTreeFilters ? repo.listContentTree({ ...filters, includeDeleted: filters.includeDeleted === 'true' }) : repo.listContents(filters),
-        repo.countContents({ ...filters, includeDeleted: filters.includeDeleted === 'true' })
+        usesTreeFilters ? readRepo.listContentTree({ ...filters, includeDeleted: filters.includeDeleted === 'true' }) : readRepo.listContents(filters),
+        readRepo.countContents({ ...filters, includeDeleted: filters.includeDeleted === 'true' })
       ]);
-      return json(res, 200, success(await repo.withContentHandling(items), { page: Number(filters.page || 1), pageSize: Number(filters.pageSize || 20), total, hasMore: Number(filters.page || 1) * Number(filters.pageSize || 20) < total }));
+      return json(res, 200, success(await readRepo.withContentHandling(items), { page: Number(filters.page || 1), pageSize: Number(filters.pageSize || 20), total, hasMore: Number(filters.page || 1) * Number(filters.pageSize || 20) < total }));
     }
     if (req.method === 'GET' && resource === 'quality-contents' && id) {
       const allowed = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform']);
       for (const key of url.searchParams.keys()) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported query parameter: ${key}`));
-      const item = await repo.getQualityContent(id, await resolveRequestScope(url));
+      const item = await readRepo.getQualityContent(id, await resolveRequestScope(url));
       return item ? json(res, 200, success(normalizeQualityCandidate(item))) : json(res, 404, errorPayload('NOT_FOUND', 'quality content not found'));
     }
     if (req.method === 'GET' && resource === 'quality-contents') {
@@ -1229,10 +1385,15 @@ async function handler(req, res) {
       const recommendationType = url.searchParams.get('recommendationType') || undefined; const reviewStatus = url.searchParams.get('reviewStatus') || undefined;
       if (recommendationType && !new Set(['home', 'pin', 'feature']).has(recommendationType)) return json(res, 400, errorPayload('INVALID_INPUT', 'recommendationType is not supported'));
       if (reviewStatus && !new Set(['pending', 'accepted', 'rejected']).has(reviewStatus)) return json(res, 400, errorPayload('INVALID_INPUT', 'reviewStatus is not supported'));
-      const scope = await resolveRequestScope(url);
+      const scope = await resolveRequestScope(url, { readPlatform: true });
       const filters = { ...Object.fromEntries(url.searchParams), page, pageSize, recommendationType, reviewStatus, ...scope };
-      if (filters.platform) filters.platform = parsePlatform(filters.platform);
-      const [items, total] = await Promise.all([repo.listQualityContents(filters), repo.countQualityContents(filters)]);
+      if (filters.platform) filters.platform = parseReadPlatform(filters.platform);
+      for (const key of ['publishedFrom', 'publishedTo']) if (filters[key]) {
+        try { filters[key] = parsePublishedBoundary(filters[key], key); }
+        catch (error) { return json(res, 400, errorPayload(error.code, error.message)); }
+      }
+      if (filters.publishedFrom && filters.publishedTo && filters.publishedFrom >= filters.publishedTo) return json(res, 400, errorPayload('INVALID_INPUT', 'publishedFrom must be earlier than publishedTo'));
+      const [items, total] = await Promise.all([readRepo.listQualityContents(filters), readRepo.countQualityContents(filters)]);
       return json(res, 200, success(items.map(normalizeQualityCandidate), { page, pageSize, total, hasMore: page * pageSize < total }));
     }
     if (req.method === 'PATCH' && resource === 'quality-contents' && id) {
@@ -1252,6 +1413,7 @@ async function handler(req, res) {
         if (status != null && adopted != null && ((status === 'accepted') !== adopted)) return json(res, 400, errorPayload('INVALID_INPUT', `${prefix} review status and adopted value conflict`));
       }
       const updated = await repo.updateQualityCandidate(id, normalizedPatch, req.baasIdentity?.externalId || req.baasIdentity?.id || req.headers['x-admin-user'] || 'admin', await resolveRequestScope(url));
+      if (updated && cloudReadRepository) { cloudReadRepository.scheduleReviewSync(repo); overviewCache.clear(); }
       return updated ? json(res, 200, success(normalizeQualityCandidate(updated))) : json(res, 404, errorPayload('NOT_FOUND', 'quality content not found'));
     }
 
@@ -1266,11 +1428,11 @@ async function handler(req, res) {
       const scope = await resolveRequestScope(url);
       const filters = { ...Object.fromEntries(url.searchParams), page, pageSize, ...scope };
       if (filters.platform) filters.platform = parsePlatform(filters.platform);
-      const items = await repo.listAlerts(filters);
+      const items = await readRepo.listAlerts(filters);
       return json(res, 200, success(items.map(normalizeAlertWithIndependentReviews), { page, pageSize, hasMore: items.length === pageSize }));
     }
-    if (req.method === 'GET' && resource === 'alerts' && id) { const alert = await repo.getAlert(id, await resolveRequestScope(url)); return alert ? json(res, 200, success(normalizeAlertWithIndependentReviews(alert))) : json(res, 404, errorPayload('NOT_FOUND', 'alert not found')); }
-    if (req.method === 'PATCH' && resource === 'alerts' && id) { let body = ''; for await (const chunk of req) body += chunk; const patch = body ? JSON.parse(body) : {}; const alert = await repo.updateAlert(id, patch, await resolveRequestScope(url)); return alert ? json(res, 200, success(normalizeAlertWithIndependentReviews(alert))) : json(res, 404, errorPayload('NOT_FOUND', 'alert not found')); }
+    if (req.method === 'GET' && resource === 'alerts' && id) { const alert = await readRepo.getAlert(id, await resolveRequestScope(url)); return alert ? json(res, 200, success(normalizeAlertWithIndependentReviews(alert))) : json(res, 404, errorPayload('NOT_FOUND', 'alert not found')); }
+    if (req.method === 'PATCH' && resource === 'alerts' && id) { let body = ''; for await (const chunk of req) body += chunk; const patch = body ? JSON.parse(body) : {}; const alert = await repo.updateAlert(id, patch, await resolveRequestScope(url)); if (alert && cloudReadRepository) { await cloudReadRepository.synchronizeMetadata(repo); overviewCache.clear(); } return alert ? json(res, 200, success(normalizeAlertWithIndependentReviews(alert))) : json(res, 404, errorPayload('NOT_FOUND', 'alert not found')); }
 
     // ── A4 写接口：采集源配置 / 凭据 / 授权检测 / 手动采集 / 关键词规则 ──
 
@@ -1300,6 +1462,11 @@ async function handler(req, res) {
 
     if (req.method === 'POST' && resource === 'sources' && !id) {
       const body = await readBody(req);
+      if (body.platform === 'facebook' && body.collectionMode === 'browser') {
+        if (req.baasIdentity && !req.baasIdentity.permissions?.manage) return json(res, 403, errorPayload('BAAS_FORBIDDEN', '仅管理权限可配置 Facebook 登录账号'));
+        const created = await facebookBrowserAccounts.create(body, req.baasIdentity);
+        return json(res, 201, success(created));
+      }
       if (!body.communityId) return json(res, 400, errorPayload('INVALID_INPUT', 'communityId is required'));
       if (!body.platform) return json(res, 400, errorPayload('INVALID_INPUT', 'platform is required'));
       if (!String(body.displayName || '').trim()) return json(res, 400, errorPayload('INVALID_INPUT', 'displayName is required'));
@@ -1430,11 +1597,15 @@ async function handler(req, res) {
           ? 'account_password'
           : body.apiToken ? 'api_token' : null;
       const h5Account = String(body.account || '').trim();
-      const plaintext = isSocialPlatform(platform)
+      let plaintext = isSocialPlatform(platform)
         ? JSON.stringify(socialSecret(body))
         : credentialType === 'account_password'
           ? JSON.stringify({ countryCode: null, account: h5Account, password: String(body.password) })
           : body.apiToken ? String(body.apiToken) : null;
+      if (platform === 'bigplayer_h5' && credentialType === 'api_token') {
+        const result = await bigPlayerTokenRenewal.exchange({ platform, config: { baseUrl: requestedBaseUrl, boardId: String(body.boardId) } }, plaintext);
+        plaintext = result.apiToken;
+      }
       let secretCipher = null;
       try {
         secretCipher = plaintext ? credentialCipher.encrypt(plaintext, process.env, { aad: credentialAad({ accountId, credentialType, platform }), kid: process.env.CREDENTIAL_ENC_KEY_ID || 'primary' }) : null;
@@ -1454,7 +1625,7 @@ async function handler(req, res) {
         platformAccountId: body.platformAccountId ? String(body.platformAccountId).trim() : undefined,
         accountName: body.accountName || displayName, accountType: body.accountType || 'official', sourceEnabled: platform === 'bigplayer_h5' ? body.enabled !== false : false, accountEnabled: platform !== 'facebook',
         authStatus: platform === 'facebook' ? 'unauthorized' : overseasBigPlayer && credentialType === 'account_password' ? 'pending_verification' : westernSource ? (body.apiToken ? 'configured_unverified' : 'unconfigured') : credentialType === 'account_password' ? 'pending_verification' : 'unconfigured', maskedLoginIdentifier: isSocialPlatform(platform) ? maskPhone(body.phone) : credentialType === 'account_password' ? maskLoginIdentifier(h5Account) : null,
-        metadata: { syncMode, historyStart: body.historyStart || null }, credentialType, secretCipher
+        metadata: { syncMode, historyStart: body.historyStart || null, ...(platform === 'bigplayer_h5' ? { bigplayerAuthMode: credentialType } : {}) }, credentialType, secretCipher
       };
       let created;
       try { created = legacyAccount ? await repo.adoptLegacySourceWithAccount(input) : await repo.createSourceWithAccount(input); }
@@ -1489,7 +1660,7 @@ async function handler(req, res) {
     // TapTap 免登源复用该端点更新基础字段与监控账号 ID（accountIds），不接受凭据。
     if (req.method === 'PATCH' && resource === 'sources' && id && path[2] === 'configuration' && path.length === 3) {
       const body = await readBody(req);
-      const allowed = new Set(['displayName', 'baseUrl', 'siteUrls', 'boardId', 'frequencySeconds', 'syncMode', 'historyStart', 'enabled', 'credential', 'accountIds', 'groupIds', 'scheduleTime', 'guildId', 'channelIds', 'channelScope', 'includeThreads', 'includeReplies', 'historySyncEnabled', 'anonymizeAuthors', 'retentionDays', 'authorizationCheckToken']);
+      const allowed = new Set(['displayName', 'baseUrl', 'siteUrls', 'boardId', 'frequencySeconds', 'syncMode', 'historyStart', 'enabled', 'credential', 'accountIds', 'groupIds', 'scheduleTime', 'guildId', 'channelIds', 'channelScope', 'includeThreads', 'includeReplies', 'historySyncEnabled', 'anonymizeAuthors', 'retentionDays', 'authorizationCheckToken', 'authMode']);
       for (const key of Object.keys(body || {})) if (!allowed.has(key)) return json(res, 400, errorPayload('INVALID_INPUT', `unsupported field: ${key}`));
       const currentSource = await sourceById(id);
       if (!currentSource) return json(res, 404, errorPayload('NOT_FOUND', 'source not found'));
@@ -1591,6 +1762,11 @@ async function handler(req, res) {
         : currentSource.platform === 'facebook' ? validateFacebookPageUrl(requestedConfigurationUrl) : currentSource.platform === 'taptap' ? validateBaseUrl('taptap', requestedConfigurationUrl) : null;
       if (invalidUrl) return json(res, 400, errorPayload(currentSource.platform === 'facebook' ? 'FACEBOOK_URL_INVALID' : 'URL_OUTSIDE_ALLOWED_HOSTS', invalidUrl));
       let encryptedCredential = null; let credential = null;
+      if (currentSource.platform === 'bigplayer_h5' && body.authMode === 'api_token' && !body.credential?.secret) {
+        const account = await defaultAccountForSource(currentSource);
+        const saved = await credentialContext.load(account, 'api_token');
+        body.credential = { credentialType: 'api_token', secret: saved.apiToken };
+      }
       if (body.credential != null && (typeof body.credential !== 'object' || Object.keys(body.credential).length > 0)) {
         if (!body.credential || typeof body.credential !== 'object') return json(res, 400, errorPayload('INVALID_INPUT', 'credential must be an object'));
         const type = body.credential.credentialType || (body.credential.account != null || body.credential.password != null ? 'account_password' : 'api_token');
@@ -1605,12 +1781,19 @@ async function handler(req, res) {
         const account = await defaultAccountForSource(currentSource);
         if (!account) return json(res, 400, errorPayload('ACCOUNT_NOT_FOUND', '默认账号未配置'));
         credential = { credentialType: type };
+        if (currentSource.platform === 'bigplayer_h5' && type === 'api_token') {
+          const result = await bigPlayerTokenRenewal.exchange({ ...currentSource, config: {
+            ...parseConfig(currentSource.config), baseUrl: normalizedSites?.baseUrl ?? body.baseUrl ?? parseConfig(currentSource.config).baseUrl, boardId: String(body.boardId ?? parseConfig(currentSource.config).boardId)
+          } }, plaintext);
+          plaintext = result.apiToken;
+          credential.expireAt = result.expiresAt;
+        }
         try { encryptedCredential = credentialCipher.encrypt(plaintext, process.env, { aad: credentialAad({ accountId: account.id, credentialType: type, platform: currentSource.platform }), kid: process.env.CREDENTIAL_ENC_KEY_ID || 'primary' }); }
         catch (error) { if (['CREDENTIAL_ENC_KEY_MISSING', 'CREDENTIAL_ENC_KEY_INVALID'].includes(error.code)) return json(res, 500, errorPayload(error.code, '凭据加密密钥未正确配置（CREDENTIAL_ENC_KEY），已拒绝写入')); throw error; }
       }
       const discordConfigPatch = currentSource.platform === 'discord' ? discordSourceConfig(body, {}) : undefined;
       const updatedBaseUrl = normalizedSites?.baseUrl ?? (body.baseUrl == null ? undefined : currentSource.platform === 'facebook' ? normalizeFacebookPageUrl(body.baseUrl) : String(body.baseUrl).trim());
-      const updated = await repo.updateSourceConfiguration(id, { displayName: String(body.displayName).trim(), baseUrl: updatedBaseUrl, siteUrls: normalizedSites?.siteUrls, boardId: currentSource.platform === 'bigplayer_h5' ? String(body.boardId ?? parseConfig(currentSource.config).boardId) : undefined, frequencySeconds, syncMode: body.syncMode, historyStart: body.historyStart, enabled: body.enabled, credential, credentialCipher: encryptedCredential, accountIds: taptapAccountIds, groupIds: taptapGroupIds, discordConfig: discordConfigPatch, scheduleTime: currentSource.platform === 'taptap' ? normalizeScheduleTime(body.scheduleTime) : undefined });
+      const updated = await repo.updateSourceConfiguration(id, { displayName: String(body.displayName).trim(), baseUrl: updatedBaseUrl, siteUrls: normalizedSites?.siteUrls, boardId: currentSource.platform === 'bigplayer_h5' ? String(body.boardId ?? parseConfig(currentSource.config).boardId) : undefined, frequencySeconds, syncMode: body.syncMode, historyStart: body.historyStart, enabled: body.enabled, credential, credentialCipher: encryptedCredential, authMode: body.authMode, accountIds: taptapAccountIds, groupIds: taptapGroupIds, discordConfig: discordConfigPatch, scheduleTime: currentSource.platform === 'taptap' ? normalizeScheduleTime(body.scheduleTime) : undefined });
       if (authorizationReceipt) {
         const account = await defaultAccountForSource(updated.source);
         await repo.updateSourceAuth(id, { authStatus: 'authorized' });
@@ -1771,7 +1954,7 @@ async function handler(req, res) {
       if (source.platform !== 'bigplayer_h5') return json(res, 400, errorPayload('CAPABILITY_UNSUPPORTED', '仅支持 BigPlayer 授权检测'));
       assertWesternSourceRecord(source);
       const body = await readBody(req);
-      const allowed = new Set(['boardId', 'baseUrl', 'siteUrls', 'credential']);
+      const allowed = new Set(['boardId', 'baseUrl', 'siteUrls', 'credential', 'authMode']);
       if (Object.keys(body || {}).some(key => !allowed.has(key))) return json(res, 400, errorPayload('INVALID_INPUT', '不支持的检测字段'));
       const account = await defaultAccountForSource(source);
       if (!account) return json(res, 400, errorPayload('ACCOUNT_NOT_FOUND', '默认账号未配置'));
@@ -1792,7 +1975,7 @@ async function handler(req, res) {
       const ok = account ? Boolean(health?.authorized) : Boolean(health?.configured); const authStatus = ok ? 'authorized' : 'unauthorized';
       await persistFacebookPageIdentity(source, account, health);
       await repo.updateSourceAuth(id, { authStatus }); if (account) await repo.updateAccount(account.id, { authStatus, ...(isFacebookSource(source) ? { enabled: ok } : {}) }); else await repo.updateCredentialCheck(id, { status: ok ? 'active' : 'failed', failureReason: ok ? null : (health.reason || 'connector not configured or missing credential') });
-      if (isFacebookSource(source)) {
+      if (isFacebookSource(source) && !isFacebookBrowser(source)) {
         const facebook = facebookCapabilityResponse(health || {});
         for (const scope of FACEBOOK_REQUIRED_CAPABILITIES) {
           const detail = facebook.capabilities[scope];
@@ -1827,7 +2010,7 @@ async function handler(req, res) {
           : {}));
       if (source.platform === 'bigplayer_h5') { health.authorized = Object.values(detected).some(item => item?.status === 'available'); health.reason = health.authorized ? null : detected.posts?.errorCode || detected.comments?.errorCode || 'CAPABILITY_CHECK_FAILED'; }
       await persistFacebookPageIdentity(source, account, { capabilities: detected });
-      const facebook = isFacebookSource(source) ? facebookCapabilityResponse({ ...installation, ...health, capabilities: detected }) : null;
+      const facebook = isFacebookSource(source) && !isFacebookBrowser(source) ? facebookCapabilityResponse({ ...installation, ...health, capabilities: detected }) : null;
       if (facebook && account) { await repo.updateSourceAuth(source.id, { authStatus: health.authorized ? 'authorized' : 'unauthorized' }); await repo.updateAccount(account.id, { authStatus: health.authorized ? 'authorized' : 'unauthorized', enabled: Boolean(health.authorized) }); }
       for (const scope of sourceCapabilityScopes(source)) {
         const supported = connector?.hasSourceCapability ? connector.hasSourceCapability(scope, source) : connector?.hasCapability?.(scope);
@@ -2053,7 +2236,7 @@ async function handler(req, res) {
       await repo.updateAccount(id, { authStatus: result.status === 'active' ? 'authorized' : 'awaiting_manual_verification' });
       return json(res, 200, success(result));
     }
-    if (req.method === 'POST' && resource === 'accounts' && id && path[2] === 'check-auth') { const account = await repo.getAccount(id); if (!account) return json(res, 404, errorPayload('NOT_FOUND', 'account not found')); const source = await sourceById(account.source_id); rejectPhaseAction(await sourceWithCredentialState(source)); const connector = connectors[account.platform]; const health = connector ? await connectorAccountHealth(connector, source, account) : { authorized: false, reason: 'connector not found' }; const authStatus = health.authorized ? 'authorized' : 'unauthorized'; await persistFacebookPageIdentity(source, account, health); await repo.updateAccount(id, { authStatus }); await repo.updateSourceAuth(account.source_id, { authStatus }); if (isFacebookSource(source)) { const facebook = facebookCapabilityResponse(health || {}); for (const scope of FACEBOOK_REQUIRED_CAPABILITIES) { const detail = facebook.capabilities[scope]; await repo.upsertSourceCapability(source.id, scope, { status: normalizeFacebookCapabilityStatus(detail), detail }); } return json(res, 200, success({ authStatus, reason: health.authorized ? null : facebook.reason, errorCode: health.authorized ? null : facebook.reason, systemCredentialStatus: facebook.systemCredentialStatus, capabilities: facebook.capabilities, pageId: health.pageId || null, pageName: health.pageName || null, pageUrl: health.pageUrl || null })); } return json(res, 200, success({ authStatus, reason: health.reason || null })); }
+    if (req.method === 'POST' && resource === 'accounts' && id && path[2] === 'check-auth') { const account = await repo.getAccount(id); if (!account) return json(res, 404, errorPayload('NOT_FOUND', 'account not found')); const source = await sourceById(account.source_id); rejectPhaseAction(await sourceWithCredentialState(source)); const connector = connectors[account.platform]; const health = connector ? await connectorAccountHealth(connector, source, account) : { authorized: false, reason: 'connector not found' }; const authStatus = health.authorized ? 'authorized' : 'unauthorized'; await persistFacebookPageIdentity(source, account, health); await repo.updateAccount(id, { authStatus }); await repo.updateSourceAuth(account.source_id, { authStatus }); if (isFacebookSource(source) && !isFacebookBrowser(source)) { const facebook = facebookCapabilityResponse(health || {}); for (const scope of FACEBOOK_REQUIRED_CAPABILITIES) { const detail = facebook.capabilities[scope]; await repo.upsertSourceCapability(source.id, scope, { status: normalizeFacebookCapabilityStatus(detail), detail }); } return json(res, 200, success({ authStatus, reason: health.authorized ? null : facebook.reason, errorCode: health.authorized ? null : facebook.reason, systemCredentialStatus: facebook.systemCredentialStatus, capabilities: facebook.capabilities, pageId: health.pageId || null, pageName: health.pageName || null, pageUrl: health.pageUrl || null })); } return json(res, 200, success({ authStatus, reason: health.reason || null })); }
     if (req.method === 'POST' && resource === 'accounts' && id && path[2] === 'sync') {
       const account = await repo.getAccount(id);
       if (!account) return json(res, 404, errorPayload('NOT_FOUND', 'account not found'));
@@ -2089,6 +2272,33 @@ async function handler(req, res) {
     }
 
     if (resource === 'sync-runs') return json(res, 404, errorPayload('NOT_FOUND', 'route not found'));
+
+    if (resource === 'ai-analysis-policy' && ((req.method === 'POST' && id === 'test' && path.length === 2) || (req.method === 'GET' && id === 'tests' && path.length === 3))) {
+      res.noStore = true;
+      const communityId = url.searchParams.get('communityId');
+      if (!communityId) return json(res, 400, errorPayload('INVALID_INPUT', 'communityId is required'));
+      const scope = await resolveCanonicalScope({ regionCode: url.searchParams.get('regionCode'), communityId });
+      const community = await repo.getCommunity(scope.communityId);
+      if (!community || community.status !== 'enabled') return json(res, 400, errorPayload('COMMUNITY_NOT_FOUND', '社区不可用'));
+      const owner = req.baasIdentity?.id || 'local';
+      if (req.method === 'GET') return json(res, 200, success(aiAnalysisDebug.get(path[2], owner, scope.communityId)));
+      const body = await readBody(req), game = await repo.getGame(scope.gameId);
+      try {
+        return json(res, 202, success(aiAnalysisDebug.start({ owner, communityId: scope.communityId, policy: body.policy, items: body.items, context: { gameId: scope.gameId, gameName: game?.name || '', communityId: scope.communityId, communityName: community.name, regionCode: scope.regionCode } })));
+      } catch (error) { return json(res, error.code === 'DEBUG_BUSY' ? 429 : error.code === 'TYPESAFE_NOT_CONFIGURED' ? 503 : 400, errorPayload(error.code || 'INVALID_INPUT', error.message)); }
+    }
+
+    if ((req.method === 'GET' || req.method === 'PUT') && resource === 'ai-analysis-policy' && path.length === 1) {
+      const communityId = url.searchParams.get('communityId');
+      if (!communityId) return json(res, 400, errorPayload('INVALID_INPUT', 'communityId is required'));
+      let scope; try { scope = await resolveCanonicalScope({ regionCode: url.searchParams.get('regionCode'), communityId, gameId: url.searchParams.get('gameId') }); } catch (error) { return json(res, 400, errorPayload(error.code, error.message)); }
+      const policyCommunity = await repo.getCommunity(scope.communityId);
+      if (!policyCommunity || policyCommunity.status !== 'enabled') return json(res, 400, errorPayload('COMMUNITY_NOT_FOUND', '社区不存在、与区域或游戏不匹配，或已停用'));
+      if (req.method === 'GET') return json(res, 200, success(await repo.getAiAnalysisPolicy(scope.gameId, scope.communityId)));
+      const body = await readBody(req);
+      const policy = require('./services/aiAnalysisPolicy').normalizePolicy(body, { strict: true });
+      return json(res, 200, success(await repo.updateAiAnalysisPolicy(scope.gameId, scope.communityId, policy)));
+    }
 
     // 关键词规则：按当前平台读取与局部替换。
     if (req.method === 'GET' && resource === 'keyword-rules') {
@@ -2134,7 +2344,7 @@ async function handler(req, res) {
     const mapped = { INVALID_INPUT: 400, INVALID_JSON: 400, REQUEST_TOO_LARGE: 413, IMPORT_BATCH_TOO_LARGE: 413, UNAUTHORIZED: 401, SOURCE_AUTH_UNCONFIGURED: 401, WESTERN_SCOPE_MISMATCH: 400, FEATURE_NOT_AVAILABLE_IN_PHASE: 409, FIXED_BASE_URL_MISMATCH: 400, IMPORT_NOT_CONFIGURED: 503, ACCOUNT_SCOPE_MISMATCH: 400, SOURCE_DISABLED: 409, GAME_DISABLED: 409, COMMUNITY_DISABLED: 409, ACCOUNT_DISABLED: 409, SOURCE_UNAUTHORIZED: 409, SOURCE_AUTH_EXPIRED: 409, ACCOUNT_UNAUTHORIZED: 409, ACCOUNT_AUTH_EXPIRED: 409, PREVIOUS_RUN_ACTIVE: 409, SYNC_CHECKPOINT_ACTIVE: 409, SOURCE_SCHEDULE_LEASE_ACTIVE: 409, UNIFIED_SCHEDULER_SCHEMA_NOT_READY: 503, UNIFIED_SCHEDULER_SCHEMA_CHECK_FAILED: 503, INVALID_CONFIRMATION: 400, OWNERSHIP_MISMATCH: 400, NOT_FOUND: 404, SOURCE_NOT_FOUND: 404, ACCOUNT_NOT_FOUND: 404, COMMUNITY_NOT_FOUND: 404, GAME_NOT_FOUND: 400, RUN_ACTIVE: 409, SOURCE_ALREADY_EXISTS: 409, INVALID_CREDENTIALS: 400, LOGIN_CHALLENGE_REQUIRED: 409, LOGIN_CHALLENGE_INVALID: 400, LOGIN_SESSION_EXPIRED: 409, LOGIN_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_NOT_CONFIGURED: 503, LOGIN_SESSION_SERVICE_UNAVAILABLE: 503, LOGIN_SESSION_SERVICE_TIMEOUT: 504, LOGIN_STATE_UNKNOWN: 503, AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: 409, AUTH_REFRESH_FAILED: 503, AUTH_REFRESH_ALREADY_RUNNING: 409, AUTH_REFRESH_CHALLENGE_REQUIRED: 409, COMMUNITY_PROVIDER_NOT_CONFIGURED: 503, COMMUNITY_PROVIDER_TIMEOUT: 504, COMMUNITY_PROVIDER_UNAVAILABLE: 503, COMMUNITY_PROVIDER_ERROR: 503, COMMUNITY_PROVIDER_INVALID_RESPONSE: 502, COMMUNITY_PROVIDER_UNKNOWN_GAME: 502, COMMUNITY_PROVIDER_REGION_MISMATCH: 502 };
     Object.assign(mapped, { MULTISITE_SITE_REGISTRY_MISMATCH: 409, MULTISITE_SITE_ID_CONFLICT: 409, MULTISITE_SITE_URL_CONFLICT: 409, MULTISITE_SCHEMA_NOT_READY: 503 });
     const status = error.code === '22P02' ? 400 : error.status || mapped[error.code] || credentialErrorStatus(error.code);
-    const publicMessages = { CREDENTIAL_NOT_FOUND: '未找到同步授权凭据，请重新检测授权后开始同步', CREDENTIAL_INACTIVE: '同步授权凭据已停用，请重新保存参数并检测授权', CREDENTIAL_EXPIRED: '同步授权已过期，请重新检测授权', CREDENTIAL_SECRET_MISSING: '同步授权凭据不完整，请重新保存参数并检测授权', CREDENTIAL_DECRYPT_FAILED: '同步授权凭据无法读取，请联系管理员检查加密配置', CREDENTIAL_SECRET_EMPTY: '同步授权凭据为空，请重新保存参数并检测授权', LOGIN_SESSION_SERVICE_NOT_CONFIGURED: '登录会话服务未配置，请先配置授权服务', LOGIN_SESSION_SERVICE_UNAVAILABLE: '登录会话服务不可用，请检查 4310 服务', LOGIN_SESSION_SERVICE_TIMEOUT: '登录会话服务响应超时，请稍后重试', LOGIN_FRAME_NOT_FOUND: '未找到大玩家登录页面，请检查站点配置', CREDENTIAL_RESOLVE_INVALID: '账号密码凭据格式无效，请重新保存账号密码', CREDENTIAL_RESOLVE_FAILED: '账号密码凭据解析失败，请重新保存账号密码', AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: '账号密码凭据未配置，请重新保存账号密码', AUTH_REFRESH_CHALLENGE_REQUIRED: '需要完成人工验证，请在授权工作区继续操作', AUTH_REFRESH_FAILED: '账号授权检测失败，请检查账号密码或登录会话服务', LOGIN_STATE_UNKNOWN: '登录页面状态暂未识别，请稍后重试或完成页面验证', COMMUNITY_PROVIDER_NOT_CONFIGURED: '社区 Provider 未配置，暂时无法开始同步' };
+    const publicMessages = { BAAS_STATE_SYNC_PENDING: '操作已保存，BaaS 状态正在重试同步，请稍后刷新', BAAS_DATA_UNAVAILABLE: 'BaaS 业务数据读取失败，请稍后重试', CREDENTIAL_NOT_FOUND: '未找到同步授权凭据，请重新检测授权后开始同步', CREDENTIAL_INACTIVE: '同步授权凭据已停用，请重新保存参数并检测授权', CREDENTIAL_EXPIRED: '同步授权已过期，请重新检测授权', CREDENTIAL_SECRET_MISSING: '同步授权凭据不完整，请重新保存参数并检测授权', CREDENTIAL_DECRYPT_FAILED: '同步授权凭据无法读取，请联系管理员检查加密配置', CREDENTIAL_SECRET_EMPTY: '同步授权凭据为空，请重新保存参数并检测授权', LOGIN_SESSION_SERVICE_NOT_CONFIGURED: '登录会话服务未配置，请先配置授权服务', LOGIN_SESSION_SERVICE_UNAVAILABLE: '登录会话服务不可用，请检查 4310 服务', LOGIN_SESSION_SERVICE_TIMEOUT: '登录会话服务响应超时，请稍后重试', LOGIN_FRAME_NOT_FOUND: '未找到大玩家登录页面，请检查站点配置', CREDENTIAL_RESOLVE_INVALID: '账号密码凭据格式无效，请重新保存账号密码', CREDENTIAL_RESOLVE_FAILED: '账号密码凭据解析失败，请重新保存账号密码', AUTH_REFRESH_CREDENTIAL_NOT_CONFIGURED: '账号密码凭据未配置，请重新保存账号密码', AUTH_REFRESH_CHALLENGE_REQUIRED: '需要完成人工验证，请在授权工作区继续操作', AUTH_REFRESH_FAILED: '账号授权检测失败，请检查账号密码或登录会话服务', LOGIN_STATE_UNKNOWN: '登录页面状态暂未识别，请稍后重试或完成页面验证', COMMUNITY_PROVIDER_NOT_CONFIGURED: '社区 Provider 未配置，暂时无法开始同步' };
     Object.assign(publicMessages, { MULTISITE_SITE_REGISTRY_MISMATCH: '采集站点配置与登记信息不一致，请先校正站点配置后重试', MULTISITE_SITE_ID_CONFLICT: '采集站点地址已绑定其他站点标识，请保留原站点标识', MULTISITE_SITE_URL_CONFLICT: '采集站点标识与地址冲突，请检查站点配置', MULTISITE_SCHEMA_NOT_READY: '多站点采集数据结构尚未就绪，请先完成系统升级' });
     const publicMessage = publicMessages[error.code] || (status >= 500 ? 'internal server error' : error.message);
     return json(res, status, errorPayload(error.code || 'INTERNAL_ERROR', publicMessage));
@@ -2155,7 +2365,7 @@ async function startServer({ listenPort = port, repository = repo, httpServer = 
 if (require.main === module) {
   const supervisor = createSupervisor({
     start: () => startServer(),
-    stop: async () => { try { await server.close(); } catch {} try { await repo.pool?.end?.(); } catch {} }
+    stop: () => drainServer(server, repo.pool)
   });
   supervisor.start();
   process.once('SIGINT', () => supervisor.stop().finally(() => process.exit(0)));

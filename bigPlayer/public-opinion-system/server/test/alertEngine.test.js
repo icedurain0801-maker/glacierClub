@@ -21,6 +21,18 @@ function fakeDing(sent = true) {
 const game = { id: 'g1', name: '冰川游戏', community_id: 'community-1' };
 const content = { id: 'c1', game_id: 'g1', community_id: 'community-1', title: '游戏崩溃了', body: '进不去', source_url: 'https://x/1' };
 const urgentContent = { ...content, body: '全服无法登录，已经持续3小时' };
+const { hash, analysisText, VERSION } = require('../src/services/urgentValidation');
+function reviewedUrgent() {
+  const reason = '原文报告全服持续三小时无法登录，属于群体持续服务中断，需要优先核查。';
+  const sourceHash = hash(analysisText(urgentContent));
+  const typeSafeDecision = { provider: 'typesafe-v12-secondary-review-v1', raw_level: 'L3', final_level: 'L3', status: 'auto_passed', confidence: .95, has_verifiable_issue: .95, reason_key: 'emergency', emergency_trigger: 'login_or_asset', source_hash: sourceHash };
+  const finalReason = `原文“${urgentContent.body}”：${reason}`;
+  return { severity: 'urgent', sentiment: 'negative', negativeScore: .95, reason: finalReason,
+    typeSafeDecision, rawAnalysis: { typeSafeDecision, reason: finalReason, urgentReview: {
+      version: VERSION, status: 'approved', level: 'L3', confidence: .95, hasIssue: true, isQuestion: false,
+      emergency: 'login_or_asset', quote: urgentContent.body, reason, sourceHash
+    } } };
+}
 
 test('AI urgent without serious source evidence cannot create an alert or notify', async () => {
   const repo = fakeRepo(); const ding = fakeDing();
@@ -36,7 +48,7 @@ test('immediate 口径达 urgent 单条直报并推钉钉', async () => {
   const repo = fakeRepo(); const ding = fakeDing();
   const engine = new AlertEngine(repo, ding, {});
   const hit = { hitGroups: [{ groupName: '闪退组', severity: 'urgent', triggerMode: 'immediate', windowSeconds: 600, thresholdCount: 1, keywords: ['崩溃'] }] };
-  const out = await engine.process({ game, content: urgentContent, hit, analysis: { sentiment: 'negative', severity: 'urgent' } });
+  const out = await engine.process({ game, content: urgentContent, hit, analysis: reviewedUrgent() });
   assert.equal(out.length, 1);
   assert.equal(out[0].reused, false);
   assert.equal(repo.calls.insertAlert.length, 1);
@@ -56,7 +68,7 @@ test('immediate 但未达 urgent 不报', async () => {
 test('AI 严重度可将规则 attention 升级为 urgent 触发 immediate', async () => {
   const repo = fakeRepo(); const engine = new AlertEngine(repo, fakeDing(), {});
   const hit = { hitGroups: [{ groupName: 'x', severity: 'attention', triggerMode: 'immediate', windowSeconds: 600, thresholdCount: 1, keywords: ['a'] }] };
-  const out = await engine.process({ game, content: urgentContent, hit, analysis: { sentiment: 'negative', severity: 'urgent' } });
+  const out = await engine.process({ game, content: urgentContent, hit, analysis: reviewedUrgent() });
   assert.equal(out.length, 1);
   assert.equal(repo.calls.insertAlert[0].severity, 'urgent');
 });
@@ -102,7 +114,7 @@ test('冷却期内复用已存在告警，只追加内容不新建', async () =>
   const ding = fakeDing();
   const engine = new AlertEngine(repo, ding, {});
   const hit = { hitGroups: [{ groupName: '闪退组', severity: 'urgent', triggerMode: 'immediate', windowSeconds: 600, thresholdCount: 1, keywords: ['崩溃'] }] };
-  const out = await engine.process({ game, content: urgentContent, hit, analysis: { sentiment: 'negative', severity: 'urgent', negativeScore: 0.8 } });
+  const out = await engine.process({ game, content: urgentContent, hit, analysis: reviewedUrgent() });
   assert.equal(out[0].reused, true);
   assert.equal(repo.calls.insertAlert.length, 0);
   assert.deepEqual(repo.calls.linkAlertContent[0], ['old-1', 'c1']);
@@ -113,12 +125,12 @@ test('告警聚合、去重和恢复严格按 community 隔离', async () => {
   const repo = fakeRepo({ windowHits: 3, openAlert: { id: 'old-1', ding_talk_status: 'sent' } });
   const engine = new AlertEngine(repo, fakeDing(), {});
   const hit = { hitGroups: [{ groupName: '差评组', severity: 'attention', triggerMode: 'aggregate', windowSeconds: 1800, thresholdCount: 3, keywords: ['差评'] }] };
-  const out = await engine.process({ game, content: urgentContent, hit, analysis: { sentiment: 'negative', severity: 'urgent', negativeScore: 0.8 } });
+  const out = await engine.process({ game, content: urgentContent, hit, analysis: reviewedUrgent() });
   assert.equal(out[0].reused, true);
   assert.equal(repo.calls.countWindowHits.length, 0);
   assert.equal(repo.calls.findOpenAlert[0].communityId, 'community-1');
   await assert.rejects(
-    () => engine.process({ game, content: { ...urgentContent, community_id: 'community-2' }, hit, analysis: { sentiment: 'negative', severity: 'urgent', negativeScore: 0.8 } }),
+    () => engine.process({ game, content: { ...urgentContent, community_id: 'community-2' }, hit, analysis: reviewedUrgent() }),
     error => error.code === 'ALERT_SCOPE_MISMATCH'
   );
 });
@@ -127,7 +139,7 @@ test('钉钉推送失败回写 failed 但仍落库', async () => {
   const repo = fakeRepo(); const ding = fakeDing(false);
   const engine = new AlertEngine(repo, ding, {});
   const hit = { hitGroups: [{ groupName: 'x', severity: 'urgent', triggerMode: 'immediate', windowSeconds: 600, thresholdCount: 1, keywords: ['a'] }] };
-  const out = await engine.process({ game, content: urgentContent, hit, analysis: { sentiment: 'negative', severity: 'urgent', negativeScore: 0.8 } });
+  const out = await engine.process({ game, content: urgentContent, hit, analysis: reviewedUrgent() });
   assert.equal(out[0].dingStatus, 'failed');
   assert.equal(repo.calls.insertAlert.length, 1);
   assert.deepEqual(repo.calls.updateDingStatus[0], ['alert-1', 'failed']);
@@ -137,7 +149,7 @@ test('钉钉未配置回写 not_sent', async () => {
   const repo = fakeRepo();
   const engine = new AlertEngine(repo, { enabled: false, webhook: '' }, {});
   const hit = { hitGroups: [{ groupName: 'x', severity: 'urgent', triggerMode: 'immediate', windowSeconds: 600, thresholdCount: 1, keywords: ['a'] }] };
-  await engine.process({ game, content: urgentContent, hit, analysis: { sentiment: 'negative', severity: 'urgent', negativeScore: 0.8 } });
+  await engine.process({ game, content: urgentContent, hit, analysis: reviewedUrgent() });
   assert.deepEqual(repo.calls.updateDingStatus[0], ['alert-1', 'not_sent']);
 });
 

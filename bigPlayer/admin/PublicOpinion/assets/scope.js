@@ -2,11 +2,13 @@
   const API = window.PUBLIC_OPINION_API || '/api/public-opinion';
   const DEFAULT_REGION = 'domestic'; const DEFAULT_PLATFORM = 'bigplayer_h5'; const DEFAULT_DOMESTIC_EXTERNAL_ID = '2'; const STORAGE_KEY = 'publicOpinionScope';
   const PLATFORM_GROUPS = {
-    domestic: [{ value: 'bigplayer_h5', label: 'BigPlayer社区' }, { value: 'taptap', label: 'TapTap' }, { value: 'bilibili', label: '哔哩哔哩' }, { value: 'weibo', label: '微博' }, { value: 'xiaohongshu', label: '小红书' }],
+    domestic: [{ value: 'bigplayer_h5', label: 'BigPlayer社区' }, { value: 'taptap', label: 'TapTap' }],
     overseas: [{ value: 'bigplayer_h5', label: 'BigPlayer社区' }, { value: 'discord', label: 'Discord' }, { value: 'facebook', label: 'Facebook' }, { value: 'x', label: 'X' }, { value: 'lounge', label: 'Lounge' }]
   };
-  const ALL_PLATFORMS = [...new Map(Object.values(PLATFORM_GROUPS).flat().map(item => [item.value, item])).values()];
-  const COMMUNITY_NAMES = { domestic: ['超能世界国服版', '圣魂纷争', '我要当老祖', '欢乐战三国'], overseas: ['X-Clash', 'Last Light', 'Hero Clash'] };
+  // Retain labels for historical records; selectable platforms come from PLATFORM_GROUPS.
+  const HISTORICAL_PLATFORMS = [{ value: 'bilibili', label: '哔哩哔哩' }, { value: 'weibo', label: '微博' }, { value: 'xiaohongshu', label: '小红书' }];
+  const ALL_PLATFORMS = [...new Map([...Object.values(PLATFORM_GROUPS).flat(), ...HISTORICAL_PLATFORMS].map(item => [item.value, item])).values()];
+  const COMMUNITY_NAMES = { domestic: ['超能世界国服版', '我要当老祖', '欢乐战三国'], overseas: ['X-Clash', 'Last Light', 'Hero Clash', 'TitanWarEA', 'TitanWarSA', '히어로 클래시', 'マジックカード', 'X-ヒーロー', 'X-HeroSA', 'X-HeroEA', '주공을 지켜라'] };
   const canonicalCommunityName = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
   function visibleCommunities(items, regionCode) {
     const names = COMMUNITY_NAMES[regionCode] || COMMUNITY_NAMES[DEFAULT_REGION];
@@ -38,12 +40,22 @@
     return enabled[0];
   }
   function readSession() { try { const value = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}'); return { regionCode: validRegion(value.regionCode), communityId: value.communityId || '' }; } catch (_) { return {}; } }
-  function persistShared() { if (state.loadError) return; try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ regionCode: state.regionCode, communityId: state.communityId })); } catch (_) {} }
+  function persistShared() { if (state.loadError) return; try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ regionCode: state.regionCode, communityId: state.communityId, boardId: selected().community?.externalId ?? selected().community?.external_id, platform: state.platform })); } catch (_) {} }
   function selected() {
     const community = state.communities.find(item => String(item.id) === String(state.communityId)) || null; const available = Boolean(community && isEnabled(community));
     return Object.freeze({ regionCode: state.regionCode, regionLabel: state.regionCode === 'overseas' ? '境外' : '境内', communityId: state.communityId, communityLabel: community?.name || '暂无可用社区', communityStatus: community?.status || '', platform: state.platform, platformLabel: platformLabel(state.platform), community, hasCommunities: state.communities.some(isEnabled), available, epoch: state.epoch, canManage: community?.canManage ?? community?.permissions?.canManage, canEdit: community?.canEdit ?? community?.permissions?.canEdit, canWrite: community?.canWrite ?? community?.permissions?.canWrite });
   }
   function query() { const current = selected(); const params = new URLSearchParams(); if (current.regionCode) params.set('regionCode', current.regionCode); if (current.communityId) params.set('communityId', current.communityId); params.set('platform', current.platform); return params; }
+  function pageQuery(input = query()) {
+    const params = new URLSearchParams(input); const current = selected();
+    const boardId = current.community?.externalId ?? current.community?.external_id;
+    if (boardId != null && String(boardId) && (!params.has('communityId') || params.get('communityId') === current.communityId)) {
+      ['regionCode', 'gameId', 'communityId'].forEach(key => params.delete(key));
+      params.set('boardId', String(boardId));
+      if (params.get('platform') === DEFAULT_PLATFORM) params.delete('platform');
+    }
+    return params;
+  }
   function label() { const current = selected(); return [current.platformLabel, current.regionLabel, current.communityLabel].filter(Boolean).join(' / '); }
   async function request(path, options = {}) {
     const method = String(options.method || 'GET').toUpperCase(); const headers = { ...(options.headers || {}) };
@@ -92,8 +104,17 @@
     if (platform) { platform.innerHTML = platformsForRegion(state.regionCode).map(item => `<option value="${esc(item.value)}">${esc(item.label)}</option>`).join(''); platform.value = state.platform; platform.disabled = !selected().available; }
   }
   function syncUrl(mode) {
-    const params = new URLSearchParams(location.search); ['regionCode', 'gameId', 'communityId', 'platform'].forEach(key => params.delete(key)); query().forEach((value, key) => params.set(key, value));
-    const next = `${location.pathname}${params.toString() ? `?${params}` : ''}${location.hash}`;
+    const params = new URLSearchParams(location.search);
+    const overview = location.pathname === '/' || location.pathname === '/admin/PublicOpinion/index.html';
+    ['regionCode', 'gameId', 'communityId', 'platform', 'boardId'].forEach(key => params.delete(key));
+    const boardId = selected().community?.externalId ?? selected().community?.external_id;
+    if (boardId != null && String(boardId)) {
+      params.set('boardId', String(boardId));
+      if (state.platform !== DEFAULT_PLATFORM) params.set('platform', state.platform);
+      if (overview && ['today', 'yesterday', '7d', '15d', '30d'].includes(params.get('period'))) { params.delete('publishedFrom'); params.delete('publishedTo'); }
+      if (overview && params.get('period') === 'today') params.delete('period');
+    } else query().forEach((value, key) => params.set(key, value));
+    const next = `${overview ? '/' : location.pathname}${params.toString() ? `?${params}` : ''}${location.hash}`;
     if (mode === 'push') history.pushState(null, '', next); else history.replaceState(null, '', next);
   }
   function notify(reason) {
@@ -116,11 +137,26 @@
     state.communities = visibleCommunities(Array.isArray(result) ? result : result.items || [], state.regionCode); state.communityId = String(defaultCommunity(state.regionCode, preferred)?.id || '');
     return state.communities;
   }
-  async function normalize({ preferredRegion, preferredCommunity, preferredPlatform, reason, urlMode, notifyChange }) {
+  async function normalize({ preferredRegion, preferredCommunity, preferredPlatform, reason, urlMode, notifyChange, boardId }) {
     const epoch = advanceEpoch(true); state.regionCode = validRegion(preferredRegion || readSession().regionCode || DEFAULT_REGION); state.platform = validPlatform(state.regionCode, preferredPlatform || DEFAULT_PLATFORM); renderControls();
-    try { await loadCommunities(preferredCommunity, epoch); } catch (error) {
+    try {
+      await loadCommunities(preferredCommunity, epoch);
+      if (boardId != null) {
+        const matchesBoard = item => isEnabled(item) && String(item.externalId ?? item.external_id ?? '') === boardId;
+        let matches = state.communities.filter(matchesBoard);
+        const otherRegion = state.regionCode === 'domestic' ? 'overseas' : 'domestic';
+        const result = await request(`/communities?regionCode=${otherRegion}`, { signal: state.controller.signal });
+        if (epoch !== state.epoch || state.controller.signal.aborted) return null;
+        const others = visibleCommunities(Array.isArray(result) ? result : result.items || [], otherRegion);
+        const otherMatches = others.filter(matchesBoard);
+        if (matches.length + otherMatches.length !== 1) throw new Error('该 boardId 不存在、不可访问或存在重复映射');
+        if (otherMatches.length) { state.regionCode = otherRegion; state.communities = others; matches = otherMatches; }
+        state.communityId = String(matches[0].id);
+        state.platform = validPlatform(state.regionCode, preferredPlatform || DEFAULT_PLATFORM);
+      }
+    } catch (error) {
       if (error.name === 'AbortError' || epoch !== state.epoch) return null;
-      state.loadError = error.message; renderControls(); if (notifyChange) notify('unavailable'); return selected();
+      state.loadError = error.message; state.communityId = ''; renderControls(); if (notifyChange) notify('unavailable'); return selected();
     }
     if (epoch !== state.epoch || state.controller?.signal.aborted) return null;
     renderControls(); if (urlMode !== 'preserve') syncUrl(urlMode); if (notifyChange) notify(reason); return selected();
@@ -132,17 +168,34 @@
     const platformHost = document.querySelector('[data-po-platform-scope]') || host;
     if (!platformHost.querySelector('[data-po-platform-select]')) platformHost.insertAdjacentHTML('afterbegin', '<select class="select" data-po-platform-select aria-label="数据平台"></select>');
     state.platformControl = platformHost.querySelector('[data-po-platform-select]');
-    const url = new URLSearchParams(location.search); const saved = readSession(); const urlRegion = url.get('regionCode');
-    const initial = await normalize({ preferredRegion: PLATFORM_GROUPS[urlRegion] ? urlRegion : saved.regionCode, preferredCommunity: [url.get('communityId'), saved.communityId], preferredPlatform: url.get('platform') || DEFAULT_PLATFORM, reason: 'init', urlMode: 'replace', notifyChange: false });
+    const url = new URLSearchParams(location.search); const saved = readSession(); let urlRegion = url.get('regionCode');
+    // Legacy notification links carry only contentId. Resolve through the normal
+    // authenticated detail API before session scope can overwrite the target.
+    if (url.get('contentId') && !url.has('boardId') && !url.has('communityId')) {
+      const response = await fetch(API + '/contents/' + encodeURIComponent(url.get('contentId')), { cache: 'no-store' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(response.status === 403 ? '无权访问此内容所属社区' : (payload.error?.message || '无法定位内容所属社区'));
+      const content = (payload.data || payload).content;
+      if (!content?.community_id || !PLATFORM_GROUPS[content.region_code]) throw new Error('内容所属社区信息不完整');
+      url.set('regionCode', content.region_code); url.set('communityId', content.community_id);
+      if (content.platform) url.set('platform', content.platform);
+      if (!url.has('publishedFrom') && !url.has('publishedTo') && content.published_at) {
+        const raw = String(content.published_at); const date = new Date(/^\d{4}-\d\d-\d\d /.test(raw) ? raw.replace(' ', 'T') + 'Z' : raw);
+        if (Number.isFinite(date.getTime())) { const day = new Date(date.getTime() + 8 * 3600000).toISOString().slice(0, 10); url.set('publishedFrom', day); url.set('publishedTo', day); }
+      }
+      history.replaceState(null, '', location.pathname + '?' + url);
+    }
+    urlRegion = url.get('regionCode');
+    const initial = await normalize({ boardId: url.get('boardId'), preferredRegion: PLATFORM_GROUPS[urlRegion] ? urlRegion : saved.regionCode, preferredCommunity: [url.get('communityId'), saved.communityId], preferredPlatform: url.get('platform') || DEFAULT_PLATFORM, reason: 'init', urlMode: 'replace', notifyChange: false });
     if (!initial) return null;
     const { region, community, platform } = controls();
     region.onchange = async () => { await normalize({ preferredRegion: region.value, preferredCommunity: '', preferredPlatform: state.platform, reason: 'region', urlMode: 'push', notifyChange: true }); };
     community.onchange = () => { advanceEpoch(false); state.communityId = String(defaultCommunity(state.regionCode, community.value)?.id || ''); renderControls(); syncUrl('push'); notify('community'); };
     platform.onchange = () => { if (!selected().available) { renderControls(); return; } advanceEpoch(false); state.platform = validPlatform(state.regionCode, platform.value); syncUrl('push'); notify('platform'); };
-    if (!state.initialized) { window.addEventListener('popstate', async () => { const currentUrl = new URLSearchParams(location.search); const currentSession = readSession(); const requestedRegion = currentUrl.get('regionCode'); await normalize({ preferredRegion: PLATFORM_GROUPS[requestedRegion] ? requestedRegion : currentSession.regionCode, preferredCommunity: [currentUrl.get('communityId'), currentSession.communityId], preferredPlatform: currentUrl.get('platform') || DEFAULT_PLATFORM, reason: 'popstate', urlMode: 'replace', notifyChange: true }); }); state.initialized = true; }
+    if (!state.initialized) { window.addEventListener('popstate', async () => { const currentUrl = new URLSearchParams(location.search); const currentSession = readSession(); const requestedRegion = currentUrl.get('regionCode'); await normalize({ boardId: currentUrl.get('boardId'), preferredRegion: PLATFORM_GROUPS[requestedRegion] ? requestedRegion : currentSession.regionCode, preferredCommunity: [currentUrl.get('communityId'), currentSession.communityId], preferredPlatform: currentUrl.get('platform') || DEFAULT_PLATFORM, reason: 'popstate', urlMode: 'replace', notifyChange: true }); }); state.initialized = true; }
     options.onReady?.(query(), initial);
     persistShared(); window.dispatchEvent(new CustomEvent('public-opinion-scope-change', { detail: Object.freeze({ reason: 'init', epoch: state.epoch, selected: initial, query: new URLSearchParams(query()) }) }));
-    return { query, selected, label, reload: async () => { await normalize({ preferredRegion: state.regionCode, preferredCommunity: state.communityId, preferredPlatform: state.platform, reason: 'reload', urlMode: 'replace', notifyChange: false }); return selected(); }, available: () => selected().available, epoch: () => state.epoch, beginRequest };
+    return { query, pageQuery, selected, label, reload: async () => { await normalize({ preferredRegion: state.regionCode, preferredCommunity: state.communityId, preferredPlatform: state.platform, reason: 'reload', urlMode: 'replace', notifyChange: false }); return selected(); }, available: () => selected().available, epoch: () => state.epoch, beginRequest };
   }
   function loadSyncRunDock() {
     if (window.PublicOpinionSyncDock || document.querySelector('script[data-public-opinion-sync-dock]')) return;
@@ -155,5 +208,5 @@
   const mobileStyle = document.createElement('style');
   mobileStyle.textContent = '@media(max-width:560px){body{display:block!important}.admin-main{margin-left:0!important;min-width:0;width:100%;box-sizing:border-box}.command-bar{min-width:0;flex-wrap:wrap}.filterbar,.top-actions{min-width:0;max-width:100%}}';
   document.head.appendChild(mobileStyle);
-  window.PublicOpinionScope = { init, query, selected, request, loadCommunities, beginRequest, withScope, platforms: ALL_PLATFORMS, platformsForRegion, platformLabel, available: () => selected().available, epoch: () => state.epoch };
+  window.PublicOpinionScope = { init, query, pageQuery, selected, request, loadCommunities, beginRequest, withScope, syncUrl, platforms: ALL_PLATFORMS, platformsForRegion, platformLabel, available: () => selected().available, epoch: () => state.epoch };
 })();

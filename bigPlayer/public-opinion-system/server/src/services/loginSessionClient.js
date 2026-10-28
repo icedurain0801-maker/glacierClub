@@ -65,6 +65,8 @@ class LoginSessionClient {
   refreshSession(payload) { return this.startLogin({ ...payload, scenario: 'relogin' }); }
   relogin(payload) { return this.refreshSession(payload); }
   revokeSession(payload) { return this.request('POST', '/internal/v1/sessions/revoke', payload); }
+  inspectFacebookChallenge(payload) { return this.request('POST', '/internal/v1/facebook/challenge-view', payload); }
+  collectFacebook(payload) { return this.request('POST', '/internal/v1/facebook/collect', payload); }
 }
 
 module.exports = { LoginSessionClient, LoginSessionClientError };

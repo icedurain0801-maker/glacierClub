@@ -61,6 +61,10 @@ try {
     Copy-Item -LiteralPath (Join-Path $source 'shared\riskModes.js') -Destination (Join-Path $stage 'shared\riskModes.js')
     Copy-Item -LiteralPath (Join-Path $source 'shared\bigPlayerBoard.js') -Destination (Join-Path $stage 'shared\bigPlayerBoard.js')
     Copy-Item -LiteralPath (Join-Path $source 'shared\bigPlayerBoardSchema.js') -Destination (Join-Path $stage 'shared\bigPlayerBoardSchema.js')
+    Copy-Item -LiteralPath (Join-Path $source 'shared\weeklyReport.js') -Destination (Join-Path $stage 'shared\weeklyReport.js')
+    Copy-Item -LiteralPath (Join-Path $source 'shared\facebookBrowser.js') -Destination (Join-Path $stage 'shared\facebookBrowser.js')
+    Copy-Item -LiteralPath (Join-Path $source 'shared\facebookMedia.js') -Destination (Join-Path $stage 'shared\facebookMedia.js')
+    Copy-Item -LiteralPath (Join-Path $source 'shared\singlePostOutput.js') -Destination (Join-Path $stage 'shared\singlePostOutput.js')
     Remove-Item -LiteralPath (Join-Path $stage 'server\package.json') -Force
 
     & node.exe (Join-Path $PSScriptRoot 'verify-api-release.js') $stage $source --write-manifest

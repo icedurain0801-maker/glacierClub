@@ -84,15 +84,15 @@ function createSchedulerRepositoryAdapter(connection) {
     const boardIdentity = boardId ? boardRunIdentity({ sourceId, communityId, boardId, windowStart: windowStartAtDb, windowEnd: windowEndAtDb }) : null;
 
     if (boardId) await connection.query(
-      `INSERT INTO po_sync_runs (id, source_id, account_id, status, sync_mode, trigger_type, scheduled_at, window_start, window_end, schedule_version, started_at, community_id, board_id, run_scope, board_run_identity)
-      VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE id=id`,
+      `INSERT INTO po_sync_runs (created_at,requested_at,id, source_id, account_id, status, sync_mode, trigger_type, scheduled_at, window_start, window_end, schedule_version, started_at, community_id, board_id, run_scope, board_run_identity)
+      VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE id=id`,
       [runId, sourceId, accountId, syncMode, triggerType, scheduledAtDb, windowStartAtDb, windowEndAtDb, scheduleVersion, communityId, boardId, 'collection', boardIdentity]
     );
     else await connection.query(
-      `INSERT INTO po_sync_runs (
+      `INSERT INTO po_sync_runs (created_at,requested_at,
         id, source_id, account_id, status, sync_mode, trigger_type,
         scheduled_at, window_start, window_end, schedule_version, started_at
-      ) VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, NULL)
+      ) VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, NULL)
       ON DUPLICATE KEY UPDATE id=id`,
       [runId, sourceId, accountId, syncMode, triggerType, scheduledAtDb, windowStartAtDb, windowEndAtDb, scheduleVersion]
     );
@@ -155,11 +155,11 @@ function createSchedulerRepositoryAdapter(connection) {
         if (String(sourceRows?.[0]?.community_id) !== String(communityId) || boardIdOf(sourceRows?.[0]) !== boardId) throw multisiteError('BOARD_CONFIGURATION_CHANGED', 'BigPlayer board configuration changed during scheduling');
       }
       const boardIdentity = boardId ? boardRunIdentity({ sourceId, communityId, boardId, windowStart: windowStartAtDb, windowEnd: windowEndAtDb }) : null;
-      if (boardId) await q(`INSERT INTO po_sync_runs (id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at,community_id,board_id,run_scope,board_run_identity)
-        VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?) ON DUPLICATE KEY UPDATE id=id`,
+      if (boardId) await q(`INSERT INTO po_sync_runs (created_at,requested_at,id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at,community_id,board_id,run_scope,board_run_identity)
+        VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?) ON DUPLICATE KEY UPDATE id=id`,
         [runId, sourceId, accountId, 'queued', syncMode, triggerType, scheduledAtDb, windowStartAtDb, windowEndAtDb, scheduleVersion, communityId, boardId, 'collection', boardIdentity]);
-      else await q(`INSERT INTO po_sync_runs (id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,NULL) ON DUPLICATE KEY UPDATE id=id`,
+      else await q(`INSERT INTO po_sync_runs (created_at,requested_at,id,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
+        VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,?,?,?,?,?,?,NULL) ON DUPLICATE KEY UPDATE id=id`,
         [runId, sourceId, accountId, 'queued', syncMode, triggerType, scheduledAtDb, windowStartAtDb, windowEndAtDb, scheduleVersion]);
       const [winnerRows] = await q('SELECT id FROM po_sync_runs WHERE source_id=? AND scheduled_at=? FOR UPDATE', [sourceId, scheduledAtDb]);
       const winningRunId = winnerRows?.[0]?.id;
@@ -172,11 +172,11 @@ function createSchedulerRepositoryAdapter(connection) {
           const window = siteWindow(windowStartAtDb, windowEndAtDb, cursorRows?.[0]?.last_successful_cursor || null);
           if (boardId) {
             const childIdentity = boardRunIdentity({ sourceId, communityId, boardId, scope: 'site', windowStart: window.windowStart, windowEnd: window.windowEnd, siteId: site.siteId });
-            await q(`INSERT INTO po_sync_runs (id,parent_run_id,site_id,site_url_snapshot,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at,community_id,board_id,run_scope,board_run_identity)
-              VALUES (?,?,?,?,?,?,'queued',?,'scheduled_site',NULL,?,?,?,NULL,?,?,?,?)`,
+            await q(`INSERT INTO po_sync_runs (created_at,requested_at,id,parent_run_id,site_id,site_url_snapshot,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at,community_id,board_id,run_scope,board_run_identity)
+              VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,?,?,'queued',?,'scheduled_site',NULL,?,?,?,NULL,?,?,?,?)`,
             [randomUUID(), runId, site.siteId, site.url, sourceId, accountId, syncMode, window.windowStart, window.windowEnd, scheduleVersion, communityId, boardId, 'site', childIdentity]);
-          } else await q(`INSERT INTO po_sync_runs (id,parent_run_id,site_id,site_url_snapshot,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
-            VALUES (?,?,?,?,?,?,'queued',?,'scheduled_site',NULL,?,?,?,NULL)`,
+          } else await q(`INSERT INTO po_sync_runs (created_at,requested_at,id,parent_run_id,site_id,site_url_snapshot,source_id,account_id,status,sync_mode,trigger_type,scheduled_at,window_start,window_end,schedule_version,started_at)
+            VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,?,?,'queued',?,'scheduled_site',NULL,?,?,?,NULL)`,
           [randomUUID(), runId, site.siteId, site.url, sourceId, accountId, syncMode, window.windowStart, window.windowEnd, scheduleVersion]);
         }
       }

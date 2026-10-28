@@ -109,7 +109,7 @@ async function handoffOverseasManualMarker(repo, { request, receipt } = {}) {
     const [active] = await conn.query("SELECT id FROM po_sync_runs WHERE source_id=? AND status IN ('queued','running','pausing','paused','cancelling') LIMIT 1 FOR UPDATE", [b.sourceId]);
     if (active.length) fail('PREVIOUS_RUN_ACTIVE');
     for (const scope of r.bindings) {
-      await conn.query("INSERT INTO po_sync_runs (id,source_id,account_id,site_id,trigger_type,status,sync_mode,scheduled_at,window_start,window_end,started_at) VALUES (?,?,?,?,'manual','queued','incremental',NULL,?,?,NULL)",
+      await conn.query("INSERT INTO po_sync_runs (created_at,requested_at,id,source_id,account_id,site_id,trigger_type,status,sync_mode,scheduled_at,window_start,window_end,started_at) VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,'manual','queued','incremental',NULL,?,?,NULL)",
         [scope.runId,scope.sourceId,scope.accountId,scope.siteId,scope.windowStart.replace('T',' ').replace('Z',''),scope.windowEnd.replace('T',' ').replace('Z','')]);
       const [rows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [scope.runId]);
       if (rows.length !== 1) fail('OVERSEAS_MANUAL_RUN_CONFLICT');

@@ -20,6 +20,7 @@ function isolatedRepo(existingColumns) {
   repo.query = async (sql, params = []) => {
     calls.push({ sql, params });
     if (sql.includes('information_schema.COLUMNS')) return [...existingColumns].map(column_name => ({ column_name }));
+    if (sql.startsWith('SELECT scope.root_id')) return [{ run_id: 'run-fixture', post_count: 2, actual_comment_body_count: 3, reply_count: 1 }];
     if (sql.startsWith('SELECT COUNT(*) AS total')) return [{ total: 1 }];
     if (sql.startsWith('SELECT r.id FROM')) return [{ id: 'run-fixture' }];
     if (sql.startsWith('SELECT r.id,')) return [{ id: 'run-fixture', source_id: 'source-fixture' }];

@@ -11,9 +11,12 @@ test('source summary preserves all checkpoint totals grouped by scope and status
   assert.match(calls[0].sql, /COUNT\(\*\) AS checkpoint_count/);
   assert.match(calls[0].sql, /SUM\(items_fetched\)/);
   assert.match(calls[0].sql, /GROUP BY sync_scope,status/);
+  assert.match(calls[0].sql, /FORCE INDEX \(po_checkpoint_summary_cover\)/);
   assert.doesNotMatch(calls[0].sql, /SELECT \*|LIMIT|root_platform_content_id/);
   assert.deepEqual(calls[0].params, ['fixture']);
   await repo.getSyncStatus({ accountId: 'fixture' });
   assert.match(calls[1].sql, /ORDER BY root_platform_content_id,id/);
+  assert.match(calls[1].sql, /FORCE INDEX \(po_checkpoint_error_summary_idx\)/);
+  assert.match(calls[1].sql, /error_message IS NOT NULL AND error_message<>''/);
   assert.match(calls[2].sql, /SELECT \* FROM po_sync_checkpoints/);
 });

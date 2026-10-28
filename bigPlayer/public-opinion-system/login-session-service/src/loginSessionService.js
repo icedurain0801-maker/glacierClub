@@ -114,7 +114,7 @@ class LoginSessionService {
     }
     let result;
     try {
-      const credentials = this.credentialResolver && binding.platform === 'bigplayer_h5' ? await this.credentialResolver({ ...binding, credentialType: 'account_password', credentialRef: record.credentialRef }) : null;
+      const credentials = this.credentialResolver && ['bigplayer_h5', 'facebook'].includes(binding.platform) ? await this.credentialResolver({ ...binding, credentialType: 'account_password', credentialRef: record.credentialRef }) : null;
       result = await adapter.login({ scenario: input.scenario, credentialRef: record.credentialRef, ...(credentials ? { ...binding, credentials } : {}) });
     } catch (error) {
       this.exchangeStore.clearResult(binding);
@@ -199,7 +199,9 @@ class LoginSessionService {
     const record = this.sessionStore.requireBinding(binding);
     const challenge = this.challengeStore.require(input.challengeId, binding);
     if (!challenge.requiresPolling) throw new ServiceError('CHALLENGE_POLL_UNSUPPORTED', 'This challenge requires text submission', 409);
-    const result = await this.adapterFor(binding.platform).pollChallenge({ challenge, adapterChallengeRef: challenge.adapterChallengeRef, approved: input.approved });
+    const credentials = binding.platform === 'facebook' && this.credentialResolver
+      ? await this.resolveCredential({ ...binding, credentialRef: record.credentialRef }) : null;
+    const result = await this.adapterFor(binding.platform).pollChallenge({ challenge, adapterChallengeRef: challenge.adapterChallengeRef, approved: input.approved, ...(credentials ? { credentials } : {}) });
     if (!result.approved) return { ...publicSession(record), challenge: publicChallenge(challenge) };
     this.challengeStore.consume(input.challengeId, binding);
     challenge.status = 'approved';
@@ -214,6 +216,31 @@ class LoginSessionService {
       throw new ServiceError('SESSION_NOT_ACTIVE', 'No active session is available', 409);
     }
     return { sourceId: record.sourceId, accountId: record.accountId, platform: record.platform, sessionRef: record.sessionRef, expiresAt: record.sessionExpiresAt };
+  }
+
+  async inspectFacebookChallenge(input) {
+    const binding = requireBinding(input);
+    if (binding.platform !== 'facebook') throw new ServiceError('INVALID_INPUT', 'Facebook binding required', 400);
+    const record = this.sessionStore.requireBinding(binding);
+    const challenge = this.challengeStore.require(input.challengeId, binding);
+    const credentials = this.credentialResolver ? await this.resolveCredential({ ...binding, credentialRef: record.credentialRef }) : null;
+    const result = await this.adapterFor('facebook').inspectChallenge({ adapterChallengeRef: challenge.adapterChallengeRef, action: input.action, x: input.x, y: input.y, ...(credentials ? { credentials } : {}) });
+    if (result.approved) {
+      this.challengeStore.consume(input.challengeId, binding); challenge.status = 'approved';
+      this.completeApprovedLogin(this.sessionStore.requireBinding(binding), binding, result);
+      return { approved: true, ...publicSession(this.sessionStore.requireBinding(binding)) };
+    }
+    return result;
+  }
+
+  async collectFacebook(input) {
+    const binding = requireBinding(input);
+    if (binding.platform !== 'facebook') throw new ServiceError('INVALID_INPUT', 'Facebook binding required', 400);
+    const reference = this.getSessionReference(binding);
+    if (!input.sessionRef || input.sessionRef !== reference.sessionRef) throw new ServiceError('SESSION_NOT_ACTIVE', 'Session reference does not match this account', 409);
+    const record = this.sessionStore.requireBinding(binding);
+    const credentials = await this.resolveCredential({ ...binding, credentialRef: record.credentialRef });
+    return this.adapterFor('facebook').collect({ ...binding, baseUrl: credentials.baseUrl, bindingRevision: credentials.bindingRevision, scope: input.scope, postId: input.postId, commentId: input.commentId, cursor: input.cursor, limit: input.limit, publishedFrom:input.publishedFrom, publishedTo:input.publishedTo, allVisible:input.allVisible===true });
   }
 
   issueSessionReferenceExchange(input) {
@@ -233,14 +260,17 @@ class LoginSessionService {
     return this.exchangeStore.claimResult(binding);
   }
 
-  revoke(input) {
+  async revoke(input) {
     const binding = requireBinding(input);
     const record = this.sessionStore.requireBinding(binding);
+    const adapter = this.adapters[binding.platform];
+    // Invalidate references before closing the browser, even when disposal fails.
     this.exchangeStore.clearResult(binding);
     this.sessionStore.revoke(record);
     record.challengeId = null;
     record.failureCode = null;
     record.status = STATES.REVOKED;
+    if (typeof adapter?.revoke === 'function') await adapter.revoke(binding);
     record.updatedAt = new Date(this.now()).toISOString();
     return publicSession(record);
   }

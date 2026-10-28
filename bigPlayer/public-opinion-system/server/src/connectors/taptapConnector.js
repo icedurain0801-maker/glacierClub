@@ -302,7 +302,7 @@ class TapTapConnector extends BaseConnector {
     return validatePagination({ cursor, limit, page: new ConnectorPageResult({ items, nextCursor: hasMore ? JSON.stringify({ version: 1, from: current.from + entries.length }) : null, hasMore, capability: 'keyword_search', raw: payload }) });
   }
 
-  async listComments({ postId, cursor, limit, signal } = {}) {
+  async listComments({ postId, commentId, cursor, limit, signal, includeReplies = false } = {}) {
     const installation = await this.installationHealth();
     if (!installation.installed) throw new ConnectorError('CONNECTOR_NOT_CONFIGURED', installation.reason || 'TapTap connector is not installed');
     const id = postId == null || String(postId).trim() === '' ? null : String(postId).trim();
@@ -313,23 +313,34 @@ class TapTapConnector extends BaseConnector {
     if (this.delayMs && current.from > 0) await waitWithSignal(this.delayMs, signal, 'comments', Math.floor(current.from / pageSize) + 1);
     // 先取 moment 详情判断评论线程归属：评测类挂 review（review-comment/by-review），
     // 普通动态挂 moment 本身（moment-comment/by-moment）。
+    if (includeReplies && commentId) {
+      const payload = await this.webapiv2('moment-comment/v1/by-comment', { id: String(commentId), moment_id: id, from: current.from, limit: Math.min(pageSize,5), sort: 'created_at', order: 'asc' }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1, signal });
+      const list = Array.isArray(payload?.data?.list) ? payload.data.list : [];
+      const total = Number(payload?.data?.total || 0);
+      const items = list.map(entry => ({ ...taptapMomentComment(entry, { rootContentId: id, momentUrl: `${this.baseUrl}/moment/${id}` }), platformParentId: String(commentId), contentDepth: 2 }));
+      const hasMore = items.length > 0 && current.from + items.length < total;
+      if (!items.length && current.from < total) throw new ConnectorError('MALFORMED_RESPONSE', 'TapTap replies ended before reported total');
+      return validatePagination({ cursor, limit, page: new ConnectorPageResult({ items, nextCursor: hasMore ? JSON.stringify({ version: 1, from: current.from + items.length }) : null, hasMore, capability: 'comments', raw: payload }) });
+    }
     const detail = await this.webapiv2('moment-mini/v1/multi-get', { ids: id }, { capability: 'comments', page: current.from + 1, signal });
     const moment = Array.isArray(detail?.data?.list) ? detail.data.list[0] : null;
     const reviewId = moment?.review?.id;
     const momentUrl = `${this.baseUrl}/moment/${id}`;
     if (reviewId == null) {
       // 普通动态：moment-comment/by-moment（sort=rank, order=desc）。
-      const payload = await this.webapiv2('moment-comment/v1/by-moment', { moment_id: id, sort: 'rank', order: 'desc', from: current.from, limit: pageSize }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1, signal });
+      const payload = await this.webapiv2('moment-comment/v1/by-moment', { moment_id: id, sort: 'rank', order: 'desc', from: current.from, limit: pageSize, ...(includeReplies ? { group_id: moment?.group?.id, regulate_all: 'false' } : {}) }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1, signal });
       const list = Array.isArray(payload?.data?.list) ? payload.data.list : [];
       const total = Number(payload?.data?.total || 0);
-      const items = list.map(entry => taptapMomentComment(entry, { rootContentId: id, momentUrl }));
+      const items = list.map(entry => ({ ...taptapMomentComment(entry, { rootContentId: id, momentUrl }), ...(includeReplies ? { replies: (entry.child_posts || []).map(child => ({ ...taptapMomentComment(child, { rootContentId:id, momentUrl }), platformParentId: String(entry.id_str ?? entry.id), contentDepth: 2 })) } : {}) }));
       const seen = new Set();
       for (const item of items) {
         if (seen.has(item.externalId)) throw new ConnectorError('MALFORMED_RESPONSE', 'TapTap comment page contains duplicate IDs');
         seen.add(item.externalId);
       }
       const hasMore = items.length > 0 && current.from + items.length < total;
-      return validatePagination({ cursor, limit, page: new ConnectorPageResult({ items, nextCursor: hasMore ? JSON.stringify({ version: 1, from: current.from + items.length }) : null, hasMore, capability: 'comments', raw: payload }) });
+      const page = validatePagination({ cursor, limit, page: new ConnectorPageResult({ items, nextCursor: hasMore ? JSON.stringify({ version: 1, from: current.from + items.length }) : null, hasMore, capability: 'comments', raw: payload }) });
+      if (includeReplies) page.replyTargets = list.filter(entry => Number(entry.comments) > (entry.child_posts || []).length).map(entry => ({ postId: id, commentId: String(entry.id_str ?? entry.id) }));
+      return page;
     }
     // 评测类动态：review-comment/by-review 一次返回一级+二级（reply_to_user 标记层级）。
     const payload = await this.webapiv2('review-comment/v1/by-review', { review_id: reviewId, from: current.from, limit: pageSize, order: 'asc', show_top: 'true' }, { capability: 'comments', page: Math.floor(current.from / pageSize) + 1, signal });

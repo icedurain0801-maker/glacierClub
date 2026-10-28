@@ -1,9 +1,15 @@
+const { normalizeSyncRunTimes } = require('../services/syncRunTimes');
+const { validateCommentAncestry } = require('../../../shared/overseasCommentIntegrity');
 const { analysisPublishedFrom } = require('../services/analysisWindow');
 const mysql = require('mysql2/promise');
 const { qualityBodyLength, qualityBodyLengthSql } = require('../services/qualityBodyText');
+const { qualityEligibility, qualitySnapshotSql } = require('../services/qualityPolicy');
 const ContentHandling = require('../services/contentHandling');
 const crypto = require('node:crypto');
 const { normalizeAnalysisResult, retainVerifiedUrgent } = require('../services/riskSeverityNormalizer');
+const { VERSION: URGENT_REVIEW_VERSION } = require('../services/urgentValidation');
+const reviewedUrgentSql = (alias, contentAlias = 'c') => `COALESCE(${alias}.content_fingerprint=${contentAlias}.fingerprint AND JSON_UNQUOTE(JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.urgentReview.version'))='${URGENT_REVIEW_VERSION}' AND JSON_UNQUOTE(JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.urgentReview.status'))='approved' AND JSON_UNQUOTE(JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.urgentReview.level'))='L3',0)`;
+const urgentReviewSql = alias => `CASE WHEN ${alias}.content_fingerprint=c.fingerprint THEN JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.urgentReview') ELSE NULL END AS urgent_review`;
 const { contentDisplayType, bigPlayerContentKindPredicate } = require('../services/contentDisplayType');
 const { normalizeFacebookPageUrl } = require('../services/sourceValidators');
 const { normalizeSiteUrls } = require('../services/bigplayerSiteConfig');
@@ -13,6 +19,10 @@ const { boardIdOf, boardRunIdentity } = require('../../../shared/bigPlayerBoard'
 const { bigPlayerBoardSchemaReady } = require('../../../shared/bigPlayerBoardSchema');
 
 const uuid = () => crypto.randomUUID();
+// Match the most selective existing scope/time index before reading payloads.
+const contentTimeIndex = ({ communityId, sourceId, accountId, gameId } = {}) => communityId ? 'po_contents_community_time_idx' : sourceId ? 'po_contents_source_time_idx' : accountId ? 'po_contents_account_time_idx' : gameId ? 'po_contents_game_time_idx' : 'po_contents_published_time_idx';
+// Aggregations need only identifiers/time/deletion fields, not wide payload rows.
+const contentAggregateIndex = scope => scope.communityId ? 'po_contents_community_aggregate_idx' : contentTimeIndex(scope);
 // Existing v8 rows retain the original AI explanation inside risk_context.
 // Recover it at read time without rewriting history or invoking AI again.
 const analysisReasonSql = alias => `COALESCE(${['$.rawAnalysis.reason', '$.rawAnalysis.originalRiskDecision.reason'].map(path =>
@@ -20,8 +30,10 @@ const analysisReasonSql = alias => `COALESCE(${['$.rawAnalysis.reason', '$.rawAn
 const sentimentScoreSql = alias => `CASE WHEN JSON_TYPE(JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.sentimentScore')) IN ('INTEGER','DOUBLE') THEN JSON_EXTRACT(${alias}.risk_context,'$.rawAnalysis.sentimentScore') + 0 ELSE NULL END AS sentiment_score`;
 const OPTIONAL_SYNC_RUN_COLUMNS = ['community_id', 'board_id', 'board_name', 'run_scope', 'site_url_snapshot', 'last_request_at'];
 const optionalSyncRunColumn = (columns, column, alias = column) => columns.has(column) ? `r.${column} AS ${alias}` : `NULL AS ${alias}`;
-const syncRunProjection = columns => `r.id,r.account_id,${optionalSyncRunColumn(columns, 'community_id', 'run_community_id')},${optionalSyncRunColumn(columns, 'board_id')},${optionalSyncRunColumn(columns, 'board_name')},${optionalSyncRunColumn(columns, 'run_scope')},r.parent_run_id,r.parent_run_id AS parentRunId,r.site_id,r.site_id AS siteId,${optionalSyncRunColumn(columns, 'site_url_snapshot')},${optionalSyncRunColumn(columns, 'site_url_snapshot', 'siteUrl')},${optionalSyncRunColumn(columns, 'last_request_at')},${optionalSyncRunColumn(columns, 'last_request_at', 'lastRequestAt')},r.trigger_type,r.trigger_type AS triggerType,r.window_start,r.window_start AS windowStart,r.window_end,r.window_end AS windowEnd,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS run_role,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS runRole,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS has_scheduled_site_children,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS hasScheduledSiteChildren,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id) AS site_total,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope','partial','failed','cancelled','canceled')) AS site_terminal,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope')) AS site_succeeded,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('partial','failed','cancelled','canceled')) AS site_failed,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,r.discovered_count,r.stored_count,r.fetched_count,r.inserted_count,r.changed_count,r.unchanged_count,r.comment_count,r.comment_count AS advertised_comment_count,(SELECT COUNT(DISTINCT run_posts.content_id) FROM po_sync_run_contents run_posts WHERE run_posts.run_id=r.id AND run_posts.sync_scope='posts') AS post_count,(SELECT COUNT(DISTINCT run_comments.content_id) FROM po_sync_run_contents run_comments WHERE run_comments.run_id=r.id AND run_comments.sync_scope IN ('comments','replies')) AS actual_comment_body_count,(SELECT COUNT(DISTINCT run_replies.content_id) FROM po_sync_run_contents run_replies WHERE run_replies.run_id=r.id AND run_replies.sync_scope='replies') AS reply_count,r.error_code,r.error_message`;
+const syncRunProjection = columns => `r.id,r.account_id,${optionalSyncRunColumn(columns, 'community_id', 'run_community_id')},${optionalSyncRunColumn(columns, 'board_id')},${optionalSyncRunColumn(columns, 'board_name')},${optionalSyncRunColumn(columns, 'run_scope')},r.parent_run_id,r.parent_run_id AS parentRunId,r.site_id,r.site_id AS siteId,${optionalSyncRunColumn(columns, 'site_url_snapshot')},${optionalSyncRunColumn(columns, 'site_url_snapshot', 'siteUrl')},${optionalSyncRunColumn(columns, 'last_request_at')},${optionalSyncRunColumn(columns, 'last_request_at', 'lastRequestAt')},r.trigger_type,r.trigger_type AS triggerType,r.window_start,r.window_start AS windowStart,r.window_end,r.window_end AS windowEnd,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS run_role,CASE WHEN r.parent_run_id IS NOT NULL THEN 'site' WHEN EXISTS(SELECT 1 FROM po_sync_runs child_role WHERE child_role.parent_run_id=r.id) THEN 'parent' ELSE 'single' END AS runRole,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS has_scheduled_site_children,EXISTS(SELECT 1 FROM po_sync_runs child_scheduled WHERE child_scheduled.parent_run_id=r.id) AS hasScheduledSiteChildren,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id) AS site_total,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope','partial','failed','cancelled','canceled')) AS site_terminal,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('completed','completed_full','completed_authorized_scope')) AS site_succeeded,(SELECT COUNT(*) FROM po_sync_runs child_progress WHERE child_progress.parent_run_id=r.id AND child_progress.status IN ('partial','failed','cancelled','canceled')) AS site_failed,r.status,r.sync_mode,r.requested_at,r.created_at,r.started_at,r.finished_at,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.discovered_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.discovered_count END AS discovered_count,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.stored_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.stored_count END AS stored_count,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.fetched_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.fetched_count END AS fetched_count,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.inserted_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.inserted_count END AS inserted_count,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.changed_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.changed_count END AS changed_count,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.unchanged_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.unchanged_count END AS unchanged_count,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.comment_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.comment_count END AS comment_count,CASE WHEN EXISTS(SELECT 1 FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) THEN (SELECT COALESCE(SUM(progress_child.comment_count),0) FROM po_sync_runs progress_child WHERE progress_child.parent_run_id=r.id AND progress_child.account_id=r.account_id) ELSE r.comment_count END AS advertised_comment_count,(SELECT COUNT(DISTINCT run_posts.content_id) FROM po_sync_runs progress_child JOIN po_sync_run_contents run_posts ON run_posts.run_id=progress_child.id WHERE (progress_child.id=r.id OR progress_child.parent_run_id=r.id) AND progress_child.account_id=r.account_id AND run_posts.sync_scope='posts') AS post_count,(SELECT COUNT(DISTINCT run_comments.content_id) FROM po_sync_runs progress_child JOIN po_sync_run_contents run_comments ON run_comments.run_id=progress_child.id WHERE (progress_child.id=r.id OR progress_child.parent_run_id=r.id) AND progress_child.account_id=r.account_id AND run_comments.sync_scope IN ('comments','replies')) AS actual_comment_body_count,(SELECT COUNT(DISTINCT run_replies.content_id) FROM po_sync_runs progress_child JOIN po_sync_run_contents run_replies ON run_replies.run_id=progress_child.id WHERE (progress_child.id=r.id OR progress_child.parent_run_id=r.id) AND progress_child.account_id=r.account_id AND run_replies.sync_scope='replies') AS reply_count,r.error_code,r.error_message`;
 function repositoryError(code, message) { const error = new Error(message); error.code = code; return error; }
+const { normalizePolicy: normalizeAiAnalysisPolicy, defaultPolicy: defaultAiAnalysisPolicy } = require('../services/aiAnalysisPolicy');
+const { CONTEXT_PROVIDER, commentContext, contextColumns, contextJoins } = require('../services/commentAnalysisContext');
 function normalizedCheckDefinition(value) {
   let normalized = String(value || '').replace(/`/g, '').replace(/\s+/g, '').toLowerCase();
   const hasOuterPair = text => {
@@ -106,13 +118,14 @@ function boundedBackfillWindowFromAnchor(admissionAnchor, lookbackDays) {
   const toSql = value => new Date(value).toISOString().slice(0, 23).replace('T', ' ');
   return { windowStart: toSql(anchorMs - durationMs), windowEnd: toSql(anchorMs), startMs: anchorMs - durationMs, endMs: anchorMs };
 }
-function effectiveBigPlayerWindow(admissionAnchor, lastSuccessfulCursor = null) {
+function effectiveBigPlayerWindow(admissionAnchor) {
   const base = boundedBackfillWindowFromAnchor(admissionAnchor, 7);
-  const cursorMs = databaseUtcTimestampMs(lastSuccessfulCursor);
-  if (Number.isFinite(cursorMs) && cursorMs > base.startMs && cursorMs < base.endMs) {
-    base.windowStart = new Date(cursorMs).toISOString().slice(0, 23).replace('T', ' ');
-    base.startMs = cursorMs;
-  }
+  // Manual sync always covers yesterday 00:00 Asia/Shanghai through admission.
+  // Keep this independent of checkpoint cursors and the host's timezone.
+  const dayMs = 24 * 60 * 60 * 1000;
+  const offsetMs = 8 * 60 * 60 * 1000;
+  base.startMs = Math.floor((base.endMs + offsetMs) / dayMs) * dayMs - offsetMs - dayMs;
+  base.windowStart = new Date(base.startMs).toISOString().slice(0, 23).replace('T', ' ');
   return base;
 }
 async function reconcileBigPlayerSourceSites(conn, sourceId, siteUrls) {
@@ -196,7 +209,6 @@ function totalCommentCountSql(contentAlias, childAlias) {
   return `CASE WHEN ${contentAlias}.content_type='post' THEN GREATEST((SELECT COUNT(*) FROM po_contents ${childAlias} WHERE ${childAlias}.root_content_id=${contentAlias}.id AND ${childAlias}.content_type='comment' AND ${childAlias}.is_deleted=0), COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(${contentAlias}.engagement,'$.comments')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(${contentAlias}.engagement,'$.comment')) AS UNSIGNED), 0)) ELSE 0 END`;
 }
 const QUALITY_BOOLEAN_FIELDS = ['recommend_home', 'recommend_pin', 'recommend_feature', 'home_adopted', 'pin_adopted', 'feature_adopted'];
-const QUALITY_SCORE_THRESHOLD = 0.7;
 function normalizeQualityCandidate(row) {
   if (!row) return row;
   const normalized = { ...row, canReview: true };
@@ -336,7 +348,7 @@ class Repository {
     if (gameId && String(gameId) !== String(community.game_id) && String(gameId) !== String(community.game_external_id)) { const error = new Error('game does not match community'); error.code = 'OWNERSHIP_MISMATCH'; throw error; }
     return { regionCode: community.region_code, gameId: community.game_id, communityId: community.id, community };
   }
-  async listSources(gameId, { sourceId, regionCode, communityId, platform } = {}) { const values = []; const clauses = [NOT_DELETED]; if (sourceId) { clauses.push('s.id=?'); values.push(sourceId); } if (gameId) { clauses.push('s.game_id=?'); values.push(gameId); } if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); } if (communityId) { clauses.push('s.community_id=?'); values.push(communityId); } if (platform) { clauses.push('s.platform=?'); values.push(platform); } return this.query(`SELECT s.*, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id LEFT JOIN po_communities c ON c.id=s.community_id WHERE ${clauses.join(' AND ')} ORDER BY s.updated_at ASC`, values); }
+  async listSources(gameId, { sourceId, regionCode, communityId, platform } = {}) { const values = []; const clauses = [NOT_DELETED]; if (sourceId) { clauses.push('s.id=?'); values.push(sourceId); } if (gameId) { clauses.push('s.game_id=?'); values.push(gameId); } if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); } if (communityId) { clauses.push('s.community_id=?'); values.push(communityId); } if (platform) { clauses.push('s.platform=?'); values.push(platform); } return this.query(`SELECT s.*, g.name AS game_name, g.region_code, c.name AS community_name, c.status AS community_status, recent_sync.id AS recent_sync_run_id, recent_sync.status AS recent_sync_status, COALESCE(recent_sync.finished_at,recent_sync.started_at,recent_sync.requested_at,recent_sync.created_at) AS recent_sync_at, recent_sync.error_code AS recent_sync_error_code, recent_sync.error_message AS recent_sync_error_message FROM po_sources s JOIN po_games g ON g.id=s.game_id LEFT JOIN po_communities c ON c.id=s.community_id LEFT JOIN po_sync_runs recent_sync ON recent_sync.id=(SELECT recent_run.id FROM po_sync_runs recent_run JOIN po_accounts recent_account ON recent_account.id=recent_run.account_id WHERE recent_account.source_id=s.id ORDER BY COALESCE(recent_run.finished_at,recent_run.started_at,recent_run.requested_at,recent_run.created_at) DESC,recent_run.id DESC LIMIT 1) WHERE ${clauses.join(' AND ')} ORDER BY s.updated_at ASC`, values); }
   async findSourceByIdentity({ gameId, platform, displayName, communityId } = {}) {
     const scope = communityId ? ' AND community_id=?' : '';
     const params = communityId ? [gameId, platform, displayName, communityId] : [gameId, platform, displayName];
@@ -344,6 +356,7 @@ class Repository {
   }
   async listEnabledSources() { return this.query(`SELECT s.*, g.name AS game_name, g.region_code, g.enabled AS game_enabled, c.name AS community_name, c.status AS community_status FROM po_sources s JOIN po_games g ON g.id=s.game_id JOIN po_communities c ON c.id=s.community_id WHERE s.enabled=1 AND g.enabled=1 AND c.status='enabled' AND ${NOT_DELETED} ORDER BY s.updated_at ASC`); }
   async getOverviewTrend({ regionCode, gameId, communityId, sourceId, platform, from, to } = {}) {
+    const scopedContents = `po_contents c FORCE INDEX (${contentAggregateIndex({ communityId, sourceId, gameId })})`;
     const values = []; const clauses = ['c.published_at IS NOT NULL', 'COALESCE(c.is_deleted,0)=0'];
     for (const [value, clause] of [[regionCode, 'g.region_code=?'], [gameId, 'c.game_id=?'], [communityId, 'c.community_id=?'], [sourceId, 'c.source_id=?'], [platform, 's.platform=?'], [from, 'c.published_at >= ?'], [to, 'c.published_at < ?']]) {
       if (value) { values.push(value); clauses.push(clause); }
@@ -354,11 +367,12 @@ class Repository {
       CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative,
       CAST(SUM(CASE WHEN a.content_id IS NULL THEN 1 ELSE 0 END) AS SIGNED) AS unclassified,
       CAST(COUNT(*) AS SIGNED) AS total
-      FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id
+      FROM ${scopedContents} STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id
       LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id WHERE ${clauses.join(' AND ')} GROUP BY date ORDER BY date ASC`, values);
   }
 
   async getOverview({ regionCode, gameId, communityId, sourceId, platform, from, to } = {}) {
+    const scopedContents = `po_contents c FORCE INDEX (${contentAggregateIndex({ communityId, sourceId, gameId })})`;
     const contentFilters = { regionCode, gameId, communityId, sourceId, platform, publishedFrom: from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), publishedTo: to };
     const values = []; const clauses = [];
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
@@ -373,7 +387,7 @@ class Repository {
     if (!from && !to) { values.push(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)); clauses.push('c.published_at >= ?'); }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const contentJoin = ' JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id';
-    const alertClauses = ["a.status IN ('pending','processing')", 'COALESCE(c.is_deleted,0)=0', 'c.published_at IS NOT NULL', "EXISTS (SELECT 1 FROM po_analyses current_analysis WHERE current_analysis.content_id=c.id AND current_analysis.sentiment IN ('neutral','negative') AND current_analysis.severity='urgent')"]; const alertValues = [];
+    const alertClauses = ["a.status IN ('pending','processing')", 'COALESCE(c.is_deleted,0)=0', 'c.published_at IS NOT NULL', `EXISTS (SELECT 1 FROM po_analyses current_analysis WHERE current_analysis.content_id=c.id AND current_analysis.sentiment IN ('neutral','negative') AND current_analysis.severity='urgent' AND ${reviewedUrgentSql('current_analysis')})`]; const alertValues = [];
     if (regionCode) { alertValues.push(regionCode); alertClauses.push('g.region_code=?'); }
     if (gameId) { alertValues.push(gameId); alertClauses.push('c.game_id=?'); }
     if (communityId) { alertValues.push(communityId); alertClauses.push('c.community_id=?'); }
@@ -382,7 +396,9 @@ class Repository {
     if (from) { alertValues.push(from); alertClauses.push('c.published_at >= ?'); }
     if (to) { alertValues.push(to); alertClauses.push('c.published_at < ?'); }
     if (!from && !to) { alertValues.push(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)); alertClauses.push('c.published_at >= ?'); }
-    const [metrics, sentiments, sources, alerts, trend, hotNegative, hotAttention, contentStats, topics] = await Promise.all([
+    // Do not burst several scans of the same large content/analysis rows into
+    // the shared pool. Cold-page contention also delays unrelated small reads.
+    const [metrics, sentiments, sources, alerts, trend, hotNegative, hotAttention, contentStats, topics] = await (async tasks => { const rows = []; for (const task of tasks) rows.push(await task()); return rows; })([
       // 性能：po_analyses 聚合必须 FORCE 覆盖索引（content_id, sentiment, severity），
       // 否则按唯一键逐行回表读 sentiment/severity，UUID 主键随机分布实测 ~2s；覆盖索引 ~100ms。
       // po_games/po_sources 均为 1-2 行小表，优化器以其驱动会导致 contents 全表扫描 + filesort，
@@ -390,39 +406,49 @@ class Repository {
       // 性能：metrics/sentiment/topics 走 STRAIGHT_JOIN 强制 c 驱动；时间窗口过滤下
       // FORCE INDEX 用 published_time 索引（实测 metrics 727ms→35ms、topics 770ms→20ms，
       // sentiment 同构同步替换），原 game_collected 索引会退化为大范围扫描。
-      this.query(`SELECT COALESCE(COUNT(*),0) AS total, COALESCE(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END),0) AS negative FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id ${where}`, values),
-      this.query(`SELECT COALESCE(a.sentiment,'unclassified') AS sentiment, COUNT(*) AS count FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id ${where} GROUP BY a.sentiment`, values),
-      this.query(`SELECT s.platform, COUNT(*) AS count FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id ${where} GROUP BY s.platform ORDER BY count DESC`, values),
-      this.query(`SELECT DISTINCT a.*, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_alerts a JOIN po_alert_contents ac ON ac.alert_id=a.id JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${alertClauses.join(' AND ')} ORDER BY a.created_at DESC, a.id DESC`, alertValues),
+      () => this.query(`SELECT COALESCE(COUNT(*),0) AS total, COALESCE(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END),0) AS negative FROM ${scopedContents} STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id ${where}`, values),
+      () => this.query(`SELECT COALESCE(a.sentiment,'unclassified') AS sentiment, COUNT(*) AS count FROM ${scopedContents} STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id ${where} GROUP BY a.sentiment`, values),
+      () => this.query(`SELECT s.platform, COUNT(*) AS count FROM ${scopedContents} STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id ${where} GROUP BY s.platform ORDER BY count DESC`, values),
+      () => this.query(`SELECT DISTINCT a.*, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_alerts a JOIN po_alert_contents ac ON ac.alert_id=a.id JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${alertClauses.join(' AND ')} ORDER BY a.created_at DESC, a.id DESC`, alertValues),
       // 按当前概览时间窗口聚合情感趋势；计数 CAST 为整数便于前端比较。
       // 性能：CASE 聚合 + 无索引排序时优化器计划退化，FORCE published_time +
       // STRAIGHT_JOIN c 驱动实测 760ms→75ms。
-      this.query(`SELECT DATE_ADD(c.published_at, INTERVAL 8 HOUR) AS date, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative, CAST(SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS SIGNED) AS positive, CAST(SUM(CASE WHEN a.sentiment='neutral' THEN 1 ELSE 0 END) AS SIGNED) AS neutral, CAST(SUM(CASE WHEN a.content_id IS NULL THEN 1 ELSE 0 END) AS SIGNED) AS unclassified, CAST(COUNT(*) AS SIGNED) AS total FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id ${where || 'WHERE COALESCE(c.is_deleted,0)=0'} GROUP BY DATE_ADD(c.published_at, INTERVAL 8 HOUR) ORDER BY date ASC`, values),
+      () => this.query(`SELECT DATE_ADD(c.published_at, INTERVAL 8 HOUR) AS date, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative, CAST(SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS SIGNED) AS positive, CAST(SUM(CASE WHEN a.sentiment='neutral' THEN 1 ELSE 0 END) AS SIGNED) AS neutral, CAST(SUM(CASE WHEN a.content_id IS NULL THEN 1 ELSE 0 END) AS SIGNED) AS unclassified, CAST(COUNT(*) AS SIGNED) AS total FROM ${scopedContents} STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id ${where || 'WHERE COALESCE(c.is_deleted,0)=0'} GROUP BY DATE_ADD(c.published_at, INTERVAL 8 HOUR) ORDER BY date ASC`, values),
       // 负面内容 Top10（按发布时间倒序，混排帖子、动态和评论）。
       // 性能：JSON engagement 计算 + ORDER BY 无索引可走，优化器以小表驱动全表扫描，
       // FORCE published_time + STRAIGHT_JOIN 实测 1.6s→75ms。
-      this.listContents({ ...contentFilters, riskMode: 'negative', sort: 'published_desc', pageSize: 10 }),
+      () => this.listContents({ ...contentFilters, riskMode: 'negative', sort: 'published_desc', pageSize: 10, overviewPreview: true }),
       // 关注级列表与卡片共享内容集合，不附加负面情感限制，按发布时间倒序。
-      this.listContents({ ...contentFilters, riskMode: 'attention', sort: 'published_desc', pageSize: 10 }),
-      this.getContentStats(contentFilters, { includeBreakdown: true }),
-      this.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(a.topics, CONCAT('$[', seq.seq, ']'))) AS topic, CAST(COUNT(*) AS SIGNED) AS count, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative FROM po_contents c STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id STRAIGHT_JOIN po_analyses a ON a.content_id=c.id STRAIGHT_JOIN (SELECT 0 AS seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) seq ON seq.seq < JSON_LENGTH(a.topics) ${where} GROUP BY topic HAVING topic IS NOT NULL AND topic <> '' ORDER BY count DESC, topic ASC LIMIT 10`, values)
+      () => this.listContents({ ...contentFilters, riskMode: 'attention', sort: 'published_desc', pageSize: 10, overviewPreview: true }),
+      () => this.getContentStats(contentFilters, { includeBreakdown: true }),
+      () => this.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_LENGTH(a.topics) > 0 THEN a.topics ELSE JSON_ARRAY('其他') END, CONCAT('$[', seq.seq, ']'))) AS topic, CAST(COUNT(*) AS SIGNED) AS count, CAST(SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS SIGNED) AS negative FROM ${scopedContents} STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id STRAIGHT_JOIN po_analyses a ON a.content_id=c.id STRAIGHT_JOIN (SELECT 0 AS seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) seq ON seq.seq < JSON_LENGTH(CASE WHEN JSON_LENGTH(a.topics) > 0 THEN a.topics ELSE JSON_ARRAY('其他') END) ${where} GROUP BY topic HAVING topic IS NOT NULL AND topic <> '' ORDER BY count DESC, topic ASC LIMIT 10`, values)
     ]);
-    const hotFields = ['id', 'game_id', 'community_id', 'content_type', 'title', 'body', 'source_url', 'author_name', 'source_id', 'published_at', 'platform', 'game_name', 'region_code', 'community_name', 'community_status', 'sentiment', 'negative_score', 'severity', 'topics', 'matched_keywords', 'summary'];
+    const hotFields = ['id', 'game_id', 'community_id', 'content_type', 'title', 'body', 'source_url', 'author_name', 'source_id', 'published_at', 'platform', 'game_name', 'region_code', 'community_name', 'community_status', 'sentiment', 'negative_score', 'severity', 'topics', 'matched_keywords', 'summary', 'analysis_reason'];
     const hotItems = rows => rows.map(row => ({ ...Object.fromEntries(hotFields.map(field => [field, row[field]])), display_type: contentDisplayType(row), engagement: Number(row.engagement_score ?? row.engagement) || 0 }));
     const postCount = Number(contentStats.post) || 0;
     const commentCount = Number(contentStats.comment) || 0;
     // Analysis may be urgent before an alert event exists (e.g. deep analysis failed).
     // Keep those contents visible without creating events or sending notifications on GET.
-    const urgentUnlinkedTotal = Number((await this.query(`SELECT COUNT(*) AS total FROM po_contents c JOIN po_analyses an ON an.content_id=c.id ${contentJoin} ${where} AND an.sentiment IN ('neutral','negative') AND an.severity='urgent' AND NOT EXISTS (SELECT 1 FROM po_alert_contents link WHERE link.content_id=c.id)`, values))[0]?.total) || 0;
+    const urgentUnlinkedTotal = Number((await this.query(`SELECT COUNT(*) AS total FROM ${scopedContents} STRAIGHT_JOIN po_analyses an ON an.content_id=c.id ${contentJoin} ${where} AND an.sentiment IN ('neutral','negative') AND an.severity='urgent' AND ${reviewedUrgentSql('an')} AND NOT EXISTS (SELECT 1 FROM po_alert_contents link WHERE link.content_id=c.id)`, values))[0]?.total) || 0;
     let urgentUnlinkedContents = [];
-    if (urgentUnlinkedTotal) urgentUnlinkedContents = await this.query(`SELECT c.*, an.sentiment, an.negative_score, an.severity, an.summary, an.topics, an.matched_keywords, g.region_code, g.name AS game_name, s.platform FROM po_contents c JOIN po_analyses an ON an.content_id=c.id ${contentJoin} ${where} AND an.sentiment IN ('neutral','negative') AND an.severity='urgent' AND NOT EXISTS (SELECT 1 FROM po_alert_contents link WHERE link.content_id=c.id) ORDER BY c.published_at DESC, c.id DESC LIMIT 20`, values);
+    if (urgentUnlinkedTotal) urgentUnlinkedContents = await this.query(`SELECT c.*, an.sentiment, an.negative_score, an.severity, an.summary, an.topics, an.matched_keywords, g.region_code, g.name AS game_name, s.platform FROM ${scopedContents} STRAIGHT_JOIN po_analyses an ON an.content_id=c.id ${contentJoin} ${where} AND an.sentiment IN ('neutral','negative') AND an.severity='urgent' AND ${reviewedUrgentSql('an')} AND NOT EXISTS (SELECT 1 FROM po_alert_contents link WHERE link.content_id=c.id) ORDER BY c.published_at DESC, c.id DESC LIMIT 20`, values);
     const urgentIds = [...new Set(alerts.filter(alert => alert.severity === 'urgent').map(alert => alert.id))];
     const urgentAlertCount = urgentIds.length;
     const urgentBreakdown = urgentIds.length ? (await this.query(`SELECT COUNT(DISTINCT CASE WHEN c.content_type='post' THEN c.id END) AS postCount, COUNT(DISTINCT CASE WHEN c.content_type='comment' THEN c.id END) AS commentCount FROM po_alert_contents ac JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE ac.alert_id IN (${urgentIds.map(() => '?').join(',')}) AND ${alertClauses.filter(clause => !clause.startsWith('a.') && clause !== "c.content_type='post'").join(' AND ')}`, [...urgentIds, ...alertValues]))[0] : {};
     const breakdownMetrics = Object.fromEntries(['attentionPostCount', 'attentionCommentCount', 'negativePostCount', 'negativeCommentCount', 'urgentPostCount', 'urgentCommentCount'].map(key => [key, Number(contentStats[key]) || 0]));
     breakdownMetrics.urgentAlertPostCount = Number(urgentBreakdown?.postCount) || 0;
     breakdownMetrics.urgentAlertCommentCount = Number(urgentBreakdown?.commentCount) || 0;
-    return { metrics: { ...metrics[0], total: postCount + commentCount, postCount, commentCount, ...breakdownMetrics, negative: contentStats.negative, attention: contentStats.attention, urgent: contentStats.urgent, urgentAlertCount, activeAlertCount: alerts.length, urgentUnlinkedTotal }, sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, urgentUnlinkedContents, trend, hotNegative: hotItems(hotNegative), hotAttention: hotItems(hotAttention), topicDistribution: topics };
+    const feedbackRows = await this.query(`SELECT c.id,c.title,c.body,c.community_id,c.content_type,c.parent_content_id,c.root_content_id,fa.sentiment FROM ${scopedContents} STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses fa ON fa.content_id=c.id ${where}`, values);
+    const feedbackIds = new Set(feedbackRows.map(row => String(row.id)));
+    const parentIds = [...new Set(feedbackRows.filter(row => row.content_type === 'comment').flatMap(row => [row.parent_content_id, row.root_content_id]).filter(id => id && !feedbackIds.has(String(id))))];
+    const contextRows = parentIds.length ? await this.query(`SELECT p.id,p.title,p.body,p.community_id FROM po_contents p WHERE p.id IN (${parentIds.map(() => '?').join(',')}) AND p.is_deleted=0 AND EXISTS (SELECT 1 FROM po_contents child WHERE child.id IN (${feedbackRows.map(() => '?').join(',')}) AND child.community_id=p.community_id AND (child.parent_content_id=p.id OR child.root_content_id=p.id))`, [...parentIds, ...feedbackRows.map(row => row.id)]) : [];
+    const feedback = require('../services/feedbackTopics').feedbackTopics(feedbackRows, {
+      contextRows,
+      translator: new (require('../integrations/aiTranslator').AiTranslator)({ ...process.env, AI_TRANSLATION_MAX_RETRIES: '0', AI_TRANSLATION_TIMEOUT_MS: '20000', AI_TRANSLATION_MAX_OUTPUT_TOKENS: '4000' }, { reserveCall: limit => this.reserveTranslationCall(limit) })
+    });
+    const frequentFeedbackBySentiment = feedback.groups;
+    const frequentFeedback = frequentFeedbackBySentiment.all;
+    return { metrics: { ...metrics[0], total: postCount + commentCount, postCount, commentCount, ...breakdownMetrics, negative: contentStats.negative, attention: contentStats.attention, urgent: contentStats.urgent, urgentAlertCount, activeAlertCount: alerts.length, urgentUnlinkedTotal }, sentiment: sentiments, sourceDistribution: sources, activeAlerts: alerts, urgentUnlinkedContents, trend, hotNegative: hotItems(hotNegative), hotAttention: hotItems(hotAttention), topicDistribution: topics, frequentFeedback, frequentFeedbackBySentiment, feedbackTopicStatus: feedback.status };
   }
   addRiskModeFilter(clauses, values, riskMode, alias = 'a') {
     if (!riskMode) return;
@@ -430,12 +456,15 @@ class Repository {
     clauses.push(`${alias}.sentiment IN ('neutral','negative')`);
     clauses.push(`${alias}.severity IN (${severities.map(() => '?').join(',')})`);
     values.push(...severities);
+    // The queue combines L2 and reviewed L3; only the actual L3 branch needs proof.
+    if (severities.includes('urgent')) clauses.push(`(${alias}.severity='negative' OR ${reviewedUrgentSql(alias)})`);
   }
-  async listContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, bigPlayerContentKind, riskMode, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, handlingStatus, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20, sort } = {}) {
+  async listContents({ contentId, accountId, regionCode, gameId, communityId, sourceId, platform, contentType, bigPlayerContentKind, riskMode, sentiment, severity, keyword, postId, analysisStatus, analysisLevel, handlingStatus, publishedFrom, publishedTo, includeDeleted = false, page = 1, pageSize = 20, sort, overviewPreview = false } = {}) {
     ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));
     const values = []; const clauses = [];
     this.addRiskModeFilter(clauses, values, riskMode, 'a');
     ContentHandling.addHandlingStatusFilter(clauses, handlingStatus, 'a');
+    if (!riskMode && severity === 'urgent') clauses.push(reviewedUrgentSql('a'));
     const kindPredicate = bigPlayerContentKindPredicate(bigPlayerContentKind);
     if (kindPredicate) clauses.push(kindPredicate);
     if (!includeDeleted) clauses.push('c.is_deleted=0');
@@ -480,15 +509,33 @@ class Repository {
     //   JOIN + 限制排序，实测 ~50ms。
     const rareAnalysisFilter = !riskMode && (severity === 'urgent' || severity === 'attention' || severity === 'negative') && !statusFilterIds;
     const smallStatusSet = statusFilterIds && statusFilterIds.length <= 1000;
-    const cIndexHint = smallStatusSet || rareAnalysisFilter ? '' : 'FORCE INDEX (po_contents_published_time_idx)';
+    // A dated community list must not scan every community's contents before
+    // testing the sparse risk predicate. Reuse the existing scope/time indexes;
+    // retain exact-id and small job-set plans and the severity-driven path.
+    const listDateIndex = (publishedFrom || publishedTo) && !contentId && !postId
+      ? (communityId ? 'po_contents_community_page_idx' : sourceId ? 'po_contents_source_time_idx' : accountId ? 'po_contents_account_time_idx' : gameId ? 'po_contents_game_time_idx' : 'po_contents_published_time_idx')
+      : 'po_contents_published_time_idx';
+    const cIndexHint = smallStatusSet || rareAnalysisFilter ? '' : `FORCE INDEX (${listDateIndex})`;
     const joinHint = smallStatusSet || rareAnalysisFilter ? 'JOIN' : 'STRAIGHT_JOIN';
     const severityJoin = rareAnalysisFilter ? ` JOIN (SELECT content_id FROM po_analyses FORCE INDEX (po_analyses_sentiment_cover_idx) WHERE severity=?) sf ON sf.content_id=c.id` : '';
     const base = `FROM po_contents c ${cIndexHint} ${severityJoin} ${joinHint} po_sources s ON s.id=c.source_id ${joinHint} po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id${needsJobs ? ` LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile=COALESCE(a.analysis_level,'light') AND j.analysis_version=COALESCE(a.analysis_version,?)` : ''}`;
     const hot = sort === 'engagement' || sort === 'published_desc';
     const hotFields = hot ? ", g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status, (COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.like') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.comment') AS UNSIGNED),0)+COALESCE(CAST(JSON_EXTRACT(c.engagement,'$.share') AS UNSIGNED),0)) AS engagement_score" : '';
     const order = sort === 'engagement' ? 'engagement_score DESC, a.negative_score DESC' : 'c.published_at DESC, c.id DESC';
-    const rows = await this.query(`SELECT c.*, s.platform, s.display_name AS source_name, a.sentiment, a.negative_score, a.confidence, a.quality_score, a.recommend_home, a.recommend_pin, a.recommend_feature, a.quality_reason, a.severity, a.topics, a.matched_keywords, a.summary, a.model_name, a.analysis_level, a.analysis_version, a.trigger_reason, ${analysisReasonSql('a')}, ${sentimentScoreSql('a')}, a.analyzed_at${hotFields}${needsJobs ? `, COALESCE(j.status,CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status, j.error_code AS analysis_error_code, j.error_message AS analysis_error_message` : `, CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END AS analysis_status`} ${base}${hot ? ' LEFT JOIN po_communities cm ON cm.id=c.community_id' : ''} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, [...(rareAnalysisFilter ? [severity] : []), ...(needsJobs ? [lightVersion] : []), ...values, limit, offset]);
-    if (rows.length) {
+    // Materialize only page IDs before reading raw payloads and analysis JSON.
+    // LIMIT in the derived table prevents the optimizer merging it into a wide filesort.
+    const pageFirst = sort !== 'engagement' && !needsJobs;
+    const coveredPageFilter = pageFirst && !analysisLevel;
+    const pageWhere = coveredPageFilter ? where.replaceAll('a.sentiment', 'page_analysis.sentiment').replaceAll('a.severity', 'page_analysis.severity').replaceAll('a.content_id IS NULL', 'page_analysis.content_id IS NULL') : where;
+    const pageNeedsAnalysis = Boolean(riskMode || severity || sentiment || handlingStatus);
+    const pageBase = coveredPageFilter
+      ? base.replace('LEFT JOIN po_analyses a ON a.content_id=c.id', pageNeedsAnalysis ? "LEFT JOIN po_analyses page_analysis FORCE INDEX (po_analyses_sentiment_cover_idx) ON page_analysis.content_id=c.id LEFT JOIN po_analyses a ON a.content_id=CASE WHEN page_analysis.severity='urgent' THEN page_analysis.content_id ELSE NULL END" : '')
+      : base;
+    const selectedBase = pageFirst
+      ? `FROM (SELECT c.id ${pageBase} ${pageWhere} ORDER BY ${order} LIMIT ? OFFSET ?) preview_page STRAIGHT_JOIN po_contents c ON c.id=preview_page.id STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id`
+      : base;
+    const rows = await this.query(`SELECT c.*, s.platform, s.display_name AS source_name, a.sentiment, a.negative_score, a.confidence, a.quality_score, a.recommend_home, a.recommend_pin, a.recommend_feature, a.quality_reason, a.severity, a.topics, a.matched_keywords, a.summary, a.model_name, a.analysis_level, a.analysis_version, a.trigger_reason, ${analysisReasonSql('a')}, ${sentimentScoreSql('a')}, ${urgentReviewSql('a')}, a.analyzed_at${hotFields}${needsJobs ? `, COALESCE(j.status,CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status, j.error_code AS analysis_error_code, j.error_message AS analysis_error_message` : `, CASE WHEN a.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END AS analysis_status`} ${selectedBase}${hot ? ' LEFT JOIN po_communities cm ON cm.id=c.community_id' : ''} ${pageFirst ? '' : where} ORDER BY ${order}${pageFirst ? '' : ' LIMIT ? OFFSET ?'}`, [...(rareAnalysisFilter ? [severity] : []), ...(needsJobs ? [lightVersion] : []), ...values, limit, offset]);
+    if (rows.length && overviewPreview !== true) {
       const idPlaceholders = rows.map(() => '?').join(',');
       // 补查评论数：本地评论数与 engagement JSON 里的较大值（与原 totalCommentCountSql 口径一致）
       const commentRows = await this.query(`SELECT root_content_id, COUNT(*) AS cnt FROM po_contents WHERE root_content_id IN (${idPlaceholders}) AND content_type='comment' AND is_deleted=0 GROUP BY root_content_id`, rows.map(row => row.id));
@@ -521,6 +568,7 @@ class Repository {
     ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));
     const values = []; const clauses = [];
     this.addRiskModeFilter(clauses, values, riskMode, 'a');
+    if (!riskMode && severity === 'urgent') clauses.push(reviewedUrgentSql('a'));
     ContentHandling.addHandlingStatusFilter(clauses, handlingStatus, 'a');
     const kindPredicate = bigPlayerContentKindPredicate(bigPlayerContentKind);
     if (kindPredicate) clauses.push(kindPredicate);
@@ -554,20 +602,48 @@ class Repository {
     // unclassified 已改为双 NOT EXISTS，不再需要 join
     const needsJobsJoin = Boolean(analysisStatus) && !jobStatuses.has(analysisStatus) && !isUnclassified;
     const needsAnalysis = needsJobsJoin || Boolean(sentiment && sentiment !== 'unclassified' || severity || analysisLevel || handlingStatus);
-    const analysisJoin = needsAnalysis ? ` LEFT JOIN po_analyses a ON a.content_id=c.id${needsJobsJoin ? " LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile='light' AND j.analysis_version='sentiment-v1'" : ''}` : '';
+    // The unique content lookup reads the entire analysis row (including large JSON).
+    // Simple sentiment/attention counters can stay on the existing covering index.
+    const needsAnalysisPayload = needsJobsJoin || Boolean(analysisLevel) || severity === 'urgent';
+    // Review JSON is needed only for the risk candidates, not for every neutral
+    // row in the community. Gate that payload lookup through the covered severity
+    // fields first; content_id is unique so this cannot multiply count rows.
+    const payloadSeverities = needsAnalysisPayload && ['attention', 'negative', 'urgent', 'normal'].includes(severity) ? (riskMode ? severitiesForRiskMode(riskMode) : [severity]) : [];
+    const payloadPrefilter = payloadSeverities.length ? ` LEFT JOIN po_analyses counter_analysis FORCE INDEX (po_analyses_sentiment_cover_idx) ON counter_analysis.content_id=c.id AND counter_analysis.severity IN (${payloadSeverities.map(value => `'${value}'`).join(',')})` : '';
+    const analysisJoin = needsAnalysis ? `${payloadPrefilter} LEFT JOIN po_analyses a${needsAnalysisPayload ? '' : ' FORCE INDEX (po_analyses_sentiment_cover_idx)'} ON a.content_id=${payloadPrefilter ? 'counter_analysis.content_id' : 'c.id'}${needsJobsJoin ? " LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile='light' AND j.analysis_version='sentiment-v1'" : ''}` : '';
     // 性能：无 game/community/platform/scope 过滤时 po_sources/po_games JOIN 毫无过滤作用，
     // 却让优化器选错计划（实测无过滤 COUNT 26s）；单表 COUNT 实测 ~90ms。有过滤时保留原 join。
     const needsScopeJoin = Boolean(regionCode || platform || gameId || communityId || contentId || sourceId || accountId || postId || statusFilterIds || bigPlayerContentKind);
-    const rows = await this.query(`SELECT COUNT(*) AS total FROM po_contents c${needsScopeJoin ? ` JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id` : ''}${analysisJoin} ${where}`, values);
+    // Broad scope counts otherwise start at the tiny sources table, then perform
+    // tens of thousands of random clustered-row reads through source/time indexes.
+    // Scan contents in clustered order instead; retain selective external-id/date
+    // plans and small explicit job-id sets. No schema or counting rules change.
+    const broadScope = needsScopeJoin && !postId && !publishedFrom && !publishedTo && !(statusFilterIds && statusFilterIds.length <= 1000);
+    // Date counters must not start from sources and scan all collected history.
+    // MariaDB's rowid filter can otherwise choose source/collected_at even for
+    // one community/day. Keep exact-id and small job-id lookups selective.
+    const dateIndex = (publishedFrom || publishedTo) && !contentId && !postId && !(statusFilterIds && statusFilterIds.length <= 1000)
+      ? (communityId ? 'po_contents_community_time_idx' : sourceId ? 'po_contents_source_time_idx' : accountId ? 'po_contents_account_time_idx' : gameId ? 'po_contents_game_time_idx' : 'po_contents_published_time_idx')
+      : null;
+    const counterIndex = dateIndex || (broadScope ? 'PRIMARY' : null);
+    const rows = await this.query(`SELECT ${counterIndex ? 'STRAIGHT_JOIN ' : ''}COUNT(*) AS total FROM po_contents c${counterIndex ? ` FORCE INDEX (${counterIndex})` : ''}${needsScopeJoin ? ` JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id` : ''}${analysisJoin} ${where}`, values);
     return Number(rows[0]?.total || 0);
   }
   async withContentHandling(items) { return ContentHandling.withContentHandling(this, items); }
   async handleContents(input, scope) { return ContentHandling.handleContents(this, input, scope); }
+  async loadAiCorrections(communityIds) { return require('../services/humanCorrections').loadCorrections(this, communityIds); }
   async getContentStats(filters = {}, { includeBreakdown = false } = {}) {
+    // A dated overview used eight near-identical scans. Aggregate the same
+    // dimensions once; retain the general counter path for richer filters.
+    const scopeKeys = new Set(['regionCode', 'gameId', 'communityId', 'sourceId', 'platform', 'publishedFrom', 'publishedTo']);
     const baseFilters = { ...filters };
     delete baseFilters.riskMode;
     delete baseFilters.severity;
     delete baseFilters.sentiment;
+    if ((filters.publishedFrom || filters.publishedTo) && Object.entries(baseFilters).every(([key, value]) => value == null || scopeKeys.has(key))) {
+      const stats = await this.getDatedContentStats(baseFilters);
+      return includeBreakdown ? stats : Object.fromEntries(['post', 'comment', 'negative', 'attention', 'urgent'].map(key => [key, stats[key]]));
+    }
     const dimensions = [
       ['post', { contentType: 'post' }],
       ['comment', { contentType: 'comment' }],
@@ -584,8 +660,46 @@ class Repository {
         }
       }
     }
-    const entries = await Promise.all(dimensions.map(async ([key, extra]) => [key, await this.countContents({ ...baseFilters, ...extra })]));
+    // The current risk contract maps negative/urgent to the same queue. Reuse an
+    // identical count within this response (including post/comment breakdowns),
+    // without caching across requests or delaying handling-state updates.
+    const counts = new Map();
+    const entries = await Promise.all(dimensions.map(async ([key, extra]) => {
+      const query = { ...baseFilters, ...extra };
+      const identity = JSON.stringify({ ...query, riskMode: query.riskMode ? severitiesForRiskMode(query.riskMode) : undefined });
+      if (!counts.has(identity)) counts.set(identity, this.countContents(query));
+      return [key, await counts.get(identity)];
+    }));
     return Object.fromEntries(entries.map(([key, value]) => [key, Number(value) || 0]));
+  }
+  async getDatedContentStats(filters) {
+    const values = []; const clauses = ['c.is_deleted=0'];
+    for (const [key, column] of [['regionCode', 'g.region_code'], ['gameId', 'c.game_id'], ['communityId', 'c.community_id'], ['sourceId', 'c.source_id'], ['platform', 's.platform']]) {
+      if (filters[key]) { clauses.push(`${column}=?`); values.push(filters[key]); }
+    }
+    if (filters.publishedFrom) { clauses.push('c.published_at>=?'); values.push(filters.publishedFrom); }
+    if (filters.publishedTo) { clauses.push('c.published_at<?'); values.push(filters.publishedTo); }
+    const risk = "ca.sentiment IN ('neutral','negative') AND ch.content_id IS NULL";
+    const rows = await this.query(`SELECT c.content_type, COUNT(*) AS count,
+      SUM(CASE WHEN ${risk} AND ca.severity='attention' THEN 1 ELSE 0 END) AS attention,
+      SUM(CASE WHEN ${risk} AND (ca.severity='negative' OR (ca.severity='urgent' AND ${reviewedUrgentSql('review_analysis')})) THEN 1 ELSE 0 END) AS urgent
+      FROM po_contents c FORCE INDEX (${contentTimeIndex(filters)}) STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id
+      LEFT JOIN po_analyses ca FORCE INDEX (po_analyses_sentiment_cover_idx) ON ca.content_id=c.id
+      LEFT JOIN po_analyses review_analysis ON review_analysis.content_id=CASE WHEN ca.severity='urgent' THEN ca.content_id ELSE NULL END
+      LEFT JOIN po_content_handlings ch ON ch.content_id=CASE WHEN ca.severity IN ('attention','negative','urgent') THEN c.id ELSE NULL END
+      WHERE ${clauses.join(' AND ')} GROUP BY c.content_type`, values);
+    const result = { post: 0, comment: 0, negative: 0, attention: 0, urgent: 0 };
+    for (const mode of ['attention', 'negative', 'urgent']) for (const type of ['Post', 'Comment']) result[`${mode}${type}Count`] = 0;
+    for (const row of rows) {
+      const type = row.content_type;
+      if (type === 'post' || type === 'comment') result[type] = Number(row.count) || 0;
+      for (const mode of ['attention', 'negative', 'urgent']) {
+        const count = Number(row[mode === 'negative' ? 'urgent' : mode]) || 0;
+        result[mode] += count;
+        if (type === 'post' || type === 'comment') result[`${mode}${type === 'post' ? 'Post' : 'Comment'}Count`] = count;
+      }
+    }
+    return result;
   }
   async getContent(id) { return (await this.query('SELECT * FROM po_contents WHERE id=? LIMIT 1', [id]))[0] || null; }
   async listAlertQualityCandidates(alertIds = [], scope = {}) {
@@ -646,7 +760,7 @@ class Repository {
   }
   async listAlerts({ regionCode, gameId, communityId, sourceId, platform, status, severity, page = 1, pageSize = 20 } = {}) {
     const values = []; const clauses = [];
-    clauses.push("(a.severity<>'urgent' OR a.status NOT IN ('pending','processing') OR EXISTS (SELECT 1 FROM po_alert_contents live_link JOIN po_contents live_content ON live_content.id=live_link.content_id JOIN po_analyses live_analysis ON live_analysis.content_id=live_content.id WHERE live_link.alert_id=a.id AND live_content.id=co.id AND COALESCE(live_content.is_deleted,0)=0 AND live_analysis.sentiment IN ('neutral','negative') AND live_analysis.severity='urgent'))");
+    clauses.push(`(a.severity<>'urgent' OR a.status NOT IN ('pending','processing') OR EXISTS (SELECT 1 FROM po_alert_contents live_link JOIN po_contents live_content ON live_content.id=live_link.content_id JOIN po_analyses live_analysis ON live_analysis.content_id=live_content.id WHERE live_link.alert_id=a.id AND live_content.id=co.id AND COALESCE(live_content.is_deleted,0)=0 AND live_analysis.sentiment IN ('neutral','negative') AND live_analysis.severity='urgent' AND ${reviewedUrgentSql('live_analysis', 'live_content')}))`);
     for (const [value, sql] of [[gameId, 'a.game_id'], [communityId, 'a.community_id'], [sourceId, 'co.source_id'], [status, 'a.status'], [severity, 'a.severity']]) if (value) { values.push(value); clauses.push(`${sql}=?`); }
     if (regionCode) { values.push(regionCode); clauses.push('g.region_code=?'); }
     if (platform) { values.push(platform); clauses.push('s.platform=?'); }
@@ -667,7 +781,7 @@ class Repository {
     if (!alert) return null;
     const contentValues = [id]; const contentClauses = ['ac.alert_id=?'];
     const activeUrgentAlert = alert.severity === 'urgent' && ['pending','processing'].includes(alert.status);
-    if (activeUrgentAlert) contentClauses.push("EXISTS (SELECT 1 FROM po_analyses current_analysis WHERE current_analysis.content_id=c.id AND current_analysis.sentiment IN ('neutral','negative') AND current_analysis.severity='urgent')", 'COALESCE(c.is_deleted,0)=0');
+    if (activeUrgentAlert) contentClauses.push(`EXISTS (SELECT 1 FROM po_analyses current_analysis WHERE current_analysis.content_id=c.id AND current_analysis.sentiment IN ('neutral','negative') AND current_analysis.severity='urgent' AND ${reviewedUrgentSql('current_analysis')})`, 'COALESCE(c.is_deleted,0)=0');
     for (const [value, sql] of [[scope.gameId, 'c.game_id'], [scope.communityId, 'c.community_id'], [scope.sourceId, 'c.source_id'], [scope.platform, 's.platform']]) if (value) { contentClauses.push(`${sql}=?`); contentValues.push(value); }
     if (scope.regionCode) { contentClauses.push('g.region_code=?'); contentValues.push(scope.regionCode); }
     let relatedContents = await this.query(`SELECT c.*, c.platform_author_id AS author_id FROM po_alert_contents ac JOIN po_contents c ON c.id=ac.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id WHERE ${contentClauses.join(' AND ')} ORDER BY c.published_at ASC, c.id ASC`, contentValues);
@@ -745,17 +859,22 @@ class Repository {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
-      let content = {}; let previousAnalysis = null;
+      let content = input.contentContext || {}; let previousAnalysis = null;
       if (contentId) {
-        const [contents] = await conn.query('SELECT game_id,source_id,account_id,fingerprint,title,body FROM po_contents WHERE id=? FOR UPDATE', [contentId]);
+        const [contents] = await conn.query('SELECT game_id,source_id,account_id,content_type,fingerprint,title,body,media,community_id,root_content_id,parent_content_id FROM po_contents WHERE id=? FOR UPDATE', [contentId]);
         content = contents[0] || {};
         if (content.fingerprint && input.contentFingerprint && content.fingerprint !== input.contentFingerprint) {
           throw repositoryError('ANALYSIS_CONTENT_CHANGED', 'analysis fingerprint no longer matches current content');
+        }
+        if (content.content_type === 'comment' && (input.typeSafeDecision || input.rawAnalysis?.typeSafeDecision)?.provider === CONTEXT_PROVIDER) {
+          const [contexts] = await conn.query(`SELECT ${contextColumns} FROM po_contents c ${contextJoins} WHERE c.id=? LOCK IN SHARE MODE`, [contentId]);
+          content.analysisContext = commentContext({ content_type: 'comment', ...contexts[0] });
         }
         const [previous] = await conn.query('SELECT * FROM po_analyses WHERE content_id=? FOR UPDATE', [contentId]);
         previousAnalysis = previous[0] || null;
       }
       const analysis = retainVerifiedUrgent(normalizeAnalysisResult(input, content), previousAnalysis, content);
+      if (!String(analysis.analysisReason || analysis.reason || '').trim()) throw repositoryError('ANALYSIS_REASON_REQUIRED', 'a concrete analysis reason is required before persisting an analysis');
       await write(conn, analysis);
       const riskContext = JSON.stringify({ gameComplaint: analysis.gameComplaint, gameComplaintEvidence: analysis.gameComplaintEvidence, gameExperienceRelated: analysis.gameExperienceRelated, originalSeverity: analysis.originalSeverity, rawAnalysis: analysis.rawAnalysis, riskPolicyVersion: analysis.riskPolicyVersion });
       if (contentId) await conn.query('UPDATE po_analyses SET risk_context=? WHERE content_id=?', [riskContext, contentId]);
@@ -811,9 +930,9 @@ class Repository {
       throw error;
     } finally { conn.release(); }
   }
-  async enqueueAnalysisJob(contentId, { profile = 'light', version = 'sentiment-v2', contentFingerprint, triggerReason, matchedKeywords = [], force = false } = {}) {
+  async enqueueAnalysisJob(contentId, { profile = 'light', version = 'sentiment-v2', contentFingerprint, triggerReason, matchedKeywords = [], analysisPolicy, force = false } = {}) {
     const id = uuid();
-    await this.query(`INSERT INTO po_analysis_jobs (id, content_id, analysis_profile, analysis_version, content_fingerprint, trigger_reason, matched_keywords, status) VALUES (?,?,?,?,?,?,?,'pending') ON DUPLICATE KEY UPDATE trigger_reason=VALUES(trigger_reason), matched_keywords=VALUES(matched_keywords), status=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),'pending',IF(status IN ('completed','running'),status,'pending')), attempts=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),0,attempts), next_retry_at=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,next_retry_at), error_code=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_code), error_message=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_message), lease_owner=IF(NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,lease_owner), lease_until=IF(NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,lease_until), content_fingerprint=VALUES(content_fingerprint), updated_at=NOW()`, [id, contentId, profile, version, contentFingerprint, triggerReason || null, JSON.stringify(matchedKeywords || []), force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0]);
+    await this.query(`INSERT INTO po_analysis_jobs (id, content_id, analysis_profile, analysis_version, content_fingerprint, trigger_reason, matched_keywords, analysis_policy, status) VALUES (?,?,?,?,?,?,?,?,'pending') ON DUPLICATE KEY UPDATE analysis_policy=IF(NOT(content_fingerprint<=>VALUES(content_fingerprint)) OR VALUES(trigger_reason)='manual_reanalysis',VALUES(analysis_policy),COALESCE(analysis_policy,VALUES(analysis_policy))), trigger_reason=VALUES(trigger_reason), matched_keywords=VALUES(matched_keywords), status=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),'pending',IF(status IN ('completed','running'),status,'pending')), attempts=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),0,attempts), next_retry_at=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,next_retry_at), error_code=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_code), error_message=IF(? OR NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,error_message), lease_owner=IF(NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,lease_owner), lease_until=IF(NOT(content_fingerprint<=>VALUES(content_fingerprint)),NULL,lease_until), content_fingerprint=VALUES(content_fingerprint), updated_at=NOW()`, [id, contentId, profile, version, contentFingerprint, triggerReason || null, JSON.stringify(matchedKeywords || []), analysisPolicy ? JSON.stringify(normalizeAiAnalysisPolicy(analysisPolicy)) : null, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0, force ? 1 : 0]);
     return (await this.query('SELECT * FROM po_analysis_jobs WHERE content_id=? AND analysis_profile=? AND analysis_version=?', [contentId, profile, version]))[0] || null;
   }
   async claimAnalysisJobs({ profile, version, leaseOwner, leaseSeconds = 300, limit = 100, sourceId, accountId, gameId, communityId, publishedFrom, publishedTo, businessDate, contentIds, allowDisabledSource = false } = {}) {
@@ -901,26 +1020,40 @@ class Repository {
     } else {
     await this.query(`UPDATE po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id SET j.status='running', j.lease_owner=?, j.lease_until=DATE_ADD(NOW(), INTERVAL ? SECOND), j.attempts=j.attempts+1, j.error_code=NULL, j.error_message=NULL WHERE j.analysis_profile=? AND j.analysis_version=? AND ${clauses.join(' AND ')} AND (j.status='pending' OR (j.status='retryable' AND (j.next_retry_at IS NULL OR j.next_retry_at<=NOW())) OR (j.status='running' AND j.lease_until<NOW())) ORDER BY ${recencyOrder} LIMIT ?`, params);
     }
-    return this.query("SELECT j.*, c.game_id, c.community_id, c.source_id, c.account_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.fingerprint, c.is_deleted, s.platform, g.name AS game_name, g.region_code, cm.name AS community_name FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE j.lease_owner=? AND j.status='running' AND j.analysis_profile=? AND j.analysis_version=? ORDER BY j.created_at ASC", [claimOwner, profile, version]);
+    return this.query(`SELECT j.*, c.game_id, c.community_id, c.source_id, c.account_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.fingerprint, c.is_deleted, c.root_content_id, c.parent_content_id, ${contextColumns}, s.platform, g.name AS game_name, g.region_code, cm.name AS community_name FROM po_analysis_jobs j JOIN po_contents c ON c.id=j.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_communities cm ON cm.id=c.community_id ${contextJoins} WHERE j.lease_owner=? AND j.status='running' AND j.analysis_profile=? AND j.analysis_version=? ORDER BY j.created_at ASC`, [claimOwner, profile, version]);
+  }
+  async getCommentAnalysisContext(contentId) {
+    const rows = await this.query(`SELECT c.content_type,${contextColumns} FROM po_contents c ${contextJoins} WHERE c.id=? AND c.is_deleted=0`, [contentId]);
+    return commentContext(rows[0] || { content_type: 'comment' });
   }
   async finishAnalysisJob(id, { leaseOwner, status = 'completed', errorCode, errorMessage, retryAt } = {}) { await this.query('UPDATE po_analysis_jobs SET status=?, error_code=?, error_message=?, next_retry_at=?, completed_at=CASE WHEN ?=\'completed\' THEN NOW() ELSE completed_at END, lease_owner=NULL, lease_until=NULL, updated_at=NOW() WHERE id=? AND lease_owner=?', [status, errorCode || null, errorMessage ? String(errorMessage).slice(0, 500) : null, retryAt || null, status, id, leaseOwner]); }
   async getAnalysisCache(cacheKeys = []) { if (!cacheKeys.length) return []; return this.query(`SELECT * FROM po_analysis_cache WHERE cache_key IN (${cacheKeys.map(() => '?').join(',')})`, cacheKeys); }
   async upsertAnalysisCache(input) { return this.writeAnalysisWithAudit(null, input, async (conn, entry) => { await conn.query('INSERT INTO po_analysis_cache (cache_key, content_fingerprint, analysis_profile, analysis_version, model_name, sentiment, negative_score, confidence, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, severity, topics, summary, needs_deep, reason, input_tokens, output_tokens, total_tokens, usage_estimated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE sentiment=VALUES(sentiment), negative_score=VALUES(negative_score), confidence=VALUES(confidence), quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), severity=VALUES(severity), topics=VALUES(topics), summary=VALUES(summary), needs_deep=VALUES(needs_deep), reason=VALUES(reason), input_tokens=VALUES(input_tokens), output_tokens=VALUES(output_tokens), total_tokens=VALUES(total_tokens), usage_estimated=VALUES(usage_estimated), updated_at=NOW()', [entry.cacheKey, entry.contentFingerprint, entry.profile, entry.version, entry.modelName, entry.sentiment || 'neutral', Number.isFinite(Number(entry.negativeScore)) ? Number(entry.negativeScore) : 0, entry.confidence == null ? 0 : Number(entry.confidence), entry.qualityScore == null ? 0 : Number(entry.qualityScore), entry.recommendHome ? 1 : 0, entry.recommendPin ? 1 : 0, entry.recommendFeature ? 1 : 0, entry.qualityReason || null, entry.severity, JSON.stringify(entry.topics || []), entry.summary || '', entry.needsDeep ? 1 : 0, entry.reason || null, Number(entry.usage?.inputTokens || 0), Number(entry.usage?.outputTokens || 0), Number(entry.usage?.totalTokens || 0), entry.usage?.estimated ? 1 : 0]); }); }
   async upsertQualityCandidate(contentId, analysis = {}) {
+    if (analysis.qualityPolicy) {
+      const content = analysis.body == null || !analysis.contentType ? (await this.query('SELECT body,content_type FROM po_contents WHERE id=? LIMIT 1', [contentId]))[0] || {} : {};
+      const eligibility = qualityEligibility(analysis, { body: analysis.body ?? content.body, contentType: analysis.contentType || content.content_type }, analysis.qualityPolicy);
+      if (!eligibility.eligible) {
+        // Preserve human review history when an explicit reanalysis no longer qualifies.
+        await this.query('UPDATE po_quality_candidates SET recommend_home=0,recommend_pin=0,recommend_feature=0,quality_policy=?,updated_at=NOW() WHERE content_id=?', [JSON.stringify(eligibility.policy), contentId]);
+        return null;
+      }
+      analysis = { ...analysis, qualityPolicy: eligibility.policy };
+    }
     const recommended = Boolean(analysis.recommendHome || analysis.recommendPin || analysis.recommendFeature);
     const sentiment = String(analysis.sentiment || '').toLowerCase();
     const qualityScore = analysis.qualityScore == null ? null : Number(analysis.qualityScore);
-    if (!recommended || sentiment === 'negative' || !Number.isFinite(qualityScore) || qualityScore < QUALITY_SCORE_THRESHOLD) {
+    if (!recommended || sentiment === 'negative' || !Number.isFinite(qualityScore) || qualityScore < (analysis.qualityPolicy?.minScore ?? 0.7)) {
       await this.query('DELETE FROM po_quality_candidates WHERE content_id=?', [contentId]);
       return null;
     }
     // Short text is excluded without destroying existing human review history.
     const body = analysis.body ?? (await this.query('SELECT body FROM po_contents WHERE id=? LIMIT 1', [contentId]))[0]?.body;
-    if (qualityBodyLength(body) < 50) return null;
-    await this.query(`INSERT INTO po_quality_candidates (id, content_id, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, analysis_version, model_name, content_fingerprint)
-      VALUES (?,?,?,?,?,?,?,?,?,?)
-      ON DUPLICATE KEY UPDATE quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), analysis_version=VALUES(analysis_version), model_name=VALUES(model_name), content_fingerprint=VALUES(content_fingerprint), updated_at=NOW()`,
-    [uuid(), contentId, analysis.qualityScore == null ? null : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.analysisVersion || analysis.version || 'quality-v1', analysis.modelName || null, analysis.contentFingerprint || null]);
+    if (qualityBodyLength(body) < (analysis.qualityPolicy?.minBodyLength ?? 50)) return null;
+    await this.query(`INSERT INTO po_quality_candidates (id, content_id, quality_score, recommend_home, recommend_pin, recommend_feature, quality_reason, analysis_version, model_name, content_fingerprint, quality_policy)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE quality_score=VALUES(quality_score), recommend_home=VALUES(recommend_home), recommend_pin=VALUES(recommend_pin), recommend_feature=VALUES(recommend_feature), quality_reason=VALUES(quality_reason), analysis_version=VALUES(analysis_version), model_name=VALUES(model_name), content_fingerprint=VALUES(content_fingerprint), quality_policy=VALUES(quality_policy), updated_at=NOW()`,
+    [uuid(), contentId, analysis.qualityScore == null ? null : Number(analysis.qualityScore), analysis.recommendHome ? 1 : 0, analysis.recommendPin ? 1 : 0, analysis.recommendFeature ? 1 : 0, analysis.qualityReason || null, analysis.analysisVersion || analysis.version || 'quality-v1', analysis.modelName || null, analysis.contentFingerprint || null, analysis.qualityPolicy ? JSON.stringify(analysis.qualityPolicy) : null]);
     return (await this.query('SELECT * FROM po_quality_candidates WHERE content_id=? LIMIT 1', [contentId]))[0] || null;
   }
   async cleanupInvalidQualityCandidates() {
@@ -931,16 +1064,16 @@ class Repository {
       DELETE q FROM po_quality_candidates q
       JOIN po_contents c ON c.id=q.content_id
       LEFT JOIN po_analyses a ON a.content_id=c.id
-      WHERE ${qualityBodyLengthSql('c.body')} >= 50 AND NOT (
+      WHERE q.quality_policy IS NULL AND ${qualityBodyLengthSql('c.body')} >= 50 AND NOT (
         c.is_deleted=0
         AND COALESCE(a.sentiment,'') <> 'negative'
         AND (q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)
-        AND q.quality_score >= 0.7
+        AND ${qualitySnapshotSql().join(' AND ')}
       )`);
     return Number(result.affectedRows || 0);
   }
   qualityContentFilter({ regionCode, gameId, communityId, sourceId, platform, recommendationType, reviewStatus, publishedFrom, publishedTo } = {}) {
-    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', `${qualityBodyLengthSql('c.body')} >= 50`, 'q.quality_score >= 0.7'];
+    const values = []; const clauses = ['c.is_deleted=0', "COALESCE(a.sentiment,'') <> 'negative'", '(q.recommend_home=1 OR q.recommend_pin=1 OR q.recommend_feature=1)', ...qualitySnapshotSql()];
     for (const [value, sql] of [[gameId, 'c.game_id'], [communityId, 'c.community_id'], [sourceId, 'c.source_id']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); }
     if (platform) { clauses.push('s.platform=?'); values.push(platform); }
@@ -953,13 +1086,18 @@ class Repository {
   }
   async listQualityContents(filters = {}) {
     const { clauses, values } = this.qualityContentFilter(filters); const limit = Math.min(Math.max(Number(filters.pageSize) || 20, 1), 100); const page = Math.max(Number(filters.page) || 1, 1); const offset = (page - 1) * limit;
-    const rows = await this.query(`SELECT q.*, c.game_id, c.community_id, c.source_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, c.engagement, c.fingerprint, s.platform, s.display_name AS source_name, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${clauses.join(' AND ')} ORDER BY c.published_at DESC, q.quality_score DESC, q.id DESC LIMIT ? OFFSET ?`, [...values, limit, offset]);
+    const rows = await this.query(`SELECT q.*, ${analysisReasonSql('a')}, c.game_id, c.community_id, c.source_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, c.engagement, c.fingerprint, s.platform, s.display_name AS source_name, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM (SELECT q.id ${this.qualityPageBase(filters)} WHERE ${clauses.join(' AND ')} ORDER BY c.published_at DESC, q.quality_score DESC, q.id DESC LIMIT ? OFFSET ?) quality_page STRAIGHT_JOIN po_quality_candidates q ON q.id=quality_page.id STRAIGHT_JOIN po_contents c ON c.id=q.content_id STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id LEFT JOIN po_communities cm ON cm.id=c.community_id ORDER BY c.published_at DESC, q.quality_score DESC, q.id DESC`, [...values, limit, offset]);
     return rows.map(normalizeQualityCandidate);
   }
-  async countQualityContents(filters = {}) { const { clauses, values } = this.qualityContentFilter(filters); const rows = await this.query(`SELECT COUNT(*) AS total FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id WHERE ${clauses.join(' AND ')}`, values); return Number(rows[0]?.total || 0); }
+  qualityPageBase(filters) {
+    // Community/date first, then sparse candidates; analysis eligibility is covered.
+    const index = filters.communityId ? 'po_contents_community_time_idx' : filters.sourceId ? 'po_contents_source_time_idx' : filters.gameId ? 'po_contents_game_time_idx' : 'po_contents_published_time_idx';
+    return `FROM po_contents c FORCE INDEX (${index}) STRAIGHT_JOIN po_quality_candidates q ON q.content_id=c.id STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a FORCE INDEX (po_analyses_sentiment_cover_idx) ON a.content_id=c.id`;
+  }
+  async countQualityContents(filters = {}) { const { clauses, values } = this.qualityContentFilter(filters); const rows = await this.query(`SELECT COUNT(*) AS total ${this.qualityPageBase(filters)} WHERE ${clauses.join(' AND ')}`, values); return Number(rows[0]?.total || 0); }
   async getQualityContent(id, scope = {}) {
     const { clauses, values } = this.qualityContentFilter(scope); clauses.unshift('q.id=?'); values.unshift(id);
-    const rows = await this.query(`SELECT q.*, c.game_id, c.community_id, c.source_id, c.content_type, c.external_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, c.engagement, c.fingerprint, s.platform, s.display_name AS source_name, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id LEFT JOIN po_communities cm ON cm.id=c.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, values);
+    const rows = await this.query(`SELECT q.*, tr.translated_title, tr.translated_body, CASE WHEN tr.content_id IS NOT NULL THEN 'completed' ELSE COALESCE(tj.status,'not_requested') END translation_status, tj.error_code translation_error_code, ${analysisReasonSql('a')}, c.game_id, c.community_id, c.source_id, c.content_type, c.external_id, (SELECT root.external_id FROM po_contents root WHERE root.id=c.root_content_id AND root.source_id=c.source_id AND root.game_id=c.game_id AND (root.community_id<=>c.community_id) AND root.content_type='post' LIMIT 1) root_external_id, c.author_name, c.platform_author_id, c.title, c.body, c.media, c.published_at, c.source_url, c.engagement, c.fingerprint, s.platform, s.display_name AS source_name, g.name AS game_name, g.region_code, cm.name AS community_name, cm.status AS community_status FROM po_quality_candidates q JOIN po_contents c ON c.id=q.content_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analyses a ON a.content_id=c.id LEFT JOIN po_communities cm ON cm.id=c.community_id LEFT JOIN po_content_translations tr ON tr.content_id=c.id AND tr.target_language='zh-CN' AND tr.translation_version=? AND tr.content_fingerprint=c.fingerprint LEFT JOIN po_translation_jobs tj ON tj.content_id=c.id AND tj.target_language='zh-CN' AND tj.translation_version=? AND tj.content_fingerprint=c.fingerprint WHERE ${clauses.join(' AND ')} LIMIT 1`, [process.env.AI_TRANSLATION_VERSION || 'translation-v1', process.env.AI_TRANSLATION_VERSION || 'translation-v1', ...values]);
     return normalizeQualityCandidate(rows[0] || null);
   }
   async updateQualityCandidate(id, patch = {}, reviewerId = 'admin', scope = {}) {
@@ -1028,7 +1166,7 @@ class Repository {
     const clauses = ["g.region_code='overseas'", 'c.is_deleted=0', "COALESCE(j.error_code,'')<>'OVERSEAS_BOUNDED_VERIFICATION_HOLD'", "(TRIM(COALESCE(c.title,''))<>'' OR TRIM(COALESCE(c.body,''))<>'')", force ? "(j.id IS NULL OR j.status IN ('failed','retryable') OR j.content_fingerprint<>c.fingerprint)" : '(j.id IS NULL OR j.content_fingerprint<>c.fingerprint)'];
     if (Array.isArray(contentIds) && contentIds.length) { const ids = [...new Set(contentIds.map(String).filter(Boolean))]; clauses.push(`c.id IN (${ids.map(() => '?').join(',')})`); values.push(...ids); }
     values.push(Math.min(Math.max(Number(limit) || 100, 1), 500));
-    const rows = await this.query(`SELECT c.id, c.fingerprint FROM po_contents c JOIN po_games g ON g.id=c.game_id LEFT JOIN po_translation_jobs j ON j.content_id=c.id AND j.target_language=? AND j.translation_version=? WHERE ${clauses.join(' AND ')} ORDER BY c.collected_at ASC LIMIT ?`, values);
+    const rows = await this.query(`SELECT c.id, c.fingerprint, c.raw_payload FROM po_contents c JOIN po_games g ON g.id=c.game_id LEFT JOIN po_translation_jobs j ON j.content_id=c.id AND j.target_language=? AND j.translation_version=? WHERE ${clauses.join(' AND ')} ORDER BY c.collected_at ASC LIMIT ?`, values);
     for (const row of rows) await this.enqueueTranslationJob(row.id, { targetLanguage, version, contentFingerprint: row.fingerprint, force });
     return rows.length;
   }
@@ -1126,8 +1264,8 @@ class Repository {
       values.push(...ids);
     }
     values.push(Math.min(Math.max(Number(limit) || 100, 1), 500));
-    const rows = await this.query(`SELECT c.id, c.fingerprint FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile=? AND j.analysis_version=? WHERE ${clauses.join(' AND ')} ORDER BY c.collected_at ASC LIMIT ?`, values);
-    for (const row of rows) await this.enqueueAnalysisJob(row.id, { profile, version, contentFingerprint: row.fingerprint, triggerReason: 'version_backfill', force });
+    const rows = await this.query(`SELECT c.id, c.fingerprint, c.raw_payload FROM po_contents c JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile=? AND j.analysis_version=? WHERE ${clauses.join(' AND ')} ORDER BY c.collected_at ASC LIMIT ?`, values);
+    for (const row of rows) await this.enqueueAnalysisJob(row.id, { profile, version, contentFingerprint: row.fingerprint, triggerReason: 'version_backfill', analysisPolicy: (() => { try { const raw=typeof row.raw_payload==='string'?JSON.parse(row.raw_payload):row.raw_payload; return raw?._aiAnalysisPolicy; } catch { return null; } })(), force });
     return rows.length;
   }
   async countAnalysisJobs({ profile, version, sourceId, accountId, gameId, communityId, contentIds, contentType, sentiment, severity, analysisStatus, analysisLevel, keyword, publishedFrom, publishedTo } = {}) {
@@ -1170,7 +1308,9 @@ class Repository {
     result.waitSlaSeconds = Number.isFinite(slaTarget) && slaTarget > 0 ? slaTarget : null;
     result.waitSlaBreached = result.waitSlaSeconds === null ? null : result.oldestWaitingSeconds > result.waitSlaSeconds;
     // Orphans have no content scope; expose the separate global profile/version alarm.
-    const [orphan] = await this.query("SELECT SUM(CASE WHEN j.analysis_profile=? AND j.analysis_version=? AND j.status IN ('pending','running','retryable') THEN 1 ELSE 0 END) AS count, MIN(CASE WHEN j.analysis_profile=? AND j.analysis_version=? AND j.status IN ('pending','running','retryable') THEN j.created_at END) AS oldest_created_at, SUM(CASE WHEN j.status IN ('pending','running','retryable') THEN 1 ELSE 0 END) AS all_active, COUNT(*) AS all_statuses FROM po_analysis_jobs j LEFT JOIN po_contents c ON c.id=j.content_id WHERE c.id IS NULL", [profile, version, profile, version]);
+    // Both keys are NOT NULL. Materializing the small content-id set preserves the
+    // anti-join exactly while avoiding a random content lookup for every old job.
+    const [orphan] = await this.query("SELECT SUM(CASE WHEN j.analysis_profile=? AND j.analysis_version=? AND j.status IN ('pending','running','retryable') THEN 1 ELSE 0 END) AS count, MIN(CASE WHEN j.analysis_profile=? AND j.analysis_version=? AND j.status IN ('pending','running','retryable') THEN j.created_at END) AS oldest_created_at, SUM(CASE WHEN j.status IN ('pending','running','retryable') THEN 1 ELSE 0 END) AS all_active, COUNT(*) AS all_statuses FROM po_analysis_jobs j WHERE j.content_id NOT IN (SELECT id FROM po_contents)", [profile, version, profile, version]);
     result.orphanAnalysisJobs = Number(orphan?.count || 0);
     result.orphanOldestWaitingAt = orphan?.oldest_created_at || null;
     result.orphanAnalysisJobsAllProfiles = Number(orphan?.all_active || 0);
@@ -1329,7 +1469,16 @@ class Repository {
     const params = [accountId, ...(siteId == null ? [] : [siteId]), taskKind, taskKey, syncScope, rootPlatformContentId, windowStart, windowEnd];
     return (await this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND ${siteClause} AND task_kind=? AND task_key=? AND sync_scope=? AND root_platform_content_id=? AND window_start=? AND window_end=? ORDER BY (status='completed') DESC,(\`cursor\` IS NOT NULL) DESC,id LIMIT 1`, params))[0] || null;
   }
-  async claimSyncCheckpoint({ accountId, siteId = null, syncScope, rootPlatformContentId = '', syncMode = 'incremental', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '', leaseOwner, leaseSeconds = 300 }) {
+  async claimSyncCheckpoint(input) {
+    for (let attempt = 0; ; attempt++) {
+      try { return await this._claimSyncCheckpointOnce(input); }
+      catch (error) {
+        if (!['ER_LOCK_DEADLOCK','ER_LOCK_WAIT_TIMEOUT'].includes(error?.code) || attempt >= 4) throw error;
+        await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt + Math.floor(Math.random() * 100)));
+      }
+    }
+  }
+  async _claimSyncCheckpointOnce({ accountId, siteId = null, syncScope, rootPlatformContentId = '', syncMode = 'incremental', taskKind = 'sync', taskKey = '', windowStart = '', windowEnd = '', leaseOwner, leaseSeconds = 300 }) {
     if (syncScope === 'replies') return null;
     const conn = await this.pool.getConnection();
     const siteClause = siteId == null ? 'site_id IS NULL' : 'site_id=?';
@@ -1371,13 +1520,13 @@ class Repository {
     return this.query(`SELECT * FROM po_sync_checkpoints WHERE account_id=? AND sync_scope<>'replies'${syncScope ? ' AND sync_scope=?' : ''} ORDER BY sync_scope, root_platform_content_id`, syncScope ? [accountId, syncScope] : [accountId]);
   }
   async getSourceSyncStatusSummary({ accountId } = {}) {
-    const rows = await this.query("SELECT sync_scope,status,COUNT(*) AS checkpoint_count,COALESCE(SUM(items_fetched),0) AS items_fetched,MAX(last_item_at) AS last_item_at,MAX(error_code) AS error_code FROM po_sync_checkpoints WHERE account_id=? AND sync_scope<>'replies' GROUP BY sync_scope,status ORDER BY sync_scope,status", [accountId]);
+    const rows = await this.query("SELECT sync_scope,status,COUNT(*) AS checkpoint_count,COALESCE(SUM(items_fetched),0) AS items_fetched,MAX(last_item_at) AS last_item_at,MAX(error_code) AS error_code FROM po_sync_checkpoints FORCE INDEX (po_checkpoint_summary_cover) WHERE account_id=? AND sync_scope<>'replies' GROUP BY sync_scope,status ORDER BY sync_scope,status", [accountId]);
     // renderRows chooses the first nonempty error per scope in the original
     // root_platform_content_id order, not the lexicographic maximum message.
     // Ties in the legacy query were unspecified; id makes those deterministic.
     const errors = await this.query(`SELECT sync_scope,error_message FROM (
       SELECT sync_scope,error_message,ROW_NUMBER() OVER (PARTITION BY sync_scope ORDER BY root_platform_content_id,id) AS error_rank
-      FROM po_sync_checkpoints WHERE account_id=? AND sync_scope<>'replies' AND error_message IS NOT NULL AND error_message<>''
+      FROM po_sync_checkpoints FORCE INDEX (po_checkpoint_error_summary_idx) WHERE account_id=? AND sync_scope<>'replies' AND error_message IS NOT NULL AND error_message<>''
     ) ordered_errors WHERE error_rank=1`, [accountId]);
     const byScope = new Map(errors.map(row => [row.sync_scope, row.error_message]));
     return rows.map(row => ({ ...row, error_message: byScope.get(row.sync_scope) || null }));
@@ -1432,8 +1581,8 @@ class Repository {
       const [activeRows] = await conn.query(activeSql, [sourceId]);
       if (activeRows[0]) { await conn.commit(); return activeRows[0]; }
       const id = uuid();
-      if (schedulerStateReady) await conn.query("INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, started_at) VALUES (?,?,?,'legacy','queued',?,NULL,NULL)", [id, sourceId, accountId, syncMode]);
-      else await conn.query("INSERT INTO po_sync_runs (id, account_id, status, sync_mode, started_at) VALUES (?,?,'queued',?,NULL)", [id, accountId, syncMode]);
+      if (schedulerStateReady) await conn.query("INSERT INTO po_sync_runs (created_at,requested_at,id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, started_at) VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,'legacy','queued',?,NULL,NULL)", [id, sourceId, accountId, syncMode]);
+      else await conn.query("INSERT INTO po_sync_runs (created_at,requested_at,id, account_id, status, sync_mode, started_at) VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,'queued',?,NULL)", [id, accountId, syncMode]);
       const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [id]);
       await conn.commit();
       return runRows[0] || null;
@@ -1454,7 +1603,7 @@ class Repository {
     const params = [id]; const clauses = ['r.id=?'];
     for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id'], [leaseOwner, 'r.lease_owner'], [status, 'r.status']]) if (value != null) { clauses.push(`${sql}=?`); params.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); }
-    return (await this.query(`SELECT ${projection},a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, params))[0] || null;
+    return normalizeSyncRunTimes((await this.query(`SELECT ${projection},a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id WHERE ${clauses.join(' AND ')} LIMIT 1`, params))[0] || null);
   }
   async getLatestSyncRunForSource(sourceId, { accountId } = {}) {
     const params = [sourceId]; const accountClause = accountId ? ' AND r.account_id=?' : ''; if (accountId) params.push(accountId);
@@ -1462,7 +1611,7 @@ class Repository {
     return ids[0] ? this.getSyncRun(ids[0].id, { sourceId, accountId }) : null;
   }
   async listSyncRuns({ accountId, sourceId, regionCode, gameId, communityId, platform, status, syncMode, startedFrom, startedTo, runId, page = 1, pageSize = 20 } = {}) {
-    const projection = await this.getSyncRunProjection();
+    const projection = (await this.getSyncRunProjection()).replace(/,\(SELECT COUNT\(DISTINCT run_(?:posts|comments|replies)\.content_id\)[\s\S]*?\) AS (post_count|actual_comment_body_count|reply_count)/g, ',0 AS $1');
     const values = []; const clauses = [];
     for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id'], [platform, 'a.platform'], [status, 'r.status'], [syncMode, 'r.sync_mode'], [runId, 'r.id']]) if (value) { clauses.push(`${sql}=?`); values.push(value); }
     if (regionCode) { clauses.push('g.region_code=?'); values.push(regionCode); }
@@ -1471,8 +1620,19 @@ class Repository {
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''; const base = `FROM po_sync_runs r JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id ${where}`;
     const limit = Math.min(Math.max(Number(pageSize) || 20, 1), 100); const currentPage = Math.max(Number(page) || 1, 1); const offset = (currentPage - 1) * limit;
     const pageBase = `FROM (SELECT r.id ${base} ORDER BY r.created_at DESC,r.id DESC LIMIT ? OFFSET ?) page_runs JOIN po_sync_runs r ON r.id=page_runs.id JOIN po_accounts a ON a.id=r.account_id JOIN po_sources s ON s.id=a.source_id JOIN po_games g ON g.id=a.game_id LEFT JOIN po_communities c ON c.id=a.community_id`;
-    const [countRows, items] = await Promise.all([this.query(`SELECT COUNT(*) AS total ${base}`, values), this.query(`SELECT ${projection},a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status ${pageBase} ORDER BY r.created_at DESC,r.id DESC`, [...values, limit, offset])]);
-    return { items, total: Number(countRows[0]?.total || 0), page: currentPage, pageSize: limit };
+    const [countRows, items] = await Promise.all([this.query(`SELECT COUNT(*) AS total ${base}`, values), this.query(`SELECT ${projection},COALESCE(r.started_at,(SELECT MIN(child_time.started_at) FROM po_sync_runs child_time WHERE child_time.parent_run_id=r.id)) AS display_started_at,CASE WHEN r.status='queued' AND EXISTS(SELECT 1 FROM po_sync_runs child_state WHERE child_state.parent_run_id=r.id AND child_state.started_at IS NOT NULL) THEN 'running' ELSE r.status END AS display_status,a.game_id,a.community_id,a.platform,a.platform_account_id,a.account_name,s.id AS source_id,s.display_name AS source_name,g.name AS game_name,g.region_code,c.name AS community_name,c.status AS community_status ${pageBase} ORDER BY r.created_at DESC,r.id DESC`, [...values, limit, offset])]);
+    // Aggregate only the bounded page, preserving distinct content across a parent and its own-account children.
+    const ids = items.map(item => item.id).filter(Boolean);
+    if (ids.length) {
+      const placeholders = ids.map(() => '?').join(',');
+      const counts = await this.query(`SELECT scope.root_id AS run_id, COUNT(DISTINCT CASE WHEN rc.sync_scope='posts' THEN rc.content_id END) AS post_count, COUNT(DISTINCT CASE WHEN rc.sync_scope IN ('comments','replies') THEN rc.content_id END) AS actual_comment_body_count, COUNT(DISTINCT CASE WHEN rc.sync_scope='replies' THEN rc.content_id END) AS reply_count FROM (SELECT parent.id AS root_id,parent.id AS run_id FROM po_sync_runs parent WHERE parent.id IN (${placeholders}) UNION ALL SELECT parent.id AS root_id,child.id AS run_id FROM po_sync_runs parent JOIN po_sync_runs child ON child.parent_run_id=parent.id AND child.account_id=parent.account_id WHERE parent.id IN (${placeholders})) scope STRAIGHT_JOIN po_sync_run_contents rc ON rc.run_id=scope.run_id GROUP BY scope.root_id`, [...ids, ...ids]);
+      const byId = new Map(counts.map(row => [String(row.run_id), row]));
+      for (const item of items) {
+        const count = byId.get(String(item.id));
+        for (const key of ['post_count', 'actual_comment_body_count', 'reply_count']) item[key] = Number(count?.[key] || 0);
+      }
+    }
+    return { items: items.map(normalizeSyncRunTimes), total: Number(countRows[0]?.total || 0), page: currentPage, pageSize: limit };
   }
   async getDeletePreview(runId) {
     const run = await this.getSyncRun(runId); if (!run) return null;
@@ -1517,7 +1677,7 @@ class Repository {
     if (runId) { where = `id=? AND (${where})`; params.push(runId); }
     else if (accountId) { where = `account_id=? AND (${where}) ORDER BY created_at ASC LIMIT 1`; params.push(accountId); }
     else where = `(${where}) ORDER BY created_at ASC LIMIT 1`;
-    const result = await this.query(`UPDATE po_sync_runs SET status='running', started_at=COALESCE(started_at,UTC_TIMESTAMP(3)), attempts=attempts+1, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), updated_at=UTC_TIMESTAMP(3) WHERE (next_retry_at IS NULL OR next_retry_at<=UTC_TIMESTAMP(3)) AND ${where}`, params);
+    const result = await this.query(`UPDATE po_sync_runs SET status='running', error_code=CASE WHEN error_code='SYNC_ACCOUNT_BUSY' THEN NULL ELSE error_code END, error_message=CASE WHEN error_code IS NULL THEN NULL ELSE error_message END, next_retry_at=NULL, started_at=COALESCE(started_at,UTC_TIMESTAMP(3)), attempts=attempts+1, lease_owner=?, lease_epoch=lease_epoch+1, lease_until=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL ? SECOND), updated_at=UTC_TIMESTAMP(3) WHERE (next_retry_at IS NULL OR next_retry_at<=UTC_TIMESTAMP(3)) AND ${where}`, params);
     if (!result.affectedRows) return null;
     // 领取结果使用 r.*，既把 window_start/window_end 交给 Worker，又保持 pre-023
     // getSyncRun 的兼容投影不引用新列。后续写入仍以精确 lease_owner fencing。
@@ -1648,7 +1808,7 @@ class Repository {
     const params = [status, patch.discoveredCount == null ? null : Number(patch.discoveredCount), patch.storedCount == null ? null : Number(patch.storedCount), patch.errorCode || null, patch.errorMessage || null, patch.nextRetryAt || null, id];
     let ownership = '';
     if (patch.leaseOwner != null) { ownership = ' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)'; params.push(patch.leaseOwner, patch.leaseEpoch); }
-    const result = await this.query(`UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=COALESCE(?,discovered_count), stored_count=COALESCE(?,stored_count), error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=?${ownership}`, params);
+    const result = await this.query(`UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=GREATEST(discovered_count,COALESCE(?,discovered_count)), stored_count=GREATEST(stored_count,COALESCE(?,stored_count)), error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=?${ownership}`, params);
     if (!result.affectedRows) return null;
     return this.getSyncRun(id, { status });
   }
@@ -1658,7 +1818,7 @@ class Repository {
       await conn.beginTransaction();
       const status = patch.status || 'completed_full';
       if (!['completed','completed_full','completed_authorized_scope','partial','failed'].includes(String(status).toLowerCase())) throw repositoryError('INVALID_INPUT', 'site run terminal status is not supported');
-      const [result] = await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=COALESCE(?,discovered_count), stored_count=COALESCE(?,stored_count), error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NOT NULL AND trigger_type='scheduled_site' AND status='running' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, patch.discoveredCount == null ? null : Number(patch.discoveredCount), patch.storedCount == null ? null : Number(patch.storedCount), patch.errorCode || null, patch.errorMessage || null, patch.nextRetryAt || null, id, patch.leaseOwner, patch.leaseEpoch]);
+      const [result] = await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=GREATEST(discovered_count,COALESCE(?,discovered_count)), stored_count=GREATEST(stored_count,COALESCE(?,stored_count)), error_code=?, error_message=?, next_retry_at=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NOT NULL AND trigger_type IN ('scheduled_site','manual') AND status='running' AND lease_owner=? AND lease_epoch=? AND lease_until>UTC_TIMESTAMP(3)", [status, patch.discoveredCount == null ? null : Number(patch.discoveredCount), patch.storedCount == null ? null : Number(patch.storedCount), patch.errorCode || null, patch.errorMessage || null, patch.nextRetryAt || null, id, patch.leaseOwner, patch.leaseEpoch]);
       if (!result.affectedRows) { await conn.rollback(); return null; }
       const [childRows] = await conn.query('SELECT parent_run_id,status FROM po_sync_runs WHERE id=? FOR UPDATE', [id]);
       const parentRunId = childRows[0]?.parent_run_id;
@@ -1681,7 +1841,10 @@ class Repository {
           .filter(Boolean);
         const parentErrorCode = childErrors.length ? (parentStatus === 'partial' ? 'MULTISITE_PARTIAL_FAILURE' : 'MULTISITE_ALL_SITES_FAILED') : null;
         const parentErrorMessage = childErrors.length ? childErrors.join('; ').slice(0, 1000) : null;
-        await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=?, stored_count=?, fetched_count=?, inserted_count=?, changed_count=?, unchanged_count=?, comment_count=?, error_code=?, error_message=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NULL AND status IN ('queued','running')", [parentStatus, totals.discovered, totals.stored, totals.fetched, totals.inserted, totals.changed, totals.unchanged, totals.comments, parentErrorCode, parentErrorMessage, parentRunId]);
+        // A parent can be marked terminal by an earlier scheduler callback before the
+        // last child commits. Re-aggregate terminal parents so the UI never reports
+        // zero additions while child runs contain acknowledged writes.
+        await conn.query("UPDATE po_sync_runs SET status=?, finished_at=UTC_TIMESTAMP(3), discovered_count=?, stored_count=?, fetched_count=?, inserted_count=?, changed_count=?, unchanged_count=?, comment_count=?, error_code=?, error_message=?, lease_owner=NULL, lease_until=NULL, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND parent_run_id IS NULL AND status IN ('queued','running','completed','partial')", [parentStatus, totals.discovered, totals.stored, totals.fetched, totals.inserted, totals.changed, totals.unchanged, totals.comments, parentErrorCode, parentErrorMessage, parentRunId]);
         const [parents] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [parentRunId]);
         parent = parents[0] || null;
       }
@@ -1701,7 +1864,7 @@ class Repository {
     if (!result.affectedRows) return null;
     return this.getSyncRun(id, { status: 'queued' });
   }
-  async listSyncRunContents(runId, { accountId, sourceId, regionCode, gameId, communityId, syncScope = 'posts', after = 0, limit = 50 } = {}) { const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100); const params = [runId, syncScope, Number(after) || 0]; const clauses = ['rc.run_id=?', 'rc.sync_scope=?', 'rc.sequence_no>?']; for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); } if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); } params.push(safeLimit); return this.query(`SELECT rc.sequence_no, rc.change_type, rc.sync_scope, rc.fetched_at, c.id, c.external_id, c.content_type, c.community_id, c.platform_author_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, (SELECT m.feed_key FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS feed_key, (SELECT m.page_kind FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS page_kind, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0) AS comment_count FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id JOIN po_accounts a ON a.id=r.account_id JOIN po_games g ON g.id=a.game_id JOIN po_contents c ON c.id=rc.content_id AND c.account_id=a.id AND c.source_id=a.source_id AND c.game_id=a.game_id AND (c.community_id<=>a.community_id) WHERE ${clauses.join(' AND ')} ORDER BY rc.sequence_no ASC LIMIT ?`, params); }
+  async listSyncRunContents(runId, { accountId, sourceId, regionCode, gameId, communityId, syncScope = 'posts', after = 0, limit = 50 } = {}) { const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100); const children = await this.query('SELECT id FROM po_sync_runs WHERE parent_run_id=?', [runId]); const ids = [runId, ...children.map(child => child.id)]; const params = [...ids, syncScope, Number(after) || 0]; const clauses = [`rc.run_id IN (${ids.map(() => '?').join(',')})`, 'rc.sync_scope=?', 'rc.sequence_no>?']; for (const [value, sql] of [[accountId, 'r.account_id'], [sourceId, 'a.source_id'], [gameId, 'a.game_id'], [communityId, 'a.community_id']]) if (value) { clauses.push(`${sql}=?`); params.push(value); } if (regionCode) { clauses.push('g.region_code=?'); params.push(regionCode); } params.push(safeLimit); return this.query(`SELECT rc.sequence_no, rc.change_type, rc.sync_scope, rc.fetched_at, c.id, c.external_id, c.content_type, c.community_id, c.platform_author_id, c.author_name, c.title, c.body, c.media, c.published_at, c.source_url, (SELECT m.feed_key FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS feed_key, (SELECT m.page_kind FROM po_content_feed_memberships m WHERE m.account_id=a.id AND m.content_id=c.id AND m.last_seen_at<=rc.fetched_at ORDER BY m.last_seen_at DESC LIMIT 1) AS page_kind, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comments')) AS UNSIGNED),CAST(JSON_UNQUOTE(JSON_EXTRACT(c.engagement,'$.comment')) AS UNSIGNED),0) AS comment_count FROM po_sync_run_contents rc JOIN po_sync_runs r ON r.id=rc.run_id JOIN po_accounts a ON a.id=r.account_id JOIN po_games g ON g.id=a.game_id JOIN po_contents c ON c.id=rc.content_id AND c.account_id=a.id AND c.source_id=a.source_id AND c.game_id=a.game_id AND (c.community_id<=>a.community_id) WHERE ${clauses.join(' AND ')} ORDER BY rc.sequence_no ASC LIMIT ?`, params); }
 
   async importContentBatch({ sourceId, accountId, items = [], feeds = [] } = {}) {
     const source = (await this.query('SELECT * FROM po_sources WHERE id=? LIMIT 1', [sourceId]))[0] || null;
@@ -1837,10 +2000,6 @@ class Repository {
         const existingRows = Array.isArray(existingResult[0]) ? existingResult[0] : [];
         const existing = existingRows[0] && existingRows[0].external_id != null ? existingRows[0] : null;
         if (overseas && existing && (existing.account_id !== account.id || existing.game_id !== account.game_id || existing.community_id !== account.community_id)) throw repositoryError('OVERSEAS_CONTENT_SCOPE_CONFLICT', 'existing content scope differs');
-        if (overseas && raw.recoveryContextAncestor && existing) {
-          contents[sourceIndex] = { content: existing, change: 'unchanged' };
-          continue;
-        }
         const rootExternalId = raw.rootPlatformContentId || (syncScope === 'posts' ? null : rootPlatformContentId);
         const parentExternalId = raw.platformParentId || (syncScope === 'comments' ? rootPlatformContentId : null);
         const rootSql = raw.boardId ? 'SELECT id FROM po_contents WHERE source_id=? AND board_key=? AND external_id=? LIMIT 1' : 'SELECT id FROM po_contents WHERE source_id=? AND external_id=? LIMIT 1';
@@ -1849,13 +2008,13 @@ class Repository {
         if (overseas && syncScope === 'comments' && (!rootRow || !parentRow)) throw repositoryError('OVERSEAS_COMMENT_PARENT_MISSING', 'comment ancestry must exist');
         if (overseas && syncScope === 'comments') {
           const expectedBoard = String(raw.rawPayload?._overseasScope?.boardId || raw.boardId || '');
-          for (const row of [rootRow, parentRow]) {
-            const payload = parseJson(row.raw_payload, {});
-            const markers = [row.board_id, payload.boardId, payload._lastNightScope?.boardId, payload._overseasScope?.boardId].filter(value => value != null);
-            if (row.source_id !== account.source_id || row.account_id !== account.id || row.game_id !== account.game_id || row.community_id !== account.community_id
-              || !markers.length || markers.some(value => String(value) !== expectedBoard)) throw repositoryError('OVERSEAS_COMMENT_PARENT_SCOPE_CONFLICT', 'comment ancestry scope differs');
-          }
-          if (rootRow.content_depth !== 0 || (parentRow.id !== rootRow.id && parentRow.root_content_id !== rootRow.id)) throw repositoryError('OVERSEAS_COMMENT_PARENT_SCOPE_CONFLICT', 'comment ancestry graph differs');
+          if (!/^[1-9]\d*$/.test(expectedBoard)) throw repositoryError('OVERSEAS_COMMENT_SCOPE_INVALID', 'comment board is missing');
+          await validateCommentAncestry(conn, { boardId: expectedBoard, sourceId: account.source_id, accountId: account.id,
+            gameId: account.game_id, communityId: account.community_id }, rootRow, parentRow, raw, existing);
+        }
+        if (overseas && raw.recoveryContextAncestor && existing) {
+          contents[sourceIndex] = { content: existing, change: 'unchanged' };
+          continue;
         }
         const contentType = raw.contentType || (syncScope === 'posts' ? 'post' : 'comment');
         const existingRawPayload = parseJson(existing?.raw_payload, null);
@@ -1883,9 +2042,11 @@ class Repository {
             await conn.query('INSERT INTO po_content_feed_memberships (id, account_id, content_id, feed_key, page_kind, section_id, feed_metadata) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE page_kind=VALUES(page_kind), section_id=VALUES(section_id), feed_metadata=VALUES(feed_metadata), last_seen_at=NOW()', [uuid(), account.id, row.id, String(feed.feedKey), feed.pageKind || null, feed.sectionId == null ? null : String(feed.sectionId), JSON.stringify(feed)]);
           }
           if (syncRunId && !(overseas && raw.recoveryContextAncestor)) {
-            const associationResult = await conn.query('INSERT IGNORE INTO po_sync_run_contents (run_id, content_id, change_type, sync_scope) VALUES (?,?,?,?)', [syncRunId, row.id, change, syncScope]);
+            const itemScope = account.platform === 'discord' && raw.contentType === 'comment' ? 'comments' : syncScope;
+            const associationResult = await conn.query('INSERT IGNORE INTO po_sync_run_contents (run_id, content_id, change_type, sync_scope) VALUES (?,?,?,?)', [syncRunId, row.id, change, itemScope]);
             const association = Array.isArray(associationResult) ? associationResult[0] : associationResult;
-            if (association?.affectedRows && syncScope === 'posts') {
+            if (association?.affectedRows && itemScope === 'comments' && account.platform === 'discord') commentCount += 1;
+            if (association?.affectedRows && itemScope === 'posts') {
               fetchedCount += 1;
               if (change === 'inserted') insertedCount += 1;
               else if (change === 'changed') changedCount += 1;
@@ -1913,6 +2074,7 @@ class Repository {
     ({ riskMode, severity, sentiment } = normalizeRiskFilters({ riskMode, severity, sentiment }));
     const values = []; const clauses = [];
     this.addRiskModeFilter(clauses, values, riskMode, 'an');
+    if (!riskMode && severity === 'urgent') clauses.push(reviewedUrgentSql('an'));
     ContentHandling.addHandlingStatusFilter(clauses, handlingStatus, 'an');
     const kindPredicate = bigPlayerContentKindPredicate(bigPlayerContentKind);
     if (kindPredicate) clauses.push(kindPredicate);
@@ -1933,9 +2095,24 @@ class Repository {
       ? 'c.published_at IS NULL, c.published_at DESC, c.id DESC'
       : 'COALESCE(c.root_content_id,c.id), c.content_depth, c.published_at IS NULL, c.published_at DESC';
     const translationVersion = process.env.AI_TRANSLATION_VERSION || 'translation-v1';
-    return this.query(`SELECT c.*, a.account_name, s.platform, s.display_name AS source_name, g.region_code,
+    // Canonical community scope also supplies gameId. Without a fixed contents
+    // driver MariaDB starts from sources and scans collected history before
+    // applying the publication window, then sorts large translated content rows.
+    const treeDateIndex = !rootContentId && !postId && (publishedFrom || publishedTo)
+      ? (communityId ? 'po_contents_community_page_idx' : sourceId ? 'po_contents_source_time_idx' : accountId ? 'po_contents_account_time_idx' : gameId ? 'po_contents_game_time_idx' : 'po_contents_published_time_idx')
+      : null;
+    const treePageFirst = Boolean(treeDateIndex && contentType);
+    const treeCoveredFilter = treePageFirst && !analysisStatus;
+    const treePageClauses = treeCoveredFilter ? clauses.map(clause => clause.replaceAll('an.sentiment', 'tree_analysis.sentiment').replaceAll('an.severity', 'tree_analysis.severity').replaceAll('an.content_id IS NULL', 'tree_analysis.content_id IS NULL')) : clauses;
+    const treeFilterAnalysis = treeCoveredFilter
+      ? (riskMode || severity || sentiment || handlingStatus ? " LEFT JOIN po_analyses tree_analysis FORCE INDEX (po_analyses_sentiment_cover_idx) ON tree_analysis.content_id=c.id LEFT JOIN po_analyses an ON an.content_id=CASE WHEN tree_analysis.severity='urgent' THEN tree_analysis.content_id ELSE NULL END" : '')
+      : ' LEFT JOIN po_analyses an ON an.content_id=c.id';
+    const treePageFrom = treePageFirst
+      ? `FROM (SELECT c.id FROM po_contents c FORCE INDEX (${treeDateIndex}) STRAIGHT_JOIN po_sources s ON s.id=c.source_id STRAIGHT_JOIN po_games g ON g.id=c.game_id${treeFilterAnalysis}${analysisStatus ? " LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile=COALESCE(an.analysis_level,'light') AND j.analysis_version=COALESCE(an.analysis_version,?)" : ''} ${treePageClauses.length ? `WHERE ${treePageClauses.join(' AND ')}` : ''} ORDER BY ${orderBy} LIMIT ? OFFSET ?) tree_page STRAIGHT_JOIN po_contents c ON c.id=tree_page.id`
+      : `FROM po_contents c${treeDateIndex ? ` FORCE INDEX (${treeDateIndex})` : ''}`;
+    return this.query(`SELECT ${treeDateIndex ? 'STRAIGHT_JOIN ' : ''}c.*, a.account_name, s.platform, s.display_name AS source_name, g.region_code,
       an.sentiment, an.negative_score, an.confidence, an.quality_score, an.recommend_home, an.recommend_pin, an.recommend_feature, an.quality_reason, an.severity, an.topics, an.matched_keywords, an.summary,
-      an.model_name, an.analysis_level, an.analysis_version, an.trigger_reason, ${analysisReasonSql('an')}, ${sentimentScoreSql('an')}, an.analyzed_at,
+      an.model_name, an.analysis_level, an.analysis_version, an.trigger_reason, ${analysisReasonSql('an')}, ${sentimentScoreSql('an')}, ${urgentReviewSql('an')}, an.analyzed_at,
       COALESCE(j.status,CASE WHEN an.content_id IS NOT NULL THEN 'completed' ELSE 'unclassified' END) AS analysis_status,
       j.error_code AS analysis_error_code, j.error_message AS analysis_error_message,
       CASE WHEN g.region_code='overseas' THEN COALESCE(tj.status,CASE WHEN tr.content_id IS NOT NULL AND tr.content_fingerprint=c.fingerprint THEN 'completed' ELSE 'not_requested' END) ELSE 'not_requested' END AS translation_status,
@@ -1946,17 +2123,27 @@ class Repository {
       CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.translation_version ELSE NULL END AS translation_version,
       CASE WHEN g.region_code='overseas' AND tr.content_fingerprint=c.fingerprint THEN tr.translated_at ELSE NULL END AS translated_at,
       CASE WHEN g.region_code='overseas' THEN tj.error_code ELSE NULL END AS translation_error_code,
-      CASE WHEN c.content_type='post' THEN (SELECT COUNT(*) FROM po_contents tc WHERE tc.root_content_id=c.id AND tc.content_type='comment' AND tc.content_depth=1 AND tc.is_deleted=0) ELSE 0 END AS top_level_comment_count,
-      CASE WHEN c.content_type='post' THEN (SELECT COUNT(*) FROM po_contents rc WHERE rc.root_content_id=c.id AND rc.content_type='comment' AND rc.content_depth>1 AND rc.is_deleted=0) ELSE 0 END AS reply_count,
-      ${totalCommentCountSql('c', 'ac')} AS comment_count,
-      ${totalCommentCountSql('c', 'tac')} AS total_comment_count
-      FROM po_contents c LEFT JOIN po_accounts a ON a.id=c.account_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id
+      0 AS top_level_comment_count, 0 AS reply_count, 0 AS comment_count, 0 AS total_comment_count
+      ${treePageFrom} LEFT JOIN po_accounts a ON a.id=c.account_id JOIN po_sources s ON s.id=c.source_id JOIN po_games g ON g.id=c.game_id
       LEFT JOIN po_analyses an ON an.content_id=c.id
       LEFT JOIN po_analysis_jobs j ON j.content_id=c.id AND j.analysis_profile=COALESCE(an.analysis_level,'light') AND j.analysis_version=COALESCE(an.analysis_version,?)
       LEFT JOIN po_content_translations tr ON tr.content_id=c.id AND tr.target_language='zh-CN' AND tr.translation_version=? AND tr.content_fingerprint=c.fingerprint
       LEFT JOIN po_translation_jobs tj ON tj.content_id=c.id AND tj.target_language='zh-CN' AND tj.translation_version=? AND tj.content_fingerprint=c.fingerprint
-      ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-      ORDER BY ${orderBy} LIMIT ? OFFSET ?`, [lightVersion, translationVersion, translationVersion, ...values, limit, offset]).then(rows => rows.map(row => ({ ...row, display_type: contentDisplayType(row) })));
+      ${!treePageFirst && clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+      ORDER BY ${orderBy}${treePageFirst ? '' : ' LIMIT ? OFFSET ?'}`, treePageFirst ? [...(analysisStatus ? [lightVersion] : []), ...values, limit, offset, lightVersion, translationVersion, translationVersion] : [lightVersion, translationVersion, translationVersion, ...values, limit, offset]).then(rows => this.withPageCommentCounts(rows));
+  }
+  async withPageCommentCounts(rows) {
+    const ids = rows.filter(row => row.content_type === 'post').map(row => row.id);
+    const counts = ids.length ? await this.query(`SELECT root_content_id,COUNT(*) AS total,SUM(content_depth=1) AS top_level,SUM(content_depth>1) AS replies FROM po_contents FORCE INDEX (po_contents_comment_count_idx) WHERE root_content_id IN (${ids.map(() => '?').join(',')}) AND content_type='comment' AND is_deleted=0 GROUP BY root_content_id`, ids) : [];
+    const byId = new Map(counts.map(row => [row.root_content_id, row]));
+    return rows.map(row => {
+      const count = byId.get(row.id);let engagement = row.engagement;
+      if (typeof engagement === 'string') { try { engagement = JSON.parse(engagement); } catch { engagement = {}; } }
+      const remote = Number(engagement?.comments ?? engagement?.comment ?? 0) || 0;
+      const total = row.content_type === 'post' ? Math.max(Number(count?.total) || 0, remote) : 0;
+      // The original SQL GREATEST/unsigned expression is returned as a string.
+      return { ...row, top_level_comment_count: Number(count?.top_level) || 0, reply_count: Number(count?.replies) || 0, comment_count: String(total), total_comment_count: String(total), display_type: contentDisplayType(row) };
+    });
   }
   async getContentTree(rootContentId, options = {}) { return this.listContentTree({ ...options, rootContentId, page: 1, pageSize: options.pageSize || 1000 }); }
 
@@ -2034,7 +2221,19 @@ class Repository {
   // 创建告警 + 关联内容（单事务：告警主体 + 命中内容多对多）
   async insertAlert({ gameId, communityId, severity, alertType, title, triggerDetail, contentIds = [] }) {
     const id = uuid();
+    const validateLinks = async query => {
+      if (severity !== 'urgent') return;
+      const ids = [...new Set(contentIds.filter(Boolean))];
+      if (!ids.length) throw repositoryError('URGENT_REVIEW_REQUIRED', 'urgent alert requires reviewed content');
+      for (const contentId of ids) {
+        const rows = await query('SELECT a.*, c.title, c.body, c.media, c.content_type, c.game_id, c.community_id, c.fingerprint FROM po_contents c JOIN po_analyses a ON a.content_id=c.id WHERE c.id=? AND c.is_deleted=0 FOR UPDATE', [contentId]);
+        const row = rows[0];
+        if (!row || row.severity !== 'urgent' || row.content_fingerprint !== row.fingerprint || String(row.game_id) !== String(gameId) || String(row.community_id) !== String(communityId)) throw repositoryError('URGENT_REVIEW_REQUIRED', 'urgent alert requires reviewed content in the same scope');
+        if (normalizeAnalysisResult(row, row).severity !== 'urgent') throw repositoryError('URGENT_REVIEW_REQUIRED', 'current analysis does not qualify as a reviewed urgent result');
+      }
+    };
     if (typeof this.pool.getConnection !== 'function') {
+      await validateLinks((sql, values) => this.query(sql, values));
       if (communityId) await this.query('INSERT INTO po_alerts (id, game_id, community_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?,?)', [id, gameId, communityId, severity, alertType, title, triggerDetail]);
       else await this.query('INSERT INTO po_alerts (id, game_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?)', [id, gameId, severity, alertType, title, triggerDetail]);
       for (const contentId of [...new Set(contentIds.filter(Boolean))]) await this.query('INSERT IGNORE INTO po_alert_contents (alert_id, content_id) VALUES (?,?)', [id, contentId]);
@@ -2043,6 +2242,7 @@ class Repository {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
+      await validateLinks(async (sql, values) => (await conn.query(sql, values))[0]);
       if (communityId) await conn.query('INSERT INTO po_alerts (id, game_id, community_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?,?)', [id, gameId, communityId, severity, alertType, title, triggerDetail]);
       else await conn.query('INSERT INTO po_alerts (id, game_id, severity, alert_type, title, trigger_detail) VALUES (?,?,?,?,?,?)', [id, gameId, severity, alertType, title, triggerDetail]);
       for (const contentId of [...new Set(contentIds.filter(Boolean))]) await conn.query('INSERT IGNORE INTO po_alert_contents (alert_id, content_id) VALUES (?,?)', [id, contentId]);
@@ -2050,7 +2250,21 @@ class Repository {
     } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
     return (await this.query('SELECT * FROM po_alerts WHERE id=?', [id]))[0];
   }
-  async linkAlertContent(alertId, contentId) { await this.query('INSERT IGNORE INTO po_alert_contents (alert_id, content_id) VALUES (?,?)', [alertId, contentId]); }
+  async linkAlertContent(alertId, contentId) {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[alert]] = await conn.query('SELECT game_id, community_id, severity, status FROM po_alerts WHERE id=? FOR UPDATE', [alertId]);
+      if (!alert) throw repositoryError('NOT_FOUND', 'alert not found');
+      if (alert.severity === 'urgent' && ['pending', 'processing'].includes(alert.status)) {
+        const [[row]] = await conn.query('SELECT a.*, c.title, c.body, c.media, c.content_type, c.game_id, c.community_id, c.fingerprint FROM po_contents c JOIN po_analyses a ON a.content_id=c.id WHERE c.id=? AND c.is_deleted=0 FOR UPDATE', [contentId]);
+        if (!row || row.severity !== 'urgent' || row.content_fingerprint !== row.fingerprint || String(row.game_id) !== String(alert.game_id) || String(row.community_id) !== String(alert.community_id)) throw repositoryError('URGENT_REVIEW_REQUIRED', 'urgent link requires reviewed content in the same scope');
+        if (normalizeAnalysisResult(row, row).severity !== 'urgent') throw repositoryError('URGENT_REVIEW_REQUIRED', 'current analysis does not qualify as a reviewed urgent result');
+      }
+      await conn.query('INSERT IGNORE INTO po_alert_contents (alert_id, content_id) VALUES (?,?)', [alertId, contentId]);
+      await conn.commit();
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+  }
 
   // 回写钉钉推送状态（幂等：sent/failed/not_sent）
   async updateDingStatus(alertId, status) { await this.query('UPDATE po_alerts SET ding_talk_status=? WHERE id=?', [status, alertId]); }
@@ -2289,12 +2503,12 @@ class Repository {
       const appendFields = optionalFields.length ? ', ' + optionalFields.join(', ') : '';
       const appendValues = optionalFields.map(() => ',?').join('');
       const parentMetadata = { community_id: boardId ? source.community_id : null, board_id: boardId, run_scope: boardId ? 'collection' : null, board_run_identity: identity };
-      await conn.query(`INSERT INTO po_sync_runs (id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at${appendFields}) VALUES (?,?,?,'manual','queued',?,NULL,?,?,NULL${appendValues})`, [runId, source.id, account.id, syncMode, boundedWindow?.windowStart || null, boundedWindow?.windowEnd || null, ...optionalFields.map(name => parentMetadata[name])]);
+      await conn.query(`INSERT INTO po_sync_runs (created_at,requested_at,id, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at${appendFields}) VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,'manual','queued',?,NULL,?,?,NULL${appendValues})`, [runId, source.id, account.id, syncMode, boundedWindow?.windowStart || null, boundedWindow?.windowEnd || null, ...optionalFields.map(name => parentMetadata[name])]);
       for (const site of multiSites) {
         const childWindow = siteWindows.get(site.siteId) || boundedWindow;
         const childIdentity = boardRunIdentity({ sourceId: source.id, communityId: source.community_id, boardId, scope: 'site', siteId: site.siteId, windowStart: childWindow?.windowStart, windowEnd: childWindow?.windowEnd });
         const childMetadata = { community_id: source.community_id, board_id: boardId, run_scope: 'site', board_run_identity: childIdentity };
-        await conn.query(`INSERT INTO po_sync_runs (id, parent_run_id, site_id, site_url_snapshot, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at${appendFields}) VALUES (?,?,?,?,?,?,?,'queued',?,NULL,?,?,NULL${appendValues})`, [uuid(), runId, site.siteId, site.url, source.id, account.id, 'scheduled_site', syncMode, childWindow?.windowStart || null, childWindow?.windowEnd || null, ...optionalFields.map(name => childMetadata[name])]);
+        await conn.query(`INSERT INTO po_sync_runs (created_at,requested_at,id, parent_run_id, site_id, site_url_snapshot, source_id, account_id, trigger_type, status, sync_mode, scheduled_at, window_start, window_end, started_at${appendFields}) VALUES (UTC_TIMESTAMP(3),UTC_TIMESTAMP(3),?,?,?,?,?,?,?,'queued',?,NULL,?,?,NULL${appendValues})`, [uuid(), runId, site.siteId, site.url, source.id, account.id, 'scheduled_site', syncMode, childWindow?.windowStart || null, childWindow?.windowEnd || null, ...optionalFields.map(name => childMetadata[name])]);
       }
       const [runRows] = await conn.query('SELECT * FROM po_sync_runs WHERE id=?', [runId]);
       await conn.commit();
@@ -2363,7 +2577,7 @@ class Repository {
   }
 
   // 新增采集源与默认账号使用同一事务，避免 OAuth 源创建后没有可授权账号。
-  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, siteUrls, startPaths, editionScope, board, boardId, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, scheduleTime, frequencySeconds = 21600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
+  async createSourceWithAccount({ gameId, communityId, platform, sourceType = 'owned_community', displayName, baseUrl, siteUrls, startPaths, editionScope, board, boardId, postsApiUrl, commentsApiUrl, accountIds, groupIds, discordConfig, collectionMode, scheduleTime, frequencySeconds = 21600, activeWindow, sourceId = uuid(), accountId = uuid(), platformAccountId, accountName, accountType = 'official', sourceEnabled = false, accountEnabled = true, authStatus = 'unconfigured', maskedLoginIdentifier, metadata = {}, credentialType, secretCipher } = {}) {
     const normalizedSites = platform === 'bigplayer_h5' && Array.isArray(siteUrls) ? normalizeSiteUrls({ siteUrls }) : null;
     const config = {
       baseUrl: normalizedSites?.baseUrl || baseUrl || '',
@@ -2377,6 +2591,7 @@ class Repository {
       ...(Array.isArray(accountIds) && accountIds.length ? { accountIds } : {}),
       ...(Array.isArray(groupIds) && groupIds.length ? { groupIds } : {}),
       ...(discordConfig && typeof discordConfig === 'object' ? discordConfig : {}),
+      ...(platform === 'facebook' && collectionMode === 'browser' ? { collectionMode: 'browser' } : {}),
       ...(scheduleTime ? { scheduleTime } : {})
     };
     const identity = platformAccountId || `pending:${accountId}`;
@@ -2498,7 +2713,7 @@ class Repository {
   }
 
   // H5 配置与账号元数据、凭据必须原子提交；凭据为空时保留已有凭据。
-  async updateSourceConfiguration(sourceId, { displayName, baseUrl, siteUrls, boardId, frequencySeconds, syncMode, historyStart, enabled, credential, credentialCipher, accountIds, groupIds, discordConfig, scheduleTime } = {}) {
+  async updateSourceConfiguration(sourceId, { displayName, baseUrl, siteUrls, boardId, frequencySeconds, syncMode, historyStart, enabled, credential, credentialCipher, accountIds, groupIds, discordConfig, scheduleTime, authMode } = {}) {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -2515,12 +2730,18 @@ class Repository {
       const targetChanged = facebookTargetChanged(source, baseUrl);
       await conn.query('UPDATE po_sources SET display_name=?, enabled=?, frequency_seconds=?, config=?, updated_at=NOW() WHERE id=?', [displayName, targetChanged ? 0 : (enabled === undefined ? source.enabled : enabled ? 1 : 0), Number(frequencySeconds), JSON.stringify(nextConfig), sourceId]);
       if (normalizedSites) await reconcileBigPlayerSourceSites(conn, sourceId, normalizedSites.siteUrls);
-      const metadata = { ...accountMetadata, ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }) };
+      const metadata = { ...accountMetadata, ...(syncMode === undefined ? {} : { syncMode }), ...(historyStart === undefined ? {} : { historyStart: historyStart || null }), ...(source.platform === 'bigplayer_h5' && (credentialCipher || authMode) ? { bigplayerAuthMode: authMode || credential.credentialType } : {}) };
       await conn.query('UPDATE po_accounts SET metadata=?, updated_at=NOW() WHERE id=?', [JSON.stringify(metadata), account.id]);
       if (credentialCipher) {
         await conn.query(`INSERT INTO po_credentials (id, account_id, source_id, credential_type, secret_ref, secret_cipher, status)
           VALUES (?,?,?,?,?,?, 'active')
           ON DUPLICATE KEY UPDATE secret_cipher=VALUES(secret_cipher), secret_ref='', status='active', failure_reason=NULL, last_checked_at=NOW(), updated_at=NOW()`, [uuid(), account.id, sourceId, credential.credentialType, '', credentialCipher]);
+        if (source.platform === 'bigplayer_h5' && credential.credentialType === 'api_token' && credential.expireAt) {
+          const expires = new Date(credential.expireAt);
+          await conn.query("UPDATE po_credentials SET expire_at=? WHERE account_id=? AND credential_type='api_token'", [expires, account.id]);
+          await conn.query("UPDATE po_accounts SET auth_expire_at=? WHERE id=?", [expires, account.id]);
+          await conn.query("UPDATE po_sources SET auth_expire_at=? WHERE id=?", [expires, sourceId]);
+        }
       }
       if (targetChanged) await invalidateFacebookTarget(conn, sourceId, account);
       else if (source.platform === 'facebook' && credentialCipher) await invalidateFacebookCredential(conn, sourceId, account);
@@ -2573,6 +2794,30 @@ class Repository {
     } catch (error) { await conn.rollback(); throw error; }
     finally { conn.release(); }
     return this.listKeywordRulesRaw(gameId, communityId, platform);
+  }
+  async getAiAnalysisPolicy(gameId, communityId) {
+    const game = await this.getGame(gameId);
+    let policy = game?.ai_analysis_policy;
+    if (typeof policy === 'string') { try { policy = JSON.parse(policy); } catch { policy = null; } }
+    return normalizeAiAnalysisPolicy(policy?.communities?.[communityId] || policy?.defaults || policy);
+  }
+
+  async updateAiAnalysisPolicy(gameId, communityId, policy) {
+    const normalized = normalizeAiAnalysisPolicy(policy, { strict: true });
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [rows] = await conn.query('SELECT ai_analysis_policy FROM po_games WHERE id=? FOR UPDATE', [gameId]);
+      if (!rows.length) throw repositoryError('COMMUNITY_NOT_FOUND', '社区所属游戏不存在');
+      let existing = rows[0].ai_analysis_policy;
+      if (typeof existing === 'string') existing = JSON.parse(existing);
+      const stored = { version: 1, defaults: normalizeAiAnalysisPolicy(existing?.defaults || existing), communities: { ...existing?.communities, [communityId]: normalized } };
+      await conn.query('UPDATE po_games SET ai_analysis_policy=?, updated_at=NOW() WHERE id=?', [JSON.stringify(stored), gameId]);
+      await conn.query('INSERT INTO po_audit_events (id,game_id,actor_type,event_type,outcome,detail) VALUES (?,?,?,?,?,?)', [uuid(), gameId, 'user', 'ai_analysis_policy_updated', 'success', JSON.stringify({ communityId, policy: normalized })]);
+      await conn.commit();
+      return normalized;
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
   }
 }
 module.exports = { Repository, uuid, isWithinActiveWindow, normalizeQualityCandidate, normalizeAlertWithIndependentReviews, effectiveBigPlayerWindow };

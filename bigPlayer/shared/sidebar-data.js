@@ -313,12 +313,13 @@ const SIDEBAR_DATA = [
     type: 'group',
     label: '舆情管理',
     children: [
-      { type: 'item', label: '舆情数据概览', href: 'admin/PublicOpinion/index.html' },
-      { type: 'item', label: '抓取内容管理', href: 'admin/PublicOpinion/content.html' },
+      { type: 'item', label: '数据概览', href: 'admin/PublicOpinion/index.html' },
       { type: 'item', label: '舆情通知管理', href: 'admin/PublicOpinion/alerts.html' },
+      { type: 'item', label: '抓取内容管理', href: 'admin/PublicOpinion/content.html' },
+      { type: 'item', label: '单帖抓取分析', href: 'admin/PublicOpinion/single-post-analysis.html' },
       { type: 'item', label: '抓取账号管理', href: 'admin/PublicOpinion/sources.html' },
       { type: 'item', label: '抓取任务记录', href: 'admin/PublicOpinion/collection-runs.html' },
-      { type: 'item', label: '监控关键词设置', href: 'admin/PublicOpinion/keywords.html' }
+      { type: 'item', label: 'AI分析管理', href: 'admin/PublicOpinion/keywords.html' }
     ]
   }
 ];
@@ -327,16 +328,23 @@ const SIDEBAR_DATA = [
 const PUBLIC_OPINION_SIDEBAR_DATA = [
   {
     type: 'group', label: '分析', children: [
-      { type: 'item', label: '舆情数据概览', href: 'admin/PublicOpinion/index.html', icon: 'overview' },
+      { type: 'item', label: '数据概览', href: 'admin/PublicOpinion/index.html', icon: 'overview' },
+      { type: 'item', label: '舆情通知管理', href: 'admin/PublicOpinion/alerts.html', icon: 'alerts' },
       { type: 'item', label: '抓取内容管理', href: 'admin/PublicOpinion/content.html', icon: 'content' },
-      { type: 'item', label: '舆情通知管理', href: 'admin/PublicOpinion/alerts.html', icon: 'alerts' }
+      { type: 'item', label: '单帖抓取分析', href: 'admin/PublicOpinion/single-post-analysis.html', icon: 'keywords' }
     ]
   },
   {
     type: 'group', label: '采集', children: [
       { type: 'item', label: '抓取账号管理', href: 'admin/PublicOpinion/sources.html', icon: 'sources' },
       { type: 'item', label: '抓取任务记录', href: 'admin/PublicOpinion/collection-runs.html', icon: 'runs' },
-      { type: 'item', label: '监控关键词设置', href: 'admin/PublicOpinion/keywords.html', icon: 'keywords' }
+      { type: 'item', label: 'AI分析管理', href: 'admin/PublicOpinion/keywords.html', icon: 'keywords' },
+      { type: 'item', label: 'API配置', href: 'admin/PublicOpinion/api-config.html', icon: 'api', global: true, adminOnly: true }
+    ]
+  },
+  {
+    type: 'group', label: '权限', children: [
+      { type: 'item', label: '权限管理', href: 'admin/PublicOpinion/permissions.html', icon: 'permissions' }
     ]
   }
 ];
