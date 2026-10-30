@@ -24,15 +24,23 @@
  function extractPosition(text){
   const lead=stripDate(firstSentence(text),dateInfo(text).raw).replace(/\s+/g,'');
   // 保留机构及并列职务，到首个主职务结束，不把姓名、动作或参会名单带入。
-  const role=/(?:副局长|局长|副市长|市长|副区长|区长|副县长|县长|副书记|书记|副主任|主任|副科长|科长|副处长|处长)/.exec(lead);
+  const role=/(?:[一二三四]级调研员|[一二]级巡视员|[一二三四]级主任科员|副局长|局长|副市长|市长|副区长|区长|副县长|县长|副书记|书记|副主任|主任|副科长|科长|副处长|处长)/.exec(lead);
   if(!role)return '未识别（待确认）';
   const prefix=lead.slice(0,role.index+role[0].length);
-  if(prefix.length>65||/带队|走访|调研|参加|陪同|出席|召开|主持/.test(prefix))return role[0]+'（单位待确认）';
+  if(prefix.length>65||/带队|走访|调研(?!员)|参加|陪同|出席|召开|主持/.test(prefix))return role[0]+'（单位待确认）';
   return prefix.replace(/^(?:由我局|我局邀请|由)/,'');
  }
  function extractLevel(text){
   // 只判断首个活动句中的领导，避免把参会名单或后文市区要求当成带队领导。
   const lead=extractPosition(text);
+  // 用户指定的整理标签：调研员等非领导职务按所属机构地域，不推算法定行政级别。
+  if(/调研员|巡视员|主任科员/.test(lead)){
+   if(/区/.test(lead))return '区级';
+   if(/县/.test(lead))return '县级';
+   if(/市/.test(lead))return '市级';
+   if(/省/.test(lead))return '省级';
+   return '待确认';
+  }
   const roles=[
    [/市委(?:副)?书记|(?:副)?市长/,'市级'],
    [/区委(?:副)?书记|(?:副)?区长/,'区级'],
