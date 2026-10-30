@@ -1,5 +1,11 @@
 const assert=require('node:assert/strict');
 const {analyze}=require('../../../tools/dynamic-workbench/local-analyzer.js');
+const researcher=analyze('10月28日下午，区人力资源局三级调研员余某走访企业，开展助企服务。');
+assert.equal(researcher.position,'区人力资源局三级调研员');
+assert.equal(researcher.level,'区级');
+assert.equal(analyze('10月28日，市人力资源局二级调研员张某走访企业。').level,'市级');
+assert.equal(analyze('10月28日，区人力资源局副局长张某走访企业。').level,'局级');
+assert.equal(analyze('10月28日，区人力资源局一级主任科员张某走访企业。').position,'区人力资源局一级主任科员');
 const cases=[
  ['10月28日下午，区政府党组成员、副区长陶梦媛同志主持召开观湖街道根治欠薪专题督导会议，区人力资源局、区住房和建设局分管负责同志，观湖街道主要及分管负责同志参会。\n    会议听取了观湖街道2026年以来欠薪治理工作开展情况，区人力资源局、区住建局通报相关工作数据与目标任务，梦媛同志对后续工作作出部署安排。','区政府召开观湖街道根治欠薪专题督导会议'],
  ['10月28日下午，龙华区政府副区长张某主持召开校园安全专项督导会议，相关部门参会。会议要求落实整改。','龙华区政府召开校园安全专项督导会议'],
